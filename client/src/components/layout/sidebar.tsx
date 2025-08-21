@@ -34,7 +34,7 @@ export function Sidebar() {
           <img 
             src="/assets/taska-logo.png"
             alt="Taska Logo"
-            className="w-11 h-11 object-contain"
+            className="w-13 h-13 object-contain"
           />
         </div>
         

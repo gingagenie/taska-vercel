@@ -1,0 +1,221 @@
+You are updating this project to “Taska 2.0”. Do everything below without using a terminal:
+
+A. App identity & config
+
+Create src/config.ts with exactly:
+
+export const APP_NAME = "Taska";
+export const ORG_NAME = "Taska Demo Org";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+export const DEMO_MODE = false;
+
+
+In the project settings → Environment variables, add VITE_API_BASE_URL set to the backend URL for this Replit (e.g. https://<this-repl>.repl.co).
+
+Find and replace across the codebase:
+
+ServicePro → Taska
+
+Acme Field Services → Taska Demo Org
+Leave icons/styles alone.
+
+B. Backend wiring (Express + Drizzle, no shell)
+
+Create/overwrite src/db/client.ts with:
+
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }});
+export const db = drizzle(pool);
+
+
+Create/overwrite src/middleware/auth.ts:
+
+import type { Request, Response, NextFunction } from "express";
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const userId = (req.headers["x-user-id"] as string) || null;
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  (req as any).user = { id: userId };
+  next();
+}
+
+
+Create/overwrite src/middleware/tenancy.ts:
+
+import type { Request, Response, NextFunction } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+export function requireOrg(req: Request, res: Response, next: NextFunction) {
+  const orgId = (req as any).user?.orgId || (req.headers["x-org-id"] as string) || (req.query.orgId as string);
+  if (!orgId) return res.status(400).json({ error: "No organization in session" });
+  (req as any).orgId = orgId; next();
+}
+export async function requirePro(req: Request, res: Response, next: NextFunction) {
+  const orgId = (req as any).orgId as string;
+  try {
+    const r:any = await db.execute(sql`select active from entitlements where org_id=${orgId}::uuid`);
+    if (!r.rows?.[0]?.active) return res.status(402).json({ error: "Upgrade required" });
+    next();
+  } catch { return res.status(500).json({ error: "Entitlement check failed" }); }
+}
+export function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.headers["x-super-admin"] === "1") return next();
+  return res.status(403).json({ error: "Super admin only" });
+}
+
+
+Create/overwrite src/routes/health.ts:
+
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+export const health = Router();
+const REQUIRED = ["organisations","users","memberships","teams","team_members","customers","equipment","jobs","job_assignments","job_equipment","entitlements","quotes","invoices"];
+health.get("/db", async (_req, res) => {
+  try {
+    const missing:string[] = [];
+    for (const t of REQUIRED) {
+      const r = await db.execute(sql`select to_regclass('public.${sql.raw(t)}') as reg;`);
+      // @ts-ignore
+      if (!r.rows?.[0]?.reg) missing.push(t);
+    }
+    if (missing.length) return res.status(500).json({ ok:false, missing });
+    res.json({ ok:true });
+  } catch (e:any) { res.status(500).json({ ok:false, error:String(e) }); }
+});
+health.get("/", (_req,res)=>res.json({ ok:true, ts:new Date().toISOString() }));
+
+
+Create/overwrite the API routes exactly with these endpoints:
+
+src/routes/customers.ts
+
+import { Router } from "express"; import { db } from "../db/client"; import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth"; import { requireOrg } from "../middleware/tenancy";
+export const customers = Router();
+customers.get("/", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId;
+  const r:any = await db.execute(sql`select id,name,email,phone,address from customers where org_id=${orgId}::uuid order by name asc`);
+  res.json(r.rows);
+});
+customers.post("/", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId; const {name,email,phone,address}=req.body||{};
+  if(!name) return res.status(400).json({error:"name required"});
+  const r:any = await db.execute(sql`insert into customers (org_id,name,email,phone,address) values (${orgId}::uuid,${name},${email||null},${phone||null},${address||null}) returning id`);
+  res.json({ ok:true, id:r.rows[0].id });
+});
+
+
+src/routes/equipment.ts
+
+import { Router } from "express"; import { db } from "../db/client"; import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth"; import { requireOrg } from "../middleware/tenancy";
+export const equipment = Router();
+equipment.get("/", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId;
+  const r:any = await db.execute(sql`select id,name,make,model,serial,customer_id from equipment where org_id=${orgId}::uuid order by name asc`);
+  res.json(r.rows);
+});
+equipment.post("/", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId; const {name,make,model,serial,customerId}=req.body||{};
+  if(!name) return res.status(400).json({error:"name required"});
+  const r:any = await db.execute(sql`insert into equipment (org_id,customer_id,name,make,model,serial) values (${orgId}::uuid,${customerId||null},${name},${make||null},${model||null},${serial||null}) returning id`);
+  res.json({ ok:true, id:r.rows[0].id });
+});
+
+
+src/routes/teams.ts
+
+import { Router } from "express"; import { db } from "../db/client"; import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth"; import { requireOrg } from "../middleware/tenancy";
+export const teams = Router();
+teams.get("/", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId;
+  const r:any = await db.execute(sql`select id,name from teams where org_id=${orgId}::uuid order by created_at asc`);
+  res.json(r.rows);
+});
+teams.post("/add-member", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId; const { email,name,teamId } = req.body||{};
+  if(!email||!name) return res.status(400).json({ error:"email and name required" });
+  await db.execute(sql`insert into users (email,name) values (${email},${name}) on conflict (email) do nothing;`);
+  await db.execute(sql`insert into memberships (user_id,org_id,role) select id,${orgId}::uuid,'member' from users where email=${email} on conflict do nothing;`);
+  if (teamId) await db.execute(sql`insert into team_members (team_id,user_id) select ${teamId}::uuid,id from users where email=${email} on conflict do nothing;`);
+  res.json({ ok:true });
+});
+
+
+src/routes/jobs.ts
+
+import { Router } from "express"; import { db } from "../db/client"; import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth"; import { requireOrg } from "../middleware/tenancy";
+export const jobs = Router();
+jobs.get("/", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId;
+  const r:any = await db.execute(sql`select id,title,status,scheduled_at,customer_id from jobs where org_id=${orgId}::uuid order by created_at desc`);
+  res.json(r.rows);
+});
+jobs.get("/customers", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId;
+  const r:any = await db.execute(sql`select id,name from customers where org_id=${orgId}::uuid order by name asc`);
+  res.json(r.rows);
+});
+jobs.get("/equipment", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId;
+  const r:any = await db.execute(sql`select id,name from equipment where org_id=${orgId}::uuid order by name asc`);
+  res.json(r.rows);
+});
+jobs.post("/create", requireAuth, requireOrg, async (req,res)=> {
+  const orgId = (req as any).orgId; const userId = (req as any).user?.id || null;
+  const { title, description, customerId, scheduledAt } = req.body||{};
+  if(!title) return res.status(400).json({ error:"title required" });
+  const r:any = await db.execute(sql`insert into jobs (org_id,customer_id,title,description,scheduled_at,status,created_by) values (${orgId}::uuid,${customerId||null},${title},${description||null},${scheduledAt||null},'new',${userId||null}) returning id`);
+  res.json({ ok:true, id:r.rows[0].id });
+});
+jobs.post("/:jobId/assign/tech", requireAuth, requireOrg, async (req,res)=> {
+  const { jobId } = req.params; const { userId } = req.body||{};
+  if(!userId) return res.status(400).json({ error:"userId required" });
+  await db.execute(sql`insert into job_assignments (job_id,user_id) values (${jobId}::uuid,${userId}::uuid) on conflict do nothing;`);
+  res.json({ ok:true });
+});
+jobs.post("/:jobId/assign/equipment", requireAuth, requireOrg, async (req,res)=> {
+  const { jobId } = req.params; const { equipmentId } = req.body||{};
+  if(!equipmentId) return res.status(400).json({ error:"equipmentId required" });
+  await db.execute(sql`insert into job_equipment (job_id,equipment_id) values (${jobId}::uuid,${equipmentId}::uuid) on conflict do nothing;`);
+  res.json({ ok:true });
+});
+
+
+src/routes/quotes.ts and src/routes/invoices.ts as simple stubs (respond 501 for now) or paste the full versions you already prepared.
+
+Ensure src/server.ts mounts these routes:
+
+import express from "express"; import cors from "cors";
+import { health } from "./routes/health"; import { customers } from "./routes/customers";
+import { equipment } from "./routes/equipment"; import { teams } from "./routes/teams";
+import { jobs } from "./routes/jobs"; // add quotes/invoices later if enabled
+const app = express(); app.use(cors()); app.use(express.json({ limit:"2mb" }));
+app.use("/health", health); app.use("/customers", customers); app.use("/equipment", equipment);
+app.use("/teams", teams); app.use("/jobs", jobs);
+app.get("/", (_req,res)=>res.json({ ok:true, name:"Taska 2.0 API" }));
+export default app;
+
+
+C. Frontend → API calls (no mocks)
+
+Create src/lib/api.ts:
+
+import { API_BASE_URL } from "../config";
+export async function api(path:string, init:RequestInit = {}) {
+  const headers = new Headers(init.headers||{});
+  headers.set("content-type","application/json");
+  // TEMP: replace these with real IDs after login is wired
+  headers.set("x-user-id", "<REPLACE_WITH_KEITH_USER_UUID>");
+  headers.set("x-org-id", "<REPLACE_WITH_ORG_UUID>");
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+
+Update Customers page to use /customers list. Update New Job page to use /jobs/customers, /jobs/equipment, and POST /jobs/create. Update Team page to POST /teams/add-member.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-ServicePro is a comprehensive field service management application built with a modern full-stack architecture. The application enables service businesses to manage jobs, customers, equipment, teams, quotes, and invoices through an intuitive web interface. It features a React frontend with TypeScript, an Express.js backend API, and PostgreSQL database with Drizzle ORM for data management.
+Taska is a comprehensive field service management application built with a modern full-stack architecture. The application enables service businesses to manage jobs, customers, equipment, teams, quotes, and invoices through an intuitive web interface. It features a React frontend with TypeScript, an Express.js backend API, and PostgreSQL database with Drizzle ORM for data management.
 
 ## User Preferences
 

@@ -34,10 +34,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role: "Administrator",
     initials: "JD"
   });
-  const [selectedOrgId, setSelectedOrgId] = useState<string | null>("org-1");
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>("4500ba4e-e575-4f82-b196-27dd4c7d0eaf");
   const [organizations, setOrganizations] = useState<Organization[]>([
-    { id: "org-1", name: "Acme Field Services" },
-    { id: "org-2", name: "Tech Solutions Co" }
+    { id: "4500ba4e-e575-4f82-b196-27dd4c7d0eaf", name: "Taska Demo Org" },
+    { id: "05e9e656-475e-4094-a1a2-33b09815cf82", name: "Tech Solutions Co" }
   ]);
   const [isProUser, setIsProUser] = useState(false);
 

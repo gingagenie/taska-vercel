@@ -1,76 +1,76 @@
-import { apiRequest } from "./queryClient";
+import { API_BASE_URL } from "../config";
 
-// Add auth headers to requests
-function addAuthHeaders(headers: HeadersInit = {}) {
-  const userId = localStorage.getItem("user-id") || "user-1";
-  const orgId = localStorage.getItem("selected-org-id") || "org-1";
-  
-  return {
-    ...headers,
-    "x-user-id": userId,
-    "x-org-id": orgId,
-  };
+export async function api(path:string, init:RequestInit = {}) {
+  const headers = new Headers(init.headers||{});
+  headers.set("content-type","application/json");
+  // TEMP: replace these with real IDs after login is wired
+  headers.set("x-user-id", "315e3119-1b17-4dee-807f-bbc1e4d5c5b6");
+  headers.set("x-org-id", "4500ba4e-e575-4f82-b196-27dd4c7d0eaf");
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
 }
 
-export async function apiGet(url: string) {
-  const response = await fetch(url, {
-    headers: addAuthHeaders(),
-    credentials: "include",
-  });
-  
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
-  }
-  
-  return response.json();
-}
-
-export async function apiPost(url: string, data?: unknown) {
-  return apiRequest("POST", url, data);
-}
-
-export async function apiPut(url: string, data?: unknown) {
-  return apiRequest("PUT", url, data);
-}
-
-export async function apiDelete(url: string) {
-  return apiRequest("DELETE", url);
-}
-
-// Specific API functions for different entities
-export const jobsApi = {
-  getAll: () => apiGet("/api/jobs"),
-  create: (data: any) => apiPost("/api/jobs/create", data),
-  assignTechnician: (jobId: string, userId: string) => 
-    apiPost(`/api/jobs/${jobId}/assign/tech`, { userId }),
-  assignEquipment: (jobId: string, equipmentId: string) => 
-    apiPost(`/api/jobs/${jobId}/assign/equipment`, { equipmentId }),
-  getCustomers: () => apiGet("/api/jobs/customers"),
-  getEquipment: () => apiGet("/api/jobs/equipment"),
-};
-
+// Customers API
 export const customersApi = {
-  getAll: () => apiGet("/api/customers"),
-  create: (data: any) => apiPost("/api/customers", data),
+  getAll: () => api("/api/customers"),
+  create: (data: any) => api("/api/customers", { 
+    method: "POST", 
+    body: JSON.stringify(data) 
+  })
 };
 
+// Jobs API
+export const jobsApi = {
+  getAll: () => api("/api/jobs"),
+  getCustomers: () => api("/api/jobs/customers"),
+  getEquipment: () => api("/api/jobs/equipment"),
+  create: (data: any) => api("/api/jobs/create", {
+    method: "POST",
+    body: JSON.stringify(data)
+  }),
+  assignTech: (jobId: string, userId: string) => api(`/api/jobs/${jobId}/assign/tech`, {
+    method: "POST",
+    body: JSON.stringify({ userId })
+  }),
+  assignEquipment: (jobId: string, equipmentId: string) => api(`/api/jobs/${jobId}/assign/equipment`, {
+    method: "POST",
+    body: JSON.stringify({ equipmentId })
+  })
+};
+
+// Equipment API
 export const equipmentApi = {
-  getAll: () => apiGet("/api/equipment"),
-  create: (data: any) => apiPost("/api/equipment", data),
+  getAll: () => api("/api/equipment"),
+  create: (data: any) => api("/api/equipment", { 
+    method: "POST", 
+    body: JSON.stringify(data) 
+  })
 };
 
+// Teams API
 export const teamsApi = {
-  getAll: () => apiGet("/api/teams"),
-  addMember: (data: any) => apiPost("/api/teams/add-member", data),
+  getAll: () => api("/api/teams"),
+  addMember: (data: any) => api("/api/teams/add-member", {
+    method: "POST",
+    body: JSON.stringify(data)
+  })
 };
 
+// Quotes API (stub)
 export const quotesApi = {
-  getAll: () => apiGet("/api/quotes"),
-  create: (data: any) => apiPost("/api/quotes", data),
-  convert: (quoteId: string) => apiPost(`/api/quotes/${quoteId}/convert`, {}),
+  getAll: () => api("/api/quotes"),
+  create: (data: any) => api("/api/quotes", { 
+    method: "POST", 
+    body: JSON.stringify(data) 
+  })
 };
 
+// Invoices API (stub)
 export const invoicesApi = {
-  getAll: () => apiGet("/api/invoices"),
-  create: (data: any) => apiPost("/api/invoices", data),
+  getAll: () => api("/api/invoices"),
+  create: (data: any) => api("/api/invoices", { 
+    method: "POST", 
+    body: JSON.stringify(data) 
+  })
 };

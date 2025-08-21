@@ -31,10 +31,12 @@ export function Sidebar() {
       <div className="p-6">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <Settings className="text-white text-sm" />
-          </div>
-          <h1 className="text-xl font-bold text-gray-900">ServicePro</h1>
+          <img 
+            src="/attached_assets/ChatGPT Image Jul 27, 2025, 09_40_15 PM_1755780834106.png"
+            alt="Taska Logo"
+            className="w-10 h-10 object-contain"
+          />
+          <h1 className="text-xl font-bold text-gray-900">Taska</h1>
         </div>
         
         {/* Organization Selector */}

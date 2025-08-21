@@ -118,7 +118,7 @@ function AppContent() {
         <Sidebar onClose={() => setIsMobileMenuOpen(false)} />
       </div>
       
-      <main className="flex-1 lg:ml-64">
+      <main className="flex-1 lg:ml-56">
         <TopBar 
           {...pageConfig} 
           onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

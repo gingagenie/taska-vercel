@@ -41,17 +41,17 @@ export default function Customers() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Customers</CardTitle>
-            <div className="flex items-center gap-3">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <CardTitle className="text-lg sm:text-xl">Customers</CardTitle>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <Input
                 placeholder="Search customers..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64"
+                className="w-full sm:w-64"
               />
               <Button onClick={() => setIsCustomerModalOpen(true)}>
                 New Customer
@@ -69,7 +69,7 @@ export default function Customers() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {filteredCustomers.map((customer: any, index: number) => (
                 <div key={customer.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-3">

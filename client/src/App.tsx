@@ -17,6 +17,9 @@ import Teams from "@/pages/teams";
 import Quotes from "@/pages/quotes";
 import Invoices from "@/pages/invoices";
 import NotFound from "@/pages/not-found";
+import Profile from "@/pages/Profile";
+import JobView from "./pages/job-view";
+import JobEdit from "./pages/job-edit";
 
 // Import modals
 import { JobModal } from "@/components/modals/job-modal";
@@ -29,6 +32,7 @@ function AppContent() {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Page configuration
   const getPageConfig = () => {
@@ -94,10 +98,31 @@ function AppContent() {
 
   return (
     <div className="min-h-screen flex bg-gray-50">
-      <Sidebar />
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block">
+        <Sidebar />
+      </div>
       
-      <main className="flex-1 ml-64">
-        <TopBar {...pageConfig} />
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+      
+      {/* Mobile Sidebar */}
+      <div className={`fixed left-0 top-0 h-full z-50 lg:hidden transform transition-transform duration-300 ${
+        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <Sidebar onClose={() => setIsMobileMenuOpen(false)} />
+      </div>
+      
+      <main className="flex-1 lg:ml-64">
+        <TopBar 
+          {...pageConfig} 
+          onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        />
         
         <Switch>
           <Route path="/" component={Dashboard} />
@@ -107,7 +132,10 @@ function AppContent() {
           <Route path="/teams" component={Teams} />
           <Route path="/quotes" component={Quotes} />
           <Route path="/invoices" component={Invoices} />
-          <Route component={NotFound} />
+          <Route path="/profile" component={Profile} />
+          <Route path="/jobs/:id">{() => <JobView />}</Route>
+          <Route path="/jobs/:id/edit">{() => <JobEdit />}</Route>
+         <Route component={NotFound} />
         </Switch>
       </main>
 

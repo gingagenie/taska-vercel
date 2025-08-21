@@ -55,14 +55,14 @@ export default function Equipment() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Equipment</CardTitle>
-            <div className="flex items-center gap-3">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <CardTitle className="text-lg sm:text-xl">Equipment</CardTitle>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="All Equipment" />
                 </SelectTrigger>
                 <SelectContent>
@@ -76,7 +76,7 @@ export default function Equipment() {
                 placeholder="Search equipment..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64"
+                className="w-full sm:w-64"
               />
               <Button>
                 New Equipment
@@ -94,7 +94,43 @@ export default function Equipment() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Mobile Card View */}
+            <div className="block md:hidden space-y-4">
+              {filteredEquipment.map((item: any, index: number) => {
+                const iconData = getEquipmentIcon(index);
+                const status = "available"; // Default status since backend doesn't track this yet
+                
+                return (
+                  <Card key={item.id} className="p-4">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className={`w-10 h-10 ${iconData.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        {iconData.icon}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-900 text-sm">{item.name}</h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {item.make && item.model ? `${item.make} / ${item.model}` : item.make || item.model || "Not specified"}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">Serial: {item.serial || "Not specified"}</p>
+                      </div>
+                      <Badge className={getStatusBadgeClass(status)}>
+                        {status.replace("_", " ")}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Location: {item.location || "Not specified"}</span>
+                      <Button variant="ghost" size="sm" className="p-1">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
@@ -150,6 +186,7 @@ export default function Equipment() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

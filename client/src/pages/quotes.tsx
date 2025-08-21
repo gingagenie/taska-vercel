@@ -42,12 +42,12 @@ export default function Quotes() {
   // Show upgrade modal if not pro user
   if (!isProUser) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Card>
           <CardContent className="text-center py-12">
             <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Upgrade to Pro</h3>
-            <p className="text-gray-600 mb-6">Access quotes and advanced features with ServicePro Pro.</p>
+            <p className="text-gray-600 mb-6">Access quotes and advanced features with Tasca Pro.</p>
             <Button onClick={() => setIsUpgradeModalOpen(true)} className="bg-warning hover:bg-yellow-600">
               Upgrade Now
             </Button>
@@ -60,7 +60,7 @@ export default function Quotes() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="bg-white rounded-xl border border-gray-200 animate-pulse">
           <div className="h-64"></div>
         </div>
@@ -70,7 +70,7 @@ export default function Quotes() {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Card>
           <CardContent className="text-center py-12">
             <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />

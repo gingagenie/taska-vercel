@@ -32,7 +32,7 @@ export function Sidebar() {
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
           <img 
-            src="/attached_assets/ChatGPT Image Jul 27, 2025, 09_40_15 PM_1755780834106.png"
+            src="/assets/taska-logo.png"
             alt="Taska Logo"
             className="w-10 h-10 object-contain"
           />

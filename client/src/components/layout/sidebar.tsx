@@ -27,7 +27,7 @@ export function Sidebar() {
   const { user, selectedOrgId, organizations, setSelectedOrgId, isProUser } = useAuth();
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 fixed h-full z-10">
+    <aside className="w-64 bg-white border-r border-gray-200 fixed h-full z-10 overflow-y-auto">
       <div className="p-6">
         {/* Logo */}
         <div className="flex items-center justify-center mb-8">

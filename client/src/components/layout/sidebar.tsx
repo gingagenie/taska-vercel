@@ -27,8 +27,8 @@ export function Sidebar() {
   const { user, selectedOrgId, organizations, setSelectedOrgId, isProUser } = useAuth();
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 fixed h-full z-10 overflow-y-auto">
-      <div className="p-6">
+    <aside className="w-64 bg-white border-r border-gray-200 fixed h-full z-10 flex flex-col">
+      <div className="flex-1 overflow-y-auto p-6">
         {/* Logo */}
         <div className="flex items-center justify-center mb-8">
           <img 
@@ -83,17 +83,17 @@ export function Sidebar() {
             );
           })}
         </nav>
-        
-        {/* User Profile */}
-        <div className="absolute bottom-6 left-6 right-6">
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">{user?.initials}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.role}</p>
-            </div>
+      </div>
+      
+      {/* User Profile - Fixed at bottom */}
+      <div className="p-6 border-t border-gray-200">
+        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+            <span className="text-white text-sm font-medium">{user?.initials}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
+            <p className="text-xs text-gray-500 truncate">{user?.role}</p>
           </div>
         </div>
       </div>

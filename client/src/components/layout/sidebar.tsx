@@ -30,13 +30,12 @@ export function Sidebar() {
     <aside className="w-64 bg-white border-r border-gray-200 fixed h-full z-10">
       <div className="p-6">
         {/* Logo */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center justify-center mb-8">
           <img 
             src="/assets/taska-logo.png"
             alt="Taska Logo"
-            className="w-15 h-15 object-contain"
+            className="w-11 h-11 object-contain"
           />
-          <h1 className="text-xl font-bold text-gray-900">Taska</h1>
         </div>
         
         {/* Organization Selector */}

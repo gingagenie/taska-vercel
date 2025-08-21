@@ -1,0 +1,488 @@
+File: src/db/client.ts
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL not set");
+}
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+export const db = drizzle(pool);
+
+File: src/middleware/auth.ts
+import type { Request, Response, NextFunction } from "express";
+
+/**
+ * Minimal auth scaffold:
+ * - Accepts x-user-id (for now) so you can test without full auth rewiring.
+ * - Replace with your real auth later (JWT/session) and keep the same shape.
+ */
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const userId = (req.headers["x-user-id"] as string) || null;
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  (req as any).user = { id: userId }; // attach for downstream
+  next();
+}
+
+File: src/middleware/tenancy.ts
+import type { Request, Response, NextFunction } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+
+export function requireOrg(req: Request, res: Response, next: NextFunction) {
+  const orgId =
+    (req as any).user?.orgId ||
+    (req.headers["x-org-id"] as string) ||
+    (req.query.orgId as string); // helpful for quick browser tests
+  if (!orgId) return res.status(400).json({ error: "No organization in session" });
+  (req as any).orgId = orgId;
+  next();
+}
+
+export async function requirePro(req: Request, res: Response, next: NextFunction) {
+  const orgId = (req as any).orgId as string;
+  try {
+    const r: any = await db.execute(sql`
+      select active from entitlements where org_id=${orgId}::uuid
+    `);
+    const active = r.rows?.[0]?.active === true;
+    if (!active) return res.status(402).json({ error: "Upgrade required" });
+    next();
+  } catch (e) {
+    return res.status(500).json({ error: "Entitlement check failed" });
+  }
+}
+
+export function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
+  // Simple scaffold: treat x-super-admin: 1 as true (replace with your real check)
+  if (req.headers["x-super-admin"] === "1") return next();
+  return res.status(403).json({ error: "Super admin only" });
+}
+
+File: src/routes/health.ts
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+
+export const health = Router();
+
+const REQUIRED = [
+  "organisations","users","memberships","teams","team_members",
+  "customers","equipment","jobs","job_assignments","job_equipment",
+  "entitlements","quotes","invoices"
+];
+
+health.get("/db", async (_req, res) => {
+  try {
+    const missing: string[] = [];
+    for (const t of REQUIRED) {
+      const r = await db.execute(sql`select to_regclass('public.${sql.raw(t)}') as reg;`);
+      // @ts-ignore
+      if (!r.rows?.[0]?.reg) missing.push(t);
+    }
+    if (missing.length) return res.status(500).json({ ok: false, missing });
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+health.get("/", (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+
+File: src/routes/customers.ts
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+
+export const customers = Router();
+
+customers.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, name, email, phone, address
+    from customers where org_id=${orgId}::uuid order by name asc
+  `);
+  res.json(r.rows);
+});
+
+customers.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { name, email, phone, address } = req.body || {};
+  if (!name) return res.status(400).json({ error: "name required" });
+  const r: any = await db.execute(sql`
+    insert into customers (org_id, name, email, phone, address)
+    values (${orgId}::uuid, ${name}, ${email||null}, ${phone||null}, ${address||null})
+    returning id
+  `);
+  res.json({ ok: true, id: r.rows[0].id });
+});
+
+// Update/Delete can be added later; scaffold only for now
+
+File: src/routes/equipment.ts
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+
+export const equipment = Router();
+
+equipment.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, name, make, model, serial, customer_id
+    from equipment where org_id=${orgId}::uuid order by name asc
+  `);
+  res.json(r.rows);
+});
+
+equipment.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { name, make, model, serial, customerId } = req.body || {};
+  if (!name) return res.status(400).json({ error: "name required" });
+  const r: any = await db.execute(sql`
+    insert into equipment (org_id, customer_id, name, make, model, serial)
+    values (${orgId}::uuid, ${customerId||null}, ${name}, ${make||null}, ${model||null}, ${serial||null})
+    returning id
+  `);
+  res.json({ ok: true, id: r.rows[0].id });
+});
+
+File: src/routes/teams.ts
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+
+export const teams = Router();
+
+teams.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select t.id, t.name
+    from teams t
+    where t.org_id=${orgId}::uuid
+    order by t.created_at asc
+  `);
+  res.json(r.rows);
+});
+
+teams.post("/add-member", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { email, name, teamId } = req.body || {};
+  if (!email || !name) return res.status(400).json({ error: "email and name required" });
+
+  await db.execute(sql`
+    insert into users (email, name) values (${email}, ${name})
+    on conflict (email) do nothing;
+  `);
+
+  await db.execute(sql`
+    insert into memberships (user_id, org_id, role)
+    select id, ${orgId}::uuid, 'member' from users where email=${email}
+    on conflict do nothing;
+  `);
+
+  if (teamId) {
+    await db.execute(sql`
+      insert into team_members (team_id, user_id)
+      select ${teamId}::uuid, id from users where email=${email}
+      on conflict do nothing;
+    `);
+  }
+
+  res.json({ ok: true });
+});
+
+File: src/routes/jobs.ts
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+
+export const jobs = Router();
+
+jobs.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select j.id, j.title, j.status, j.scheduled_at, j.customer_id
+    from jobs j where j.org_id=${orgId}::uuid
+    order by j.created_at desc
+  `);
+  res.json(r.rows);
+});
+
+jobs.get("/customers", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, name from customers where org_id=${orgId}::uuid order by name asc
+  `);
+  res.json(r.rows);
+});
+
+jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, name from equipment where org_id=${orgId}::uuid order by name asc
+  `);
+  res.json(r.rows);
+});
+
+jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const userId = (req as any).user?.id || null;
+  const { title, description, customerId, scheduledAt } = req.body || {};
+  if (!title) return res.status(400).json({ error: "title required" });
+
+  const r: any = await db.execute(sql`
+    insert into jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
+    values (${orgId}::uuid, ${customerId||null}, ${title}, ${description||null}, ${scheduledAt||null}, 'new', ${userId||null})
+    returning id
+  `);
+  res.json({ ok: true, id: r.rows[0].id });
+});
+
+jobs.post("/:jobId/assign/tech", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: "userId required" });
+  await db.execute(sql`
+    insert into job_assignments (job_id, user_id)
+    values (${jobId}::uuid, ${userId}::uuid)
+    on conflict do nothing;
+  `);
+  res.json({ ok: true });
+});
+
+jobs.post("/:jobId/assign/equipment", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const { equipmentId } = req.body || {};
+  if (!equipmentId) return res.status(400).json({ error: "equipmentId required" });
+  await db.execute(sql`
+    insert into job_equipment (job_id, equipment_id)
+    values (${jobId}::uuid, ${equipmentId}::uuid)
+    on conflict do nothing;
+  `);
+  res.json({ ok: true });
+});
+
+File: src/routes/quotes.ts
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg, requirePro } from "../middleware/tenancy";
+
+const ENABLE_QUOTES = (process.env.ENABLE_QUOTES || "true") === "true";
+export const quotes = Router();
+
+function maybe501(res: any) {
+  if (!ENABLE_QUOTES) { res.status(501).json({ error: "Quotes disabled" }); return true; }
+  return false;
+}
+
+quotes.get("/", requireAuth, requireOrg, requirePro, async (req, res) => {
+  if (maybe501(res)) return;
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, customer_id, title, total, status, created_at
+    from quotes where org_id=${orgId}::uuid order by created_at desc
+  `);
+  res.json(r.rows);
+});
+
+quotes.post("/", requireAuth, requireOrg, requirePro, async (req, res) => {
+  if (maybe501(res)) return;
+  const orgId = (req as any).orgId;
+  const { customerId, title, notes, items, currency } = req.body || {};
+  if (!title) return res.status(400).json({ error: "title required" });
+  const total = Array.isArray(items)
+    ? items.reduce((s:number, it:any)=> s + (Number(it.qty||0)*Number(it.price||0)), 0)
+    : 0;
+  const r: any = await db.execute(sql`
+    insert into quotes (org_id, customer_id, title, notes, items, currency, total, status)
+    values (${orgId}::uuid, ${customerId||null}, ${title}, ${notes||null}, ${JSON.stringify(items||[])}, ${currency||'AUD'}, ${total}, 'draft')
+    returning id
+  `);
+  res.json({ ok: true, id: r.rows[0].id });
+});
+
+quotes.post("/:quoteId/convert", requireAuth, requireOrg, requirePro, async (req, res) => {
+  if (maybe501(res)) return;
+  const orgId = (req as any).orgId;
+  const { quoteId } = req.params;
+  // fetch quote
+  const q: any = await db.execute(sql`select * from quotes where id=${quoteId}::uuid and org_id=${orgId}::uuid`);
+  const quote = q.rows?.[0];
+  if (!quote) return res.status(404).json({ error: "quote not found" });
+
+  // create job from quote
+  const jr: any = await db.execute(sql`
+    insert into jobs (org_id, customer_id, title, description, status)
+    values (${orgId}::uuid, ${quote.customer_id||null}, ${quote.title}, ${quote.notes||null}, 'new')
+    returning id
+  `);
+  // mark quote accepted (optional)
+  await db.execute(sql`update quotes set status='accepted' where id=${quoteId}::uuid`);
+  res.json({ ok: true, jobId: jr.rows[0].id });
+});
+
+File: src/routes/invoices.ts
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg, requirePro } from "../middleware/tenancy";
+
+const ENABLE_INVOICES = (process.env.ENABLE_INVOICES || "true") === "true";
+export const invoices = Router();
+
+function maybe501(res: any) {
+  if (!ENABLE_INVOICES) { res.status(501).json({ error: "Invoices disabled" }); return true; }
+  return false;
+}
+
+invoices.get("/", requireAuth, requireOrg, requirePro, async (req, res) => {
+  if (maybe501(res)) return;
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, job_id, customer_id, total, status, issued_at, due_at
+    from invoices where org_id=${orgId}::uuid order by created_at desc
+  `);
+  res.json(r.rows);
+});
+
+invoices.post("/", requireAuth, requireOrg, requirePro, async (req, res) => {
+  if (maybe501(res)) return;
+  const orgId = (req as any).orgId;
+  const { jobId, customerId, items, currency, issuedAt, dueAt } = req.body || {};
+  const total = Array.isArray(items)
+    ? items.reduce((s:number, it:any)=> s + (Number(it.qty||0)*Number(it.price||0)), 0)
+    : 0;
+  const r: any = await db.execute(sql`
+    insert into invoices (org_id, job_id, customer_id, items, currency, total, status, issued_at, due_at)
+    values (${orgId}::uuid, ${jobId||null}, ${customerId||null}, ${JSON.stringify(items||[])}, ${currency||'AUD'}, ${total}, 'draft',
+            ${issuedAt||null}, ${dueAt||null})
+    returning id
+  `);
+  res.json({ ok: true, id: r.rows[0].id });
+});
+
+File: src/routes/subscriptions.ts (Stripe webhook)
+import { Router } from "express";
+import Stripe from "stripe";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+
+const ENABLE_SUBS = (process.env.ENABLE_SUBSCRIPTIONS || "true") === "true";
+export const subs = Router();
+
+// raw body for Stripe verification
+subs.post("/webhooks/stripe", (req, res, next) => {
+  if (!ENABLE_SUBS) return res.status(501).json({ error: "Subscriptions disabled" });
+  next();
+}, require("body-parser").raw({ type: "application/json" }), async (req, res) => {
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: "2024-06-20" });
+    const sig = req.headers["stripe-signature"] as string;
+    const event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET as string);
+
+    if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
+      const sub = event.data.object as Stripe.Subscription;
+      const orgId = sub.metadata?.org_id;
+      const active = sub.status === "active" || sub.status === "trialing";
+      const plan = sub.items.data[0]?.price?.nickname || sub.items.data[0]?.price?.id || "pro";
+      if (orgId) {
+        await db.execute(sql`
+          insert into entitlements (org_id, plan, active, updated_at)
+          values (${orgId}::uuid, ${plan}, ${active}, now())
+          on conflict (org_id) do update set plan=${plan}, active=${active}, updated_at=now()
+        `);
+      }
+    }
+
+    res.json({ received: true });
+  } catch (e: any) {
+    res.status(400).send(`Webhook error: ${e.message}`);
+  }
+});
+
+File: src/routes/public.ts (customer-facing)
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+
+export const pub = Router();
+
+/**
+ * Public endpoint to log a breakdown directly to org.
+ * You can protect this later with a per-org public token.
+ */
+pub.post("/breakdown", async (req, res) => {
+  const { orgId, customerId, title, description } = req.body || {};
+  if (!orgId || !title) return res.status(400).json({ error: "orgId and title required" });
+
+  const r: any = await db.execute(sql`
+    insert into jobs (org_id, customer_id, title, description, status)
+    values (${orgId}::uuid, ${customerId||null}, ${title}, ${description||null}, 'new') returning id
+  `);
+  res.json({ ok: true, jobId: r.rows[0].id });
+});
+
+File: src/routes/admin.ts (platform mgmt)
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireSuperAdmin } from "../middleware/tenancy";
+
+export const admin = Router();
+
+admin.get("/orgs", requireSuperAdmin, async (_req, res) => {
+  const r: any = await db.execute(sql`select id, name, created_at from organisations order by created_at desc`);
+  res.json(r.rows);
+});
+
+File: src/server.ts
+import express from "express";
+import cors from "cors";
+import { health } from "./routes/health";
+import { customers } from "./routes/customers";
+import { equipment } from "./routes/equipment";
+import { teams } from "./routes/teams";
+import { jobs } from "./routes/jobs";
+import { quotes } from "./routes/quotes";
+import { invoices } from "./routes/invoices";
+import { subs } from "./routes/subscriptions";
+import { pub } from "./routes/public";
+import { admin } from "./routes/admin";
+
+const app = express();
+
+// NOTE: Stripe webhook needs raw body, so we mount subs before json for that route only.
+app.use(cors());
+app.use(express.json({ limit: "2mb" }));
+
+app.use("/health", health);
+app.use("/customers", customers);
+app.use("/equipment", equipment);
+app.use("/teams", teams);
+app.use("/jobs", jobs);
+app.use("/quotes", quotes);
+app.use("/invoices", invoices);
+app.use("/subs", subs);
+app.use("/public", pub);
+app.use("/admin", admin);
+
+app.get("/", (_req, res) => res.json({ ok: true, name: "Taska 2.0 API" }));
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Taska 2.0 API listening on :${port}`));

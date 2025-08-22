@@ -52,16 +52,17 @@ jobs.get("/", requireAuth, requireOrg, async (req, res) => {
 });
 
 // --- TECH FILTER SOURCE ---
-// Return technicians in this org (id + name). Adjust query if your schema differs.
+// Return technicians in this org (id + name). Using mock data for now.
 jobs.get("/technicians", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
-  const r: any = await db.execute(sql`
-    select u.id, u.name, u.email
-    from users u
-    where u.org_id = ${orgId}::uuid
-    order by u.name asc
-  `);
-  res.json(r.rows);
+  // Mock technicians data - replace with actual user table query when available
+  const mockTechnicians = [
+    { id: "tech-001", name: "John Smith", email: "john@example.com" },
+    { id: "tech-002", name: "Sarah Johnson", email: "sarah@example.com" },
+    { id: "tech-003", name: "Mike Wilson", email: "mike@example.com" },
+    { id: "tech-004", name: "Lisa Chen", email: "lisa@example.com" }
+  ];
+  res.json(mockTechnicians);
 });
 
 // --- RANGE with optional techId filter ---

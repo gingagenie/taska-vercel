@@ -20,9 +20,9 @@ export async function api(path: string, init: RequestInit = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  // ⏱️ 15s timeout so the UI never spins forever
+  // ⏱️ 30s timeout so the UI never spins forever
   const controller = new AbortController();
-  const to = setTimeout(() => controller.abort(), 15000);
+  const to = setTimeout(() => controller.abort(), 30000);
   
   const url = `${BASE}${path}`;
   console.log("[api] ->", url, init.method || "GET");

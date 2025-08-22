@@ -107,14 +107,37 @@ customers.put("/:id", requireAuth, requireOrg, async (req, res) => {
 customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params;
   const orgId = (req as any).orgId;
+  console.log("[TRACE] DELETE /api/customers/%s org=%s", id, orgId);
+  
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
 
-  await db.execute(sql`
-    delete from customers
-    where id=${id}::uuid and org_id=${orgId}::uuid
-  `);
+  try {
+    // Check if customer has any associated jobs
+    const jobCheck = await db.execute(sql`
+      select count(*) as job_count 
+      from jobs 
+      where customer_id=${id}::uuid and org_id=${orgId}::uuid
+    `);
+    
+    const jobCount = parseInt(jobCheck.rows[0]?.job_count || "0");
+    
+    if (jobCount > 0) {
+      return res.status(400).json({ 
+        error: `Cannot delete customer. They have ${jobCount} associated job${jobCount > 1 ? 's' : ''}.` 
+      });
+    }
 
-  res.json({ ok: true });
+    // Safe to delete - no associated jobs
+    await db.execute(sql`
+      delete from customers
+      where id=${id}::uuid and org_id=${orgId}::uuid
+    `);
+
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("DELETE /api/customers/:id error:", error);
+    res.status(500).json({ error: error?.message || "Failed to delete customer" });
+  }
 });
 
 export { customers as default };

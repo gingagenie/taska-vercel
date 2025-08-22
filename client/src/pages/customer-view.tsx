@@ -208,7 +208,7 @@ export default function CustomerView() {
             </DialogTitle>
           </DialogHeader>
           <p>Are you sure you want to delete <strong>{customer.name}</strong>? This cannot be undone.</p>
-          {error && <div className="text-red-600 text-sm">{error}</div>}
+          {error && <div className="text-red-600 text-sm mt-2 p-2 bg-red-50 rounded">{error}</div>}
           <DialogFooter className="mt-4 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
             <Button

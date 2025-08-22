@@ -45,19 +45,19 @@ export function EquipmentModal({ open, onOpenChange, equipment, onSaved }: Props
       setModel(equipment.model || "");
       setSerial(equipment.serial || "");
       setNotes(equipment.notes || "");
-      setCustomerId(equipment.customer_id || "");
+      setCustomerId(equipment.customer_id || "none");
       setCustomerAddress(equipment.customer_address || "");
     }
     if (open && !isEdit) {
       setName(""); setMake(""); setModel(""); setSerial(""); setNotes("");
-      setCustomerId(""); setCustomerAddress(""); setErr(null);
+      setCustomerId("none"); setCustomerAddress(""); setErr(null);
     }
   }, [open, isEdit, equipment]);
 
   // fetch address on customer selection
   useEffect(() => {
     (async () => {
-      if (!customerId) { setCustomerAddress(""); return; }
+      if (!customerId || customerId === "none") { setCustomerAddress(""); return; }
       try {
         const c = await customersApi.get(customerId);
         const addr = [c.street, c.suburb, c.state, c.postcode].filter(Boolean).join(", ");
@@ -71,14 +71,15 @@ export function EquipmentModal({ open, onOpenChange, equipment, onSaved }: Props
   async function save() {
     setSaving(true); setErr(null);
     try {
+      const finalCustomerId = customerId === "none" ? null : customerId;
       if (isEdit) {
-        await equipmentApi.update(equipment.id, { name, make, model, serial, notes, customerId });
+        await equipmentApi.update(equipment.id, { name, make, model, serial, notes, customerId: finalCustomerId });
         // keep detail pages fresh if any
         qc.invalidateQueries({ queryKey: ["/api/equipment"] });
         qc.invalidateQueries({ queryKey: [`/api/equipment/${equipment.id}`] });
-        onSaved?.({ ...equipment, name, make, model, serial, notes, customer_id: customerId, customer_address: customerAddress });
+        onSaved?.({ ...equipment, name, make, model, serial, notes, customer_id: finalCustomerId, customer_address: customerAddress });
       } else {
-        const res = await equipmentApi.create({ name, make, model, serial, notes, customerId });
+        const res = await equipmentApi.create({ name, make, model, serial, notes, customerId: finalCustomerId });
         qc.invalidateQueries({ queryKey: ["/api/equipment"] });
       }
       onOpenChange(false);
@@ -143,7 +144,7 @@ export function EquipmentModal({ open, onOpenChange, equipment, onSaved }: Props
                 <SelectValue placeholder="Select a customer..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">— None —</SelectItem>
+                <SelectItem value="none">— None —</SelectItem>
                 {customerList.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}

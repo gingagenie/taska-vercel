@@ -86,8 +86,26 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
         return result;
       } else {
         const result = await customersApi.create(data);
-        // Refresh lists  
+        
+        // Optimistically append the new customer before refetch
+        const next = { 
+          id: result.id, 
+          name,
+          contact_name: contactName || null,
+          email: email || null,
+          phone: phone || null,
+          street: street || null,
+          suburb: suburb || null,
+          state: state || null,
+          postcode: postcode || null,
+        };
+
+        queryClient.setQueryData<any[]>(["/api/customers"], (prev = []) => {
+          if (prev.some(c => c.id === next.id)) return prev;
+          return [next, ...prev];
+        });
         queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+        
         return result;
       }
     },

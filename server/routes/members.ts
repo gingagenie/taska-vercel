@@ -1,0 +1,129 @@
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+
+const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
+export const members = Router();
+
+/** List org members */
+members.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  try {
+    const r: any = await db.execute(sql`
+      select id, email, name, role, phone, avatar_url, created_at
+      from users
+      where org_id=${orgId}::uuid
+      order by created_at desc
+    `);
+    res.json(r.rows);
+  } catch (error: any) {
+    console.error("GET /api/members error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch members" });
+  }
+});
+
+/** Create org member (upsert by email within org) */
+members.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { email, name, role, phone } = req.body || {};
+  if (!email) return res.status(400).json({ error: "email required" });
+
+  try {
+    // try find existing user in this org
+    const existing: any = await db.execute(sql`
+      select id from users where org_id=${orgId}::uuid and lower(email)=lower(${email})
+    `);
+    if (existing.rows?.[0]?.id) {
+      // update name/role/phone if provided
+      await db.execute(sql`
+        update users set
+          name = coalesce(${name}, name),
+          role = coalesce(${role}, role),
+          phone = coalesce(${phone}, phone)
+        where id=${existing.rows[0].id}::uuid
+      `);
+      return res.json({ ok: true, id: existing.rows[0].id, created: false });
+    }
+
+    const ins: any = await db.execute(sql`
+      insert into users (org_id, email, name, role, phone)
+      values (${orgId}::uuid, ${email}, ${name || null}, ${role || null}, ${phone || null})
+      returning id
+    `);
+    res.json({ ok: true, id: ins.rows[0].id, created: true });
+  } catch (error: any) {
+    console.error("POST /api/members error:", error);
+    res.status(500).json({ error: error?.message || "Failed to create member" });
+  }
+});
+
+/** Delete member (only within same org, and safe if team links exist) */
+members.delete("/:userId", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { userId } = req.params;
+  if (!isUuid(userId)) return res.status(400).json({ error: "invalid userId" });
+
+  try {
+    // Optional: prevent self-delete; comment out if you want to allow
+    // if ((req as any).user.id === userId) return res.status(400).json({ error: "cannot delete yourself" });
+
+    // Remove from team_members first
+    await db.execute(sql`delete from team_members where user_id=${userId}::uuid`);
+    // Delete user (scoped to org)
+    await db.execute(sql`delete from users where id=${userId}::uuid and org_id=${orgId}::uuid`);
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("DELETE /api/members error:", error);
+    res.status(500).json({ error: error?.message || "Failed to delete member" });
+  }
+});
+
+/** COMPAT: legacy endpoint you used earlier: POST /api/teams/add-member
+ * Accepts { email, name, teamId }. Creates/finds user in org, then adds to team_members.
+ */
+members.post("/_compat/teams-add-member", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  let { email, name, teamId, role, phone } = req.body || {};
+  if (!email) return res.status(400).json({ error: "email required" });
+  if (!isUuid(teamId)) return res.status(400).json({ error: "invalid teamId" });
+
+  try {
+    const existing: any = await db.execute(sql`
+      select id from users where org_id=${orgId}::uuid and lower(email)=lower(${email})
+    `);
+    let userId: string;
+
+    if (existing.rows?.[0]?.id) {
+      userId = existing.rows[0].id;
+      await db.execute(sql`
+        update users set
+          name = coalesce(${name}, name),
+          role = coalesce(${role}, role),
+          phone = coalesce(${phone}, phone)
+        where id=${userId}::uuid
+      `);
+    } else {
+      const ins: any = await db.execute(sql`
+        insert into users (org_id, email, name, role, phone)
+        values (${orgId}::uuid, ${email}, ${name || null}, ${role || null}, ${phone || null})
+        returning id
+      `);
+      userId = ins.rows[0].id;
+    }
+
+    await db.execute(sql`
+      insert into team_members (team_id, user_id)
+      values (${teamId}::uuid, ${userId}::uuid)
+      on conflict do nothing
+    `);
+
+    res.json({ ok: true, userId });
+  } catch (error: any) {
+    console.error("POST /api/members/_compat/teams-add-member error:", error);
+    res.status(500).json({ error: error?.message || "Failed to add member to team" });
+  }
+});
+
+export default members;

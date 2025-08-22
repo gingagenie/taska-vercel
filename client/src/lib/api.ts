@@ -150,6 +150,16 @@ export const meApi = {
   },
 };
 
+export const membersApi = {
+  getAll: () => api("/api/members"),
+  create: (body: any) => api("/api/members", { method: "POST", body: JSON.stringify(body) }),
+  remove: (userId: string) => api(`/api/members/${userId}`, { method: "DELETE" }),
+
+  // legacy compatibility so existing flows keep working
+  addToTeamCompat: (body: { email: string; name?: string; teamId: string; role?: string; phone?: string; }) =>
+    api("/api/members/_compat/teams-add-member", { method: "POST", body: JSON.stringify(body) }),
+};
+
 /** PRO features (routes assumed as /api/quotes and /api/invoices) */
 export const quotesApi = {
   getAll: () => api("/api/quotes"),

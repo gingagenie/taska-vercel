@@ -40,7 +40,15 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/health/db", (_req, res) => res.json({ ok: true })); // replace with real db check later
 
 /** Mount API routes that aren't part of registerRoutes */
+import members from "./routes/members";
 app.use("/api/me", me);
+app.use("/api/members", members);
+
+// Legacy compatibility endpoint
+app.post("/api/teams/add-member", (req, res, next) => {
+  req.url = "/_compat/teams-add-member";
+  members(req, res, next);
+});
 
 /** API request logging (compact) */
 app.use((req, res, next) => {

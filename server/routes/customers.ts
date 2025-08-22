@@ -119,7 +119,7 @@ customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
       where customer_id=${id}::uuid and org_id=${orgId}::uuid
     `);
     
-    const jobCount = parseInt(jobCheck.rows[0]?.job_count || "0");
+    const jobCount = parseInt(String(jobCheck.rows[0]?.job_count || "0"));
     
     if (jobCount > 0) {
       return res.status(400).json({ 

@@ -1,0 +1,158 @@
+Replit Agent Prompt — Auto-refresh after create/delete (Jobs & Customers)
+
+Goal:
+After creating/updating/deleting a customer or job, the relevant lists and detail pages should refresh automatically (no manual reload). Use React Query’s useQueryClient() to invalidate or optimistically update caches.
+
+Acceptance criteria:
+
+Creating a Customer via CustomerModal updates /api/customers list immediately.
+
+Editing a Customer reflects on /customers/:id without refresh.
+
+Deleting a Customer navigates back to /customers and refreshes that list.
+
+Creating a Job refreshes /api/jobs list immediately.
+
+Deleting a Job navigates back to /jobs and refreshes that list.
+
+No uncaught errors; simple inline error messages are shown on failure.
+
+1) CustomerModal → invalidate customers list and update view
+
+File: client/src/components/modals/customer-modal.tsx
+
+Add import:
+
+import { useQueryClient } from "@tanstack/react-query";
+
+
+Inside component, create a query client:
+
+const queryClient = useQueryClient();
+
+
+In save() after a successful create:
+
+await customersApi.create({ name, contact_name, email, phone, street, suburb, state, postcode });
+// refresh lists
+queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+onOpenChange(false);
+
+
+In save() after a successful update:
+
+await customersApi.update(customer.id, { name, contact_name, email, phone, street, suburb, state, postcode });
+
+// 1) refresh lists
+queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+
+// 2) refresh this customer’s detail query if you’re using it elsewhere
+queryClient.setQueryData([`/api/customers/${customer.id}`], (prev: any) => ({
+  ...(prev || {}),
+  id: customer.id, name, contact_name, email, phone, street, suburb, state, postcode
+}));
+
+onSaved?.({ ...customer, name, contact_name, email, phone, street, suburb, state, postcode });
+onOpenChange(false);
+
+2) Customer delete → invalidate and navigate
+
+File: client/src/pages/customer-view.tsx
+
+Ensure you have:
+
+import { useQueryClient } from "@tanstack/react-query";
+
+
+Inside component:
+
+const queryClient = useQueryClient();
+
+
+In the Delete confirm handler (where you call customersApi.delete(c.id)), after success:
+
+await customersApi.delete(c.id);
+queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+navigate("/customers");
+
+3) Jobs: after create/edit/delete → invalidate jobs list
+
+A) JobModal (create job)
+File: client/src/components/modals/job-modal.tsx
+
+Imports & client:
+
+import { useQueryClient } from "@tanstack/react-query";
+const queryClient = useQueryClient();
+
+
+After successful jobsApi.create(body):
+
+const res = await jobsApi.create(body); // ensure this returns { ok: true, id }
+queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+onOpenChange(false);
+onCreated?.(res?.id); // if you support navigate to the new job
+
+
+B) Job Edit page
+File: client/src/pages/job-edit.tsx (or wherever you PUT /api/jobs/:id)
+After successful save:
+
+import { useQueryClient } from "@tanstack/react-query";
+const queryClient = useQueryClient();
+
+// ...
+await api(`/api/jobs/${jobId}`, { method: "PUT", body: JSON.stringify({...}) });
+
+// refresh list + detail cache
+queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+queryClient.invalidateQueries({ queryKey: [`/api/jobs/${jobId}`] });
+
+navigate(`/jobs/${jobId}`);
+
+
+C) Job delete (if you have it)
+Where you call your delete (e.g., in job-view.tsx), after success:
+
+queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+navigate("/jobs");
+
+4) (Optional but nice) Optimistic row add for Customers
+
+File: client/src/pages/customers.tsx
+If you want the new customer to appear instantly (even before the network returns), you can set a temporary cache entry in CustomerModal before invalidating:
+
+// In CustomerModal after successful create returns new id as res.id:
+const next = { id: res.id, name, contact_name, email, phone, street, suburb, state, postcode };
+queryClient.setQueryData<any[]>(["/api/customers"], (prev = []) => [next, ...prev]);
+queryClient.invalidateQueries({ queryKey: ["/api/customers"] }); // confirm with server data
+
+
+(Only do this if your create route returns the new id.)
+
+5) Make sure API wrappers return IDs
+
+File: client/src/lib/api.ts
+Ensure customersApi.create() and jobsApi.create() return { ok: true, id } so we can navigate / optimistically update.
+
+Example server responses you already use:
+
+POST /api/customers → { ok: true, id: "…" }
+
+POST /api/jobs/create → { ok: true, id: "…" }
+
+If not, adjust the server to return id.
+
+6) Minimal error handling
+
+In each modal/page handler, make sure you already have setErr(e.message) or a toast. No changes needed if that’s in place.
+
+Quick test
+
+Create a customer → appears in the list immediately.
+
+Edit a customer → detail page updates without refresh.
+
+Delete a customer → list updates after redirect.
+
+Create/edit/delete a job → jobs list reflects changes immediately.

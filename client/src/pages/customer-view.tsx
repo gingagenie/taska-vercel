@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRoute, Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { customersApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export default function CustomerView() {
   const [match, params] = useRoute("/customers/:id");
   const id = params?.id as string;
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
   
   const [customer, setCustomer] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -219,6 +221,7 @@ export default function CustomerView() {
                 setError(null);
                 try {
                   await customersApi.delete(customer.id);
+                  queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
                   navigate("/customers");
                 } catch (e: any) {
                   setError(e.message || "Failed to delete");

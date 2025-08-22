@@ -73,16 +73,25 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
       };
 
       if (isEdit) {
-        await customersApi.update(customer.id, data);
-        return { ...customer, ...data };
+        const result = await customersApi.update(customer.id, data);
+        // Refresh lists
+        queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+        // Refresh this customer's detail query
+        queryClient.setQueryData([`/api/customers/${customer.id}`], (prev: any) => ({
+          ...(prev || {}),
+          ...data,
+          id: customer.id,
+        }));
+        onSaved?.({ ...customer, ...data });
+        return result;
       } else {
-        await customersApi.create(data);
-        return data;
+        const result = await customersApi.create(data);
+        // Refresh lists  
+        queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+        return result;
       }
     },
-    onSuccess: (savedCustomer) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-      onSaved?.(savedCustomer);
+    onSuccess: () => {
       onOpenChange(false);
       setErr(null);
     },

@@ -1,6 +1,7 @@
 // client/src/pages/job-view.tsx
 import { useEffect, useState } from "react";
 import { useRoute, Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, photosApi, jobsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { MapPin, AlertTriangle, Trash } from "lucide-react";
 export default function JobView() {
   const [match, params] = useRoute("/jobs/:id");
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
   const jobId = params?.id as string;
 
   const [job, setJob] = useState<any>(null);
@@ -210,6 +212,7 @@ export default function JobView() {
                 setErrDelete(null);
                 try {
                   await jobsApi.delete(job.id);
+                  queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
                   navigate("/jobs");
                 } catch (e: any) {
                   setErrDelete(e.message || "Failed to delete");

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { jobsApi } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: Props) {
+  const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [scheduledAt, setScheduledAt] = useState<string>("");
@@ -71,7 +73,9 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
         equipmentId: equipmentId || null, // single equipment
       };
       const r = await jobsApi.create(body);
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
       onOpenChange(false);
+      onCreated?.(r?.id);
       // reset
       setTitle(""); setDescription(""); setScheduledAt("");
       setCustomerId(""); setEquipmentId("");

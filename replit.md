@@ -6,6 +6,13 @@ Taska is a comprehensive field service management application built with a moder
 
 ## Recent Changes (January 2025)
 
+### Auto-Refresh Cache Management
+- **Customer Operations**: Create/edit customers automatically refresh customer lists and detail pages
+- **Job Operations**: Create/delete jobs automatically refresh job lists without manual reload
+- **Cache Invalidation**: React Query cache properly invalidated after all CRUD operations
+- **Optimistic Updates**: Customer detail pages update immediately after edits
+- **Navigation Sync**: Delete operations navigate to list pages with refreshed data
+
 ### Enhanced Customers Page with Tabbed Interface
 - **Professional Table Design**: Replaced card grid with polished table featuring sticky header, zebra rows, hover effects
 - **Full-Width Tabs**: All, With Email, With Phone, Missing Address filtering with smart customer segmentation

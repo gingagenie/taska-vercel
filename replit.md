@@ -4,6 +4,18 @@
 
 Taska is a comprehensive field service management application built with a modern full-stack architecture. The application enables service businesses to manage jobs, customers, equipment, teams, quotes, and invoices through an intuitive web interface. It features a React frontend with TypeScript, an Express.js backend API, and PostgreSQL database with Drizzle ORM for data management.
 
+## Recent Changes (January 2025)
+
+### Customer Management Upgrade
+- **Database Schema**: Added comprehensive customer fields (contact_name, street, suburb, state, postcode) while maintaining backward compatibility
+- **Backend API**: Full CRUD operations with auth/tenancy middleware, validation, and error handling
+- **Frontend Features**: 
+  - Clean card grid layout with search functionality
+  - Professional customer view pages with detailed contact information  
+  - Enhanced customer modal for create/edit operations
+  - Customer view header actions: Navigate (maps integration), Copy address, Create Job
+- **Integration**: JobModal supports pre-selecting customers; job creation flows from customer pages
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

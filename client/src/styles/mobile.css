@@ -30,6 +30,17 @@
   .header-actions {
     flex-direction: row;
     align-items: center;
+    flex-wrap: wrap;
+  }
+}
+
+/* Button groups: distribute width on mobile */
+.header-actions > * {
+  flex: 1;
+}
+@media (min-width: 640px) {
+  .header-actions > * {
+    flex: none;
   }
 }
 

@@ -71,29 +71,31 @@ export default function JobView() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="header-row">
         <h1 className="text-2xl font-bold">{job.title}</h1>
-        <div className="flex gap-2">
+        <div className="header-actions">
           <Button
             variant="secondary"
             onClick={() => openMaps(job.customer_name || "Destination", job.customer_address)}
             disabled={!job.customer_address}
             title={!job.customer_address ? "No destination address available" : "Open in Maps"}
+            className="flex-1 sm:flex-none"
           >
             <MapPin className="h-4 w-4 mr-1" />
             Navigate
           </Button>
           <Link href={`/jobs/${jobId}/notes`}>
-            <a><Button variant="secondary">Notes & Charges</Button></a>
+            <Button variant="secondary" className="flex-1 sm:flex-none">Notes & Charges</Button>
           </Link>
           <Link href={`/jobs/${jobId}/edit`}>
-            <a><Button>Edit Job</Button></a>
+            <Button className="flex-1 sm:flex-none">Edit Job</Button>
           </Link>
           <Button 
             variant="destructive" 
             onClick={() => setConfirmDelete(true)}
             data-testid="button-delete-job"
+            className="flex-1 sm:flex-none"
           >
             <Trash className="h-4 w-4 mr-1" /> Delete
           </Button>

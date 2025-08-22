@@ -33,7 +33,6 @@ function AppContent() {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Page configuration
   const getPageConfig = () => {
@@ -98,32 +97,14 @@ function AppContent() {
   const pageConfig = getPageConfig();
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <Sidebar />
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Responsive Sidebar (handles mobile/desktop internally) */}
+      <Sidebar />
       
-      {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
-      
-      {/* Mobile Sidebar */}
-      <div className={`fixed left-0 top-0 h-full z-50 lg:hidden transform transition-transform duration-300 ${
-        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        <Sidebar onClose={() => setIsMobileMenuOpen(false)} />
-      </div>
-      
-      <main className="flex-1 lg:ml-56">
-        <TopBar 
-          {...pageConfig} 
-          onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        />
+      <main className="md:ml-64 pt-14 md:pt-0">
+        <div className="hidden md:block">
+          <TopBar {...pageConfig} />
+        </div>
         
         <Switch>
           <Route path="/" component={Dashboard} />

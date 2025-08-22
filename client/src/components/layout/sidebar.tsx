@@ -1,15 +1,19 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
-import {
-  Briefcase,
-  Users,
-  Settings,
-  UsersRound,
-  FileText,
+import { useAuth } from "@/context/auth-context";
+import { 
+  Briefcase, 
+  Users, 
+  Settings, 
+  UsersRound, 
+  FileText, 
   Receipt,
   BarChart3,
   Crown,
+  Menu,
+  X
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const navigationItems = [
   { path: "/", label: "Dashboard", icon: BarChart3 },
@@ -19,7 +23,6 @@ const navigationItems = [
   { path: "/teams", label: "Teams", icon: UsersRound },
   { path: "/quotes", label: "Quotes", icon: FileText, isPro: true },
   { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true },
-  { path: "/profile", label: "Profile", icon: Crown }, // optional shortcut
 ];
 
 interface SidebarProps {
@@ -29,70 +32,126 @@ interface SidebarProps {
 export function Sidebar({ onClose }: SidebarProps) {
   const [location] = useLocation();
   const { user, isProUser } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
 
-  return (
-    <aside className="w-56 bg-white border-r border-gray-200 fixed h-full z-10 flex flex-col">
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <Settings className="text-white text-sm" />
-          </div>
-          <h1 className="text-xl font-bold text-gray-900">Taska</h1>
+  const sidebarContent = (
+    <div className="p-6 h-full flex flex-col">
+      {/* Logo */}
+      <div className="flex items-center gap-3 mb-8">
+        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+          <Settings className="text-white text-sm" />
         </div>
+        <h1 className="text-xl font-bold text-gray-900">Taska</h1>
+      </div>
 
-        {/* Navigation Menu */}
-        <nav className="space-y-1">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location === item.path;
-            const lockPro = item.isPro && !isProUser;
-
-            return (
-              <Link key={item.path} href={lockPro ? "/billing" : item.path}>
-                <div
-                  className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors ${
-                    isActive
-                      ? "bg-primary text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                  onClick={onClose}
-                >
-                  <Icon className="w-4 h-4" />
-                  {item.label}
-                  {item.isPro && (
-                    <span className="bg-warning text-white text-xs px-1.5 py-0.5 rounded-full ml-auto">
+      {/* Navigation Menu */}
+      <nav className="space-y-1 flex-1">
+        {navigationItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location === item.path;
+          const isLocked = item.isPro && !isProUser;
+          
+          return (
+            <Link key={item.path} href={item.path}>
+              <a
+                className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg ${
+                  isActive
+                    ? "bg-primary text-white"
+                    : isLocked
+                    ? "text-gray-400 cursor-not-allowed"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={(e) => {
+                  if (isLocked) {
+                    e.preventDefault();
+                    return;
+                  }
+                  setIsOpen(false); // close sidebar on mobile nav click
+                  onClose?.();
+                }}
+              >
+                <Icon className="w-4 h-4" />
+                {item.label}
+                {item.isPro && (
+                  <div className="ml-auto flex items-center gap-1">
+                    {!isProUser && <Crown className="w-3 h-3 text-amber-500" />}
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                      isProUser ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                    }`}>
                       PRO
                     </span>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </nav>
+                  </div>
+                )}
+              </a>
+            </Link>
+          );
+        })}
+      </nav>
 
-      </div>
-      
-      {/* User Profile - Fixed at bottom */}
-      <div className="p-4 border-t border-gray-200">
-        <Link href="/profile">
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors" onClick={onClose}>
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {user?.initials ?? "U"}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.name ?? "Your Profile"}
-              </p>
-              <p className="text-xs text-gray-500 truncate">
-                {user?.role ?? "Member"}
-              </p>
-            </div>
+      {/* User Profile */}
+      <div className="mt-6 p-3 bg-gray-50 rounded-lg">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+            <span className="text-white text-sm font-medium">
+              {user?.name?.[0] || "U"}
+            </span>
           </div>
-        </Link>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {user?.name || "User"}
+            </p>
+            <p className="text-xs text-gray-500 truncate">Field Service Pro</p>
+          </div>
+        </div>
+        
+        {!isProUser && (
+          <div className="text-xs text-gray-600 bg-amber-50 p-2 rounded border border-amber-200">
+            <div className="flex items-center gap-1 mb-1">
+              <Crown className="w-3 h-3 text-amber-600" />
+              <span className="font-medium">Upgrade to Pro</span>
+            </div>
+            <p>Unlock quotes, invoices, and advanced features</p>
+          </div>
+        )}
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Mobile header with hamburger */}
+      <div className="md:hidden flex items-center bg-white border-b px-4 py-2">
+        <Button variant="ghost" size="icon" onClick={() => setIsOpen(true)}>
+          <Menu className="h-6 w-6" />
+        </Button>
+        <h1 className="ml-3 font-bold text-lg">Taska</h1>
+      </div>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden md:block w-64 bg-white border-r border-gray-200 fixed h-full z-10">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile sidebar overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-40 flex md:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-30"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* Slide-in sidebar */}
+          <div className="relative w-4/5 max-w-xs bg-white h-full shadow-xl transform transition-transform translate-x-0">
+            <div className="absolute top-4 right-4">
+              <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)}>
+                <X className="h-6 w-6" />
+              </Button>
+            </div>
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -72,8 +72,11 @@ export const jobsApi = {
   customers: () => api("/api/jobs/customers"),
   equipment: () => api("/api/jobs/equipment"),
   delete: (id: string) => api(`/api/jobs/${id}`, { method: "DELETE" }),
-  byRange: (startISO: string, endISO: string) =>
-    api(`/api/jobs/range?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`),
+  byRange: (startISO: string, endISO: string, techId?: string) =>
+    api(`/api/jobs/range?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}${techId ? `&techId=${encodeURIComponent(techId)}` : ""}`),
+  technicians: () => api("/api/jobs/technicians"),
+  reschedule: (id: string, scheduledAtISO: string) =>
+    api(`/api/jobs/${id}/schedule`, { method: "PATCH", body: JSON.stringify({ scheduledAt: scheduledAtISO }) }),
 };
 
 export const customersApi = {

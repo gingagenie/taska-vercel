@@ -51,6 +51,44 @@ jobs.get("/", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+// --- TECH FILTER SOURCE ---
+// Return technicians in this org (id + name). Adjust query if your schema differs.
+jobs.get("/technicians", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select u.id, u.name, u.email
+    from users u
+    where u.org_id = ${orgId}::uuid
+    order by u.name asc
+  `);
+  res.json(r.rows);
+});
+
+// --- RANGE with optional techId filter ---
+jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { start, end, techId } = req.query as { start?: string; end?: string; techId?: string };
+
+  if (!start || !end) return res.status(400).json({ error: "start and end are required (ISO strings)" });
+
+  // If techId provided, join job_assignments to filter jobs for that tech
+  const r: any = await db.execute(sql`
+    select j.id, j.title, j.status, j.scheduled_at,
+           j.customer_id, coalesce(c.name,'—') as customer_name
+    from jobs j
+    left join customers c on c.id = j.customer_id
+    ${techId ? sql`
+      join job_assignments ja on ja.job_id = j.id and ja.user_id = ${techId}::uuid
+    ` : sql``}
+    where j.org_id=${orgId}::uuid
+      and j.scheduled_at is not null
+      and j.scheduled_at >= ${start}::timestamptz
+      and j.scheduled_at <  ${end}::timestamptz
+    order by j.scheduled_at asc
+  `);
+  res.json(r.rows);
+});
+
 // GET /customers - Return dropdown data by org
 jobs.get("/customers", requireAuth, requireOrg, async (req, res) => {
   try {
@@ -193,6 +231,22 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
     console.error("POST /api/jobs/create error:", e);
     res.status(500).json({ error: e?.message || "create failed" });
   }
+});
+
+// --- DRAG-TO-RESCHEDULE (just update scheduled_at) ---
+jobs.patch("/:jobId/schedule", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  const { scheduledAt } = req.body || {};
+  if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) return res.status(400).json({ error: "invalid jobId" });
+  if (!scheduledAt) return res.status(400).json({ error: "scheduledAt required (ISO)" });
+
+  await db.execute(sql`
+    update jobs set scheduled_at = ${scheduledAt}::timestamptz
+    where id=${jobId}::uuid and org_id=${orgId}::uuid
+  `);
+
+  res.json({ ok: true });
 });
 
 // PUT /:jobId - Update job
@@ -461,25 +515,6 @@ jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Default export
-// LIST BY DATE RANGE (scheduled jobs)
-jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
-  const orgId = (req as any).orgId;
-  const { start, end } = req.query as { start?: string; end?: string };
-  if (!start || !end) return res.status(400).json({ error: "start and end are required (ISO strings)" });
 
-  const r: any = await db.execute(sql`
-    select j.id, j.title, j.status, j.scheduled_at,
-           j.customer_id, coalesce(c.name,'—') as customer_name
-    from jobs j
-    left join customers c on c.id = j.customer_id
-    where j.org_id=${orgId}::uuid
-      and j.scheduled_at is not null
-      and j.scheduled_at >= ${start}::timestamptz
-      and j.scheduled_at <  ${end}::timestamptz
-    order by j.scheduled_at asc
-  `);
-  res.json(r.rows);
-});
 
 export default jobs;

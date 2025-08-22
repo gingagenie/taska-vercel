@@ -1,3 +1,82 @@
+Replit Agent Prompt — Schedule: Week/Month, Drag-Drop, Tech Filter
+1) Backend: extend server/routes/jobs.ts
+
+Add these routes (below your existing ones):
+
+// --- TECH FILTER SOURCE ---
+// Return technicians in this org (id + name). Adjust query if your schema differs.
+jobs.get("/technicians", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select u.id, u.name, u.email
+    from users u
+    where u.org_id = ${orgId}::uuid
+    order by u.name asc
+  `);
+  res.json(r.rows);
+});
+
+// --- RANGE with optional techId filter ---
+jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { start, end, techId } = req.query as { start?: string; end?: string; techId?: string };
+
+  if (!start || !end) return res.status(400).json({ error: "start and end are required (ISO strings)" });
+
+  // If techId provided, join job_assignments to filter jobs for that tech
+  const r: any = await db.execute(sql`
+    select j.id, j.title, j.status, j.scheduled_at,
+           j.customer_id, coalesce(c.name,'—') as customer_name
+    from jobs j
+    left join customers c on c.id = j.customer_id
+    ${techId ? sql`
+      join job_assignments ja on ja.job_id = j.id and ja.user_id = ${techId}::uuid
+    ` : sql``}
+    where j.org_id=${orgId}::uuid
+      and j.scheduled_at is not null
+      and j.scheduled_at >= ${start}::timestamptz
+      and j.scheduled_at <  ${end}::timestamptz
+    order by j.scheduled_at asc
+  `);
+  res.json(r.rows);
+});
+
+// --- DRAG-TO-RESCHEDULE (just update scheduled_at) ---
+jobs.patch("/:jobId/schedule", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  const { scheduledAt } = req.body || {};
+  if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) return res.status(400).json({ error: "invalid jobId" });
+  if (!scheduledAt) return res.status(400).json({ error: "scheduledAt required (ISO)" });
+
+  await db.execute(sql`
+    update jobs set scheduled_at = ${scheduledAt}::timestamptz
+    where id=${jobId}::uuid and org_id=${orgId}::uuid
+  `);
+
+  res.json({ ok: true });
+});
+
+
+No other server changes needed; existing /api/jobs routes stay as-is.
+
+2) Client API — client/src/lib/api.ts
+
+Add helpers:
+
+export const jobsApi = {
+  // ...existing
+  byRange: (startISO: string, endISO: string, techId?: string) =>
+    api(`/api/jobs/range?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}${techId ? `&techId=${encodeURIComponent(techId)}` : ""}`),
+  technicians: () => api("/api/jobs/technicians"),
+  reschedule: (id: string, scheduledAtISO: string) =>
+    api(`/api/jobs/${id}/schedule`, { method: "PATCH", body: JSON.stringify({ scheduledAt: scheduledAtISO }) }),
+};
+
+3) Schedule page — client/src/pages/schedule.tsx
+
+Replace your existing file with this upgraded version:
+
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, format, set } from "date-fns";
@@ -29,7 +108,6 @@ function statusTone(s: string) {
   if (s === "cancelled") return "bg-rose-100 text-rose-800";
   return "bg-gray-200 text-gray-700";
 }
-
 function clampIsoDayWithTime(newDay: Date, timeFrom: Date) {
   // keep original hours:minutes of the job when moving between days
   return set(newDay, { hours: timeFrom.getHours(), minutes: timeFrom.getMinutes(), seconds: 0, milliseconds: 0 }).toISOString();
@@ -44,7 +122,7 @@ export default function SchedulePage() {
   const [cursor, setCursor] = useState<Date>(new Date());
 
   // tech filter (single-select for now; can upgrade to multi later)
-  const [techId, setTechId] = useState<string>("none");
+  const [techId, setTechId] = useState<string>("");
 
   // compute range
   const monthStart = startOfMonth(cursor);
@@ -63,8 +141,8 @@ export default function SchedulePage() {
 
   // fetch jobs in window (optionally filtered by tech)
   const { data: jobs = [], isLoading } = useQuery({
-    queryKey: ["/api/jobs/range", startISO, endISO, techId === "none" ? "" : techId],
-    queryFn: () => jobsApi.byRange(startISO, endISO, techId === "none" ? undefined : techId),
+    queryKey: ["/api/jobs/range", startISO, endISO, techId || ""],
+    queryFn: () => jobsApi.byRange(startISO, endISO, techId || undefined),
   });
 
   // fetch technicians for dropdown
@@ -116,7 +194,7 @@ export default function SchedulePage() {
     const newIso = clampIsoDayWithTime(day, new Date(originalIso));
 
     // optimistic: update cache for this range so UI moves instantly
-    const key = ["/api/jobs/range", startISO, endISO, techId === "none" ? "" : techId];
+    const key = ["/api/jobs/range", startISO, endISO, techId || ""];
     const prev = qc.getQueryData<Job[]>(key) || [];
     const next = (prev as Job[]).map(j => j.id === id ? { ...j, scheduled_at: newIso } : j);
     qc.setQueryData(key, next);
@@ -149,9 +227,7 @@ export default function SchedulePage() {
         <div className="flex items-center gap-2">
           {/* View toggle */}
           <Select value={view} onValueChange={(v)=>setView(v as ViewMode)}>
-            <SelectTrigger className="w-36" data-testid="select-view-mode">
-              <SelectValue placeholder="View" />
-            </SelectTrigger>
+            <SelectTrigger className="w-36"><SelectValue placeholder="View" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="week">Week view</SelectItem>
               <SelectItem value="month">Month view</SelectItem>
@@ -160,11 +236,11 @@ export default function SchedulePage() {
 
           {/* Technician filter */}
           <Select value={techId} onValueChange={setTechId}>
-            <SelectTrigger className="w-48" data-testid="select-technician">
+            <SelectTrigger className="w-48">
               <SelectValue placeholder="All technicians" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">All technicians</SelectItem>
+              <SelectItem value="">All technicians</SelectItem>
               {(techs as any[]).map(t => (
                 <SelectItem key={t.id} value={t.id}>{t.name || t.email}</SelectItem>
               ))}
@@ -172,26 +248,9 @@ export default function SchedulePage() {
           </Select>
 
           {/* Nav */}
-          <Button 
-            variant="outline" 
-            onClick={() => setCursor(new Date())}
-            data-testid="button-schedule-today"
-          >
-            Today
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => setCursor(view === "month" ? subMonths(cursor,1) : addDays(cursor, -7))}
-            data-testid="button-schedule-prev"
-          >
-            Prev
-          </Button>
-          <Button 
-            onClick={() => setCursor(view === "month" ? addMonths(cursor,1) : addDays(cursor, 7))}
-            data-testid="button-schedule-next"
-          >
-            Next
-          </Button>
+          <Button variant="outline" onClick={() => setCursor(new Date())}>Today</Button>
+          <Button variant="outline" onClick={() => setCursor(view === "month" ? subMonths(cursor,1) : addDays(cursor, -7))}>Prev</Button>
+          <Button onClick={() => setCursor(view === "month" ? addMonths(cursor,1) : addDays(cursor, 7))}>Next</Button>
         </div>
       </div>
 
@@ -225,20 +284,13 @@ export default function SchedulePage() {
                       faded ? "bg-gray-50/40 text-gray-400" : "bg-white",
                       today ? "ring-2 ring-primary/60 z-[1]" : ""
                     ].join(" ")}
-                    data-testid={`day-cell-${k}`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <button 
-                        className="text-xs font-medium" 
-                        onClick={()=>setOpenDay(d)}
-                        data-testid={`day-number-${k}`}
-                      >
+                      <button className="text-xs font-medium" onClick={()=>setOpenDay(d)}>
                         {format(d, "d")}
                       </button>
                       {!!list.length && (
-                        <Badge className="text-[10px] py-0 px-1.5" data-testid={`day-badge-${k}`}>
-                          {list.length}
-                        </Badge>
+                        <Badge className="text-[10px] py-0 px-1.5">{list.length}</Badge>
                       )}
                     </div>
                     <div className="space-y-1">
@@ -253,17 +305,12 @@ export default function SchedulePage() {
                           ].join(" ")}
                           onClick={(e) => { e.stopPropagation(); navigate(`/jobs/${j.id}`); }}
                           title={`${j.title}${j.customer_name ? " — " + j.customer_name : ""}`}
-                          data-testid={`job-pill-${j.id}`}
                         >
                           {j.title}{j.customer_name ? ` — ${j.customer_name}` : ""}
                         </div>
                       ))}
                       {list.length > (view === "week" ? 8 : 3) && (
-                        <button 
-                          className="text-[10px] text-gray-500" 
-                          onClick={()=>setOpenDay(d)}
-                          data-testid={`more-jobs-${k}`}
-                        >
+                        <button className="text-[10px] text-gray-500" onClick={()=>setOpenDay(d)}>
                           +{list.length - (view === "week" ? 8 : 3)} more…
                         </button>
                       )}
@@ -280,22 +327,15 @@ export default function SchedulePage() {
       <Dialog open={!!openDay} onOpenChange={(v) => setOpenDay(v ? openDay : null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle data-testid="day-modal-title">
-              {openDay ? format(openDay, "EEEE, d MMM yyyy") : "Day"}
-            </DialogTitle>
+            <DialogTitle>{openDay ? format(openDay, "EEEE, d MMM yyyy") : "Day"}</DialogTitle>
           </DialogHeader>
-          {dayJobs.length === 0 ? (
-            <div className="text-sm text-gray-500" data-testid="no-jobs-message">
-              No jobs scheduled.
-            </div>
+          {!openDay || (byDay[format(openDay, "yyyy-MM-dd")] || []).length === 0 ? (
+            <div className="text-sm text-gray-500">No jobs scheduled.</div>
           ) : (
             <div className="space-y-2">
-              {dayJobs.map((j) => (
+              {(byDay[format(openDay, "yyyy-MM-dd")] || []).map((j) => (
                 <Link key={j.id} href={`/jobs/${j.id}`}>
-                  <a 
-                    className="block border rounded p-2 hover:bg-gray-50"
-                    data-testid={`day-job-${j.id}`}
-                  >
+                  <a className="block border rounded p-2 hover:bg-gray-50">
                     <div className="text-sm font-medium">{j.title}</div>
                     <div className="text-xs text-gray-600">
                       {j.customer_name || "—"} • {new Date(j.scheduled_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}
@@ -310,3 +350,22 @@ export default function SchedulePage() {
     </div>
   );
 }
+
+
+Notes
+
+Week view shows a single 7-day row; Month view uses the 6-row grid.
+
+Drag & drop: grab a job pill and drop it on another day cell → it keeps the original time (HH:mm) and updates scheduled_at via PATCH /api/jobs/:id/schedule.
+
+Technician filter: dropdown at top; when set, /range joins job_assignments to show only that tech’s jobs.
+
+4) Test checklist
+
+Toggle Week / Month and navigate with Prev/Next/Today.
+
+Drag a job to another day → it moves immediately; persists after reload.
+
+Choose a technician → only jobs assigned to them show.
+
+Click a day → modal lists that day’s jobs; clicking one opens its card.

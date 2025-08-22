@@ -104,3 +104,13 @@ img, video {
 .min-w-0 {
   min-width: 0;
 }
+
+/* Page layout: responsive padding */
+.page {
+  padding: 1rem;
+}
+@media (min-width: 640px) {
+  .page { 
+    padding: 1.5rem; 
+  }
+}

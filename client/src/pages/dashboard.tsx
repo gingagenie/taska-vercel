@@ -1,181 +1,187 @@
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MetricsCard } from "@/components/metrics-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { jobsApi } from "@/lib/api";
-import { Briefcase, CheckCircle, DollarSign, Users, Wrench, Calendar, Settings } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Link } from "wouter";
+import { CalendarDays, Briefcase, Users, Wrench } from "lucide-react";
+import { JobModal } from "@/components/modals/job-modal";
+
+// --- date helpers ---
+function startOfDay(d = new Date()) {
+  const x = new Date(d); x.setHours(0,0,0,0); return x;
+}
+function endOfDay(d = new Date()) {
+  const x = new Date(d); x.setHours(23,59,59,999); return x;
+}
+function within(dateStr: string | null, from: Date, to: Date) {
+  if (!dateStr) return false;
+  const t = new Date(dateStr).getTime();
+  return t >= from.getTime() && t <= to.getTime();
+}
+function fmtDateTime(s: string | null) {
+  if (!s) return "Not scheduled";
+  const d = new Date(s);
+  return d.toLocaleString();
+}
 
 export default function Dashboard() {
+  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ["/api/jobs"],
     queryFn: jobsApi.getAll,
   });
 
-  // Calculate metrics from jobs data
-  const activeJobs = jobs.filter((job: any) => job.status === "new" || job.status === "in_progress").length;
-  const completedToday = jobs.filter((job: any) => {
-    const today = new Date().toDateString();
-    return job.status === "completed" && new Date(job.updated_at).toDateString() === today;
-  }).length;
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const todayEnd = endOfDay(now);
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case "new": return "status-badge status-new";
-      case "in_progress": return "status-badge status-in-progress";
-      case "completed": return "status-badge status-completed";
-      default: return "status-badge status-new";
-    }
-  };
-
-  const getJobIcon = (index: number) => {
-    const icons = [Wrench, Settings, Calendar];
-    const Icon = icons[index % icons.length];
-    return <Icon className="text-blue-600" />;
-  };
-
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white p-6 rounded-xl border border-gray-200 animate-pulse">
-              <div className="h-20"></div>
-            </div>
-          ))}
-        </div>
-      </div>
+  const { todaysJobs, upcomingJobs } = useMemo(() => {
+    const todays = (jobs as any[]).filter(j =>
+      within(j.scheduled_at, todayStart, todayEnd)
     );
-  }
+    const upcoming = (jobs as any[])
+      .filter(j => {
+        if (!j.scheduled_at) return false;
+        const t = new Date(j.scheduled_at).getTime();
+        return t > todayEnd.getTime();
+      })
+      .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+      .slice(0, 5);
+    return { todaysJobs: todays, upcomingJobs: upcoming };
+  }, [jobs]);
 
   return (
-    <div className="p-4 sm:p-6">
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-        <MetricsCard
-          title="Active Jobs"
-          value={activeJobs}
-          trend={{ value: "12%", direction: "up", label: "from last week" }}
-          icon={<Briefcase className="text-blue-600" />}
-          iconBgColor="bg-blue-100"
-        />
-        
-        <MetricsCard
-          title="Completed Today"
-          value={completedToday}
-          trend={{ value: "5%", direction: "up", label: "from yesterday" }}
-          icon={<CheckCircle className="text-green-600" />}
-          iconBgColor="bg-green-100"
-        />
-        
-        <MetricsCard
-          title="Revenue MTD"
-          value="$48,250"
-          trend={{ value: "18%", direction: "up", label: "from last month" }}
-          icon={<DollarSign className="text-yellow-600" />}
-          iconBgColor="bg-yellow-100"
-        />
-        
-        <MetricsCard
-          title="Team Utilization"
-          value="87%"
-          trend={{ value: "2%", direction: "down", label: "from last week" }}
-          icon={<Users className="text-purple-600" />}
-          iconBgColor="bg-purple-100"
-        />
+    <div className="page space-y-6">
+      {/* Header */}
+      <div className="header-row">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <div className="header-actions">
+          <Button data-mobile-full="true" onClick={() => setIsJobModalOpen(true)}>
+            + New Job
+          </Button>
+        </div>
       </div>
-      
-      {/* Recent Activity & Upcoming Jobs */}
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card>
+          <CardContent className="card-pad flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-500">Jobs Today</div>
+              <div className="text-2xl font-semibold">{todaysJobs.length}</div>
+            </div>
+            <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
+              <CalendarDays className="h-6 w-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="card-pad flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-500">Total Jobs</div>
+              <div className="text-2xl font-semibold">{(jobs as any[]).length}</div>
+            </div>
+            <div className="p-3 rounded-lg bg-indigo-50 text-indigo-600">
+              <Briefcase className="h-6 w-6" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Today's Schedule + Upcoming */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Recent Jobs */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Jobs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {jobs.length === 0 ? (
-              <div className="text-center py-8">
-                <Briefcase className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No jobs found</h3>
-                <p className="mt-1 text-sm text-gray-500">Get started by creating a new job.</p>
+            <div className="header-row">
+              <CardTitle>Today's Schedule</CardTitle>
+              <div className="header-actions">
+                <Link href="/schedule"><a><Button variant="outline">View Schedule</Button></a></Link>
               </div>
+            </div>
+          </CardHeader>
+          <CardContent className="card-pad">
+            {isLoading ? (
+              <div className="text-sm text-gray-500">Loading…</div>
+            ) : todaysJobs.length === 0 ? (
+              <div className="text-sm text-gray-500">No jobs scheduled for today.</div>
             ) : (
               <div className="space-y-3">
-                {jobs.slice(0, 5).map((job: any, index: number) => (
-                  <div key={job.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        {getJobIcon(index)}
+                {todaysJobs.map((j: any) => (
+                  <Link key={j.id} href={`/jobs/${j.id}`}>
+                    <a className="block rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 p-3 transition">
+                      <div className="font-medium">{j.title}</div>
+                      <div className="text-xs text-gray-500">
+                        {fmtDateTime(j.scheduled_at)} • {j.customer_name || "—"}
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{job.title}</p>
-                        <div className="text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                          {job.description?.trim()
-                            ? job.description
-                            : "No description yet"}
-                        </div>
-                        <p className="text-sm text-gray-500">
-                          {job.customer_name && `${job.customer_name} • `}
-                          {job.scheduled_at ? new Date(job.scheduled_at).toLocaleDateString() : "Not scheduled"}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge className={getStatusBadgeClass(job.status)}>
-                      {job.status?.replace("_", " ") || "New"}
-                    </Badge>
-                  </div>
+                    </a>
+                  </Link>
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
-        
-        {/* Today's Schedule */}
+
         <Card>
           <CardHeader>
-            <CardTitle>Today's Schedule</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {jobs.filter((job: any) => {
-              if (!job.scheduled_at) return false;
-              const today = new Date().toDateString();
-              return new Date(job.scheduled_at).toDateString() === today;
-            }).length === 0 ? (
-              <div className="text-center py-8">
-                <Calendar className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No jobs scheduled</h3>
-                <p className="mt-1 text-sm text-gray-500">No jobs are scheduled for today.</p>
+            <div className="header-row">
+              <CardTitle>Upcoming Jobs</CardTitle>
+              <div className="header-actions">
+                <Link href="/jobs"><a><Button variant="outline">View All</Button></a></Link>
               </div>
+            </div>
+          </CardHeader>
+          <CardContent className="card-pad">
+            {isLoading ? (
+              <div className="text-sm text-gray-500">Loading…</div>
+            ) : upcomingJobs.length === 0 ? (
+              <div className="text-sm text-gray-500">No upcoming jobs.</div>
             ) : (
               <div className="space-y-3">
-                {jobs
-                  .filter((job: any) => {
-                    if (!job.scheduled_at) return false;
-                    const today = new Date().toDateString();
-                    return new Date(job.scheduled_at).toDateString() === today;
-                  })
-                  .slice(0, 5)
-                  .map((job: any) => (
-                    <div key={job.id} className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-0">
-                      <div className="text-sm font-medium text-gray-500 w-16">
-                        {new Date(job.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {upcomingJobs.map((j: any) => (
+                  <Link key={j.id} href={`/jobs/${j.id}`}>
+                    <a className="block rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/30 p-3 transition">
+                      <div className="font-medium">{j.title}</div>
+                      <div className="text-xs text-gray-500">
+                        {fmtDateTime(j.scheduled_at)} • {j.customer_name || "—"}
                       </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{job.title}</p>
-                        <p className="text-sm text-gray-500">Status: {job.status?.replace("_", " ") || "New"}</p>
-                      </div>
-                      <div className={`w-3 h-3 rounded-full ${
-                        job.status === "completed" ? "bg-green-500" : 
-                        job.status === "in_progress" ? "bg-blue-500" : "bg-gray-500"
-                      }`}></div>
-                    </div>
-                  ))}
+                    </a>
+                  </Link>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
-        
       </div>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="card-pad">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Button data-mobile-full="true" onClick={() => setIsJobModalOpen(true)}>
+              <Briefcase className="h-4 w-4 mr-2" /> New Job
+            </Button>
+            <Link href="/schedule">
+              <a><Button data-mobile-full="true" variant="outline"><CalendarDays className="h-4 w-4 mr-2" /> Schedule</Button></a>
+            </Link>
+            <Link href="/customers">
+              <a><Button data-mobile-full="true" variant="outline"><Users className="h-4 w-4 mr-2" /> Customers</Button></a>
+            </Link>
+            <Link href="/equipment">
+              <a><Button data-mobile-full="true" variant="outline"><Wrench className="h-4 w-4 mr-2" /> Equipment</Button></a>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reuse existing New Job modal */}
+      <JobModal open={isJobModalOpen} onOpenChange={setIsJobModalOpen} />
     </div>
   );
 }

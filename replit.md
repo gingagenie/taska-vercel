@@ -12,6 +12,7 @@ Taska is a comprehensive field service management application built with a moder
 - **Responsive Layout Patterns**: Header rows stack on mobile/inline on desktop, header actions distribute width properly, table horizontal scrolling
 - **Page Updates**: All key pages (Jobs, Members, Equipment, Customers, Job View) now mobile-responsive with proper button layouts
 - **Touch-Friendly Design**: Button groups adapt to screen width, full-width options for mobile, proper gap spacing and flex distribution
+- **Dashboard Rebuild**: Clean, mobile-friendly dashboard with KPI cards, today's schedule, upcoming jobs, and quick actions using responsive design patterns
 
 ### Auto-Refresh Cache Management
 - **Customer Operations**: Create/edit customers automatically refresh customer lists and detail pages

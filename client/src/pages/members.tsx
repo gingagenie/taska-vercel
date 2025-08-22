@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -86,8 +87,8 @@ export default function MembersPage() {
                   <td className="px-4 py-3" data-testid={`text-member-email-${u.id}`}>
                     {u.email}
                   </td>
-                  <td className="px-4 py-3" data-testid={`text-member-role-${u.id}`}>
-                    {u.role || "—"}
+                  <td className="px-4 py-3 capitalize" data-testid={`text-member-role-${u.id}`}>
+                    {u.role || "technician"}
                   </td>
                   <td className="px-4 py-3" data-testid={`text-member-phone-${u.id}`}>
                     {u.phone || "—"}
@@ -130,7 +131,7 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState<string>("technician");
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -140,7 +141,7 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
       const result = await membersApi.create({ email, name, role, phone });
       onOpenChange(false);
       onSaved();
-      setEmail(""); setName(""); setRole(""); setPhone("");
+      setEmail(""); setName(""); setRole("technician"); setPhone("");
       toast({
         title: result.created ? "Member added" : "Member updated",
         description: result.created 
@@ -185,12 +186,16 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
           </div>
           <div>
             <Label>Role</Label>
-            <Input 
-              value={role} 
-              onChange={(e)=>setRole(e.target.value)} 
-              placeholder="Technician"
-              data-testid="input-member-role"
-            />
+            <Select value={role} onValueChange={(v)=>setRole(v)}>
+              <SelectTrigger className="w-full" data-testid="select-member-role">
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="technician">Technician</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label>Phone</Label>

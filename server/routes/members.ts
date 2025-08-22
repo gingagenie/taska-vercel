@@ -5,7 +5,9 @@ import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
-export const members = Router();
+const ALLOWED_ROLES = new Set(["technician", "manager", "admin"]);
+
+const members = Router();
 
 /** List org members */
 members.get("/", requireAuth, requireOrg, async (req, res) => {
@@ -24,32 +26,37 @@ members.get("/", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
-/** Create org member (upsert by email within org) */
+/** Create/Upsert member (by org_id + lower(email)) with role guard */
 members.post("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
-  const { email, name, role, phone } = req.body || {};
+  let { email, name, role, phone } = req.body || {};
   if (!email) return res.status(400).json({ error: "email required" });
 
   try {
-    // try find existing user in this org
+    email = String(email).trim();
+    const emailLC = email.toLowerCase();
+    const roleNorm = ALLOWED_ROLES.has(String(role)) ? String(role) : "technician";
+
     const existing: any = await db.execute(sql`
-      select id from users where org_id=${orgId}::uuid and lower(email)=lower(${email})
+      select id from users where org_id=${orgId}::uuid and lower(email)=${emailLC}
     `);
+
     if (existing.rows?.[0]?.id) {
-      // update name/role/phone if provided
+      const id = existing.rows[0].id;
       await db.execute(sql`
         update users set
-          name = coalesce(${name}, name),
-          role = coalesce(${role}, role),
-          phone = coalesce(${phone}, phone)
-        where id=${existing.rows[0].id}::uuid
+          name  = coalesce(${name}, name),
+          role  = ${roleNorm},
+          phone = coalesce(${phone}, phone),
+          email = ${email}
+        where id=${id}::uuid
       `);
-      return res.json({ ok: true, id: existing.rows[0].id, created: false });
+      return res.json({ ok: true, id, created: false });
     }
 
     const ins: any = await db.execute(sql`
       insert into users (org_id, email, name, role, phone)
-      values (${orgId}::uuid, ${email}, ${name || null}, ${role || null}, ${phone || null})
+      values (${orgId}::uuid, ${email}, ${name || null}, ${roleNorm}, ${phone || null})
       returning id
     `);
     res.json({ ok: true, id: ins.rows[0].id, created: true });
@@ -80,9 +87,7 @@ members.delete("/:userId", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
-/** COMPAT: legacy endpoint you used earlier: POST /api/teams/add-member
- * Accepts { email, name, teamId }. Creates/finds user in org, then adds to team_members.
- */
+/** Compat: add to team by email (optional legacy) */
 members.post("/_compat/teams-add-member", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   let { email, name, teamId, role, phone } = req.body || {};
@@ -90,24 +95,29 @@ members.post("/_compat/teams-add-member", requireAuth, requireOrg, async (req, r
   if (!isUuid(teamId)) return res.status(400).json({ error: "invalid teamId" });
 
   try {
-    const existing: any = await db.execute(sql`
-      select id from users where org_id=${orgId}::uuid and lower(email)=lower(${email})
-    `);
-    let userId: string;
+    email = String(email).trim();
+    const emailLC = email.toLowerCase();
+    const roleNorm = ALLOWED_ROLES.has(String(role)) ? String(role) : "technician";
 
+    const existing: any = await db.execute(sql`
+      select id from users where org_id=${orgId}::uuid and lower(email)=${emailLC}
+    `);
+
+    let userId: string;
     if (existing.rows?.[0]?.id) {
       userId = existing.rows[0].id;
       await db.execute(sql`
         update users set
-          name = coalesce(${name}, name),
-          role = coalesce(${role}, role),
-          phone = coalesce(${phone}, phone)
+          name  = coalesce(${name}, name),
+          role  = ${roleNorm},
+          phone = coalesce(${phone}, phone),
+          email = ${email}
         where id=${userId}::uuid
       `);
     } else {
       const ins: any = await db.execute(sql`
         insert into users (org_id, email, name, role, phone)
-        values (${orgId}::uuid, ${email}, ${name || null}, ${role || null}, ${phone || null})
+        values (${orgId}::uuid, ${email}, ${name || null}, ${roleNorm}, ${phone || null})
         returning id
       `);
       userId = ins.rows[0].id;

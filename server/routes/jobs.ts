@@ -129,62 +129,68 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
 
 // POST /create - Insert new job
 jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
-  try {
-    const orgId = (req as any).orgId;
-    const userId = (req as any).user?.id || null;
-    let { title, description, customerId, scheduledAt, equipmentIds } = req.body || {};
-    
-    console.log("[TRACE] POST /api/jobs/create org=%s body=%o", orgId, req.body);
+  const orgId = (req as any).orgId;
+  const userId = (req as any).user?.id || null;
 
-    if (!title) return res.status(400).json({ error: "title required" });
-    if (customerId === "") customerId = null;
-    if (scheduledAt === "") scheduledAt = null;
-    if (!Array.isArray(equipmentIds)) equipmentIds = [];
-    
-    // Normalize date handling
-    function normalizeDate(v: string | null | undefined): string | null {
-      if (!v) return null;
-      if (v.includes("T")) {
-        const [d, t] = v.split("T");
-        const tt = t.length === 5 ? `${t}:00` : t;
-        return `${d} ${tt}`.slice(0, 19);
-      }
-      return v;
+  let { title, description, customerId, scheduledAt, equipmentId } = req.body || {};
+  if (!title) return res.status(400).json({ error: "title required" });
+
+  // normalize inputs
+  if (customerId === "") customerId = null;
+  if (equipmentId === "") equipmentId = null;
+
+  // allow datetime-local values like 2025-08-22T10:30
+  const normalizeDate = (v: any): string | null => {
+    if (v === undefined || v === null || v === "") return null;
+    const s = String(v);
+    if (s.includes("T")) {
+      const [d, t] = s.split("T");
+      const tt = t.length === 5 ? `${t}:00` : t; // HH:MM -> HH:MM:SS
+      return `${d} ${tt}`.slice(0, 19);
     }
-    
-    const normalizedDate = normalizeDate(scheduledAt);
+    return s;
+  };
+  scheduledAt = normalizeDate(scheduledAt);
+
+  try {
+    console.log("[DEBUG] Creating job with values:", {
+      orgId: orgId,
+      customerId: customerId || null,
+      title: title,
+      description: description || null,
+      scheduledAt: scheduledAt,
+      status: 'new',
+      createdBy: userId || null,
+    });
     
     const result = await db.execute(sql`
       INSERT INTO jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
       VALUES (
-        ${orgId}::uuid,
-        CASE WHEN ${customerId} IS NULL THEN NULL ELSE (${customerId}::uuid) END,
+        ${orgId},
+        ${customerId || null},
         ${title},
         ${description || null},
-        ${normalizedDate || null},
+        ${scheduledAt || null},
         'new',
         ${userId || null}
       )
       RETURNING id
     `);
-    const jobId = (result as any).rows[0].id as string;
+    
+    const jobId = (result as any).rows[0].id;
 
-    if (equipmentIds.length) {
-      // Bulk insert job_equipment
-      for (const eid of equipmentIds) {
-        await db.execute(sql`
-          INSERT INTO job_equipment (job_id, equipment_id)
-          VALUES (${jobId}::uuid, ${eid}::uuid)
-          ON CONFLICT DO NOTHING
-        `);
-      }
+    if (equipmentId) {
+      await db.execute(sql`
+        insert into job_equipment (job_id, equipment_id)
+        values (${jobId}::uuid, ${equipmentId}::uuid)
+        on conflict do nothing
+      `);
     }
 
-    console.log("[TRACE] POST /api/jobs/create -> created job %s", jobId);
     res.json({ ok: true, id: jobId });
-  } catch (error: any) {
-    console.error("POST /api/jobs/create error:", error);
-    res.status(500).json({ error: error?.message || "Failed to create job" });
+  } catch (e: any) {
+    console.error("POST /api/jobs/create error:", e);
+    res.status(500).json({ error: e?.message || "create failed" });
   }
 });
 

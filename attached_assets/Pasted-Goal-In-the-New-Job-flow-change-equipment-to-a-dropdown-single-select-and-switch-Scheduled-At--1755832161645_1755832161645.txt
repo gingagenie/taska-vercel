@@ -1,3 +1,80 @@
+Goal: In the New Job flow, change equipment to a dropdown (single select), and switch “Scheduled At” to a calendar+time input. Wire it to the API.
+
+1) Backend — server/routes/jobs.ts (POST /create)
+
+Accept equipmentId (single, optional).
+
+After inserting the job, if equipmentId is present, insert one row into job_equipment.
+
+Replace the create handler with:
+
+jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const userId = (req as any).user?.id || null;
+
+  let { title, description, customerId, scheduledAt, equipmentId } = req.body || {};
+  if (!title) return res.status(400).json({ error: "title required" });
+
+  // normalize inputs
+  if (customerId === "") customerId = null;
+  if (equipmentId === "") equipmentId = null;
+
+  // allow datetime-local values like 2025-08-22T10:30
+  const normalizeDate = (v: any): string | null => {
+    if (v === undefined || v === null || v === "") return null;
+    const s = String(v);
+    if (s.includes("T")) {
+      const [d, t] = s.split("T");
+      const tt = t.length === 5 ? `${t}:00` : t; // HH:MM -> HH:MM:SS
+      return `${d} ${tt}`.slice(0, 19);
+    }
+    return s;
+  };
+  scheduledAt = normalizeDate(scheduledAt);
+
+  try {
+    const r: any = await db.execute(sql`
+      insert into jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
+      values (
+        ${orgId}::uuid,
+        case when ${customerId} is null then null else (${customerId}::uuid) end,
+        ${title},
+        ${description || null},
+        ${scheduledAt || null},
+        'new',
+        ${userId || null}
+      )
+      returning id
+    `);
+    const jobId = r.rows[0].id as string;
+
+    if (equipmentId) {
+      await db.execute(sql`
+        insert into job_equipment (job_id, equipment_id)
+        values (${jobId}::uuid, ${equipmentId}::uuid)
+        on conflict do nothing
+      `);
+    }
+
+    res.json({ ok: true, id: jobId });
+  } catch (e: any) {
+    console.error("POST /api/jobs/create error:", e);
+    res.status(500).json({ error: e?.message || "create failed" });
+  }
+});
+
+2) Frontend — client/src/components/modals/job-modal.tsx
+
+Add equipment dropdown (equipmentId).
+
+Change Scheduled At to type="datetime-local".
+
+Send equipmentId (single) not array.
+
+Keep customer dropdown as is.
+
+Replace the component with:
+
 import { useEffect, useState } from "react";
 import { jobsApi } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -84,22 +161,12 @@ export function JobModal({ open, onOpenChange, onCreated }: Props) {
         <div className="space-y-4">
           <div>
             <Label>Title</Label>
-            <Input 
-              value={title} 
-              onChange={(e) => setTitle(e.target.value)} 
-              placeholder="Job title" 
-              data-testid="input-job-title"
-            />
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Job title" />
           </div>
 
           <div>
             <Label>Description</Label>
-            <Textarea 
-              rows={3} 
-              value={description} 
-              onChange={(e) => setDescription(e.target.value)} 
-              data-testid="input-job-description"
-            />
+            <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
           <div>

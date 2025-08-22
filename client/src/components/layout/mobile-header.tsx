@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Sidebar } from "@/components/layout/sidebar";
+import { SidebarContent } from "@/components/layout/sidebar";
 
 export function MobileHeader({ title }: { title?: string }) {
   const [open, setOpen] = useState(false);
@@ -16,7 +16,7 @@ export function MobileHeader({ title }: { title?: string }) {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-72">
-            <Sidebar />
+            <SidebarContent onClose={() => setOpen(false)} />
           </SheetContent>
         </Sheet>
         <div className="text-base font-semibold truncate">{title || "Taska"}</div>

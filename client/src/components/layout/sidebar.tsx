@@ -25,115 +25,123 @@ const navigationItems = [
   { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true },
 ];
 
+interface SidebarContentProps {
+  onClose?: () => void;
+}
+
+export function SidebarContent({ onClose }: SidebarContentProps) {
+  const [location] = useLocation();
+  const { user, isProUser } = useAuth();
+
+  return (
+    <div className="p-6 h-full flex flex-col">
+      {/* Logo */}
+      <div className="flex items-center gap-3 mb-8">
+        <img 
+          src={logoUrl} 
+          alt="Taska Logo" 
+          className="w-8 h-8 object-contain"
+        />
+        <h1 className="text-xl font-bold text-gray-900">Taska</h1>
+      </div>
+
+      {/* Navigation Menu */}
+      <nav className="space-y-1 flex-1">
+        {navigationItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location === item.path;
+          const isLocked = item.isPro && !isProUser;
+          
+          return (
+            <Link key={item.path} href={item.path}>
+              <div
+                className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg cursor-pointer ${
+                  isActive
+                    ? "bg-primary text-white"
+                    : isLocked
+                    ? "text-gray-400 cursor-not-allowed"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={(e) => {
+                  if (isLocked) {
+                    e.preventDefault();
+                    return;
+                  }
+                  onClose?.();
+                }}
+                data-testid={`nav-${item.label.toLowerCase()}`}
+              >
+                <Icon className="w-4 h-4" />
+                {item.label}
+                {item.isPro && (
+                  <div className="ml-auto flex items-center gap-1">
+                    {!isProUser && <Crown className="w-3 h-3 text-amber-500" />}
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                      isProUser ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      PRO
+                    </span>
+                  </div>
+                )}
+              </div>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* User Profile */}
+      <Link href="/settings">
+        <div className="mt-6 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+          <div className="flex items-center gap-3 mb-3">
+            {user?.avatar_url ? (
+              <img 
+                src={user.avatar_url} 
+                alt="Profile" 
+                className="w-8 h-8 rounded-full object-cover"
+                onError={(e:any)=>{ 
+                  e.currentTarget.style.display="none"; 
+                  e.currentTarget.nextElementSibling.style.display="flex";
+                }}
+              />
+            ) : null}
+            <div className={`w-8 h-8 bg-primary rounded-full flex items-center justify-center ${user?.avatar_url ? 'hidden' : ''}`}>
+              <span className="text-white text-sm font-medium">
+                {user?.name?.[0] || "U"}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {user?.name || "User"}
+              </p>
+              <p className="text-xs text-gray-500 truncate">Field Service Pro</p>
+            </div>
+          </div>
+        </div>
+      </Link>
+      
+      <div className="mt-2">
+        {!isProUser && (
+          <div className="text-xs text-gray-600 bg-amber-50 p-2 rounded border border-amber-200">
+            <div className="flex items-center gap-1 mb-1">
+              <Crown className="w-3 h-3 text-amber-600" />
+              <span className="font-medium">Upgrade to Pro</span>
+            </div>
+            <p>Unlock quotes, invoices, and advanced features</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface SidebarProps {
   onClose?: () => void;
 }
 
 export function Sidebar({ onClose }: SidebarProps) {
-  const [location] = useLocation();
-  const { user, isProUser } = useAuth();
-
   return (
     <aside className="hidden sm:block w-64 bg-white border-r border-gray-200 fixed h-full z-30">
-      <div className="p-6 h-full flex flex-col">
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-8">
-          <img 
-            src={logoUrl} 
-            alt="Taska Logo" 
-            className="w-8 h-8 object-contain"
-          />
-          <h1 className="text-xl font-bold text-gray-900">Taska</h1>
-        </div>
-
-        {/* Navigation Menu */}
-        <nav className="space-y-1 flex-1">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location === item.path;
-            const isLocked = item.isPro && !isProUser;
-            
-            return (
-              <Link key={item.path} href={item.path}>
-                <div
-                  className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg cursor-pointer ${
-                    isActive
-                      ? "bg-primary text-white"
-                      : isLocked
-                      ? "text-gray-400 cursor-not-allowed"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                  onClick={(e) => {
-                    if (isLocked) {
-                      e.preventDefault();
-                      return;
-                    }
-                    onClose?.();
-                  }}
-                  data-testid={`nav-${item.label.toLowerCase()}`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {item.label}
-                  {item.isPro && (
-                    <div className="ml-auto flex items-center gap-1">
-                      {!isProUser && <Crown className="w-3 h-3 text-amber-500" />}
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                        isProUser ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                      }`}>
-                        PRO
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* User Profile */}
-        <Link href="/settings">
-          <a className="block">
-            <div className="mt-6 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-              <div className="flex items-center gap-3 mb-3">
-                {user?.avatar_url ? (
-                  <img 
-                    src={user.avatar_url} 
-                    alt="Profile" 
-                    className="w-8 h-8 rounded-full object-cover"
-                    onError={(e:any)=>{ 
-                      e.currentTarget.style.display="none"; 
-                      e.currentTarget.nextElementSibling.style.display="flex";
-                    }}
-                  />
-                ) : null}
-                <div className={`w-8 h-8 bg-primary rounded-full flex items-center justify-center ${user?.avatar_url ? 'hidden' : ''}`}>
-                  <span className="text-white text-sm font-medium">
-                    {user?.name?.[0] || "U"}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {user?.name || "User"}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">Field Service Pro</p>
-                </div>
-              </div>
-            </div>
-          </a>
-        </Link>
-        
-        <div className="mt-2">
-          {!isProUser && (
-            <div className="text-xs text-gray-600 bg-amber-50 p-2 rounded border border-amber-200">
-              <div className="flex items-center gap-1 mb-1">
-                <Crown className="w-3 h-3 text-amber-600" />
-                <span className="font-medium">Upgrade to Pro</span>
-              </div>
-              <p>Unlock quotes, invoices, and advanced features</p>
-            </div>
-          )}
-        </div>
-      </div>
+      <SidebarContent onClose={onClose} />
     </aside>
   );
 }

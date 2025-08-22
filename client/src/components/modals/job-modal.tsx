@@ -73,7 +73,9 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
         equipmentId: equipmentId || null, // single equipment
       };
       const r = await jobsApi.create(body);
+      // Invalidate jobs list and schedule range to refresh
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs/range"] });
       onOpenChange(false);
       onCreated?.(r?.id);
       // reset

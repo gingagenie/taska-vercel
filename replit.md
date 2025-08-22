@@ -6,11 +6,24 @@ Taska is a comprehensive field service management application built with a moder
 
 ## Recent Changes (January 2025)
 
+### Enhanced Customers Page with Tabbed Interface
+- **Professional Table Design**: Replaced card grid with polished table featuring sticky header, zebra rows, hover effects
+- **Full-Width Tabs**: All, With Email, With Phone, Missing Address filtering with smart customer segmentation
+- **Visual Enhancements**: Colorful customer avatars with initials, icons for email/phone/address fields
+- **Advanced Actions**: Dropdown menus with View/Edit/Delete actions, proper click event handling
+- **Responsive Design**: Horizontal scroll for mobile, proper column truncation, consistent spacing
+
+### Job Delete Functionality  
+- **Backend DELETE Endpoint**: Secure job deletion with UUID validation and organization scoping
+- **Frontend Confirmation**: Professional delete dialog with loading states and error handling
+- **Safety Features**: Two-step confirmation prevents accidental deletion, clear error messages
+- **Navigation**: Proper redirect to jobs list after successful deletion
+
 ### Customer Management Upgrade
 - **Database Schema**: Added comprehensive customer fields (contact_name, street, suburb, state, postcode) while maintaining backward compatibility
 - **Backend API**: Full CRUD operations with auth/tenancy middleware, validation, and error handling
 - **Frontend Features**: 
-  - Clean card grid layout with search functionality
+  - Clean table layout with advanced search functionality
   - Professional customer view pages with detailed contact information  
   - Enhanced customer modal for create/edit operations
   - Customer view header actions: Navigate (maps integration), Copy address, Create Job

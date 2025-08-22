@@ -1,3 +1,21 @@
+Goal:
+Replace client/src/pages/customers.tsx with a polished page that uses full-width tabs and a consistent table.
+
+Acceptance criteria:
+
+Page header with title + total count.
+
+Full-width tabs: All, With Email, With Phone, Missing Address.
+
+Search input on the right, New Customer button.
+
+Consistent, pretty table (sticky header, zebra rows, icons, hover highlight).
+
+Rows clickable to /customers/:id.
+
+Works with existing customersApi.getAll(), CustomerModal.
+
+Replace file: client/src/pages/customers.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { customersApi } from "@/lib/api";
@@ -83,9 +101,8 @@ export default function Customers() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="w-72"
-            data-testid="input-search"
           />
-          <Button onClick={() => setOpenCreate(true)} data-testid="button-new-customer">New Customer</Button>
+          <Button onClick={() => setOpenCreate(true)}>New Customer</Button>
         </div>
       </div>
 
@@ -132,9 +149,8 @@ export default function Customers() {
                     return (
                       <tr
                         key={c.id}
-                        className={`hover:bg-gray-50 transition-colors cursor-pointer ${i % 2 ? "bg-gray-50/30" : "bg-white"}`}
+                        className={`hover:bg-gray-50 transition-colors ${i % 2 ? "bg-gray-50/30" : "bg-white"}`}
                         onClick={() => navigate(`/customers/${c.id}`)}
-                        data-testid={`row-customer-${c.id}`}
                       >
                         {/* Company */}
                         <td className="px-4 py-3">
@@ -225,3 +241,11 @@ export default function Customers() {
     </div>
   );
 }
+
+Notes for the Agent
+
+If @/components/ui/tabs doesn’t exist, scaffold shadcn Tabs or swap for a simple button group with the same values (all|email|phone|missingAddress) that sets tab state.
+
+Keep existing delete confirmation on the customer view page; the list’s “Delete…” menu item should just navigate there.
+
+Ensure all imports exist (DropdownMenu, Tabs, etc.). If missing, generate them using shadcn’s standard API.

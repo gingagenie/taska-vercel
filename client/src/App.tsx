@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/auth-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
+import { Topbar } from "@/components/layout/topbar";
+import { MobileDrawer } from "@/components/layout/mobile-drawer";
 import { useState } from "react";
 
 // Import pages
@@ -33,6 +35,7 @@ function AppContent() {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
   // Page configuration
   const getPageConfig = () => {
@@ -98,10 +101,20 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Responsive Sidebar (handles mobile/desktop internally) */}
+      {/* Desktop Sidebar */}
       <Sidebar />
       
-      <main className="md:ml-64 pt-14 md:pt-0">
+      {/* Mobile Header */}
+      <Topbar onMenu={() => setIsMobileDrawerOpen(true)} title={pageConfig.title} />
+      
+      {/* Mobile Drawer */}
+      <MobileDrawer 
+        isOpen={isMobileDrawerOpen} 
+        onClose={() => setIsMobileDrawerOpen(false)} 
+      />
+      
+      <main className="md:pl-64">
+        {/* Desktop TopBar */}
         <div className="hidden md:block">
           <TopBar {...pageConfig} />
         </div>

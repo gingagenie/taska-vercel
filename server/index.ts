@@ -2,13 +2,17 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { me } from "./routes/me";
+import fs from "node:fs";
+import path from "node:path";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Serve uploads directory for photo files
-app.use("/uploads", express.static("uploads"));
+// Ensure uploads dir exists and serve statically
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use("/uploads", express.static(uploadsDir, { maxAge: "1y", immutable: true }));
 
 // Log every API request reaching Express
 app.use((req, _res, next) => {

@@ -128,6 +128,26 @@ export const meApi = {
   updateProfile: (body: any) => api("/api/me/profile", { method: "PUT", body: JSON.stringify(body) }),
   changePassword: (body: any) => api("/api/me/change-password", { method: "POST", body: JSON.stringify(body) }),
   updateOrg: (body: any) => api("/api/me/org", { method: "PUT", body: JSON.stringify(body) }),
+  uploadAvatar: async (file: File) => {
+    const BASE = import.meta.env.VITE_API_BASE_URL || "";
+    const uid = localStorage.getItem("x-user-id") || "315e3119-1b17-4dee-807f-bbc1e4d5c5b6";
+    const oid = localStorage.getItem("x-org-id") || "4500ba4e-e575-4f82-b196-27dd4c7d0eaf";
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    const res = await fetch(`${BASE}/api/me/avatar`, {
+      method: "POST",
+      headers: { "x-user-id": uid, "x-org-id": oid }, // NOTE: no Content-Type here
+      body: fd,
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      try { throw new Error(JSON.parse(text).error || JSON.parse(text).message || text); }
+      catch { throw new Error(text || `HTTP ${res.status}`); }
+    }
+    return JSON.parse(text);
+  },
 };
 
 /** PRO features (routes assumed as /api/quotes and /api/invoices) */

@@ -1,0 +1,177 @@
+Replit Agent Prompt — Add Avatar Upload (file picker → stored URL)
+0) Dependencies
+
+Add multer (for multipart upload). Update package.json:
+
+{
+  "dependencies": {
+    "multer": "^1.4.5-lts.1"
+  }
+}
+
+1) Serve an /uploads folder
+
+File: server/index.ts (or wherever you create app)
+
+Add these near the top (after imports):
+
+import fs from "node:fs";
+import path from "node:path";
+
+
+Right after you create const app = express();, ensure the folder exists and is served:
+
+// Ensure uploads dir exists and serve statically
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use("/uploads", express.static(uploadsDir, { maxAge: "1y", immutable: true }));
+
+2) Upload middleware
+
+File: server/middleware/upload.ts (new)
+
+import multer from "multer";
+
+export const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
+
+3) Backend route: POST /api/me/avatar
+
+Append to server/routes/me.ts (where you already have /api/me endpoints):
+
+import { upload } from "../middleware/upload";
+import { nanoid } from "nanoid";
+import fs from "node:fs/promises";
+import path from "node:path";
+
+/** Upload avatar (multipart/form-data with "file") */
+me.post("/avatar", requireAuth, upload.single("file"), async (req, res) => {
+  const userId = (req as any).user.id;
+  if (!req.file) return res.status(400).json({ error: "file required" });
+
+  // Guard: only images
+  const okTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+  if (!okTypes.includes(req.file.mimetype)) {
+    return res.status(415).json({ error: "unsupported file type" });
+  }
+
+  // Pick extension by mimetype
+  const ext = req.file.mimetype.split("/")[1] || "bin";
+  const fname = `${nanoid(16)}.${ext}`;
+  const outPath = path.join(process.cwd(), "uploads", fname);
+
+  await fs.writeFile(outPath, req.file.buffer);
+  const publicUrl = `/uploads/${fname}`;
+
+  // Persist to user record
+  await db.execute(sql`
+    update users
+    set avatar_url = ${publicUrl}
+    where id=${userId}::uuid
+  `);
+
+  res.json({ ok: true, url: publicUrl });
+});
+
+
+This stores files in /uploads (already exposed at /uploads/*) and updates users.avatar_url.
+
+4) Client API helper (multipart without JSON headers)
+
+File: client/src/lib/api.ts
+
+Add this inside the exported API helpers:
+
+export const meApi = {
+  // ... keep existing get/updateProfile/changePassword/updateOrg
+  uploadAvatar: async (file: File) => {
+    const BASE = import.meta.env.VITE_API_BASE_URL || "";
+    const uid = localStorage.getItem("x-user-id") || "315e3119-1b17-4dee-807f-bbc1e4d5c5b6";
+    const oid = localStorage.getItem("x-org-id") || "4500ba4e-e575-4f82-b196-27dd4c7d0eaf";
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    const res = await fetch(`${BASE}/api/me/avatar`, {
+      method: "POST",
+      headers: { "x-user-id": uid, "x-org-id": oid }, // NOTE: no Content-Type here
+      body: fd,
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      try { throw new Error(JSON.parse(text).error || JSON.parse(text).message || text); }
+      catch { throw new Error(text || `HTTP ${res.status}`); }
+    }
+    return JSON.parse(text);
+  },
+};
+
+
+(Keep your existing meApi.get, updateProfile, etc.)
+
+5) Settings UI: add file picker, preview, and upload
+
+File: client/src/pages/settings.tsx
+
+At top imports, add:
+
+import { meApi } from "@/lib/api";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
+
+Inside the Profile tab’s card content, add an Avatar row (just under “Avatar URL” or replace it):
+
+{/* Avatar upload */}
+<div className="md:col-span-2">
+  <Label>Avatar</Label>
+  <div className="mt-2 flex items-center gap-4">
+    <img
+      src={profile.avatar_url || "/placeholder-avatar.png"}
+      alt="avatar"
+      className="h-12 w-12 rounded-full object-cover border"
+      onError={(e:any)=>{ e.currentTarget.src="/placeholder-avatar.png"; }}
+    />
+    <input
+      type="file"
+      accept="image/*"
+      onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          // Optional immediate preview
+          const localUrl = URL.createObjectURL(file);
+          setProfile(p => ({ ...p, avatar_url: localUrl }));
+
+          const res = await meApi.uploadAvatar(file);
+          // Use the server URL
+          setProfile(p => ({ ...p, avatar_url: res.url }));
+          // Refresh /api/me so rest of app sees it
+          await qc.invalidateQueries({ queryKey: ["/api/me"] });
+        } catch (err:any) {
+          alert(err.message || "Upload failed");
+        }
+      }}
+    />
+  </div>
+  <p className="text-xs text-gray-500 mt-1">PNG/JPG/WebP up to 5MB.</p>
+</div>
+
+
+If you kept the “Avatar URL” input too, both will work—file upload will overwrite it with the stored URL.
+
+6) Optional polish
+
+If you want to auto-circle-crop avatars, add className="rounded-full" (already there).
+
+To clean up old files when replacing avatars, you can store the previous filename and unlink it—let me know and I’ll add safe deletion.
+
+7) Smoke test
+
+Go to Settings → Profile.
+
+Pick an image file → see instant local preview → upload completes → preview switches to served /uploads/... URL.
+
+Refresh anywhere showing the avatar (e.g., sidebar profile chip) — it should display the new image.

@@ -154,14 +154,49 @@ export default function SettingsPage() {
                   data-testid="input-profile-phone"
                 />
               </div>
-              <div>
-                <Label>Avatar URL</Label>
-                <Input 
-                  value={profile.avatar_url} 
-                  onChange={(e)=>setProfile(p=>({...p, avatar_url: e.target.value}))} 
-                  placeholder="Paste image URL (upload coming later)" 
-                  data-testid="input-profile-avatar"
-                />
+              {/* Avatar upload */}
+              <div className="md:col-span-2">
+                <Label>Avatar</Label>
+                <div className="mt-2 flex items-center gap-4">
+                  <img
+                    src={profile.avatar_url || "/placeholder-avatar.svg"}
+                    alt="avatar"
+                    className="h-12 w-12 rounded-full object-cover border"
+                    onError={(e:any)=>{ e.currentTarget.src="/placeholder-avatar.svg"; }}
+                    data-testid="img-avatar-preview"
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        // Optional immediate preview
+                        const localUrl = URL.createObjectURL(file);
+                        setProfile(p => ({ ...p, avatar_url: localUrl }));
+
+                        const res = await meApi.uploadAvatar(file);
+                        // Use the server URL
+                        setProfile(p => ({ ...p, avatar_url: res.url }));
+                        // Refresh /api/me so rest of app sees it
+                        await qc.invalidateQueries({ queryKey: ["/api/me"] });
+                        toast({
+                          title: "Avatar updated",
+                          description: "Your profile picture has been uploaded successfully.",
+                        });
+                      } catch (err:any) {
+                        toast({
+                          title: "Upload failed",
+                          description: err.message || "Failed to upload avatar",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    data-testid="input-avatar-file"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">PNG/JPG/WebP up to 5MB.</p>
               </div>
               <div className="md:col-span-2 flex justify-end">
                 <Button 

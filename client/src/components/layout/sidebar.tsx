@@ -94,7 +94,18 @@ export function Sidebar({ onClose }: SidebarProps) {
           <a className="block">
             <div className="mt-6 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                {user?.avatar_url ? (
+                  <img 
+                    src={user.avatar_url} 
+                    alt="Profile" 
+                    className="w-8 h-8 rounded-full object-cover"
+                    onError={(e:any)=>{ 
+                      e.currentTarget.style.display="none"; 
+                      e.currentTarget.nextElementSibling.style.display="flex";
+                    }}
+                  />
+                ) : null}
+                <div className={`w-8 h-8 bg-primary rounded-full flex items-center justify-center ${user?.avatar_url ? 'hidden' : ''}`}>
                   <span className="text-white text-sm font-medium">
                     {user?.name?.[0] || "U"}
                   </span>

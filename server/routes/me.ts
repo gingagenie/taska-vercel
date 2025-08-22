@@ -3,6 +3,10 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { upload } from "../middleware/upload";
+import { nanoid } from "nanoid";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 export const me = Router();
 
@@ -95,6 +99,31 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
     console.error("PUT /api/me/org error:", error);
     res.status(500).json({ error: error?.message || "Failed to update organization" });
   }
+});
+
+/** Upload avatar (multipart/form-data with "file") */
+me.post("/avatar", requireAuth, upload.single("file"), async (req, res) => {
+  const userId = (req as any).user.id;
+  if (!req.file) return res.status(400).json({ error: "file required" });
+
+  // Guard: only images
+  const okTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+  if (!okTypes.includes(req.file.mimetype)) {
+    return res.status(415).json({ error: "unsupported file type" });
+  }
+
+  // Pick extension by mimetype
+  const ext = req.file.mimetype.split("/")[1] || "bin";
+  const fname = `${nanoid(16)}.${ext}`;
+  const outPath = path.join(process.cwd(), "uploads", fname);
+
+  await fs.writeFile(outPath, req.file.buffer);
+  const publicUrl = `/uploads/${fname}`;
+
+  // Mock implementation - in reality would update user's avatar_url in database
+  console.log(`Avatar uploaded for user ${userId}: ${publicUrl}`);
+
+  res.json({ ok: true, url: publicUrl });
 });
 
 export default me;

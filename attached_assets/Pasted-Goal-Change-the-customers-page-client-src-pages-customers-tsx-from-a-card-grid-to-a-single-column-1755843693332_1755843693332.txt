@@ -1,67 +1,61 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { CustomerModal } from "@/components/modals/customer-modal";
-import { customersApi } from "@/lib/api";
-import { Building2 } from "lucide-react";
+Goal:
+Change the customers page (client/src/pages/customers.tsx) from a card grid to a single column list/table with consistent rows.
+
+Acceptance criteria:
+
+Table columns: Company, Contact, Email, Phone, Address, Actions.
+
+Rows are clickable (open /customers/:id), with hover highlight.
+
+Text truncates nicely with ellipsis on smaller screens.
+
+“New Customer” button + Search stay at top.
+
+Works with existing customersApi.getAll().
+
+Edits
+
+File: client/src/pages/customers.tsx
+Replace the rendered list section with this table version. Keep the existing imports; add Badge import if you don’t have it.
+
+// add if missing:
+import { Badge } from "@/components/ui/badge";
 import { useLocation, Link } from "wouter";
 
 export default function Customers() {
-  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [, navigate] = useLocation();
-
-  const { data: customers = [], isLoading } = useQuery({
+  const { data: list = [], isLoading } = useQuery({
     queryKey: ["/api/customers"],
     queryFn: customersApi.getAll,
   });
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const [, navigate] = useLocation();
 
-  const filteredCustomers = customers.filter((customer: any) =>
-    (customer.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (customer.contact_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (customer.email || "").toLowerCase().includes(searchQuery.toLowerCase())
+  const filtered = list.filter((c: any) =>
+    (c.name || "").toLowerCase().includes(q.toLowerCase()) ||
+    (c.contact_name || "").toLowerCase().includes(q.toLowerCase()) ||
+    (c.email || "").toLowerCase().includes(q.toLowerCase())
   );
 
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="bg-white rounded-xl border border-gray-200 animate-pulse">
-          <div className="h-64"></div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-4 sm:p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-bold">Customers</h1>
         <div className="flex gap-2">
-          <Input 
-            placeholder="Search by company, contact, email…" 
-            value={searchQuery} 
-            onChange={(e) => setSearchQuery(e.target.value)} 
-            className="w-72" 
-            data-testid="input-search"
+          <Input
+            placeholder="Search by company, contact, email…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="w-72"
           />
-          <Button onClick={() => setIsCustomerModalOpen(true)} data-testid="button-new-customer">
-            New Customer
-          </Button>
+          <Button onClick={() => setOpen(true)}>New Customer</Button>
         </div>
       </div>
 
-      {filteredCustomers.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-8">
-            <Building2 className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No customers found</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {customers.length === 0 ? "Get started by creating a new customer." : "Try adjusting your search."}
-            </p>
-          </CardContent>
-        </Card>
+      {isLoading ? (
+        <Card><CardContent>Loading…</CardContent></Card>
+      ) : filtered.length === 0 ? (
+        <Card><CardContent>No customers found</CardContent></Card>
       ) : (
         <div className="overflow-x-auto bg-white border border-gray-200 rounded-xl">
           <table className="w-full text-sm">
@@ -76,14 +70,13 @@ export default function Customers() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredCustomers.map((c: any) => {
+              {filtered.map((c: any) => {
                 const addr = [c.street, c.suburb, c.state, c.postcode].filter(Boolean).join(", ");
                 return (
                   <tr
                     key={c.id}
                     className="hover:bg-gray-50 cursor-pointer"
                     onClick={() => navigate(`/customers/${c.id}`)}
-                    data-testid={`row-customer-${c.id}`}
                   >
                     <td className="px-4 py-3">
                       <div className="font-medium truncate max-w-[280px]">{c.name}</div>
@@ -105,6 +98,12 @@ export default function Customers() {
                         <Link href={`/customers/${c.id}`}>
                           <a className="text-blue-600 hover:underline">View</a>
                         </Link>
+                        <button
+                          className="text-blue-600 hover:underline"
+                          onClick={() => navigate(`/customers/${c.id}`)}
+                        >
+                          Edit
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -115,10 +114,16 @@ export default function Customers() {
         </div>
       )}
 
-      <CustomerModal 
-        open={isCustomerModalOpen} 
-        onOpenChange={setIsCustomerModalOpen} 
-      />
+      <CustomerModal open={open} onOpenChange={setOpen} />
     </div>
   );
 }
+
+
+Notes:
+
+Rows are clickable; the Actions cell stops propagation so its buttons don’t also navigate the row.
+
+Column widths use max-w-[…] + truncate so everything stays neat regardless of content length.
+
+You can remove the “Edit” link here if you prefer only the row click to navigate, up to you.

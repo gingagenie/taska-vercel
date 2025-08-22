@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import express from "express";
 import cors from "cors";
 import { health } from "./routes/health";
-import { customers } from "./routes/customers";
+import customers from "./routes/customers";
 import { equipment } from "./routes/equipment";
 import { teams } from "./routes/teams";
 import jobs from "./routes/jobs";
@@ -16,6 +16,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.use("/health", health);
   app.use("/api/customers", customers);
+  console.log("[mount] /api/customers");
   app.use("/api/equipment", equipment);
   app.use("/api/teams", teams);
   app.use("/api/jobs", jobs);

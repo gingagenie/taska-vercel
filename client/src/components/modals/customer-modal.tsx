@@ -1,137 +1,202 @@
-import { useForm } from "react-hook-form";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { customersApi } from "@/lib/api";
-import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
-interface CustomerModalProps {
+type Props = {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
+  onOpenChange: (v: boolean) => void;
+  customer?: any; // if present -> edit mode
+  onSaved?: (c: any) => void;
+};
 
-interface CustomerFormData {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-}
-
-export function CustomerModal({ open, onOpenChange }: CustomerModalProps) {
-  const { toast } = useToast();
+export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) {
   const queryClient = useQueryClient();
+  const isEdit = !!customer;
   
-  const form = useForm<CustomerFormData>({
-    defaultValues: {
-      name: "",
-      email: "",
-      phone: "",
-      address: "",
-    },
-  });
+  const [name, setName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [street, setStreet] = useState("");
+  const [suburb, setSuburb] = useState("");
+  const [state, setState] = useState("");
+  const [postcode, setPostcode] = useState("");
+  const [err, setErr] = useState<string | null>(null);
 
-  const createCustomerMutation = useMutation({
-    mutationFn: customersApi.create,
-    onSuccess: () => {
+  useEffect(() => {
+    if (open && isEdit) {
+      setName(customer.name || "");
+      setContactName(customer.contact_name || "");
+      setEmail(customer.email || "");
+      setPhone(customer.phone || "");
+      setStreet(customer.street || "");
+      setSuburb(customer.suburb || "");
+      setState(customer.state || "");
+      setPostcode(customer.postcode || "");
+    }
+    if (open && !isEdit) {
+      setName("");
+      setContactName("");
+      setEmail("");
+      setPhone("");
+      setStreet("");
+      setSuburb("");
+      setState("");
+      setPostcode("");
+      setErr(null);
+    }
+  }, [open, isEdit, customer]);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) {
+        throw new Error("Company name is required");
+      }
+      if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+        throw new Error("Enter a valid email");
+      }
+      
+      const data = {
+        name,
+        contact_name: contactName || null,
+        email: email || null,
+        phone: phone || null,
+        street: street || null,
+        suburb: suburb || null,
+        state: state || null,
+        postcode: postcode || null,
+      };
+
+      if (isEdit) {
+        await customersApi.update(customer.id, data);
+        return { ...customer, ...data };
+      } else {
+        await customersApi.create(data);
+        return data;
+      }
+    },
+    onSuccess: (savedCustomer) => {
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-      toast({
-        title: "Success",
-        description: "Customer added successfully",
-      });
-      form.reset();
+      onSaved?.(savedCustomer);
       onOpenChange(false);
+      setErr(null);
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add customer",
-        variant: "destructive",
-      });
+      setErr(error?.message || "Failed to save");
     },
   });
 
-  const onSubmit = (data: CustomerFormData) => {
-    createCustomerMutation.mutate(data);
+  const handleSave = () => {
+    setErr(null);
+    mutation.mutate();
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Add New Customer</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Customer" : "New Customer"}</DialogTitle>
         </DialogHeader>
-        
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Company Name *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter company name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+
+        {err && <div className="text-red-600 text-sm">{err}</div>}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="md:col-span-2">
+            <Label>Company name *</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., ABC Manufacturing"
+              data-testid="input-company-name"
             />
-            
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="contact@company.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+          </div>
+
+          <div>
+            <Label>Contact name</Label>
+            <Input
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              placeholder="Primary contact person"
+              data-testid="input-contact-name"
             />
-            
-            <FormField
-              control={form.control}
-              name="phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone</FormLabel>
-                  <FormControl>
-                    <Input type="tel" placeholder="+1 (555) 123-4567" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+          </div>
+          
+          <div>
+            <Label>Phone</Label>
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Phone number"
+              data-testid="input-phone"
             />
-            
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Address</FormLabel>
-                  <FormControl>
-                    <Textarea rows={3} placeholder="Full address" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+          </div>
+
+          <div className="md:col-span-2">
+            <Label>Email</Label>
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="contact@company.com"
+              type="email"
+              data-testid="input-email"
             />
-            
-            <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createCustomerMutation.isPending}>
-                {createCustomerMutation.isPending ? "Adding..." : "Add Customer"}
-              </Button>
-            </div>
-          </form>
-        </Form>
+          </div>
+
+          <div className="md:col-span-2">
+            <Label>Street Address</Label>
+            <Input
+              value={street}
+              onChange={(e) => setStreet(e.target.value)}
+              placeholder="123 Main Street"
+              data-testid="input-street"
+            />
+          </div>
+
+          <div>
+            <Label>Suburb</Label>
+            <Input
+              value={suburb}
+              onChange={(e) => setSuburb(e.target.value)}
+              placeholder="Suburb"
+              data-testid="input-suburb"
+            />
+          </div>
+
+          <div>
+            <Label>State</Label>
+            <Input
+              value={state}
+              onChange={(e) => setState(e.target.value)}
+              placeholder="State"
+              data-testid="input-state"
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <Label>Postcode</Label>
+            <Input
+              value={postcode}
+              onChange={(e) => setPostcode(e.target.value)}
+              placeholder="Postcode"
+              data-testid="input-postcode"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={mutation.isPending} data-testid="button-save-customer">
+            {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isEdit ? "Update" : "Create"} Customer
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

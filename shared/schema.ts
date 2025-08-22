@@ -48,9 +48,14 @@ export const customers = pgTable("customers", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   orgId: uuid("org_id").references(() => organizations.id).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
+  contactName: text("contact_name"),
   email: varchar("email", { length: 255 }),
   phone: varchar("phone", { length: 50 }),
-  address: text("address"),
+  address: text("address"), // Keep for backward compatibility
+  street: text("street"),
+  suburb: text("suburb"),
+  state: text("state"),
+  postcode: text("postcode"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

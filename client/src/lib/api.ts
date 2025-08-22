@@ -73,6 +73,13 @@ export const jobsApi = {
   equipment: () => api("/api/jobs/equipment"),
 };
 
+export const customersApi = {
+  getAll: () => api("/api/customers"),
+  get: (id: string) => api(`/api/customers/${id}`),
+  create: (body: any) => api("/api/customers", { method: "POST", body: JSON.stringify(body) }),
+  update: (id: string, body: any) => api(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+};
+
 export const notesApi = {
   list: (jobId: string) => api(`/api/jobs/${jobId}/notes`),
   add: (jobId: string, text: string) => api(`/api/jobs/${jobId}/notes`, { method: "POST", body: JSON.stringify({ text }) }),
@@ -91,15 +98,6 @@ export const photosApi = {
     return api(`/api/jobs/${jobId}/photos`, { method: "POST", body: form as any });
   },
   remove: (jobId: string, photoId: string) => api(`/api/jobs/${jobId}/photos/${photoId}`, { method: "DELETE" }),
-};
-
-export const customersApi = {
-  getAll: () => api("/api/customers"),
-  get: (id: string) => api(`/api/customers/${id}`),
-  create: (body: any) =>
-    api("/api/customers", { method: "POST", body: JSON.stringify(body) }),
-  update: (id: string, body: any) =>
-    api(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
 };
 
 export const teamsApi = {

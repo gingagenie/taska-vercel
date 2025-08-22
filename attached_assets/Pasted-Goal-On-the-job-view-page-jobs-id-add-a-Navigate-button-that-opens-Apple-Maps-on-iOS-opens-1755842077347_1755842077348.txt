@@ -1,0 +1,137 @@
+Goal:
+On the job view page (/jobs/:id), add a Navigate button that:
+
+opens Apple Maps on iOS,
+
+opens Google Maps on Android,
+
+falls back to Google Maps in the browser on desktop,
+
+uses either precise coordinates (if available) or the customer’s full address.
+
+Acceptance criteria:
+
+A Navigate button appears in the header next to “Edit Job” and “Notes & Charges”.
+
+On iOS, tapping the button opens Apple Maps with the destination.
+
+On Android, tapping the button opens Google Maps with the destination.
+
+If the job has lat/lng, use those; otherwise use the concatenated customer address.
+
+No crashes if address is missing — button is disabled with a tooltip in that case.
+
+1) Backend: enrich job details with address text
+
+File: server/routes/jobs.ts
+In the DETAILS handler (GET /:jobId), extend the SELECT to include a single customer_address string assembled from the customer’s address fields (adjust field names if your schema differs).
+
+Replace the SELECT in the details query with:
+
+const jr: any = await db.execute(sql`
+  select
+    j.id, j.title, j.description, j.status, j.scheduled_at,
+    j.customer_id,
+    coalesce(c.name,'—') as customer_name,
+    -- build a single address line; adjust field names if needed
+    nullif(trim(concat_ws(', ',
+      nullif(c.address_line1, ''),
+      nullif(c.address_line2, ''),
+      nullif(c.city, ''),
+      nullif(c.state, ''),
+      nullif(c.postcode, ''),
+      nullif(c.country, '')
+    )), '') as customer_address
+    -- If you have coordinates, also select them (optional):
+    -- , c.latitude, c.longitude
+  from jobs j
+  left join customers c on c.id = j.customer_id
+  where j.id=${jobId}::uuid and j.org_id=${orgId}::uuid
+`);
+
+
+If your customer table uses different column names (e.g., street, suburb), update the field list accordingly.
+
+Return the job as before.
+
+2) Frontend: add a Navigate button + platform-aware opener
+
+File: client/src/pages/job-view.tsx
+
+Ensure you have the imports:
+
+import { Button } from "@/components/ui/button";
+import { MapPin } from "lucide-react";
+
+
+Add a small helper inside the component (above return) to open the right maps app:
+
+function openMaps(destinationLabel: string, address?: string, lat?: number, lng?: number) {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const hasCoords = typeof lat === "number" && typeof lng === "number";
+
+  if (isIOS) {
+    // Apple Maps (native)
+    const url = hasCoords
+      ? `maps://?q=${encodeURIComponent(destinationLabel)}&daddr=${lat},${lng}`
+      : `maps://?q=${encodeURIComponent(address || destinationLabel)}`;
+    window.location.href = url;
+    return;
+  }
+
+  // Android / Desktop → Google Maps universal URL
+  const destination = hasCoords
+    ? `${lat},${lng}`
+    : (address || destinationLabel);
+  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination!)}`;
+  window.location.href = gmaps;
+}
+
+
+In the header action buttons, add Navigate. Use the new customer_address you returned from the backend; if you also selected latitude/longitude, pass them too.
+
+Find the header block and change it to:
+
+<div className="flex items-center justify-between">
+  <h1 className="text-2xl font-bold">{job.title}</h1>
+  <div className="flex gap-2">
+    <Button
+      variant="secondary"
+      onClick={() => openMaps(job.customer_name || "Destination", job.customer_address /*, job.latitude, job.longitude */)}
+      disabled={!job.customer_address /* && !(job.latitude && job.longitude) */}
+      title={(!job.customer_address /* && !(job.latitude && job.longitude) */) ? "No destination address available" : "Open in Maps"}
+    >
+      <MapPin className="h-4 w-4 mr-1" />
+      Navigate
+    </Button>
+    <Link href={`/jobs/${jobId}/notes`}><a><Button variant="secondary">Notes &amp; Charges</Button></a></Link>
+    <Link href={`/jobs/${jobId}/edit`}><a><Button>Edit Job</Button></a></Link>
+  </div>
+</div>
+
+
+If you have job.latitude/job.longitude, uncomment those arguments and the disable condition to allow navigation even when address text is missing.
+
+3) Optional: show destination in the Overview
+
+In the Overview card where you display customer & status, add the address line so users see what will be used:
+
+<div>
+  <div className="text-gray-500">Customer</div>
+  <div className="font-medium">{job.customer_name || "—"}</div>
+  {job.customer_address && (
+    <div className="text-xs text-gray-500 mt-1">{job.customer_address}</div>
+  )}
+</div>
+
+4) Test checklist
+
+Open a job with a customer that has an address → Navigate is enabled.
+
+On an iPhone/iPad, tapping Navigate opens Apple Maps.
+
+On Android, tapping Navigate opens Google Maps.
+
+On desktop, it opens Google Maps in the browser.
+
+If no address (and no coords), the button is disabled with a helpful tooltip.

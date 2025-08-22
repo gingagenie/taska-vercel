@@ -99,21 +99,18 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
       return res.status(400).json({ error: "Invalid jobId" });
     }
 
-    const result = await db
-      .select({
-        id: jobsSchema.id,
-        title: jobsSchema.title,
-        description: jobsSchema.description,
-        status: jobsSchema.status,
-        scheduled_at: jobsSchema.scheduledAt,
-        customer_id: jobsSchema.customerId,
-        customer_name: customers.name,
-        created_at: jobsSchema.createdAt,
-      })
-      .from(jobsSchema)
-      .leftJoin(customers, eq(jobsSchema.customerId, customers.id))
-      .where(and(eq(jobsSchema.id, jobId), eq(jobsSchema.orgId, orgId)))
-      .limit(1);
+    const jr: any = await db.execute(sql`
+      select
+        j.id, j.title, j.description, j.status, j.scheduled_at,
+        j.customer_id,
+        coalesce(c.name,'—') as customer_name,
+        c.address as customer_address
+      from jobs j
+      left join customers c on c.id = j.customer_id
+      where j.id=${jobId}::uuid and j.org_id=${orgId}::uuid
+    `);
+    
+    const result = jr.rows;
 
     if (!result.length) {
       return res.status(404).json({ error: "Job not found" });

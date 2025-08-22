@@ -5,6 +5,7 @@ import { api, photosApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MapPin } from "lucide-react";
 
 export default function JobView() {
   const [match, params] = useRoute("/jobs/:id");
@@ -39,11 +40,41 @@ export default function JobView() {
 
   const niceStatus = (job.status || "new").replace("_", " ");
 
+  function openMaps(destinationLabel: string, address?: string, lat?: number, lng?: number) {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const hasCoords = typeof lat === "number" && typeof lng === "number";
+
+    if (isIOS) {
+      // Apple Maps (native)
+      const url = hasCoords
+        ? `maps://?q=${encodeURIComponent(destinationLabel)}&daddr=${lat},${lng}`
+        : `maps://?q=${encodeURIComponent(address || destinationLabel)}`;
+      window.location.href = url;
+      return;
+    }
+
+    // Android / Desktop → Google Maps universal URL
+    const destination = hasCoords
+      ? `${lat},${lng}`
+      : (address || destinationLabel);
+    const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination!)}`;
+    window.location.href = gmaps;
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{job.title}</h1>
         <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => openMaps(job.customer_name || "Destination", job.customer_address)}
+            disabled={!job.customer_address}
+            title={!job.customer_address ? "No destination address available" : "Open in Maps"}
+          >
+            <MapPin className="h-4 w-4 mr-1" />
+            Navigate
+          </Button>
           <Link href={`/jobs/${jobId}/notes`}>
             <a><Button variant="secondary">Notes & Charges</Button></a>
           </Link>
@@ -59,6 +90,9 @@ export default function JobView() {
           <div>
             <div className="text-gray-500">Customer</div>
             <div className="font-medium">{job.customer_name || "—"}</div>
+            {job.customer_address && (
+              <div className="text-xs text-gray-500 mt-1">{job.customer_address}</div>
+            )}
           </div>
           <div>
             <div className="text-gray-500">Status</div>

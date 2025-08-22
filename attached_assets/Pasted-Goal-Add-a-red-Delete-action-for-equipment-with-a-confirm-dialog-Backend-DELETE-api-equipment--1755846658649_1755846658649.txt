@@ -1,0 +1,153 @@
+Goal:
+Add a red Delete action for equipment with a confirm dialog.
+
+Backend: DELETE /api/equipment/:id returns 409 if the item is linked to any jobs.
+
+Frontend: Action lives in the Equipment table row menu (or inline button), shows a confirm dialog, and refreshes the list after delete.
+
+1) Backend — server/routes/equipment.ts
+
+Add this handler to the bottom of the file (before export default equipment;):
+
+/* DELETE (safe: block if linked to jobs) */
+equipment.delete("/:id", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+
+  // Check if this equipment is referenced by any job
+  const ref: any = await db.execute(sql`
+    select count(*)::int as cnt
+    from job_equipment
+    where equipment_id=${id}::uuid
+  `);
+  if ((ref.rows?.[0]?.cnt ?? 0) > 0) {
+    return res.status(409).json({ error: "Cannot delete: equipment is linked to one or more jobs." });
+  }
+
+  // Delete only within the same org for safety
+  await db.execute(sql`
+    delete from equipment
+    where id=${id}::uuid and org_id=${orgId}::uuid
+  `);
+
+  res.json({ ok: true });
+});
+
+
+(If you prefer hard delete with cascade, we can change this to cascade; this version is safer.)
+
+2) Client API — client/src/lib/api.ts
+
+Extend equipmentApi with delete:
+
+export const equipmentApi = {
+  getAll: () => api("/api/equipment"),
+  get: (id: string) => api(`/api/equipment/${id}`),
+  create: (body: any) => api("/api/equipment", { method: "POST", body: JSON.stringify(body) }),
+  update: (id: string, body: any) => api(`/api/equipment/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  delete: (id: string) => api(`/api/equipment/${id}`, { method: "DELETE" }), // NEW
+};
+
+3) UI — add Delete to Equipment list with confirm dialog
+
+File: client/src/pages/equipment.tsx
+
+Add imports at the top (keep existing ones):
+
+import { useQueryClient } from "@tanstack/react-query";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { MoreHorizontal, Trash2, AlertTriangle } from "lucide-react";
+
+
+Add state inside the component:
+
+const qc = useQueryClient();
+const [confirmId, setConfirmId] = useState<string | null>(null);
+const [deleting, setDeleting] = useState(false);
+const [deleteErr, setDeleteErr] = useState<string | null>(null);
+
+
+Replace the last <td> in each row with an actions menu (or add a new actions column if you don’t have one). In your <thead>, add:
+
+<th className="text-left w-10"> </th>
+
+
+In each <tr>, add this cell (ensure onClick={(e)=>e.stopPropagation()} so row click doesn’t fire):
+
+<td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-70 hover:opacity-100">
+        <MoreHorizontal className="h-4 w-4" />
+        <span className="sr-only">Actions</span>
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-36">
+      <DropdownMenuItem onClick={() => navigate(`/equipment/${e.id}`)}>View</DropdownMenuItem>
+      <DropdownMenuItem onClick={() => navigate(`/equipment/${e.id}`)}>Edit</DropdownMenuItem>
+      <DropdownMenuItem
+        className="text-red-600 focus:text-red-700"
+        onClick={() => setConfirmId(e.id)}
+      >
+        Delete…
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+</td>
+
+
+Add the confirm dialog at the bottom of the component’s JSX:
+
+<Dialog open={!!confirmId} onOpenChange={(v) => { if (!v) { setConfirmId(null); setDeleteErr(null); } }}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2 text-red-600">
+        <AlertTriangle className="h-5 w-5" />
+        Confirm Delete
+      </DialogTitle>
+    </DialogHeader>
+    <p>Are you sure you want to delete this equipment? This cannot be undone.</p>
+    {deleteErr && <div className="text-sm text-red-600 mt-2">{deleteErr}</div>}
+    <DialogFooter className="mt-4 flex justify-end gap-2">
+      <Button variant="outline" onClick={() => { setConfirmId(null); setDeleteErr(null); }} disabled={deleting}>Cancel</Button>
+      <Button
+        variant="destructive"
+        onClick={async () => {
+          if (!confirmId) return;
+          setDeleting(true);
+          setDeleteErr(null);
+          try {
+            await equipmentApi.delete(confirmId);
+            // refresh list
+            await qc.invalidateQueries({ queryKey: ["/api/equipment"] });
+            setConfirmId(null);
+          } catch (e: any) {
+            // show server message (409 when linked to jobs)
+            setDeleteErr(e?.message || "Failed to delete");
+          } finally {
+            setDeleting(false);
+          }
+        }}
+        disabled={deleting}
+      >
+        {deleting ? "Deleting…" : (<><Trash2 className="h-4 w-4 mr-1" /> Delete</>)}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+4) (Optional) Equipment detail page delete
+
+If you also have /equipment/:id, you can drop the same dialog there, calling equipmentApi.delete(id) and then navigate("/equipment").
+
+5) Test checklist
+
+Open Equipment → menu “Delete…” opens confirm dialog.
+
+Deleting an unlinked item removes the row immediately (no manual refresh).
+
+Deleting an item linked to a job shows Cannot delete: equipment is linked… (HTTP 409).
+
+Multi-tenant still enforced.

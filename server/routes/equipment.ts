@@ -103,4 +103,29 @@ equipment.put("/:id", requireAuth, requireOrg, async (req, res) => {
   res.json({ ok: true });
 });
 
+/* DELETE (safe: block if linked to jobs) */
+equipment.delete("/:id", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+
+  // Check if this equipment is referenced by any job
+  const ref: any = await db.execute(sql`
+    select count(*)::int as cnt
+    from job_equipment
+    where equipment_id=${id}::uuid
+  `);
+  if ((ref.rows?.[0]?.cnt ?? 0) > 0) {
+    return res.status(409).json({ error: "Cannot delete: equipment is linked to one or more jobs." });
+  }
+
+  // Delete only within the same org for safety
+  await db.execute(sql`
+    delete from equipment
+    where id=${id}::uuid and org_id=${orgId}::uuid
+  `);
+
+  res.json({ ok: true });
+});
+
 export default equipment;

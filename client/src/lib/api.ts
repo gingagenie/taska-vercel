@@ -115,6 +115,7 @@ export const equipmentApi = {
     api("/api/equipment", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) =>
     api(`/api/equipment/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  delete: (id: string) => api(`/api/equipment/${id}`, { method: "DELETE" }),
 };
 
 /** PRO features (routes assumed as /api/quotes and /api/invoices) */

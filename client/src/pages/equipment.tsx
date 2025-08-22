@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { equipmentApi } from "@/lib/api";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EquipmentModal } from "@/components/modals/equipment-modal";
-import { MapPin, Edit } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { MapPin, Edit, MoreHorizontal, Trash2, AlertTriangle } from "lucide-react";
 
 function addrLine(e: any) {
   return e.customer_address || "";
@@ -17,9 +19,13 @@ export default function EquipmentPage() {
     queryKey: ["/api/equipment"], 
     queryFn: equipmentApi.getAll 
   });
+  const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [editEquipment, setEditEquipment] = useState<any>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [, navigate] = useLocation();
 
   const filtered = (list as any[]).filter((e) =>
@@ -108,14 +114,33 @@ export default function EquipmentPage() {
                     )}
                   </div>
                   
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setEditEquipment(e)}
-                    data-testid={`button-edit-equipment-${e.id}`}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0 opacity-70 hover:opacity-100"
+                        data-testid={`button-actions-equipment-${e.id}`}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="sr-only">Actions</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-36">
+                      <DropdownMenuItem onClick={() => setEditEquipment(e)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-red-600 focus:text-red-700"
+                        onClick={() => setConfirmId(e.id)}
+                        data-testid={`button-delete-equipment-${e.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete…
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardContent>
             </Card>
@@ -137,6 +162,57 @@ export default function EquipmentPage() {
           setEditEquipment(null);
         }}
       />
+
+      <Dialog open={!!confirmId} onOpenChange={(v) => { if (!v) { setConfirmId(null); setDeleteErr(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Confirm Delete
+            </DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to delete this equipment? This cannot be undone.</p>
+          {deleteErr && <div className="text-sm text-red-600 mt-2">{deleteErr}</div>}
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => { setConfirmId(null); setDeleteErr(null); }} 
+              disabled={deleting}
+              data-testid="button-cancel-delete"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!confirmId) return;
+                setDeleting(true);
+                setDeleteErr(null);
+                try {
+                  await equipmentApi.delete(confirmId);
+                  // refresh list
+                  await qc.invalidateQueries({ queryKey: ["/api/equipment"] });
+                  setConfirmId(null);
+                } catch (e: any) {
+                  // show server message (409 when linked to jobs)
+                  setDeleteErr(e?.message || "Failed to delete");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+              disabled={deleting}
+              data-testid="button-confirm-delete"
+            >
+              {deleting ? "Deleting…" : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-1" /> 
+                  Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

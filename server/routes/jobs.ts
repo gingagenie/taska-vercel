@@ -10,6 +10,11 @@ import { sql, eq, and } from "drizzle-orm";
 
 export const jobs = Router();
 
+// UUID validation helper
+function isUuid(str: string): boolean {
+  return /^[0-9a-f-]{36}$/i.test(str);
+}
+
 // Configure multer for file uploads
 const upload = multer({ dest: "uploads/" });
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ export default function Jobs() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
 
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ["/api/jobs"],
@@ -206,7 +207,11 @@ export default function Jobs() {
         </CardContent>
       </Card>
 
-      <JobModal open={isJobModalOpen} onOpenChange={setIsJobModalOpen} />
+      <JobModal 
+        open={isJobModalOpen} 
+        onOpenChange={setIsJobModalOpen}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ["/api/jobs"] })}
+      />
     </div>
   );
 }

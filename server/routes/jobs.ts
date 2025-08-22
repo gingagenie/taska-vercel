@@ -131,37 +131,57 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
 jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
-    let { title, description, status, scheduledAt, customerId } = req.body || {};
+    const userId = (req as any).user?.id || null;
+    let { title, description, customerId, scheduledAt, equipmentIds } = req.body || {};
     
     console.log("[TRACE] POST /api/jobs/create org=%s body=%o", orgId, req.body);
 
-    // Coerce empty strings to null and handle date conversion
+    if (!title) return res.status(400).json({ error: "title required" });
     if (customerId === "") customerId = null;
+    if (scheduledAt === "") scheduledAt = null;
+    if (!Array.isArray(equipmentIds)) equipmentIds = [];
     
-    let scheduledDate: Date | null = null;
-    if (scheduledAt && scheduledAt !== "") {
-      try {
-        scheduledDate = new Date(scheduledAt);
-        if (isNaN(scheduledDate.getTime())) scheduledDate = null;
-      } catch {
-        scheduledDate = null;
+    // Normalize date handling
+    function normalizeDate(v: string | null | undefined): string | null {
+      if (!v) return null;
+      if (v.includes("T")) {
+        const [d, t] = v.split("T");
+        const tt = t.length === 5 ? `${t}:00` : t;
+        return `${d} ${tt}`.slice(0, 19);
       }
+      return v;
     }
     
-    const result = await db
-      .insert(jobsSchema)
-      .values({
-        title: title || "Untitled Job",
-        description: description || "",
-        status: status || "new",
-        scheduledAt: scheduledDate,
-        customerId: customerId,
-        orgId: orgId,
-      })
-      .returning({ id: jobsSchema.id });
+    const normalizedDate = normalizeDate(scheduledAt);
+    
+    const result = await db.execute(sql`
+      INSERT INTO jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
+      VALUES (
+        ${orgId}::uuid,
+        CASE WHEN ${customerId} IS NULL THEN NULL ELSE (${customerId}::uuid) END,
+        ${title},
+        ${description || null},
+        ${normalizedDate || null},
+        'new',
+        ${userId || null}
+      )
+      RETURNING id
+    `);
+    const jobId = (result as any).rows[0].id as string;
 
-    console.log("[TRACE] POST /api/jobs/create -> created job %s", result[0].id);
-    res.json({ ok: true, id: result[0].id });
+    if (equipmentIds.length) {
+      // Bulk insert job_equipment
+      for (const eid of equipmentIds) {
+        await db.execute(sql`
+          INSERT INTO job_equipment (job_id, equipment_id)
+          VALUES (${jobId}::uuid, ${eid}::uuid)
+          ON CONFLICT DO NOTHING
+        `);
+      }
+    }
+
+    console.log("[TRACE] POST /api/jobs/create -> created job %s", jobId);
+    res.json({ ok: true, id: jobId });
   } catch (error: any) {
     console.error("POST /api/jobs/create error:", error);
     res.status(500).json({ error: error?.message || "Failed to create job" });

@@ -1,3 +1,88 @@
+Goal: In the “New Job” modal/page, add dropdowns for Customer and Equipment (multi-select), using existing endpoints:
+
+GET /api/jobs/customers → { id, name }[]
+
+GET /api/jobs/equipment → { id, name }[]
+
+POST /api/jobs/create → body { title, description, customerId, scheduledAt, equipmentIds? }
+
+Acceptance criteria:
+
+“New Job” UI has:
+
+Title (required), Description (optional), Scheduled At (optional)
+
+Customer dropdown (single select)
+
+Equipment dropdown (multi-select)
+
+Save creates job and closes modal, list refreshes
+
+If API fails, error shows inline (no infinite spinner).
+
+1) API helper (client/src/lib/api.ts)
+
+Add two helpers if missing (we likely already have them):
+
+export const jobsApi = {
+  // ...existing
+  customers: () => api("/api/jobs/customers"),
+  equipment: () => api("/api/jobs/equipment"),
+  create: (body: any) => api("/api/jobs/create", { method: "POST", body: JSON.stringify(body) }),
+};
+
+
+Ensure api() does not set Content-Type when init.body is FormData (keep current JSON behavior; just don’t override for FormData).
+
+2) Backend create route (server/routes/jobs.ts)
+
+Accept optional equipmentIds: string[] and insert into job_equipment after the job row is created.
+
+jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const userId = (req as any).user?.id || null;
+
+  let { title, description, customerId, scheduledAt, equipmentIds } = req.body || {};
+  if (!title) return res.status(400).json({ error: "title required" });
+  if (customerId === "") customerId = null;
+  if (scheduledAt === "") scheduledAt = null;
+  if (!Array.isArray(equipmentIds)) equipmentIds = [];
+
+  const r: any = await db.execute(sql`
+    insert into jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
+    values (
+      ${orgId}::uuid,
+      case when ${customerId} is null then null else (${customerId}::uuid) end,
+      ${title},
+      ${description || null},
+      ${scheduledAt || null},
+      'new',
+      ${userId || null}
+    )
+    returning id
+  `);
+  const jobId = r.rows[0].id as string;
+
+  if (equipmentIds.length) {
+    // bulk insert job_equipment
+    for (const eid of equipmentIds) {
+      await db.execute(sql`
+        insert into job_equipment (job_id, equipment_id)
+        values (${jobId}::uuid, ${eid}::uuid)
+        on conflict do nothing
+      `);
+    }
+  }
+
+  res.json({ ok: true, id: jobId });
+});
+
+3) New Job UI (client/src/components/modals/job-modal.tsx)
+
+Implement dropdowns + multi-select and wire to jobsApi.create.
+
+Use the existing shadcn Select for customers and a simple multi-select for equipment.
+
 import { useEffect, useState } from "react";
 import { jobsApi } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -7,11 +92,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type Props = { 
-  open: boolean; 
-  onOpenChange: (v: boolean) => void; 
-  onCreated?: (id: string) => void; 
-};
+type Props = { open: boolean; onOpenChange: (v: boolean) => void; onCreated?: (id: string) => void; };
 
 export function JobModal({ open, onOpenChange, onCreated }: Props) {
   const [title, setTitle] = useState("");
@@ -64,11 +145,7 @@ export function JobModal({ open, onOpenChange, onCreated }: Props) {
       };
       const r = await jobsApi.create(body);
       onOpenChange(false);
-      setTitle(""); 
-      setDescription(""); 
-      setScheduledAt(""); 
-      setCustomerId(""); 
-      setEquipmentIds([]);
+      setTitle(""); setDescription(""); setScheduledAt(""); setCustomerId(""); setEquipmentIds([]);
       onCreated?.(r?.id);
     } catch (e: any) {
       setErr(e?.message || "Failed to create job");
@@ -89,22 +166,12 @@ export function JobModal({ open, onOpenChange, onCreated }: Props) {
         <div className="space-y-4">
           <div>
             <Label>Title</Label>
-            <Input 
-              value={title} 
-              onChange={(e) => setTitle(e.target.value)} 
-              placeholder="Job title" 
-              data-testid="input-job-title"
-            />
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Job title" />
           </div>
 
           <div>
             <Label>Description</Label>
-            <Textarea 
-              rows={3} 
-              value={description} 
-              onChange={(e) => setDescription(e.target.value)} 
-              data-testid="input-job-description"
-            />
+            <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
           <div>
@@ -113,14 +180,13 @@ export function JobModal({ open, onOpenChange, onCreated }: Props) {
               placeholder="YYYY-MM-DD HH:MM:SS or 2025-08-22T10:00"
               value={scheduledAt}
               onChange={(e) => setScheduledAt(e.target.value)}
-              data-testid="input-job-scheduled-at"
             />
           </div>
 
           <div>
             <Label>Customer</Label>
             <Select value={customerId} onValueChange={setCustomerId}>
-              <SelectTrigger className="w-full" data-testid="select-customer">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select customer" />
               </SelectTrigger>
               <SelectContent>
@@ -133,7 +199,7 @@ export function JobModal({ open, onOpenChange, onCreated }: Props) {
 
           <div>
             <Label>Equipment (multi-select)</Label>
-            <div className="border rounded p-2 max-h-40 overflow-auto space-y-1" data-testid="equipment-multiselect">
+            <div className="border rounded p-2 max-h-40 overflow-auto space-y-1">
               {equipment.map((e) => {
                 const checked = equipmentIds.includes(e.id);
                 return (
@@ -145,7 +211,6 @@ export function JobModal({ open, onOpenChange, onCreated }: Props) {
                         if (ev.target.checked) setEquipmentIds((s) => [...s, e.id]);
                         else setEquipmentIds((s) => s.filter((id) => id !== e.id));
                       }}
-                      data-testid={`checkbox-equipment-${e.id}`}
                     />
                     {e.name}
                   </label>
@@ -156,24 +221,43 @@ export function JobModal({ open, onOpenChange, onCreated }: Props) {
           </div>
 
           <div className="pt-2 flex gap-2 justify-end">
-            <Button 
-              variant="outline" 
-              onClick={() => onOpenChange(false)} 
-              disabled={saving}
-              data-testid="button-cancel"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={createJob} 
-              disabled={saving}
-              data-testid="button-create-job"
-            >
-              {saving ? "Saving…" : "Create job"}
-            </Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={createJob} disabled={saving}>{saving ? "Saving…" : "Create job"}</Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
+
+4) Jobs list: refresh after create
+
+Where you open the modal (e.g., pages/jobs.tsx), pass onCreated to refetch:
+
+const qc = useQueryClient();
+<JobModal
+  open={isJobModalOpen}
+  onOpenChange={setIsJobModalOpen}
+  onCreated={() => qc.invalidateQueries({ queryKey: ["/api/jobs"] })}
+/>
+
+5) (Optional) Show customer name + equipment count in table
+
+In jobs table row:
+
+<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+  {job.customer_name || "Not assigned"}
+</td>
+<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+  {job.equipment_count ?? 0}
+</td>
+
+
+…and on the backend LIST query, add an equipment aggregate if you want:
+
+select j.id, j.title, j.status, j.scheduled_at, j.customer_id, coalesce(c.name,'—') as customer_name,
+       (select count(*) from job_equipment je where je.job_id = j.id) as equipment_count
+from jobs j
+left join customers c on c.id = j.customer_id
+where j.org_id = ${orgId}::uuid
+order by j.created_at desc

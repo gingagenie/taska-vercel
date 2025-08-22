@@ -70,28 +70,34 @@ export default function Customers() {
   }, [list, q, tab]);
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="space-y-5">
       {/* Page header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="header-row">
         <div>
           <h1 className="text-2xl font-bold">Customers</h1>
           <div className="text-sm text-gray-500">{list.length} total</div>
         </div>
-        <div className="flex gap-2">
+        <div className="header-actions">
           <Input
             placeholder="Search company, contact, email…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="w-72"
+            className="w-full sm:w-72"
             data-testid="input-search"
           />
-          <Button onClick={() => setOpenCreate(true)} data-testid="button-new-customer">New Customer</Button>
+          <Button 
+            onClick={() => setOpenCreate(true)} 
+            data-testid="button-new-customer"
+            data-mobile-full="true"
+          >
+            New Customer
+          </Button>
         </div>
       </div>
 
       {/* Full-width tabs */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="email">With Email</TabsTrigger>
           <TabsTrigger value="phone">With Phone</TabsTrigger>
@@ -113,7 +119,7 @@ export default function Customers() {
               </CardContent>
             </Card>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <div className="table-wrap">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-gray-50 text-gray-600 text-xs uppercase">
                   <tr className="[&>th]:px-4 [&>th]:py-3">

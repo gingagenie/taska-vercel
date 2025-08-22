@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/auth-context";
 import { Sidebar } from "@/components/layout/sidebar";
+import { MobileHeader } from "@/components/layout/mobile-header";
 import { TopBar } from "@/components/layout/top-bar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileDrawer } from "@/components/layout/mobile-drawer";
@@ -110,23 +111,16 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Desktop Sidebar */}
+      {/* Desktop sidebar */}
       <Sidebar />
       
-      {/* Mobile Header */}
-      <Topbar onMenu={() => setIsMobileDrawerOpen(true)} title={pageConfig.title} />
-      
-      {/* Mobile Drawer */}
-      <MobileDrawer 
-        isOpen={isMobileDrawerOpen} 
-        onClose={() => setIsMobileDrawerOpen(false)} 
-      />
-      
-      <main className="md:pl-64">
-        {/* Desktop TopBar */}
-        <div className="hidden md:block">
-          <TopBar {...pageConfig} />
-        </div>
+      {/* Main content */}
+      <div className="sm:ml-64">
+        {/* Mobile header */}
+        <MobileHeader title={pageConfig.title} />
+        
+        {/* Page container */}
+        <main className="page">
         
         <Switch>
           <Route path="/" component={Dashboard} />
@@ -146,7 +140,8 @@ function AppContent() {
           <Route path="/customers/:id">{() => <CustomerView />}</Route>
           <Route component={NotFound} />
         </Switch>
-      </main>
+        </main>
+      </div>
 
       {/* Global Modals */}
       <JobModal open={isJobModalOpen} onOpenChange={setIsJobModalOpen} />

@@ -40,10 +40,10 @@ export default function EquipmentPage() {
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+    <div className="space-y-4">
+      <div className="header-row">
         <h1 className="text-2xl font-bold">Equipment</h1>
-        <div className="flex gap-2">
+        <div className="header-actions">
           <Input 
             className="w-72" 
             placeholder="Search name, make, model, serial…" 
@@ -54,6 +54,7 @@ export default function EquipmentPage() {
           <Button 
             onClick={()=>setOpen(true)}
             data-testid="button-new-equipment"
+            data-mobile-full="true"
           >
             New Equipment
           </Button>

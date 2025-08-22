@@ -40,10 +40,10 @@ export default function MembersPage() {
   };
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between gap-2">
+    <div className="space-y-4">
+      <div className="header-row">
         <h1 className="text-2xl font-bold">Team Members</h1>
-        <div className="flex gap-2">
+        <div className="header-actions">
           <Input 
             className="w-64" 
             placeholder="Search name, email, role…" 
@@ -54,6 +54,7 @@ export default function MembersPage() {
           <Button 
             onClick={()=>setOpen(true)}
             data-testid="button-add-member"
+            data-mobile-full="true"
           >
             Add Member
           </Button>
@@ -67,7 +68,7 @@ export default function MembersPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="table-wrap">
           <table className="w-full text-sm" data-testid="table-members">
             <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
               <tr className="[&>th]:px-4 [&>th]:py-3">

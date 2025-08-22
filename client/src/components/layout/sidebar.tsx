@@ -34,7 +34,7 @@ export function Sidebar({ onClose }: SidebarProps) {
   const { user, isProUser } = useAuth();
 
   return (
-    <aside className="hidden md:block w-64 bg-white border-r border-gray-200 fixed h-full z-10">
+    <aside className="hidden sm:block w-64 bg-white border-r border-gray-200 fixed h-full z-30">
       <div className="p-6 h-full flex flex-col">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">

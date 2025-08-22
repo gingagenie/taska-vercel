@@ -1,16 +1,43 @@
 import { useEffect, useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { customersApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CustomerModal } from "@/components/modals/customer-modal";
-import { Building2, ArrowLeft } from "lucide-react";
+import { JobModal } from "@/components/modals/job-modal";
+import { Building2, ArrowLeft, MapPin, Clipboard, Plus } from "lucide-react";
+
+// helper to build a single-line address
+function buildAddress(c: any) {
+  return [c?.street, c?.suburb, c?.state, c?.postcode].filter(Boolean).join(", ");
+}
+
+// platform-aware maps opener
+function openMaps(destinationLabel: string, address?: string, lat?: number, lng?: number) {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const hasCoords = typeof lat === "number" && typeof lng === "number";
+
+  if (isIOS) {
+    const url = hasCoords
+      ? `maps://?q=${encodeURIComponent(destinationLabel)}&daddr=${lat},${lng}`
+      : `maps://?q=${encodeURIComponent(address || destinationLabel)}`;
+    window.location.href = url;
+    return;
+  }
+  const destination = hasCoords ? `${lat},${lng}` : (address || destinationLabel);
+  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination!)}`;
+  window.location.href = gmaps;
+}
 
 export default function CustomerView() {
   const [match, params] = useRoute("/customers/:id");
   const id = params?.id as string;
+  const [, navigate] = useLocation();
+  
   const [customer, setCustomer] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +53,19 @@ export default function CustomerView() {
   if (loading) return <div className="p-6">Loading…</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
   if (!customer) return <div className="p-6">Customer not found</div>;
+
+  const addr = buildAddress(customer);
+
+  async function copyAddress() {
+    try {
+      await navigator.clipboard.writeText(addr);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // fallback: open a prompt
+      window.prompt("Copy address:", addr);
+    }
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
@@ -45,9 +85,35 @@ export default function CustomerView() {
             <h1 className="text-2xl font-bold">{customer.name}</h1>
           </div>
         </div>
-        <Button onClick={() => setIsEditModalOpen(true)} data-testid="button-edit-customer">
-          Edit Customer
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => openMaps(customer.name || "Destination", addr)}
+            disabled={!addr}
+            title={addr ? "Open in Maps" : "No address"}
+            data-testid="button-navigate"
+          >
+            <MapPin className="h-4 w-4 mr-1" />
+            Navigate
+          </Button>
+          <Button 
+            variant="secondary" 
+            onClick={copyAddress} 
+            disabled={!addr} 
+            title={addr ? "Copy address" : "No address"}
+            data-testid="button-copy-address"
+          >
+            <Clipboard className="h-4 w-4 mr-1" />
+            {copied ? "Copied!" : "Copy"}
+          </Button>
+          <Button onClick={() => setIsJobModalOpen(true)} data-testid="button-create-job">
+            <Plus className="h-4 w-4 mr-1" />
+            Create Job
+          </Button>
+          <Button variant="outline" onClick={() => setIsEditModalOpen(true)} data-testid="button-edit-customer">
+            Edit
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -90,19 +156,24 @@ export default function CustomerView() {
           <div className="md:col-span-2">
             <div className="text-gray-500">Address</div>
             <div className="font-medium mt-1">
-              {[customer.street, customer.suburb, customer.state, customer.postcode]
-                .filter(Boolean)
-                .join(", ") || "—"}
+              {addr || "—"}
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Modals */}
       <CustomerModal 
         open={isEditModalOpen} 
         onOpenChange={setIsEditModalOpen} 
         customer={customer} 
         onSaved={(updated) => setCustomer(updated)} 
+      />
+      <JobModal
+        open={isJobModalOpen}
+        onOpenChange={setIsJobModalOpen}
+        defaultCustomerId={customer.id}
+        onCreated={(newId) => navigate(`/jobs/${newId}`)}
       />
     </div>
   );

@@ -7,9 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type Props = { open: boolean; onOpenChange: (v: boolean) => void; onCreated?: (id: string) => void; };
+type Props = { 
+  open: boolean; 
+  onOpenChange: (v: boolean) => void; 
+  onCreated?: (id: string) => void;
+  defaultCustomerId?: string;
+};
 
-export function JobModal({ open, onOpenChange, onCreated }: Props) {
+export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [scheduledAt, setScheduledAt] = useState<string>("");
@@ -33,6 +38,12 @@ export function JobModal({ open, onOpenChange, onCreated }: Props) {
       }
     })();
   }, [open]);
+
+  useEffect(() => {
+    if (open && defaultCustomerId) {
+      setCustomerId(defaultCustomerId);
+    }
+  }, [open, defaultCustomerId]);
 
   function normalizeDate(v: string | null | undefined): string | null {
     if (!v) return null;

@@ -1,0 +1,177 @@
+Goal:
+On client/src/pages/customer-view.tsx, add three buttons in the header:
+
+Navigate → opens Apple Maps on iOS, Google Maps elsewhere using the customer’s address.
+
+Copy address → copies full address to clipboard.
+
+Create Job → opens the existing JobModal with this customer preselected and on save navigates to the new job page.
+
+Acceptance criteria:
+
+Buttons appear to the right of the page title.
+
+Navigate button is disabled if the address is missing.
+
+Copy shows a quick success state (text change for ~1.5s is fine).
+
+Create Job opens the modal with Customer dropdown prefilled; saving redirects to /jobs/:newId.
+
+1) Update JobModal to support a default customer
+
+File: client/src/components/modals/job-modal.tsx
+Add an optional prop defaultCustomerId?: string and apply it when the modal opens.
+
+// 1) Extend the props
+type Props = {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onCreated?: (id: string) => void;
+  defaultCustomerId?: string; // NEW
+};
+
+// 2) Keep existing state, but ensure we can prefill when opened
+export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: Props) {
+  // ...existing state
+  // ensure you have: const [customerId, setCustomerId] = useState<string>("");
+
+  useEffect(() => {
+    if (open && defaultCustomerId) {
+      setCustomerId(defaultCustomerId);
+    }
+  }, [open, defaultCustomerId]);
+
+  // rest unchanged
+}
+
+
+Nothing else in JobModal needs to change. It will still load customers/equipment and submit as before.
+
+2) Add actions on the Customer View
+
+File: client/src/pages/customer-view.tsx
+Edit this page to include the three actions, plus the JobModal.
+
+// ensure imports
+import { useEffect, useState } from "react";
+import { useRoute, Link, useLocation } from "wouter";
+import { customersApi } from "@/lib/api";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { CustomerModal } from "@/components/modals/customer-modal";
+import { JobModal } from "@/components/modals/job-modal";
+import { MapPin, Clipboard, Plus } from "lucide-react";
+
+// helper to build a single-line address
+function buildAddress(c: any) {
+  return [c?.street, c?.suburb, c?.state, c?.postcode].filter(Boolean).join(", ");
+}
+
+// platform-aware maps opener
+function openMaps(destinationLabel: string, address?: string, lat?: number, lng?: number) {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const hasCoords = typeof lat === "number" && typeof lng === "number";
+
+  if (isIOS) {
+    const url = hasCoords
+      ? `maps://?q=${encodeURIComponent(destinationLabel)}&daddr=${lat},${lng}`
+      : `maps://?q=${encodeURIComponent(address || destinationLabel)}`;
+    window.location.href = url;
+    return;
+  }
+  const destination = hasCoords ? `${lat},${lng}` : (address || destinationLabel);
+  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination!)}`;
+  window.location.href = gmaps;
+}
+
+export default function CustomerView() {
+  const [match, params] = useRoute("/customers/:id");
+  const id = params?.id as string;
+  const [, navigate] = useLocation();
+
+  const [c, setC] = useState<any>(null);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [openJob, setOpenJob] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => { customersApi.get(id).then(setC); }, [id]);
+
+  if (!c) return <div className="p-6">Loading…</div>;
+
+  const addr = buildAddress(c);
+
+  async function copyAddress() {
+    try {
+      await navigator.clipboard.writeText(addr);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // fallback: open a prompt
+      window.prompt("Copy address:", addr);
+    }
+  }
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{c.name}</h1>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => openMaps(c.name || "Destination", addr /*, c.latitude, c.longitude */)}
+            disabled={!addr}
+            title={addr ? "Open in Maps" : "No address"}
+          >
+            <MapPin className="h-4 w-4 mr-1" />
+            Navigate
+          </Button>
+          <Button variant="secondary" onClick={copyAddress} disabled={!addr} title={addr ? "Copy address" : "No address"}>
+            <Clipboard className="h-4 w-4 mr-1" />
+            {copied ? "Copied!" : "Copy"}
+          </Button>
+          <Button onClick={() => setOpenJob(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            Create Job
+          </Button>
+          <Button variant="outline" onClick={() => setOpenEdit(true)}>Edit</Button>
+          <Link href="/customers"><a><Button variant="outline">Back</Button></a></Link>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle>Company</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div><div className="text-gray-500">Contact</div><div>{c.contact_name || "—"}</div></div>
+          <div><div className="text-gray-500">Phone</div><div>{c.phone || "—"}</div></div>
+          <div><div className="text-gray-500">Email</div><div>{c.email || "—"}</div></div>
+          <div className="md:col-span-2">
+            <div className="text-gray-500">Address</div>
+            <div>{addr || "—"}</div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Modals */}
+      <CustomerModal open={openEdit} onOpenChange={setOpenEdit} customer={c} onSaved={(updated)=>setC(updated)} />
+      <JobModal
+        open={openJob}
+        onOpenChange={setOpenJob}
+        defaultCustomerId={c.id}                 // prefill this customer
+        onCreated={(newId) => navigate(`/jobs/${newId}`)}  // jump to new job
+      />
+    </div>
+  );
+}
+
+
+If your customer address field names differ (e.g., address_line1), update buildAddress() accordingly.
+
+3) Test checklist
+
+Open any Customer → header shows Navigate / Copy / Create Job / Edit / Back.
+
+Navigate opens Apple Maps on iOS, Google Maps elsewhere; disabled if no address.
+
+Copy copies the address; label changes to “Copied!” briefly.
+
+Create Job opens modal with the Customer already selected; saving redirects to the new job page.

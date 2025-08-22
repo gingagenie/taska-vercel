@@ -1,4 +1,5 @@
 import { Menu } from "lucide-react";
+import logoUrl from "@assets/Taska_1755842483680.png";
 
 type Props = { onMenu: () => void; title?: string };
 
@@ -14,9 +15,16 @@ export function Topbar({ onMenu, title = "Taska" }: Props) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <h1 className="font-bold text-lg text-gray-900" data-testid="text-title">
-          {title}
-        </h1>
+        <div className="flex items-center gap-2">
+          <img 
+            src={logoUrl} 
+            alt="Taska Logo" 
+            className="w-6 h-6 object-contain"
+          />
+          <h1 className="font-bold text-lg text-gray-900" data-testid="text-title">
+            {title}
+          </h1>
+        </div>
       </div>
     </header>
   );

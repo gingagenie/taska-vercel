@@ -10,6 +10,7 @@ import {
   BarChart3,
   Crown
 } from "lucide-react";
+import logoUrl from "@assets/Taska_1755842483680.png";
 
 const navigationItems = [
   { path: "/", label: "Dashboard", icon: BarChart3 },
@@ -34,9 +35,11 @@ export function Sidebar({ onClose }: SidebarProps) {
       <div className="p-6 h-full flex flex-col">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <Settings className="text-white text-sm" />
-          </div>
+          <img 
+            src={logoUrl} 
+            alt="Taska Logo" 
+            className="w-8 h-8 object-contain"
+          />
           <h1 className="text-xl font-bold text-gray-900">Taska</h1>
         </div>
 

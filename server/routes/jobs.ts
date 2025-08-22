@@ -442,5 +442,19 @@ jobs.post("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+/* DELETE */
+jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
+
+  await db.execute(sql`
+    delete from jobs
+    where id=${jobId}::uuid and org_id=${orgId}::uuid
+  `);
+
+  res.json({ ok: true });
+});
+
 // Default export
 export default jobs;

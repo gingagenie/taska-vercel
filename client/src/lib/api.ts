@@ -71,6 +71,7 @@ export const jobsApi = {
     api(`/api/jobs/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   customers: () => api("/api/jobs/customers"),
   equipment: () => api("/api/jobs/equipment"),
+  delete: (id: string) => api(`/api/jobs/${id}`, { method: "DELETE" }),
 };
 
 export const customersApi = {

@@ -1,20 +1,27 @@
 // client/src/pages/job-view.tsx
 import { useEffect, useState } from "react";
-import { useRoute, Link } from "wouter";
-import { api, photosApi } from "@/lib/api";
+import { useRoute, Link, useLocation } from "wouter";
+import { api, photosApi, jobsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { MapPin, AlertTriangle, Trash } from "lucide-react";
 
 export default function JobView() {
   const [match, params] = useRoute("/jobs/:id");
+  const [, navigate] = useLocation();
   const jobId = params?.id as string;
 
   const [job, setJob] = useState<any>(null);
   const [photos, setPhotos] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Delete confirmation dialog state
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [errDelete, setErrDelete] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -81,6 +88,13 @@ export default function JobView() {
           <Link href={`/jobs/${jobId}/edit`}>
             <a><Button>Edit Job</Button></a>
           </Link>
+          <Button 
+            variant="destructive" 
+            onClick={() => setConfirmDelete(true)}
+            data-testid="button-delete-job"
+          >
+            <Trash className="h-4 w-4 mr-1" /> Delete
+          </Button>
         </div>
       </div>
 
@@ -174,6 +188,42 @@ export default function JobView() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Confirm Delete
+            </DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to delete <strong>{job.title}</strong>? This cannot be undone.</p>
+          {errDelete && <div className="text-red-600 text-sm">{errDelete}</div>}
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true);
+                setErrDelete(null);
+                try {
+                  await jobsApi.delete(job.id);
+                  navigate("/jobs");
+                } catch (e: any) {
+                  setErrDelete(e.message || "Failed to delete");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+              data-testid="button-confirm-delete"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

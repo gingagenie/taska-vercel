@@ -129,9 +129,18 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
     
     console.log("[TRACE] POST /api/jobs/create org=%s body=%o", orgId, req.body);
 
-    // Coerce empty strings to null
+    // Coerce empty strings to null and handle date conversion
     if (customerId === "") customerId = null;
-    if (scheduledAt === "") scheduledAt = null;
+    
+    let scheduledDate: Date | null = null;
+    if (scheduledAt && scheduledAt !== "") {
+      try {
+        scheduledDate = new Date(scheduledAt);
+        if (isNaN(scheduledDate.getTime())) scheduledDate = null;
+      } catch {
+        scheduledDate = null;
+      }
+    }
     
     const result = await db
       .insert(jobsSchema)
@@ -139,7 +148,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
         title: title || "Untitled Job",
         description: description || "",
         status: status || "new",
-        scheduledAt: scheduledAt,
+        scheduledAt: scheduledDate,
         customerId: customerId,
         orgId: orgId,
       })
@@ -166,18 +175,33 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
   let { title, description, status, scheduledAt, customerId } = req.body || {};
   if (customerId === "") customerId = null;
 
-  // Normalize date strings like "2025-08-22T10:00"
-  const normalizeDate = (v: any): string | null => {
-    if (v === undefined || v === null || v === "") return null;
-    const s = String(v);
-    if (s.includes("T")) {
-      const [d, t] = s.split("T");
-      const tt = t.length === 5 ? `${t}:00` : t;
-      return `${d} ${tt}`.slice(0, 19);
+  // Convert date strings to Date objects for Drizzle
+  let scheduledAtDate: Date | null = null;
+  if (scheduledAt && scheduledAt !== "") {
+    console.log("[DEBUG] Converting scheduledAt:", scheduledAt, typeof scheduledAt);
+    try {
+      // Handle various date formats
+      let dateStr = String(scheduledAt);
+      if (dateStr.includes("T")) {
+        // Convert "2024-08-22T10:00" to "2024-08-22 10:00:00"
+        const [d, t] = dateStr.split("T");
+        const time = t.length === 5 ? `${t}:00` : t;
+        dateStr = `${d} ${time}`;
+      }
+      
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        scheduledAtDate = date;
+        console.log("[DEBUG] Converted to Date:", scheduledAtDate);
+      } else {
+        console.warn("[DEBUG] Invalid date:", dateStr);
+      }
+    } catch (err) {
+      console.warn("[DEBUG] Date conversion error:", err);
     }
-    return s;
-  };
-  scheduledAt = normalizeDate(scheduledAt);
+  }
+  
+  scheduledAt = scheduledAtDate;
 
   // Always log what we received (so we know the route is hit)
   console.log("PUT /api/jobs/%s org=%s body=%o", jobId, orgId, {
@@ -185,13 +209,16 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
   });
 
   try {
-    // Prepare update data - only include defined fields
+    // Prepare update data - only include defined fields and handle nulls properly
     const updateData: any = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (status !== undefined) updateData.status = status;
-    if (scheduledAt !== undefined) updateData.scheduledAt = scheduledAt;
+    if (scheduledAt !== undefined) updateData.scheduledAt = scheduledAt; // Already converted to Date above
     if (customerId !== undefined) updateData.customerId = customerId;
+    
+    // Skip updatedAt to avoid timestamp issues
+    // updateData.updatedAt = new Date();
 
     const result = await db
       .update(jobsSchema)

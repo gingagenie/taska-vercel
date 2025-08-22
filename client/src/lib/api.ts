@@ -12,7 +12,7 @@ function getAuthHeaders() {
 export async function api(path: string, init: RequestInit = {}) {
   const headers: Record<string, string> = {
     ...getAuthHeaders(),
-    ...(init.headers || {}),
+    ...(init.headers as Record<string, string> || {}),
   };
   
   // Only set Content-Type for non-FormData requests
@@ -78,6 +78,7 @@ export const customersApi = {
   get: (id: string) => api(`/api/customers/${id}`),
   create: (body: any) => api("/api/customers", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) => api(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  delete: (id: string) => api(`/api/customers/${id}`, { method: "DELETE" }),
 };
 
 export const notesApi = {

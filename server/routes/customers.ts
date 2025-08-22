@@ -103,4 +103,18 @@ customers.put("/:id", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+/* DELETE */
+customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+
+  await db.execute(sql`
+    delete from customers
+    where id=${id}::uuid and org_id=${orgId}::uuid
+  `);
+
+  res.json({ ok: true });
+});
+
 export { customers as default };

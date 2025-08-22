@@ -3,9 +3,10 @@ import { useRoute, Link, useLocation } from "wouter";
 import { customersApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CustomerModal } from "@/components/modals/customer-modal";
 import { JobModal } from "@/components/modals/job-modal";
-import { Building2, ArrowLeft, MapPin, Clipboard, Plus } from "lucide-react";
+import { Building2, ArrowLeft, MapPin, Clipboard, Plus, AlertTriangle, Trash } from "lucide-react";
 
 // helper to build a single-line address
 function buildAddress(c: any) {
@@ -37,7 +38,9 @@ export default function CustomerView() {
   const [customer, setCustomer] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,6 +127,15 @@ export default function CustomerView() {
           >
             Edit
           </Button>
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={() => setConfirmDelete(true)}
+            data-testid="button-delete-customer"
+          >
+            <Trash className="h-4 w-4 mr-1" />
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -186,6 +198,40 @@ export default function CustomerView() {
         defaultCustomerId={customer.id}
         onCreated={(newId) => navigate(`/jobs/${newId}`)}
       />
+      
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Confirm Delete
+            </DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to delete <strong>{customer.name}</strong>? This cannot be undone.</p>
+          {error && <div className="text-red-600 text-sm">{error}</div>}
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true);
+                setError(null);
+                try {
+                  await customersApi.delete(customer.id);
+                  navigate("/customers");
+                } catch (e: any) {
+                  setError(e.message || "Failed to delete");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { health } from "./routes/health";
 import { customers } from "./routes/customers";
 import { equipment } from "./routes/equipment";
 import { teams } from "./routes/teams";
-import { jobs } from "./routes/jobs";
+import jobs from "./routes/jobs";
 import { quotes } from "./routes/quotes";
 import { invoices } from "./routes/invoices";
 
@@ -19,6 +19,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/equipment", equipment);
   app.use("/api/teams", teams);
   app.use("/api/jobs", jobs);
+  console.log("[mount] /api/jobs");
   app.use("/api/quotes", quotes);
   app.use("/api/invoices", invoices);
   

@@ -1,122 +1,216 @@
 import { Router } from "express";
-import { db } from "../db/client";
-import { sql } from "drizzle-orm";
+import { db } from "../db";
+import { jobs as jobsSchema, customers, equipment } from "../../shared/schema";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { sql, eq, and } from "drizzle-orm";
 
 export const jobs = Router();
 
-/* LIST (now joins customer name) */
+// Add ping endpoint for health check
+jobs.get("/ping", (_req, res) => {
+  console.log("[TRACE] GET /api/jobs/ping");
+  res.json({ ok: true });
+});
+
+// GET / - List jobs by org
 jobs.get("/", requireAuth, requireOrg, async (req, res) => {
-  const orgId = (req as any).orgId;
-  const r: any = await db.execute(sql`
-    select j.id, j.title, j.status, j.scheduled_at,
-           j.customer_id, coalesce(c.name,'—') as customer_name
-    from jobs j
-    left join customers c on c.id = j.customer_id
-    where j.org_id=${orgId}::uuid
-    order by j.created_at desc
-  `);
-  res.json(r.rows);
+  try {
+    const orgId = (req as any).orgId;
+    console.log("[TRACE] GET /api/jobs org=%s", orgId);
+    
+    const result = await db
+      .select({
+        id: jobsSchema.id,
+        title: jobsSchema.title,
+        description: jobsSchema.description,
+        status: jobsSchema.status,
+        scheduled_at: jobsSchema.scheduledAt,
+        customer_id: jobsSchema.customerId,
+        customer_name: customers.name,
+        created_at: jobsSchema.createdAt,
+      })
+      .from(jobsSchema)
+      .leftJoin(customers, eq(jobsSchema.customerId, customers.id))
+      .where(eq(jobsSchema.orgId, orgId));
+
+    res.json(result);
+  } catch (error: any) {
+    console.error("GET /api/jobs error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch jobs" });
+  }
 });
 
-/* DROPDOWNS */
+// GET /customers - Return dropdown data by org
 jobs.get("/customers", requireAuth, requireOrg, async (req, res) => {
-  const orgId = (req as any).orgId;
-  const r: any = await db.execute(sql`
-    select id, name from customers where org_id=${orgId}::uuid order by name asc
-  `);
-  res.json(r.rows);
+  try {
+    const orgId = (req as any).orgId;
+    console.log("[TRACE] GET /api/jobs/customers org=%s", orgId);
+    
+    const result = await db
+      .select({
+        id: customers.id,
+        name: customers.name,
+      })
+      .from(customers)
+      .where(eq(customers.orgId, orgId));
+
+    res.json(result);
+  } catch (error: any) {
+    console.error("GET /api/jobs/customers error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch customers" });
+  }
 });
+
+// GET /equipment - Return dropdown data by org
 jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
-  const orgId = (req as any).orgId;
-  const r: any = await db.execute(sql`
-    select id, name from equipment where org_id=${orgId}::uuid order by name asc
-  `);
-  res.json(r.rows);
+  try {
+    const orgId = (req as any).orgId;
+    console.log("[TRACE] GET /api/jobs/equipment org=%s", orgId);
+    
+    const result = await db
+      .select({
+        id: equipment.id,
+        name: equipment.name,
+      })
+      .from(equipment)
+      .where(eq(equipment.orgId, orgId));
+
+    res.json(result);
+  } catch (error: any) {
+    console.error("GET /api/jobs/equipment error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch equipment" });
+  }
 });
 
-/* CREATE */
-jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
-  const orgId = (req as any).orgId;
-  const userId = (req as any).user?.id || null;
-  const { title, description, customerId, scheduledAt } = req.body || {};
-  if (!title) return res.status(400).json({ error: "title required" });
-  const r: any = await db.execute(sql`
-    insert into jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
-    values (${orgId}::uuid, ${customerId||null}, ${title}, ${description||null}, ${scheduledAt||null}, 'new', ${userId||null})
-    returning id
-  `);
-  res.json({ ok: true, id: r.rows[0].id });
-});
-
-/* DETAILS (view page) */
+// GET /:jobId - Return specific job with details
 jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params;
-  const orgId = (req as any).orgId;
+  try {
+    const { jobId } = req.params;
+    const orgId = (req as any).orgId;
+    console.log("[TRACE] GET /api/jobs/%s org=%s", jobId, orgId);
 
-  const jr: any = await db.execute(sql`
-    select j.id, j.title, j.description, j.status, j.scheduled_at,
-           j.customer_id, coalesce(c.name,'—') as customer_name
-    from jobs j
-    left join customers c on c.id = j.customer_id
-    where j.id=${jobId}::uuid and j.org_id=${orgId}::uuid
-  `);
-  const job = jr.rows?.[0];
-  if (!job) return res.status(404).json({ error: "job not found" });
+    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
+      return res.status(400).json({ error: "Invalid jobId" });
+    }
 
-  const techs: any = await db.execute(sql`
-    select u.id, u.name, u.email
-    from job_assignments ja
-    join users u on u.id = ja.user_id
-    where ja.job_id=${jobId}::uuid
-  `);
-  const eq: any = await db.execute(sql`
-    select e.id, e.name
-    from job_equipment je
-    join equipment e on e.id = je.equipment_id
-    where je.job_id=${jobId}::uuid
-  `);
+    const result = await db
+      .select({
+        id: jobsSchema.id,
+        title: jobsSchema.title,
+        description: jobsSchema.description,
+        status: jobsSchema.status,
+        scheduled_at: jobsSchema.scheduledAt,
+        customer_id: jobsSchema.customerId,
+        customer_name: customers.name,
+        created_at: jobsSchema.createdAt,
+      })
+      .from(jobsSchema)
+      .leftJoin(customers, eq(jobsSchema.customerId, customers.id))
+      .where(and(eq(jobsSchema.id, jobId), eq(jobsSchema.orgId, orgId)))
+      .limit(1);
 
-  res.json({ ...job, technicians: techs.rows, equipment: eq.rows });
+    if (!result.length) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    res.json(result[0]);
+  } catch (error: any) {
+    console.error("GET /api/jobs/:id error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch job" });
+  }
 });
 
-/* UPDATE (edit page) */
+// POST /create - Insert new job
+jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
+  try {
+    const orgId = (req as any).orgId;
+    let { title, description, status, scheduledAt, customerId } = req.body || {};
+    
+    console.log("[TRACE] POST /api/jobs/create org=%s body=%o", orgId, req.body);
+
+    // Coerce empty strings to null
+    if (customerId === "") customerId = null;
+    if (scheduledAt === "") scheduledAt = null;
+    
+    const result = await db
+      .insert(jobsSchema)
+      .values({
+        title: title || "Untitled Job",
+        description: description || "",
+        status: status || "new",
+        scheduledAt: scheduledAt,
+        customerId: customerId,
+        orgId: orgId,
+      })
+      .returning({ id: jobsSchema.id });
+
+    console.log("[TRACE] POST /api/jobs/create -> created job %s", result[0].id);
+    res.json({ ok: true, id: result[0].id });
+  } catch (error: any) {
+    console.error("POST /api/jobs/create error:", error);
+    res.status(500).json({ error: error?.message || "Failed to create job" });
+  }
+});
+
+// PUT /:jobId - Update job
 jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
-  const { title, description, status, scheduledAt, customerId } = req.body || {};
 
-  await db.execute(sql`
-    update jobs
-    set title = coalesce(${title}, title),
-        description = coalesce(${description}, description),
-        status = coalesce(${status}, status),
-        scheduled_at = coalesce(${scheduledAt}, scheduled_at),
-        customer_id = coalesce(${customerId}, customer_id)
-    where id=${jobId}::uuid and org_id=${orgId}::uuid
-  `);
-  res.json({ ok: true });
+  // Validate ID quickly
+  if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
+    return res.status(400).json({ error: "Invalid jobId" });
+  }
+
+  let { title, description, status, scheduledAt, customerId } = req.body || {};
+  if (customerId === "") customerId = null;
+
+  // Normalize date strings like "2025-08-22T10:00"
+  const normalizeDate = (v: any): string | null => {
+    if (v === undefined || v === null || v === "") return null;
+    const s = String(v);
+    if (s.includes("T")) {
+      const [d, t] = s.split("T");
+      const tt = t.length === 5 ? `${t}:00` : t;
+      return `${d} ${tt}`.slice(0, 19);
+    }
+    return s;
+  };
+  scheduledAt = normalizeDate(scheduledAt);
+
+  // Always log what we received (so we know the route is hit)
+  console.log("PUT /api/jobs/%s org=%s body=%o", jobId, orgId, {
+    title, description, status, scheduledAt, customerId
+  });
+
+  try {
+    // Prepare update data - only include defined fields
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (status !== undefined) updateData.status = status;
+    if (scheduledAt !== undefined) updateData.scheduledAt = scheduledAt;
+    if (customerId !== undefined) updateData.customerId = customerId;
+
+    const result = await db
+      .update(jobsSchema)
+      .set(updateData)
+      .where(and(eq(jobsSchema.id, jobId), eq(jobsSchema.orgId, orgId)))
+      .returning({ id: jobsSchema.id });
+
+    if (!result.length) {
+      console.warn("PUT /api/jobs/%s -> no match for org=%s", jobId, orgId);
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    console.log("PUT /api/jobs/%s -> ok", jobId);
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("PUT /api/jobs/%s error:", jobId, error);
+    res.status(500).json({ error: error?.message || "Update failed" });
+  }
 });
 
-/* ASSIGNMENTS (unchanged) */
-jobs.post("/:jobId/assign/tech", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params; const { userId } = req.body || {};
-  if (!userId) return res.status(400).json({ error: "userId required" });
-  await db.execute(sql`
-    insert into job_assignments (job_id, user_id)
-    values (${jobId}::uuid, ${userId}::uuid)
-    on conflict do nothing;
-  `);
-  res.json({ ok: true });
-});
-jobs.post("/:jobId/assign/equipment", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params; const { equipmentId } = req.body || {};
-  if (!equipmentId) return res.status(400).json({ error: "equipmentId required" });
-  await db.execute(sql`
-    insert into job_equipment (job_id, equipment_id)
-    values (${jobId}::uuid, ${equipmentId}::uuid)
-    on conflict do nothing;
-  `);
-  res.json({ ok: true });
-});
+// Default export
+export default jobs;

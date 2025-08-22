@@ -1,0 +1,166 @@
+Goal: Fix API timeouts and auth 401s so PUT /api/jobs/:id works from the Job Edit page. Make the server log requests, never hang, and ensure exports/mounts are correct.
+
+Acceptance criteria (must pass):
+
+Visiting /api/jobs/ping returns { ok: true }
+
+Editing a job in the UI saves and returns to /jobs/:id
+
+Replit console logs: [TRACE] PUT /api/jobs/<id> and a success line
+
+No “Not authenticated” or timeouts in the browser
+
+Make these changes:
+
+server/routes/jobs.ts
+
+Ensure both named and default exports exist at the bottom:
+
+export { jobs };
+export default jobs;
+
+
+Keep export const jobs = Router() at the top (don’t rename).
+
+Implement (or keep) these behaviors in handlers:
+
+GET / lists jobs by org_id
+
+GET /customers and GET /equipment return dropdown data by org_id
+
+GET /:jobId returns job + technicians + equipment
+
+POST /create inserts (coerce "" → null, only cast UUIDs when present)
+
+PUT /:jobId updates fields with coalesce(...), normalizes datetime strings:
+
+If scheduledAt contains T (e.g. 2025-08-22T10:00), convert to YYYY-MM-DD HH:MM:SS
+
+If customerId === "", treat as null
+
+Wrap DB calls in try/catch and always reply JSON (never hang)
+
+Add a quick tracer log at start of PUT:
+
+console.log("PUT /api/jobs/%s org=%s body=%o", jobId, orgId, { title, description, status, scheduledAt, customerId });
+
+
+server/routes.ts (or wherever registerRoutes lives)
+
+Ensure the jobs router is mounted exactly as:
+
+import { jobs } from "./routes/jobs";
+app.use("/api/jobs", jobs);
+console.log("[mount] /api/jobs");
+
+
+If there’s a different import style now, that’s fine; the critical part is the path /api/jobs.
+
+server/index.ts
+Add these middlewares above registerRoutes(app):
+
+// Log every API request reaching Express
+app.use((req, _res, next) => {
+  if (req.path.startsWith("/api")) {
+    console.log(`[TRACE] ${req.method} ${req.path}`);
+  }
+  next();
+});
+
+// Always-on auth shim for API (inject demo ids if missing)
+app.use((req, _res, next) => {
+  if (req.path.startsWith("/api")) {
+    if (!req.headers["x-user-id"]) {
+      req.headers["x-user-id"] = process.env.DEMO_USER_ID || "315e3119-1b17-4dee-807f-bbc1e4d5c5b6";
+    }
+    if (!req.headers["x-org-id"]) {
+      req.headers["x-org-id"] = process.env.DEMO_ORG_ID || "4500ba4e-e575-4f82-b196-27dd4c7d0eaf";
+    }
+  }
+  next();
+});
+
+
+Keep the error handler that doesn’t rethrow. Keep the health routes. Leave Vite/static logic as is.
+
+server/middleware/auth.ts and tenancy.ts
+Make them tolerant to header variations:
+
+// auth.ts
+export function requireAuth(req, res, next) {
+  const h = (n: string) => (req.headers[n.toLowerCase()] as string|undefined);
+  const userId = h("x-user-id") || h("x-userid") || h("x-user") ||
+                 (req.query.userId as string|undefined) ||
+                 (h("authorization")?.startsWith("Bearer ") ? h("authorization")!.slice(7) : undefined);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  (req as any).user = { id: userId };
+  next();
+}
+
+// tenancy.ts
+export function requireOrg(req, res, next) {
+  const h = (n: string) => (req.headers[n.toLowerCase()] as string|undefined);
+  const orgId = h("x-org-id") || h("x-orgid") || h("x-organization-id") ||
+                (req.query.orgId as string|undefined);
+  if (!orgId) return res.status(400).json({ error: "Missing org id" });
+  (req as any).orgId = orgId;
+  next();
+}
+
+
+client/src/lib/api.ts
+
+Keep the exported api() + wrappers (jobsApi, customersApi, etc.)
+
+Add a 15s timeout and a debug log so we know the exact URL:
+
+export async function api(path: string, init: RequestInit = {}) {
+  const headers = { "Content-Type": "application/json", ...getAuthHeaders(), ...(init.headers||{}) };
+  const controller = new AbortController();
+  const to = setTimeout(() => controller.abort(), 15000);
+  const url = `${import.meta.env.VITE_API_BASE_URL || ""}${path}`;
+  console.log("[api] ->", url, init.method || "GET");
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, headers, signal: controller.signal });
+  } catch (e: any) {
+    clearTimeout(to);
+    throw new Error(e?.name === "AbortError" ? "Request timed out" : (e?.message || "Network error"));
+  }
+  clearTimeout(to);
+  const text = await res.text();
+  if (!res.ok) {
+    try { const err = JSON.parse(text||"{}"); throw new Error(err.error || err.message || `HTTP ${res.status}`); }
+    catch { throw new Error(text || `HTTP ${res.status}`); }
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+
+Ensure the wrappers call /api/... paths (same origin by default if VITE_API_BASE_URL is blank).
+
+client/src/pages/job-edit.tsx
+
+No nested <a> inside <Link> (use a button with navigate()).
+
+On Save, send:
+
+scheduledAt: scheduledAt ? scheduledAt.replace("T", " ") + (scheduledAt.length === 16 ? ":00" : "") : null,
+customerId: customerId || null,
+
+
+Always clear the spinner in finally { setSaving(false) } and show {err && <div className="text-red-600">{err}</div>}.
+
+Verification steps to run (you can do these for me):
+
+Start the repl.
+
+Open /api/jobs/ping → expect { ok: true }.
+
+In DevTools console, confirm [api] -> /api/jobs/<id> PUT when you save.
+
+Replit logs show [TRACE] PUT /api/jobs/<id> and a success log.
+
+UI returns to /jobs/:id without “request timed out”.
+
+If any step fails, fix and re-run until all pass.

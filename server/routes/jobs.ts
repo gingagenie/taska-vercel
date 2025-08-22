@@ -1,11 +1,17 @@
 import { Router } from "express";
 import { db } from "../db";
-import { jobs as jobsSchema, customers, equipment } from "../../shared/schema";
+import { jobs as jobsSchema, customers, equipment, jobPhotos } from "../../shared/schema";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { sql, eq, and } from "drizzle-orm";
 
 export const jobs = Router();
+
+// Configure multer for file uploads
+const upload = multer({ dest: "uploads/" });
 
 // Add ping endpoint for health check
 jobs.get("/ping", (_req, res) => {
@@ -236,6 +242,104 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
   } catch (error: any) {
     console.error("PUT /api/jobs/%s error:", jobId, error);
     res.status(500).json({ error: error?.message || "Update failed" });
+  }
+});
+
+// Photo routes
+
+// GET /:jobId/photos - List photos for a job
+jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const orgId = (req as any).orgId;
+    
+    console.log("[TRACE] GET /api/jobs/%s/photos org=%s", jobId, orgId);
+    
+    const result = await db.execute(sql`
+      SELECT id, url, created_at
+      FROM job_photos
+      WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at DESC
+    `);
+    
+    res.json((result as any).rows || []);
+  } catch (error: any) {
+    console.error("GET /api/jobs/%s/photos error:", req.params.jobId, error);
+    res.status(500).json({ error: error?.message || "Failed to fetch photos" });
+  }
+});
+
+// POST /:jobId/photos - Upload photo for a job
+jobs.post("/:jobId/photos", requireAuth, requireOrg, upload.single("photo"), async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const orgId = (req as any).orgId;
+    const file = req.file;
+    
+    if (!file) {
+      return res.status(400).json({ error: "No file provided" });
+    }
+    
+    // Create unique filename
+    const filename = `${Date.now()}-${file.originalname}`;
+    const destPath = path.join("uploads", filename);
+    
+    // Move file from temp location to uploads folder
+    fs.renameSync(file.path, destPath);
+    
+    const url = `/uploads/${filename}`;
+    
+    console.log("[TRACE] POST /api/jobs/%s/photos org=%s file=%s", jobId, orgId, filename);
+    
+    // Insert into database
+    const result = await db.execute(sql`
+      INSERT INTO job_photos (job_id, org_id, url)
+      VALUES (${jobId}::uuid, ${orgId}::uuid, ${url})
+      RETURNING id, url, created_at
+    `);
+    
+    const photo = (result as any).rows[0];
+    res.json(photo);
+  } catch (error: any) {
+    console.error("POST /api/jobs/%s/photos error:", req.params.jobId, error);
+    res.status(500).json({ error: error?.message || "Failed to upload photo" });
+  }
+});
+
+// DELETE /:jobId/photos/:photoId - Delete a photo
+jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res) => {
+  try {
+    const { jobId, photoId } = req.params;
+    const orgId = (req as any).orgId;
+    
+    console.log("[TRACE] DELETE /api/jobs/%s/photos/%s org=%s", jobId, photoId, orgId);
+    
+    // Get photo info before deleting to remove file
+    const photoResult = await db.execute(sql`
+      SELECT url FROM job_photos 
+      WHERE id = ${photoId}::uuid AND job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+    
+    const photos = (photoResult as any).rows || [];
+    if (photos.length > 0) {
+      const photoUrl = photos[0].url;
+      // Remove file from filesystem if it exists
+      const filePath = path.join(".", photoUrl);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    
+    // Delete from database
+    await db.execute(sql`
+      DELETE FROM job_photos 
+      WHERE id = ${photoId}::uuid AND job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+    
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("DELETE /api/jobs/%s/photos/%s error:", req.params.jobId, req.params.photoId, error);
+    res.status(500).json({ error: error?.message || "Failed to delete photo" });
   }
 });
 

@@ -1,7 +1,7 @@
 // client/src/pages/job-view.tsx
 import { useEffect, useState } from "react";
 import { useRoute, Link } from "wouter";
-import { api } from "@/lib/api";
+import { api, photosApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,15 +11,20 @@ export default function JobView() {
   const jobId = params?.id as string;
 
   const [job, setJob] = useState<any>(null);
+  const [photos, setPhotos] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        // ✅ IMPORTANT: use /api prefix so we hit the backend, not the SPA
-        const data = await api(`/api/jobs/${jobId}`);
-        setJob(data);
+        // Load job data and photos
+        const [jobData, photoData] = await Promise.all([
+          api(`/api/jobs/${jobId}`),
+          photosApi.list(jobId),
+        ]);
+        setJob(jobData);
+        setPhotos(photoData);
       } catch (e: any) {
         setErr(e?.message || "Failed to load job");
       } finally {
@@ -102,6 +107,34 @@ export default function JobView() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Photos Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Photos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {photos.length ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {photos.map((photo: any) => (
+                <div key={photo.id} className="relative">
+                  <img 
+                    src={photo.url} 
+                    alt="Job photo" 
+                    className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity" 
+                    onClick={() => window.open(photo.url, '_blank')}
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b text-center">
+                    {new Date(photo.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-gray-500">No photos uploaded</div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

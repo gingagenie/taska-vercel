@@ -96,6 +96,15 @@ export const jobEquipment = pgTable("job_equipment", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Job photos
+export const jobPhotos = pgTable("job_photos", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: uuid("job_id").references(() => jobs.id, { onDelete: "cascade" }).notNull(),
+  orgId: uuid("org_id").references(() => organizations.id).notNull(),
+  url: text("url").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Entitlements (for pro features)
 export const entitlements = pgTable("entitlements", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -137,6 +146,7 @@ export const invoices = pgTable("invoices", {
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertJobPhotoSchema = createInsertSchema(jobPhotos).omit({ id: true, createdAt: true });
 export const insertEquipmentSchema = createInsertSchema(equipment).omit({ id: true, createdAt: true });
 export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, createdAt: true });
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true });
@@ -156,3 +166,6 @@ export type InsertQuote = z.infer<typeof insertQuoteSchema>;
 
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+
+export type JobPhoto = typeof jobPhotos.$inferSelect;
+export type InsertJobPhoto = z.infer<typeof insertJobPhotoSchema>;

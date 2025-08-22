@@ -10,11 +10,15 @@ function getAuthHeaders() {
 
 /** Low-level fetcher with timeout + good errors */
 export async function api(path: string, init: RequestInit = {}) {
-  const headers = {
-    "Content-Type": "application/json",
+  const headers: Record<string, string> = {
     ...getAuthHeaders(),
     ...(init.headers || {}),
   };
+  
+  // Only set Content-Type for non-FormData requests
+  if (!(init?.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
 
   // ⏱️ 15s timeout so the UI never spins forever
   const controller = new AbortController();
@@ -114,4 +118,16 @@ export const invoicesApi = {
     api(`/api/invoices/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   // Optional helpers
   markPaid: (id: string) => api(`/api/invoices/${id}/pay`, { method: "POST" }),
+};
+
+// Photos API helper functions  
+export const photosApi = {
+  list: (jobId: string) => api(`/api/jobs/${jobId}/photos`),
+  upload: (jobId: string, file: File) => {
+    const form = new FormData();
+    form.append("photo", file);
+    return api(`/api/jobs/${jobId}/photos`, { method: "POST", body: form });
+  },
+  remove: (jobId: string, photoId: string) =>
+    api(`/api/jobs/${jobId}/photos/${photoId}`, { method: "DELETE" }),
 };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
-import { api } from "@/lib/api";
+import { api, photosApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +18,10 @@ export default function JobEdit() {
   const [customerId, setCustomerId] = useState<string>("");
 
   const [customers, setCustomers] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,9 +36,13 @@ export default function JobEdit() {
         setScheduledAt(j.scheduled_at || "");
         setCustomerId(j.customer_id || "");
 
-        const cs = await api(`/api/jobs/customers`);
+        const [cs, photosData] = await Promise.all([
+          api(`/api/jobs/customers`),
+          photosApi.list(jobId),
+        ]);
         if (!alive) return;
         setCustomers(cs || []);
+        setPhotos(photosData || []);
       } catch (e: any) {
         if (!alive) return;
         setErr(e?.message || "Failed to load");
@@ -151,6 +157,70 @@ export default function JobEdit() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Photos</label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="w-full border rounded p-2 text-sm"
+              onChange={async (e) => {
+                if (!e.target.files?.length) return;
+                setUploading(true);
+                try {
+                  for (const file of Array.from(e.target.files)) {
+                    const result = await photosApi.upload(jobId, file);
+                    setPhotos(prev => [result, ...prev]);
+                  }
+                  setErr(null);
+                } catch (error: any) {
+                  setErr(error.message || "Failed to upload photos");
+                } finally {
+                  setUploading(false);
+                  e.target.value = "";
+                }
+              }}
+              disabled={uploading}
+            />
+            {uploading && <div className="text-sm text-blue-600 mt-1">Uploading...</div>}
+            
+            {/* Display uploaded photos */}
+            {photos.length > 0 && (
+              <div className="mt-3">
+                <div className="text-sm text-gray-600 mb-2">{photos.length} photo(s) uploaded</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {photos.slice(0, 6).map((photo: any) => (
+                    <div key={photo.id} className="relative group">
+                      <img 
+                        src={photo.url} 
+                        alt="Job photo" 
+                        className="w-full h-20 object-cover rounded border"
+                      />
+                      <button
+                        onClick={async () => {
+                          try {
+                            await photosApi.remove(jobId, photo.id);
+                            setPhotos(prev => prev.filter(p => p.id !== photo.id));
+                          } catch (error: any) {
+                            setErr(error.message || "Failed to delete photo");
+                          }
+                        }}
+                        className="absolute top-1 right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {photos.length > 6 && (
+                    <div className="h-20 border rounded flex items-center justify-center text-sm text-gray-500">
+                      +{photos.length - 6} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-2 flex gap-3">

@@ -1,0 +1,148 @@
+Goal: Add ability to attach photos to jobs.
+Acceptance criteria:
+
+On the Job View page (/jobs/:id), photos are listed as thumbnails.
+
+On the Job Edit page, user can upload one or more photos.
+
+Uploaded photos are stored in DB table job_photos linked to job_id.
+
+Backend routes /api/jobs/:id/photos (GET, POST, DELETE) work with auth/org checks.
+
+File storage: simplest option — save to /uploads folder in Replit, and serve them at /uploads/<filename>. (Later we can swap to S3, but local works now.)
+
+1) Database
+
+Create a new table:
+
+create table job_photos (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid references jobs(id) on delete cascade,
+  org_id uuid not null,
+  url text not null,
+  created_at timestamptz default now()
+);
+
+
+Update Drizzle schema accordingly.
+
+2) Backend routes (server/routes/jobs.ts)
+
+Add:
+
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const upload = multer({ dest: "uploads/" });
+
+/* List photos */
+jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, url, created_at
+    from job_photos
+    where job_id=${jobId}::uuid and org_id=${orgId}::uuid
+    order by created_at desc
+  `);
+  res.json(r.rows);
+});
+
+/* Upload photo */
+jobs.post("/:jobId/photos", requireAuth, requireOrg, upload.single("photo"), async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: "no file" });
+
+  const filename = `${Date.now()}-${file.originalname}`;
+  const destPath = path.join("uploads", filename);
+  fs.renameSync(file.path, destPath);
+
+  const url = `/uploads/${filename}`;
+  const r: any = await db.execute(sql`
+    insert into job_photos (job_id, org_id, url)
+    values (${jobId}::uuid, ${orgId}::uuid, ${url})
+    returning id, url
+  `);
+
+  res.json(r.rows[0]);
+});
+
+/* Delete photo */
+jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res) => {
+  const { photoId } = req.params;
+  await db.execute(sql`delete from job_photos where id=${photoId}::uuid`);
+  res.json({ ok: true });
+});
+
+
+And in server/index.ts make sure to serve uploads:
+
+app.use("/uploads", express.static("uploads"));
+
+3) Frontend API (client/src/lib/api.ts)
+
+Add:
+
+export const photosApi = {
+  list: (jobId: string) => api(`/api/jobs/${jobId}/photos`),
+  upload: (jobId: string, file: File) => {
+    const form = new FormData();
+    form.append("photo", file);
+    return api(`/api/jobs/${jobId}/photos`, { method: "POST", body: form as any });
+  },
+  remove: (jobId: string, photoId: string) =>
+    api(`/api/jobs/${jobId}/photos/${photoId}`, { method: "DELETE" }),
+};
+
+
+⚠️ Note: for upload, skip setting "Content-Type" — browser will set multipart boundary automatically. If your api() helper forces JSON, add a branch: if init.body instanceof FormData, don’t add Content-Type.
+
+4) Job View page (client/src/pages/job-view.tsx)
+
+Under equipment card, add:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Photos</CardTitle>
+  </CardHeader>
+  <CardContent>
+    {job.photos?.length ? (
+      <div className="grid grid-cols-3 gap-2">
+        {job.photos.map((p: any) => (
+          <img key={p.id} src={p.url} alt="Job photo" className="rounded border" />
+        ))}
+      </div>
+    ) : (
+      <div className="text-gray-500">No photos uploaded</div>
+    )}
+  </CardContent>
+</Card>
+
+
+Update the GET job details to also fetch photos (await photosApi.list(jobId)).
+
+5) Job Edit page (client/src/pages/job-edit.tsx)
+
+Add file input:
+
+<div>
+  <label className="block text-sm font-medium mb-1">Photos</label>
+  <input
+    type="file"
+    accept="image/*"
+    multiple
+    onChange={async (e) => {
+      if (!e.target.files?.length) return;
+      for (const file of Array.from(e.target.files)) {
+        await photosApi.upload(jobId, file);
+      }
+      alert("Photos uploaded");
+    }}
+  />
+</div>
+
+
+✅ After this, you can upload images on Edit, they’ll be stored in /uploads/, and show up as thumbnails on View.

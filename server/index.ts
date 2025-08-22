@@ -7,6 +7,9 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Serve uploads directory for photo files
+app.use("/uploads", express.static("uploads"));
+
 // Log every API request reaching Express
 app.use((req, _res, next) => {
   if (req.path.startsWith("/api")) {

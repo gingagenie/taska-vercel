@@ -69,7 +69,7 @@ export default function CustomerView() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link href="/customers">
             <a>
@@ -85,9 +85,10 @@ export default function CustomerView() {
             <h1 className="text-2xl font-bold">{customer.name}</h1>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="secondary"
+            size="sm"
             onClick={() => openMaps(customer.name || "Destination", addr)}
             disabled={!addr}
             title={addr ? "Open in Maps" : "No address"}
@@ -98,6 +99,7 @@ export default function CustomerView() {
           </Button>
           <Button 
             variant="secondary" 
+            size="sm"
             onClick={copyAddress} 
             disabled={!addr} 
             title={addr ? "Copy address" : "No address"}
@@ -106,11 +108,20 @@ export default function CustomerView() {
             <Clipboard className="h-4 w-4 mr-1" />
             {copied ? "Copied!" : "Copy"}
           </Button>
-          <Button onClick={() => setIsJobModalOpen(true)} data-testid="button-create-job">
+          <Button 
+            size="sm"
+            onClick={() => setIsJobModalOpen(true)} 
+            data-testid="button-create-job"
+          >
             <Plus className="h-4 w-4 mr-1" />
             Create Job
           </Button>
-          <Button variant="outline" onClick={() => setIsEditModalOpen(true)} data-testid="button-edit-customer">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setIsEditModalOpen(true)} 
+            data-testid="button-edit-customer"
+          >
             Edit
           </Button>
         </div>

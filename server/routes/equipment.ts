@@ -3,7 +3,7 @@ import { requireAuth } from "../middleware/auth"; import { requireOrg } from "..
 export const equipment = Router();
 equipment.get("/", requireAuth, requireOrg, async (req,res)=> {
   const orgId = (req as any).orgId;
-  const r:any = await db.execute(sql`select id,name,make,model,serial,customer_id from equipment where org_id=${orgId}::uuid order by name asc`);
+  const r:any = await db.execute(sql`select id,name from equipment where org_id=${orgId}::uuid order by name asc`);
   res.json(r.rows);
 });
 equipment.post("/", requireAuth, requireOrg, async (req,res)=> {

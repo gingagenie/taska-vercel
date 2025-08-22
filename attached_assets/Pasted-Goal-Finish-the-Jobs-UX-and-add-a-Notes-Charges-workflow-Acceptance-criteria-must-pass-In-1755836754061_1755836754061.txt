@@ -1,0 +1,306 @@
+Goal:
+Finish the Jobs UX and add a “Notes & Charges” workflow.
+
+Acceptance criteria (must pass):
+
+In Jobs list, each row is clickable and opens /jobs/:id (remove “View” button).
+
+On Job View, show two buttons: Edit Job and Notes & Charges.
+
+A new page at /jobs/:id/notes lets me:
+
+write work notes (append-only),
+
+upload photos (we already serve /uploads),
+
+add billable charges (e.g., labour hrs × rate), and shows a running total.
+
+Create Job modal:
+
+Customer = single-select dropdown (from /api/jobs/customers)
+
+Equipment = single-select dropdown (from /api/jobs/equipment)
+
+Scheduled At = <input type="datetime-local"> (no manual YYYY-MM-DD)
+
+POST /api/jobs/create accepts { title, description, customerId, scheduledAt, equipmentId }
+
+No timeouts. On any API failure, show inline error (no spinner hang).
+
+1) Backend: routes & DB
+1.1 server/routes/jobs.ts
+
+Ensure router is exported both named & default:
+
+// at bottom of file
+export { jobs };
+export default jobs;
+
+
+Replace/create POST /api/jobs/create to support single equipment and datetime-local:
+
+jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const userId = (req as any).user?.id || null;
+
+  let { title, description, customerId, scheduledAt, equipmentId } = req.body || {};
+  if (!title) return res.status(400).json({ error: "title required" });
+
+  const normalizeDate = (v: any): string | null => {
+    if (v === undefined || v === null || v === "") return null;
+    const s = String(v);
+    if (s.includes("T")) {
+      const [d, t] = s.split("T");
+      const tt = t.length === 5 ? `${t}:00` : t; // HH:MM -> HH:MM:SS
+      return `${d} ${tt}`.slice(0, 19);
+    }
+    return s;
+  };
+
+  if (customerId === "") customerId = null;
+  if (equipmentId === "") equipmentId = null;
+  scheduledAt = normalizeDate(scheduledAt);
+
+  try {
+    const r: any = await db.execute(sql`
+      insert into jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
+      values (
+        ${orgId}::uuid,
+        case when ${customerId} is null then null else (${customerId}::uuid) end,
+        ${title},
+        ${description || null},
+        ${scheduledAt || null},
+        'new',
+        ${userId || null}
+      )
+      returning id
+    `);
+    const jobId = r.rows[0].id as string;
+
+    if (equipmentId) {
+      await db.execute(sql`
+        insert into job_equipment (job_id, equipment_id)
+        values (${jobId}::uuid, ${equipmentId}::uuid)
+        on conflict do nothing
+      `);
+    }
+
+    res.json({ ok: true, id: jobId });
+  } catch (e: any) {
+    console.error("POST /api/jobs/create error:", e);
+    res.status(500).json({ error: e?.message || "create failed" });
+  }
+});
+
+
+Add Notes and Charges endpoints. Assume these tables:
+
+-- run this in Neon (or ensure Drizzle schema matches):
+create table if not exists job_notes (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references jobs(id) on delete cascade,
+  org_id uuid not null,
+  text text not null,
+  created_at timestamptz default now()
+);
+
+create table if not exists job_charges (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references jobs(id) on delete cascade,
+  org_id uuid not null,
+  kind text not null,
+  description text not null,
+  quantity numeric not null default 0,
+  unit_price numeric not null default 0,
+  total numeric not null default 0,
+  created_at timestamptz default now()
+);
+
+
+Then add these routes:
+
+/* NOTES */
+jobs.get("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params; const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, text, created_at
+    from job_notes
+    where job_id=${jobId}::uuid and org_id=${orgId}::uuid
+    order by created_at desc
+  `);
+  res.json(r.rows);
+});
+
+jobs.post("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params; const orgId = (req as any).orgId;
+  const { text } = req.body || {};
+  if (!text?.trim()) return res.status(400).json({ error: "text required" });
+  const r: any = await db.execute(sql`
+    insert into job_notes (job_id, org_id, text)
+    values (${jobId}::uuid, ${orgId}::uuid, ${text})
+    returning id, text, created_at
+  `);
+  res.json(r.rows[0]);
+});
+
+/* CHARGES */
+jobs.get("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params; const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, kind, description, quantity, unit_price, total, created_at
+    from job_charges
+    where job_id=${jobId}::uuid and org_id=${orgId}::uuid
+    order by created_at desc
+  `);
+  res.json(r.rows);
+});
+
+jobs.post("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params; const orgId = (req as any).orgId;
+  let { kind, description, quantity, unitPrice } = req.body || {};
+  if (!description?.trim()) return res.status(400).json({ error: "description required" });
+  kind = kind || "labour";
+  quantity = Number(quantity) || 0;
+  unitPrice = Number(unitPrice) || 0;
+  const total = quantity * unitPrice;
+
+  const r: any = await db.execute(sql`
+    insert into job_charges (job_id, org_id, kind, description, quantity, unit_price, total)
+    values (${jobId}::uuid, ${orgId}::uuid, ${kind}, ${description}, ${quantity}, ${unitPrice}, ${total})
+    returning id, kind, description, quantity, unit_price, total, created_at
+  `);
+  res.json(r.rows[0]);
+});
+
+
+Ensure uploads are already served: app.use("/uploads", express.static("uploads")); in server/index.ts.
+(We already added photo uploads earlier; nothing to change here.)
+
+2) Frontend: API helpers
+
+File: client/src/lib/api.ts — keep existing wrappers, ensure these exist:
+
+export const jobsApi = {
+  getAll: () => api("/api/jobs"),
+  get: (id: string) => api(`/api/jobs/${id}`),
+  create: (body: any) => api("/api/jobs/create", { method: "POST", body: JSON.stringify(body) }),
+  update: (id: string, body: any) => api(`/api/jobs/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  customers: () => api("/api/jobs/customers"),
+  equipment: () => api("/api/jobs/equipment"),
+};
+
+export const notesApi = {
+  list: (jobId: string) => api(`/api/jobs/${jobId}/notes`),
+  add: (jobId: string, text: string) => api(`/api/jobs/${jobId}/notes`, { method: "POST", body: JSON.stringify({ text }) }),
+};
+
+export const chargesApi = {
+  list: (jobId: string) => api(`/api/jobs/${jobId}/charges`),
+  add: (jobId: string, body: any) => api(`/api/jobs/${jobId}/charges`, { method: "POST", body: JSON.stringify(body) }),
+};
+
+export const photosApi = {
+  list: (jobId: string) => api(`/api/jobs/${jobId}/photos`),
+  upload: (jobId: string, file: File) => {
+    const form = new FormData();
+    form.append("photo", file);
+    return api(`/api/jobs/${jobId}/photos`, { method: "POST", body: form as any });
+  },
+  remove: (jobId: string, photoId: string) => api(`/api/jobs/${jobId}/photos/${photoId}`, { method: "DELETE" }),
+};
+
+
+Ensure api() doesn’t force "Content-Type": "application/json" when init.body is FormData (so uploads work).
+
+3) Frontend: Create Job modal
+
+File: client/src/components/modals/job-modal.tsx
+Update to use:
+
+datetime-local for schedule
+
+Select for customer and equipment (single)
+
+POST with { equipmentId }
+
+// inside component state:
+const [customerId, setCustomerId] = useState("");
+const [equipmentId, setEquipmentId] = useState("");
+// ...
+<Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+
+<Label>Customer</Label>
+<Select value={customerId} onValueChange={setCustomerId}>
+  <SelectTrigger className="w-full"><SelectValue placeholder="Select customer" /></SelectTrigger>
+  <SelectContent>
+    {customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+  </SelectContent>
+</Select>
+
+<Label>Equipment</Label>
+<Select value={equipmentId} onValueChange={setEquipmentId}>
+  <SelectTrigger className="w-full"><SelectValue placeholder="Select equipment" /></SelectTrigger>
+  <SelectContent>
+    {equipment.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
+  </SelectContent>
+</Select>
+
+// On save:
+const body = {
+  title,
+  description,
+  customerId: customerId || null,
+  scheduledAt, // backend normalises
+  equipmentId: equipmentId || null,
+};
+await jobsApi.create(body);
+
+4) Frontend: Jobs list rows clickable
+
+File: client/src/pages/jobs.tsx
+
+Import useLocation
+
+Add cursor-pointer and onClick={() => navigate(/jobs/${job.id})} to <tr>
+
+Remove the “View” button
+
+5) Frontend: Job View header with new button
+
+File: client/src/pages/job-view.tsx
+Add beside Edit:
+
+<div className="flex gap-2">
+  <Link href={`/jobs/${jobId}/notes`}><a><Button variant="secondary">Notes &amp; Charges</Button></a></Link>
+  <Link href={`/jobs/${jobId}/edit`}><a><Button>Edit Job</Button></a></Link>
+</div>
+
+
+Also register the route in client/src/App.tsx:
+
+import JobNotesCharges from "@/pages/job-notes-charges";
+<Route path="/jobs/:id/notes" component={JobNotesCharges} />
+
+6) New page: client/src/pages/job-notes-charges.tsx
+
+Create the page to:
+
+list & add notes,
+
+upload photos (uses photosApi),
+
+add charges and show total.
+
+Use the earlier implementation we discussed (work notes Textarea, charges inputs for qty/unit price, photo input with previews). Keep it simple and match our API endpoints.
+
+7) Test script (run these)
+
+Create a job with customer, equipment, and a date/time → job appears in list.
+
+Click the row → opens job.
+
+Click Notes & Charges → add a note, add a labour charge (e.g., qty 2, unit 80), upload a photo → all appear; total updates.
+
+Refresh the page → data persists correctly.
+
+No “request timed out”.

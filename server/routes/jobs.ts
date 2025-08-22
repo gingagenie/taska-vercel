@@ -369,5 +369,82 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
   }
 });
 
+/* NOTES */
+jobs.get("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params; 
+  const orgId = (req as any).orgId;
+  try {
+    const r: any = await db.execute(sql`
+      select id, text, created_at
+      from job_notes
+      where job_id=${jobId}::uuid and org_id=${orgId}::uuid
+      order by created_at desc
+    `);
+    res.json(r.rows);
+  } catch (e: any) {
+    console.error("GET /api/jobs/:jobId/notes error:", e);
+    res.status(500).json({ error: e?.message || "Failed to fetch notes" });
+  }
+});
+
+jobs.post("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params; 
+  const orgId = (req as any).orgId;
+  const { text } = req.body || {};
+  if (!text?.trim()) return res.status(400).json({ error: "text required" });
+  try {
+    const r: any = await db.execute(sql`
+      insert into job_notes (job_id, org_id, text)
+      values (${jobId}::uuid, ${orgId}::uuid, ${text})
+      returning id, text, created_at
+    `);
+    res.json(r.rows[0]);
+  } catch (e: any) {
+    console.error("POST /api/jobs/:jobId/notes error:", e);
+    res.status(500).json({ error: e?.message || "Failed to add note" });
+  }
+});
+
+/* CHARGES */
+jobs.get("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params; 
+  const orgId = (req as any).orgId;
+  try {
+    const r: any = await db.execute(sql`
+      select id, kind, description, quantity, unit_price, total, created_at
+      from job_charges
+      where job_id=${jobId}::uuid and org_id=${orgId}::uuid
+      order by created_at desc
+    `);
+    res.json(r.rows);
+  } catch (e: any) {
+    console.error("GET /api/jobs/:jobId/charges error:", e);
+    res.status(500).json({ error: e?.message || "Failed to fetch charges" });
+  }
+});
+
+jobs.post("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params; 
+  const orgId = (req as any).orgId;
+  let { kind, description, quantity, unitPrice } = req.body || {};
+  if (!description?.trim()) return res.status(400).json({ error: "description required" });
+  kind = kind || "labour";
+  quantity = Number(quantity) || 0;
+  unitPrice = Number(unitPrice) || 0;
+  const total = quantity * unitPrice;
+
+  try {
+    const r: any = await db.execute(sql`
+      insert into job_charges (job_id, org_id, kind, description, quantity, unit_price, total)
+      values (${jobId}::uuid, ${orgId}::uuid, ${kind}, ${description}, ${quantity}, ${unitPrice}, ${total})
+      returning id, kind, description, quantity, unit_price, total, created_at
+    `);
+    res.json(r.rows[0]);
+  } catch (e: any) {
+    console.error("POST /api/jobs/:jobId/charges error:", e);
+    res.status(500).json({ error: e?.message || "Failed to add charge" });
+  }
+});
+
 // Default export
 export default jobs;

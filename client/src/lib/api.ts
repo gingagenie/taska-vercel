@@ -73,6 +73,26 @@ export const jobsApi = {
   equipment: () => api("/api/jobs/equipment"),
 };
 
+export const notesApi = {
+  list: (jobId: string) => api(`/api/jobs/${jobId}/notes`),
+  add: (jobId: string, text: string) => api(`/api/jobs/${jobId}/notes`, { method: "POST", body: JSON.stringify({ text }) }),
+};
+
+export const chargesApi = {
+  list: (jobId: string) => api(`/api/jobs/${jobId}/charges`),
+  add: (jobId: string, body: any) => api(`/api/jobs/${jobId}/charges`, { method: "POST", body: JSON.stringify(body) }),
+};
+
+export const photosApi = {
+  list: (jobId: string) => api(`/api/jobs/${jobId}/photos`),
+  upload: (jobId: string, file: File) => {
+    const form = new FormData();
+    form.append("photo", file);
+    return api(`/api/jobs/${jobId}/photos`, { method: "POST", body: form as any });
+  },
+  remove: (jobId: string, photoId: string) => api(`/api/jobs/${jobId}/photos/${photoId}`, { method: "DELETE" }),
+};
+
 export const customersApi = {
   getAll: () => api("/api/customers"),
   get: (id: string) => api(`/api/customers/${id}`),
@@ -120,14 +140,4 @@ export const invoicesApi = {
   markPaid: (id: string) => api(`/api/invoices/${id}/pay`, { method: "POST" }),
 };
 
-// Photos API helper functions  
-export const photosApi = {
-  list: (jobId: string) => api(`/api/jobs/${jobId}/photos`),
-  upload: (jobId: string, file: File) => {
-    const form = new FormData();
-    form.append("photo", file);
-    return api(`/api/jobs/${jobId}/photos`, { method: "POST", body: form });
-  },
-  remove: (jobId: string, photoId: string) =>
-    api(`/api/jobs/${jobId}/photos/${photoId}`, { method: "DELETE" }),
-};
+// Photos API helper functions already defined above in photosApi

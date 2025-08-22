@@ -107,7 +107,7 @@ export default function Jobs() {
             {/* Mobile Card View */}
             <div className="block md:hidden space-y-4">
               {filteredJobs.map((job: any) => (
-                <Card key={job.id} className="p-4">
+                <Card key={job.id} className="p-4 cursor-pointer hover:bg-gray-50" onClick={() => navigate(`/jobs/${job.id}`)}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="font-medium text-gray-900 text-sm">{job.title}</h3>
@@ -126,16 +126,11 @@ export default function Jobs() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-primary hover:text-blue-700 p-1"
-                        onClick={() => navigate(`/jobs/${job.id}`)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
                         className="text-gray-600 hover:text-gray-900 p-1"
-                        onClick={() => navigate(`/jobs/${job.id}/edit`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/jobs/${job.id}/edit`);
+                        }}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -159,7 +154,7 @@ export default function Jobs() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredJobs.map((job: any) => (
-                    <tr key={job.id} className="hover:bg-gray-50">
+                    <tr key={job.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/jobs/${job.id}`)}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-gray-900">{job.title}</div>
@@ -181,17 +176,11 @@ export default function Jobs() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-primary hover:text-blue-700"
-                          onClick={() => navigate(`/jobs/${job.id}`)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-gray-600 hover:text-gray-800 ml-2"
-                          onClick={() => navigate(`/jobs/${job.id}/edit`)}
+                          className="text-gray-600 hover:text-gray-800"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/jobs/${job.id}/edit`);
+                          }}
                         >
                           <Edit className="h-4 w-4 mr-1" />
                           Edit

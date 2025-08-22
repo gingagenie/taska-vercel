@@ -74,7 +74,7 @@ equipment.post("/", requireAuth, requireOrg, async (req, res) => {
       ${model || null},
       ${serial || null},
       ${notes || null},
-      case when ${customerId} is null then null else (${customerId}::uuid) end
+      ${customerId}::uuid
     )
     returning id
   `);
@@ -97,7 +97,7 @@ equipment.put("/:id", requireAuth, requireOrg, async (req, res) => {
       model        = coalesce(${model}, model),
       serial_number = coalesce(${serial}, serial_number),
       notes        = coalesce(${notes}, notes),
-      customer_id  = case when ${customerId} is null then null else (${customerId}::uuid) end
+      customer_id  = ${customerId}::uuid
     where id=${id}::uuid and org_id=${orgId}::uuid
   `);
   res.json({ ok: true });

@@ -18,6 +18,8 @@ export default function JobNotesCharges() {
   const [photos, setPhotos] = useState<any[]>([]);
   
   const [newNote, setNewNote] = useState("");
+  const [notesText, setNotesText] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
   const [chargeDesc, setChargeDesc] = useState("");
   const [chargeQty, setChargeQty] = useState(1);
   const [chargeUnit, setChargeUnit] = useState(0);
@@ -115,17 +117,35 @@ export default function JobNotesCharges() {
     }
   };
 
+  const saveNotes = async () => {
+    setSavingNotes(true);
+    setErr(null);
+    try {
+      await api(`/api/jobs/${jobId}/notes`, {
+        method: "PUT",
+        body: JSON.stringify({ notes: notesText }),
+      });
+    } catch (e: any) {
+      setErr(e?.message || "Failed to save notes");
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
 
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
     
     setUploadingPhoto(true);
     setErr(null);
     try {
-      const photo = await photosApi.upload(jobId, file);
-      setPhotos(prev => [photo, ...prev]);
+      // Upload files one by one since our API expects single file uploads
+      for (const file of Array.from(files)) {
+        const photo = await photosApi.upload(jobId, file);
+        setPhotos(prev => [photo, ...prev]);
+      }
     } catch (e: any) {
       setErr(e?.message || "Failed to upload photo");
     } finally {
@@ -162,18 +182,29 @@ export default function JobNotesCharges() {
         </div>
       )}
 
-      {/* Work Notes */}
+      {/* Notes section */}
       <Card>
-        <CardHeader>
-          <CardTitle>Work Notes</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Add Note</Label>
+            <Label>Work Performed</Label>
+            <Textarea
+              rows={6}
+              placeholder="Describe the work performed..."
+              value={notesText}
+              onChange={(e) => setNotesText(e.target.value)}
+            />
+            <Button onClick={saveNotes} disabled={savingNotes}>
+              {savingNotes ? "Saving..." : "Save notes"}
+            </Button>
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Add Quick Note</Label>
             <Textarea
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
-              placeholder="Enter work notes..."
+              placeholder="Enter a quick work note..."
               rows={3}
             />
             <Button onClick={addNote} disabled={savingNote || !newNote.trim()}>
@@ -198,50 +229,7 @@ export default function JobNotesCharges() {
         </CardContent>
       </Card>
 
-      {/* Photos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Photos</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="photo-upload">Upload Photo</Label>
-            <Input
-              id="photo-upload"
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoUpload}
-              disabled={uploadingPhoto}
-            />
-            {uploadingPhoto && <p className="text-sm text-gray-500 mt-1">Uploading...</p>}
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {photos.map((photo) => (
-              <div key={photo.id} className="relative group">
-                <img
-                  src={photo.url}
-                  alt="Job photo"
-                  className="w-full h-24 object-cover rounded border"
-                />
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 h-6 w-6"
-                  onClick={() => removePhoto(photo.id)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-          {photos.length === 0 && (
-            <p className="text-gray-500 text-sm">No photos yet</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Charges */}
+      {/* Charges section */}
       <Card>
         <CardHeader><CardTitle>Charges</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -349,7 +337,7 @@ export default function JobNotesCharges() {
             {saving ? "Saving…" : "Add charge"}
           </Button>
 
-          {/* Existing charges list + total (unchanged) */}
+          {/* Existing charges list + total */}
           <div className="pt-2 space-y-2">
             {charges.length === 0 && <div className="text-gray-500">No charges yet</div>}
             {charges.map((c) => (
@@ -368,6 +356,48 @@ export default function JobNotesCharges() {
               <div className="font-bold">${charges.reduce((s, c) => s + Number(c.total || 0), 0).toFixed(2)}</div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Photos section */}
+      <Card>
+        <CardHeader><CardTitle>Photos</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="photo-upload">Upload Photos</Label>
+            <Input
+              id="photo-upload"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoUpload}
+              disabled={uploadingPhoto}
+            />
+            {uploadingPhoto && <p className="text-sm text-gray-500 mt-1">Uploading...</p>}
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {photos.map((photo) => (
+              <div key={photo.id} className="relative group">
+                <img
+                  src={photo.url}
+                  alt="Job photo"
+                  className="rounded border object-cover w-full h-40"
+                />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 h-6 w-6"
+                  onClick={() => removePhoto(photo.id)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          {photos.length === 0 && (
+            <p className="text-gray-500 text-sm">No photos yet</p>
+          )}
         </CardContent>
       </Card>
     </div>

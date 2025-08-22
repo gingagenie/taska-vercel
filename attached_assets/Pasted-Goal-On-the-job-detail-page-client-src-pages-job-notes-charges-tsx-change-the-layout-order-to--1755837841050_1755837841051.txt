@@ -1,0 +1,130 @@
+Goal:
+On the job detail page (client/src/pages/job-notes-charges.tsx), change the layout order to:
+
+Notes (text area for work performed) at the top.
+
+Charges (with smart templates, as already implemented) in the middle.
+
+Photos (upload + gallery) at the bottom.
+
+Acceptance Criteria:
+
+Notes card comes first in the page, above everything else.
+
+Charges card stays exactly as implemented (with template suggestions), but positioned below Notes.
+
+Photos card (already exists or needs to be added) comes last, showing upload control + thumbnails.
+
+Each section is wrapped in its own <Card> with CardHeader + CardContent.
+
+Padding and spacing between sections are consistent (use className="space-y-6" on the page container).
+
+File to edit
+
+client/src/pages/job-notes-charges.tsx
+
+Step A — Ensure imports
+
+At top of file, confirm these imports (add any missing):
+
+import { useEffect, useState, useMemo } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+
+Step B — Restructure JSX return
+
+Inside the component’s return (...), wrap everything in a container like:
+
+<div className="p-6 space-y-6">
+
+  {/* Notes section */}
+  <Card>
+    <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
+    <CardContent>
+      <Textarea
+        rows={6}
+        placeholder="Describe the work performed..."
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+      />
+      <div className="mt-2">
+        <Button onClick={saveNotes} disabled={savingNotes}>
+          {savingNotes ? "Saving…" : "Save notes"}
+        </Button>
+      </div>
+    </CardContent>
+  </Card>
+
+  {/* Charges section (keep your smart charges block here) */}
+  <Card>
+    <CardHeader><CardTitle>Charges</CardTitle></CardHeader>
+    <CardContent>
+      {/* paste the full Charges card code you just implemented here */}
+    </CardContent>
+  </Card>
+
+  {/* Photos section */}
+  <Card>
+    <CardHeader><CardTitle>Photos</CardTitle></CardHeader>
+    <CardContent className="space-y-4">
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handlePhotoUpload}
+      />
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {photos.map((p) => (
+          <img
+            key={p.id}
+            src={p.url}
+            alt="Job photo"
+            className="rounded border object-cover w-full h-40"
+          />
+        ))}
+      </div>
+    </CardContent>
+  </Card>
+
+</div>
+
+Step C — Add minimal state + handlers
+
+In the component, above return, add:
+
+// Notes
+const [notes, setNotes] = useState("");
+const [savingNotes, setSavingNotes] = useState(false);
+
+async function saveNotes() {
+  setSavingNotes(true);
+  try {
+    await api(`/api/jobs/${jobId}/notes`, {
+      method: "PUT",
+      body: JSON.stringify({ notes }),
+    });
+  } finally {
+    setSavingNotes(false);
+  }
+}
+
+// Photos
+const [photos, setPhotos] = useState<any[]>([]);
+
+async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+  const formData = new FormData();
+  Array.from(files).forEach((f) => formData.append("photos", f));
+  const res = await fetch(`/api/jobs/${jobId}/photos`, {
+    method: "POST",
+    body: formData,
+    headers: getAuthHeaders(), // ensure auth headers if needed
+  });
+  const newPhotos = await res.json();
+  setPhotos([...photos, ...newPhotos]);
+}

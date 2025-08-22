@@ -26,6 +26,14 @@ Taska is a comprehensive field service management application built with a moder
 - **Safety Features**: Two-step confirmation prevents accidental deletion, clear error messages
 - **Navigation**: Proper redirect to jobs list after successful deletion
 
+### Equipment Management System
+- **Complete CRUD Operations**: Create, edit, and view equipment with comprehensive field support
+- **Database Schema**: Extended equipment table with make, model, serial, notes, and customer_id foreign key
+- **Customer Integration**: Equipment can be linked to customers with auto-populated addresses
+- **Professional UI**: Clean equipment cards showing make/model, serial, customer, and location details  
+- **Advanced Features**: Search across all equipment fields, edit in-place modal, React Query cache management
+- **Backend API**: Full REST endpoints with multi-tenant organization scoping and UUID validation
+
 ### Customer Management Upgrade
 - **Database Schema**: Added comprehensive customer fields (contact_name, street, suburb, state, postcode) while maintaining backward compatibility
 - **Backend API**: Full CRUD operations with auth/tenancy middleware, validation, and error handling
@@ -34,7 +42,7 @@ Taska is a comprehensive field service management application built with a moder
   - Professional customer view pages with detailed contact information  
   - Enhanced customer modal for create/edit operations
   - Customer view header actions: Navigate (maps integration), Copy address, Create Job
-- **Integration**: JobModal supports pre-selecting customers; job creation flows from customer pages
+- **Integration**: JobModal supports pre-selecting customers; job creation flows from equipment pages
 
 ## User Preferences
 

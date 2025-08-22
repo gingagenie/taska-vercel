@@ -1,195 +1,142 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { equipmentApi } from "@/lib/api";
-import { Settings, Wrench, Edit } from "lucide-react";
+import { useLocation } from "wouter";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { EquipmentModal } from "@/components/modals/equipment-modal";
+import { MapPin, Edit } from "lucide-react";
 
-export default function Equipment() {
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+function addrLine(e: any) {
+  return e.customer_address || "";
+}
 
-  const { data: equipment = [], isLoading } = useQuery({
-    queryKey: ["/api/equipment"],
-    queryFn: equipmentApi.getAll,
+export default function EquipmentPage() {
+  const { data: list = [], isLoading } = useQuery({ 
+    queryKey: ["/api/equipment"], 
+    queryFn: equipmentApi.getAll 
   });
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const [editEquipment, setEditEquipment] = useState<any>(null);
+  const [, navigate] = useLocation();
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case "available": return "status-badge status-completed";
-      case "in_use": return "status-badge status-in-progress";
-      case "maintenance": return "status-badge status-new";
-      default: return "status-badge status-completed";
-    }
-  };
-
-  const getEquipmentIcon = (index: number) => {
-    const icons = [Settings, Wrench];
-    const Icon = icons[index % icons.length];
-    const colors = ["text-blue-600", "text-yellow-600"];
-    const bgColors = ["bg-blue-100", "bg-yellow-100"];
-    return {
-      icon: <Icon className={colors[index % colors.length]} />,
-      bgColor: bgColors[index % bgColors.length]
-    };
-  };
-
-  const filteredEquipment = equipment.filter((item: any) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (item.make && item.make.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                         (item.model && item.model.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesSearch;
-  });
+  const filtered = (list as any[]).filter((e) =>
+    [e.name, e.make, e.model, e.serial, e.customer_name, addrLine(e)]
+      .join(" ")
+      .toLowerCase()
+      .includes(q.toLowerCase())
+  );
 
   if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="bg-white rounded-xl border border-gray-200 animate-pulse">
-          <div className="h-64"></div>
-        </div>
-      </div>
-    );
+    return <div className="p-6">Loading equipment...</div>;
   }
 
   return (
-    <div className="p-4 sm:p-6">
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <CardTitle className="text-lg sm:text-xl">Equipment</CardTitle>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="All Equipment" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Equipment</SelectItem>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="in_use">In Use</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="Search equipment..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full sm:w-64"
-              />
-              <Button>
-                New Equipment
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {filteredEquipment.length === 0 ? (
-            <div className="text-center py-8">
-              <Settings className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No equipment found</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                {equipment.length === 0 ? "Get started by adding your first equipment." : "Try adjusting your search or filter."}
-              </p>
-            </div>
-          ) : (
-            <>
-            {/* Mobile Card View */}
-            <div className="block md:hidden space-y-4">
-              {filteredEquipment.map((item: any, index: number) => {
-                const iconData = getEquipmentIcon(index);
-                const status = "available"; // Default status since backend doesn't track this yet
-                
-                return (
-                  <Card key={item.id} className="p-4">
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className={`w-10 h-10 ${iconData.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                        {iconData.icon}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 text-sm">{item.name}</h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {item.make && item.model ? `${item.make} / ${item.model}` : item.make || item.model || "Not specified"}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">Serial: {item.serial || "Not specified"}</p>
-                      </div>
-                      <Badge className={getStatusBadgeClass(status)}>
-                        {status.replace("_", " ")}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Location: {item.location || "Not specified"}</span>
-                      <Button variant="ghost" size="sm" className="p-1">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h1 className="text-2xl font-bold">Equipment</h1>
+        <div className="flex gap-2">
+          <Input 
+            className="w-72" 
+            placeholder="Search name, make, model, serial…" 
+            value={q} 
+            onChange={(e)=>setQ(e.target.value)} 
+            data-testid="input-search-equipment"
+          />
+          <Button 
+            onClick={()=>setOpen(true)}
+            data-testid="button-new-equipment"
+          >
+            New Equipment
+          </Button>
+        </div>
+      </div>
 
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Equipment</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Make/Model</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredEquipment.map((item: any, index: number) => {
-                    const iconData = getEquipmentIcon(index);
-                    const status = "available"; // Default status since backend doesn't track this yet
+      {filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-gray-500">
+              {q ? "No equipment matches your search" : "No equipment found. Create your first piece of equipment!"}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filtered.map((e: any) => (
+            <Card key={e.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-start gap-3">
+                      <div className="font-semibold text-lg">
+                        {e.name || "Unnamed Equipment"}
+                      </div>
+                    </div>
                     
-                    return (
-                      <tr key={item.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className={`w-10 h-10 ${iconData.bgColor} rounded-lg flex items-center justify-center mr-3`}>
-                              {iconData.icon}
-                            </div>
-                            <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <div className="text-gray-500">Make & Model</div>
+                        <div className="font-medium">
+                          {[e.make, e.model].filter(Boolean).join(" ") || "—"}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-gray-500">Serial</div>
+                        <div className="font-medium">{e.serial || "—"}</div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-gray-500">Customer</div>
+                        <div className="font-medium">{e.customer_name}</div>
+                        {e.customer_address && (
+                          <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                            <MapPin className="h-3 w-3" />
+                            {e.customer_address}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {item.make && item.model ? `${item.make} / ${item.model}` : item.make || item.model || "Not specified"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {item.serial || "Not specified"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge className={getStatusBadgeClass(status)}>
-                            Available
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          Warehouse
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <Button variant="ghost" size="sm" className="text-primary hover:text-blue-700">
-                            Assign
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800 ml-2">
-                            <Edit className="h-4 w-4 mr-1" />
-                            Edit
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                        )}
+                      </div>
+                    </div>
+
+                    {e.notes && (
+                      <div className="text-sm">
+                        <div className="text-gray-500">Notes</div>
+                        <div className="font-medium">{e.notes}</div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditEquipment(e)}
+                    data-testid={`button-edit-equipment-${e.id}`}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <EquipmentModal 
+        open={open} 
+        onOpenChange={setOpen} 
+        onSaved={() => setOpen(false)}
+      />
+      
+      <EquipmentModal 
+        open={!!editEquipment} 
+        onOpenChange={(v) => !v && setEditEquipment(null)} 
+        equipment={editEquipment}
+        onSaved={(updated) => {
+          setEditEquipment(null);
+        }}
+      />
     </div>
   );
 }

@@ -72,6 +72,8 @@ export const jobsApi = {
   customers: () => api("/api/jobs/customers"),
   equipment: () => api("/api/jobs/equipment"),
   delete: (id: string) => api(`/api/jobs/${id}`, { method: "DELETE" }),
+  byRange: (startISO: string, endISO: string) =>
+    api(`/api/jobs/range?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`),
 };
 
 export const customersApi = {

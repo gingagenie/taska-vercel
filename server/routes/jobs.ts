@@ -462,4 +462,24 @@ jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
 });
 
 // Default export
+// LIST BY DATE RANGE (scheduled jobs)
+jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { start, end } = req.query as { start?: string; end?: string };
+  if (!start || !end) return res.status(400).json({ error: "start and end are required (ISO strings)" });
+
+  const r: any = await db.execute(sql`
+    select j.id, j.title, j.status, j.scheduled_at,
+           j.customer_id, coalesce(c.name,'—') as customer_name
+    from jobs j
+    left join customers c on c.id = j.customer_id
+    where j.org_id=${orgId}::uuid
+      and j.scheduled_at is not null
+      and j.scheduled_at >= ${start}::timestamptz
+      and j.scheduled_at <  ${end}::timestamptz
+    order by j.scheduled_at asc
+  `);
+  res.json(r.rows);
+});
+
 export default jobs;

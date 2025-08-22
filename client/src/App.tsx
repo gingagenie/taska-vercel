@@ -16,6 +16,7 @@ import Jobs from "@/pages/jobs";
 import Customers from "@/pages/customers";
 import Equipment from "@/pages/equipment";
 import Teams from "@/pages/teams";
+import Schedule from "@/pages/schedule";
 import Quotes from "@/pages/quotes";
 import Invoices from "@/pages/invoices";
 import NotFound from "@/pages/not-found";
@@ -76,6 +77,11 @@ function AppContent() {
           addNewText: "Add Member",
           onAddNew: () => {}, // TODO: Implement team member modal
         };
+      case "/schedule":
+        return {
+          title: "Schedule",
+          subtitle: "View jobs in calendar format",
+        };
       case "/quotes":
         return {
           title: "Quotes",
@@ -126,6 +132,7 @@ function AppContent() {
           <Route path="/customers" component={Customers} />
           <Route path="/equipment" component={Equipment} />
           <Route path="/teams" component={Teams} />
+          <Route path="/schedule" component={Schedule} />
           <Route path="/quotes" component={Quotes} />
           <Route path="/invoices" component={Invoices} />
           <Route path="/profile" component={Profile} />

@@ -6,6 +6,9 @@ interface User {
   email: string;
   role: string;
   initials: string;
+  avatar_url?: string | null;
+  avatar_seed?: string | null;
+  avatar_variant?: string | null;
 }
 
 interface Organization {
@@ -32,7 +35,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     name: "John Doe",
     email: "john@example.com",
     role: "Administrator",
-    initials: "JD"
+    initials: "JD",
+    avatar_url: null,
+    avatar_seed: "taska-1",
+    avatar_variant: "beam"
   });
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>("4500ba4e-e575-4f82-b196-27dd4c7d0eaf");
   const [organizations, setOrganizations] = useState<Organization[]>([

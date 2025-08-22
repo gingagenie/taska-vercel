@@ -24,6 +24,8 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
       role: "Administrator",
       phone: "+61 400 123 456",
       avatar_url: null,
+      avatar_seed: null,
+      avatar_variant: null,
     };
 
     const mockOrg = {
@@ -53,14 +55,40 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
 me.put("/profile", requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user?.id;
-    const { name, role, phone, avatarUrl } = req.body || {};
+    const { name, role, phone, avatar_url, avatar_seed, avatar_variant } = req.body || {};
     
-    console.log("Profile update:", { userId, name, role, phone, avatarUrl });
+    console.log("Profile update:", { userId, name, role, phone, avatar_url, avatar_seed, avatar_variant });
     
     // Mock implementation - in reality would update database
     res.json({ ok: true });
   } catch (error: any) {
     console.error("PUT /api/me/profile error:", error);
+    res.status(500).json({ error: error?.message || "Failed to update profile" });
+  }
+});
+
+/** Update just the profile (new endpoint for avatar fields) */
+me.put("/", requireAuth, requireOrg, async (req, res) => {
+  try {
+    const userId = (req as any).user?.id;
+    const { name, phone, avatar_url, avatar_seed, avatar_variant } = req.body || {};
+    
+    console.log("Profile update (PUT /):", { userId, name, phone, avatar_url, avatar_seed, avatar_variant });
+    
+    // Mock implementation - in reality would update database with:
+    // await db.execute(sql`
+    //   update users set
+    //     name = coalesce(${name}, name),
+    //     phone = coalesce(${phone}, phone),
+    //     avatar_url = ${avatar_url || null},
+    //     avatar_seed = ${avatar_seed || null},
+    //     avatar_variant = ${avatar_variant || null}
+    //   where id=${userId}::uuid
+    // `);
+    
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("PUT /api/me error:", error);
     res.status(500).json({ error: error?.message || "Failed to update profile" });
   }
 });

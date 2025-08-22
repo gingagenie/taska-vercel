@@ -1,0 +1,273 @@
+Do all of the following exactly:
+
+1) Add dependency
+
+Edit package.json → "dependencies": add
+
+"boring-avatars": "^2.0.1"
+
+
+Then install packages.
+
+2) DB: ensure columns (idempotent on boot)
+
+Edit: server/db/ensure.ts
+Add to the users table shape guard:
+
+export async function ensureUsersTableShape() {
+  await db.execute(sql`
+    alter table users
+      add column if not exists email text,
+      add column if not exists role text,
+      add column if not exists org_id uuid,
+      add column if not exists avatar_url text,
+      add column if not exists avatar_seed text,
+      add column if not exists avatar_variant text
+  `);
+
+  await db.execute(sql`
+    create unique index if not exists users_org_email_unique
+      on users (org_id, lower(email))
+  `);
+
+  await db.execute(sql`create index if not exists users_org_idx on users(org_id)`);
+}
+
+
+(Leave everything else in this file as-is.)
+
+3) Server: extend /api/me to accept avatar fields
+
+Edit: server/routes/me.ts (or wherever your current “me” routes live)
+
+Ensure GET /api/me returns avatar_url, avatar_seed, avatar_variant.
+
+Allow PUT /api/me to update any of these three (and keep your other fields intact).
+
+Example minimal diff (keep your auth & org guards as you have them):
+
+// ...imports and router setup
+
+router.get("/", requireAuth, requireOrg, async (req, res) => {
+  const userId = (req as any).user?.id;
+  const r: any = await db.execute(sql`
+    select id, name, email, role, phone, avatar_url, avatar_seed, avatar_variant
+    from users where id=${userId}::uuid
+  `);
+  res.json(r.rows?.[0] || null);
+});
+
+router.put("/", requireAuth, requireOrg, async (req, res) => {
+  const userId = (req as any).user?.id;
+  const { name, phone, avatar_url, avatar_seed, avatar_variant } = req.body || {};
+  await db.execute(sql`
+    update users set
+      name = coalesce(${name}, name),
+      phone = coalesce(${phone}, phone),
+      avatar_url = ${avatar_url || null},
+      avatar_seed = ${avatar_seed || null},
+      avatar_variant = ${avatar_variant || null}
+    where id=${userId}::uuid
+  `);
+  res.json({ ok: true });
+});
+
+export const me = router;
+
+
+(If your file already exports me, keep that. Only add the avatar fields.)
+
+4) Client: add an AvatarPicker component
+
+Create file: client/src/components/profile/avatar-picker.tsx
+
+import { useState } from "react";
+import Avatar from "boring-avatars";
+import { Button } from "@/components/ui/button";
+
+const seeds = ["taska-1","taska-2","taska-3","taska-4","taska-5","taska-6","taska-7","taska-8","taska-9","taska-10"];
+const variants = ["beam","marble","pixel","sunset","ring","bauhaus"] as const;
+
+export function AvatarPicker({
+  value,
+  onSelect
+}: {
+  value?: { seed?: string; variant?: typeof variants[number] } | null;
+  onSelect: (v: { seed?: string; variant?: typeof variants[number]; url?: string | null }) => void;
+}) {
+  const [variant, setVariant] = useState<typeof variants[number]>(value?.variant || "beam");
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">Choose a style</span>
+        <select
+          className="border rounded px-2 py-1 text-sm"
+          value={variant}
+          onChange={(e)=>setVariant(e.target.value as any)}
+        >
+          {variants.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-5 gap-3">
+        {seeds.map((seed) => (
+          <button
+            key={seed}
+            type="button"
+            className="rounded-full border p-1 hover:border-blue-400 transition"
+            onClick={() => onSelect({ seed, variant, url: null })}
+            title={`${variant}:${seed}`}
+          >
+            <div className="h-14 w-14 rounded-full overflow-hidden">
+              <Avatar size={56} name={seed} variant={variant} />
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="text-xs text-gray-500">
+        Prefer your own image? Use the upload button above.
+      </div>
+
+      <div>
+        <Button variant="outline" onClick={()=>onSelect({ seed: undefined, variant: undefined, url: null })}>
+          Clear selection
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+5) Client: wire into Profile page
+
+Edit: client/src/pages/profile.tsx (or your profile/settings page)
+
+Import the picker and Boring Avatar for preview.
+
+Track avatar_url, avatar_seed, avatar_variant.
+
+On save, send whichever is set (URL for uploaded, or seed+variant for generated).
+
+If user selects a generated avatar, clear any uploaded URL.
+
+Example patch (keep your existing fields/buttons; add/adjust these bits):
+
+import { useEffect, useState } from "react";
+import Avatar from "boring-avatars";
+import { AvatarPicker } from "@/components/profile/avatar-picker";
+import { api } from "@/lib/api";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+// inside component:
+const [me, setMe] = useState<any>(null);
+const [avatarUrl, setAvatarUrl] = useState<string>("");
+const [avatarSeed, setAvatarSeed] = useState<string|undefined>(undefined);
+const [avatarVariant, setAvatarVariant] = useState<string|undefined>(undefined);
+
+// load profile
+useEffect(()=>{(async()=>{
+  const m = await api("/api/me");
+  setMe(m);
+  setAvatarUrl(m?.avatar_url || "");
+  setAvatarSeed(m?.avatar_seed || undefined);
+  setAvatarVariant(m?.avatar_variant || undefined);
+})()},[]);
+
+// preview component
+function AvatarPreview() {
+  if (avatarSeed && avatarVariant) {
+    return (
+      <div className="h-16 w-16 rounded-full overflow-hidden">
+        <Avatar size={64} name={avatarSeed} variant={avatarVariant as any} />
+      </div>
+    );
+  }
+  if (avatarUrl) {
+    return <img src={avatarUrl} alt="avatar" className="h-16 w-16 rounded-full object-cover" />;
+  }
+  return <div className="h-16 w-16 rounded-full bg-gray-200" />;
+}
+
+// when saving:
+async function saveProfile() {
+  await api("/api/me", {
+    method: "PUT",
+    body: JSON.stringify({
+      // …your other fields (name/phone/etc)
+      avatar_url: avatarSeed ? null : (avatarUrl || null),
+      avatar_seed: avatarSeed || null,
+      avatar_variant: avatarSeed ? (avatarVariant || "beam") : null,
+    })
+  });
+}
+
+// in JSX, near your avatar/upload UI:
+
+<Card>
+  <CardHeader><CardTitle>Avatar</CardTitle></CardHeader>
+  <CardContent className="space-y-4">
+    <div className="flex items-center gap-4">
+      <AvatarPreview />
+      {/* keep your existing upload input/button here; on successful upload setAvatarUrl(newUrl) and setAvatarSeed(undefined) */}
+    </div>
+
+    {/* NEW: generated avatar picker */}
+    <AvatarPicker
+      value={{ seed: avatarSeed, variant: (avatarVariant as any) || "beam" }}
+      onSelect={(v)=>{
+        setAvatarSeed(v.seed);
+        setAvatarVariant(v.variant);
+        // selecting a generated avatar clears uploaded image URL
+        if (v.seed) setAvatarUrl("");
+      }}
+    />
+
+    <div className="pt-2">
+      <Button onClick={saveProfile}>Save Profile</Button>
+    </div>
+  </CardContent>
+</Card>
+
+
+Keep your existing upload flow unchanged. Just ensure that when an upload completes, you call:
+
+setAvatarUrl(uploadedUrl);
+setAvatarSeed(undefined);
+setAvatarVariant(undefined);
+
+6) Sidebar: render avatar nicely everywhere
+
+Edit: client/src/components/layout/sidebar.tsx
+
+At the top:
+
+import Avatar from "boring-avatars";
+
+
+Where you render the user bubble at the bottom, replace the solid color circle with:
+
+<div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+  {user?.avatar_seed && user?.avatar_variant ? (
+    <Avatar size={32} name={user.avatar_seed} variant={user.avatar_variant as any} />
+  ) : user?.avatar_url ? (
+    <img src={user.avatar_url} alt="avatar" className="h-8 w-8 object-cover" />
+  ) : (
+    <span className="text-white text-sm font-medium">{user?.initials}</span>
+  )}
+</div>
+
+
+(If your useAuth() context doesn’t include the avatar fields yet, extend its /api/me fetch & shape to include avatar_url, avatar_seed, avatar_variant so the sidebar gets them.)
+
+7) Smoke test
+
+Open Profile → see current avatar preview.
+
+Click a generated avatar → preview updates instantly; Save Profile persists.
+
+Upload an image → preview uses the uploaded image; generated selection clears.
+
+Sidebar shows the same avatar logic.

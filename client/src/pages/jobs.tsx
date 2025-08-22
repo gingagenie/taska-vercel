@@ -111,7 +111,11 @@ export default function Jobs() {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="font-medium text-gray-900 text-sm">{job.title}</h3>
-                      <p className="text-xs text-gray-500 mt-1">#{job.id}</p>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {job.description?.trim()
+                          ? job.description
+                          : "No description yet"}
+                      </div>
                       <p className="text-sm text-gray-600 mt-1">{job.customer_name || "Not assigned"}</p>
                     </div>
                     <Badge className={getStatusBadgeClass(job.status)}>
@@ -158,7 +162,11 @@ export default function Jobs() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-gray-900">{job.title}</div>
-                          <div className="text-sm text-gray-500">#{job.id}</div>
+                          <div className="text-sm text-gray-500">
+                            {job.description?.trim()
+                              ? job.description
+                              : "No description yet"}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

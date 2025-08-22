@@ -19,28 +19,27 @@ jobs.get("/ping", (_req, res) => {
   res.json({ ok: true });
 });
 
-// GET / - List jobs by org
+/* LIST (now includes description) */
 jobs.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  console.log("[TRACE] GET /api/jobs org=%s", orgId);
+  
   try {
-    const orgId = (req as any).orgId;
-    console.log("[TRACE] GET /api/jobs org=%s", orgId);
-    
-    const result = await db
-      .select({
-        id: jobsSchema.id,
-        title: jobsSchema.title,
-        description: jobsSchema.description,
-        status: jobsSchema.status,
-        scheduled_at: jobsSchema.scheduledAt,
-        customer_id: jobsSchema.customerId,
-        customer_name: customers.name,
-        created_at: jobsSchema.createdAt,
-      })
-      .from(jobsSchema)
-      .leftJoin(customers, eq(jobsSchema.customerId, customers.id))
-      .where(eq(jobsSchema.orgId, orgId));
-
-    res.json(result);
+    const r: any = await db.execute(sql`
+      select
+        j.id,
+        j.title,
+        j.description,             -- added
+        j.status,
+        j.scheduled_at,
+        j.customer_id,
+        coalesce(c.name,'—') as customer_name
+      from jobs j
+      left join customers c on c.id = j.customer_id
+      where j.org_id=${orgId}::uuid
+      order by j.created_at desc
+    `);
+    res.json(r.rows);
   } catch (error: any) {
     console.error("GET /api/jobs error:", error);
     res.status(500).json({ error: error?.message || "Failed to fetch jobs" });

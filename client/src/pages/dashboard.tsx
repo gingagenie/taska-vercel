@@ -109,11 +109,11 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{job.title}</p>
-                        <p className="text-sm text-gray-600 line-clamp-2">
+                        <div className="text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
                           {job.description?.trim()
                             ? job.description
                             : "No description yet"}
-                        </p>
+                        </div>
                         <p className="text-sm text-gray-500">
                           {job.customer_name && `${job.customer_name} • `}
                           {job.scheduled_at ? new Date(job.scheduled_at).toLocaleDateString() : "Not scheduled"}

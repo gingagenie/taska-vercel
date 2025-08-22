@@ -7,8 +7,8 @@ import customers from "./routes/customers";
 import equipment from "./routes/equipment";
 import { teams } from "./routes/teams";
 import jobs from "./routes/jobs";
-import { quotes } from "./routes/quotes";
-import { invoices } from "./routes/invoices";
+import quotes from "./routes/quotes";
+import invoices from "./routes/invoices";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());

@@ -168,7 +168,13 @@ export const quotesApi = {
     api("/api/quotes", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) =>
     api(`/api/quotes/${id}`, { method: "PUT", body: JSON.stringify(body) }),
-  // Optional helpers
+  addItem: (id: string, item: any) => 
+    api(`/api/quotes/${id}/items`, { method: "POST", body: JSON.stringify(item) }),
+  updateItem: (id: string, itemId: string, body: any) => 
+    api(`/api/quotes/${id}/items/${itemId}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteItem: (id: string, itemId: string) => 
+    api(`/api/quotes/${id}/items/${itemId}`, { method: "DELETE" }),
+  accept: (id: string) => api(`/api/quotes/${id}/accept`, { method: "POST" }),
   convertToJob: (id: string) => api(`/api/quotes/${id}/convert`, { method: "POST" }),
 };
 
@@ -179,7 +185,12 @@ export const invoicesApi = {
     api("/api/invoices", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) =>
     api(`/api/invoices/${id}`, { method: "PUT", body: JSON.stringify(body) }),
-  // Optional helpers
+  addItem: (id: string, item: any) => 
+    api(`/api/invoices/${id}/items`, { method: "POST", body: JSON.stringify(item) }),
+  updateItem: (id: string, itemId: string, body: any) => 
+    api(`/api/invoices/${id}/items/${itemId}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteItem: (id: string, itemId: string) => 
+    api(`/api/invoices/${id}/items/${itemId}`, { method: "DELETE" }),
   markPaid: (id: string) => api(`/api/invoices/${id}/pay`, { method: "POST" }),
 };
 

@@ -1,0 +1,640 @@
+Replit Agent — Build Quotes & Invoices (MVP)
+
+Do everything below exactly.
+
+1) SQL: create tables (idempotent)
+
+Create server/db/migrations/2025_qq_invoices.sql with:
+
+-- Customers & Jobs already exist; this only adds quotes/invoices.
+
+create table if not exists quotes (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  customer_id uuid not null,
+  job_id uuid,
+  title text not null,
+  notes text,
+  status text not null default 'draft', -- draft | sent | accepted | rejected | converted
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists quotes_org_idx on quotes(org_id);
+create index if not exists quotes_customer_idx on quotes(customer_id);
+
+create table if not exists quote_items (
+  id uuid primary key default gen_random_uuid(),
+  quote_id uuid not null references quotes(id) on delete cascade,
+  description text not null,
+  quantity numeric(12,2) not null default 1,
+  unit_price numeric(12,2) not null default 0
+);
+
+create index if not exists quote_items_quote_idx on quote_items(quote_id);
+
+create table if not exists invoices (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  customer_id uuid not null,
+  job_id uuid,
+  title text not null,
+  notes text,
+  status text not null default 'draft', -- draft | sent | paid | void
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists invoices_org_idx on invoices(org_id);
+create index if not exists invoices_customer_idx on invoices(customer_id);
+
+create table if not exists invoice_items (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id uuid not null references invoices(id) on delete cascade,
+  description text not null,
+  quantity numeric(12,2) not null default 1,
+  unit_price numeric(12,2) not null default 0
+);
+
+create index if not exists invoice_items_invoice_idx on invoice_items(invoice_id);
+
+
+If you already run migrations on boot, the existing mechanism will pick this up; otherwise just execute once via your existing SQL path. It’s idempotent.
+
+2) Server routes
+
+Create: server/routes/quotes.ts
+
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+
+const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
+const router = Router();
+
+/** List (basic) */
+router.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select q.id, q.title, q.status, q.created_at, q.customer_id, c.name as customer_name
+    from quotes q
+    join customers c on c.id = q.customer_id
+    where q.org_id=${orgId}::uuid
+    order by q.created_at desc
+  `);
+  res.json(r.rows);
+});
+
+/** Create */
+router.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const userId = (req as any).user?.id || null;
+  const { title, customerId, jobId, notes } = req.body || {};
+  if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
+
+  const ins: any = await db.execute(sql`
+    insert into quotes (org_id, customer_id, job_id, title, notes, created_by)
+    values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId})
+    returning id
+  `);
+  res.json({ ok: true, id: ins.rows[0].id });
+});
+
+/** Get (with items + computed totals) */
+router.get("/:id", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params; const orgId = (req as any).orgId;
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+
+  const q: any = await db.execute(sql`
+    select q.*, c.name as customer_name
+    from quotes q join customers c on c.id=q.customer_id
+    where q.id=${id}::uuid and q.org_id=${orgId}::uuid
+  `);
+  const quote = q.rows?.[0];
+  if (!quote) return res.status(404).json({ error: "not found" });
+
+  const items: any = await db.execute(sql`
+    select * from quote_items where quote_id=${id}::uuid order by created_at nulls last, id
+  `);
+
+  const subtotal = items.rows.reduce((s: number, it: any) => s + Number(it.quantity)*Number(it.unit_price), 0);
+  res.json({ ...quote, items: items.rows, subtotal, total: subtotal }); // taxes later
+});
+
+/** Update header */
+router.put("/:id", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params; const orgId = (req as any).orgId;
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+  const { title, notes, status, customerId, jobId } = req.body || {};
+  await db.execute(sql`
+    update quotes
+      set title=coalesce(${title}, title),
+          notes=coalesce(${notes}, notes),
+          status=coalesce(${status}, status),
+          customer_id=coalesce(${customerId}::uuid, customer_id),
+          job_id=coalesce(${jobId}::uuid, job_id),
+          updated_at=now()
+    where id=${id}::uuid and org_id=${orgId}::uuid
+  `);
+  res.json({ ok: true });
+});
+
+/** Items CRUD */
+router.post("/:id/items", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params; const { description, quantity, unit_price } = req.body || {};
+  if (!description) return res.status(400).json({ error: "description required" });
+  const ins: any = await db.execute(sql`
+    insert into quote_items (quote_id, description, quantity, unit_price)
+    values (${id}::uuid, ${description}, ${quantity||1}, ${unit_price||0})
+    returning id
+  `);
+  res.json({ ok: true, id: ins.rows[0].id });
+});
+
+router.put("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) => {
+  const { id, itemId } = req.params;
+  const { description, quantity, unit_price } = req.body || {};
+  await db.execute(sql`
+    update quote_items
+      set description=coalesce(${description}, description),
+          quantity=coalesce(${quantity}, quantity),
+          unit_price=coalesce(${unit_price}, unit_price)
+    where id=${itemId}::uuid and quote_id=${id}::uuid
+  `);
+  res.json({ ok: true });
+});
+
+router.delete("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) => {
+  const { id, itemId } = req.params;
+  await db.execute(sql`delete from quote_items where id=${itemId}::uuid and quote_id=${id}::uuid`);
+  res.json({ ok: true });
+});
+
+/** Actions */
+router.post("/:id/accept", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params;
+  await db.execute(sql`update quotes set status='accepted', updated_at=now() where id=${id}::uuid`);
+  res.json({ ok: true });
+});
+
+/** Convert to job (basic) */
+router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params; const orgId = (req as any).orgId; const userId = (req as any).user?.id || null;
+
+  const q: any = await db.execute(sql`select * from quotes where id=${id}::uuid and org_id=${orgId}::uuid`);
+  const quote = q.rows?.[0];
+  if (!quote) return res.status(404).json({ error: "quote not found" });
+
+  const jr: any = await db.execute(sql`
+    insert into jobs (org_id, customer_id, title, description, status, created_by, scheduled_at)
+    values (${orgId}::uuid, ${quote.customer_id}::uuid, ${quote.title}, ${quote.notes||null}, 'new', ${userId}, null)
+    returning id
+  `);
+  await db.execute(sql`update quotes set status='converted', job_id=${jr.rows[0].id}::uuid where id=${id}::uuid`);
+  res.json({ ok: true, jobId: jr.rows[0].id });
+});
+
+export default router;
+
+
+Create: server/routes/invoices.ts
+
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+
+const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
+const router = Router();
+
+/** List */
+router.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select i.id, i.title, i.status, i.created_at, i.customer_id, c.name as customer_name
+    from invoices i join customers c on c.id = i.customer_id
+    where i.org_id=${orgId}::uuid
+    order by i.created_at desc
+  `);
+  res.json(r.rows);
+});
+
+/** Create */
+router.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const userId = (req as any).user?.id || null;
+  const { title, customerId, jobId, notes } = req.body || {};
+  if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
+
+  const ins: any = await db.execute(sql`
+    insert into invoices (org_id, customer_id, job_id, title, notes, created_by)
+    values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId})
+    returning id
+  `);
+  res.json({ ok: true, id: ins.rows[0].id });
+});
+
+/** Get (with items + totals) */
+router.get("/:id", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params; const orgId = (req as any).orgId;
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+
+  const r: any = await db.execute(sql`
+    select i.*, c.name as customer_name
+    from invoices i join customers c on c.id=i.customer_id
+    where i.id=${id}::uuid and i.org_id=${orgId}::uuid
+  `);
+  const inv = r.rows?.[0];
+  if (!inv) return res.status(404).json({ error: "not found" });
+
+  const items: any = await db.execute(sql`
+    select * from invoice_items where invoice_id=${id}::uuid order by created_at nulls last, id
+  `);
+  const subtotal = items.rows.reduce((s: number, it: any) => s + Number(it.quantity)*Number(it.unit_price), 0);
+  res.json({ ...inv, items: items.rows, subtotal, total: subtotal });
+});
+
+/** Update header */
+router.put("/:id", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params; const orgId = (req as any).orgId;
+  const { title, notes, status, customerId, jobId } = req.body || {};
+  await db.execute(sql`
+    update invoices
+      set title=coalesce(${title}, title),
+          notes=coalesce(${notes}, notes),
+          status=coalesce(${status}, status),
+          customer_id=coalesce(${customerId}::uuid, customer_id),
+          job_id=coalesce(${jobId}::uuid, job_id),
+          updated_at=now()
+    where id=${id}::uuid and org_id=${orgId}::uuid
+  `);
+  res.json({ ok: true });
+});
+
+/** Items CRUD */
+router.post("/:id/items", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params; const { description, quantity, unit_price } = req.body || {};
+  if (!description) return res.status(400).json({ error: "description required" });
+  const ins: any = await db.execute(sql`
+    insert into invoice_items (invoice_id, description, quantity, unit_price)
+    values (${id}::uuid, ${description}, ${quantity||1}, ${unit_price||0})
+    returning id
+  `);
+  res.json({ ok: true, id: ins.rows[0].id });
+});
+
+router.put("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) => {
+  const { id, itemId } = req.params;
+  const { description, quantity, unit_price } = req.body || {};
+  await db.execute(sql`
+    update invoice_items
+      set description=coalesce(${description}, description),
+          quantity=coalesce(${quantity}, quantity),
+          unit_price=coalesce(${unit_price}, unit_price)
+    where id=${itemId}::uuid and invoice_id=${id}::uuid
+  `);
+  res.json({ ok: true });
+});
+
+router.delete("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) => {
+  const { id, itemId } = req.params;
+  await db.execute(sql`delete from invoice_items where id=${itemId}::uuid and invoice_id=${id}::uuid`);
+  res.json({ ok: true });
+});
+
+/** Mark paid */
+router.post("/:id/pay", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params;
+  await db.execute(sql`update invoices set status='paid', updated_at=now() where id=${id}::uuid`);
+  res.json({ ok: true });
+});
+
+export default router;
+
+
+Mount them in your routes registrar (or server/index.ts):
+
+import quotes from "./routes/quotes";
+import invoices from "./routes/invoices";
+
+app.use("/api/quotes", quotes);
+app.use("/api/invoices", invoices);
+
+3) Client pages
+
+Create: client/src/components/line-items-editor.tsx
+
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+type Item = { id?: string; description: string; quantity: number; unit_price: number };
+
+export function LineItemsEditor({
+  items, onAdd, onUpdate, onDelete
+}: {
+  items: Item[];
+  onAdd: (draft: Omit<Item,"id">) => Promise<void> | void;
+  onUpdate: (id: string, patch: Partial<Item>) => Promise<void> | void;
+  onDelete: (id: string) => Promise<void> | void;
+}) {
+  const [draft, setDraft] = useState<Omit<Item,"id">>({ description: "", quantity: 1, unit_price: 0 });
+
+  const subtotal = useMemo(
+    () => items.reduce((s, it) => s + Number(it.quantity) * Number(it.unit_price), 0),
+    [items]
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="table-wrap">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 text-left">Description</th>
+              <th className="px-3 py-2 text-right">Qty</th>
+              <th className="px-3 py-2 text-right">Unit</th>
+              <th className="px-3 py-2 text-right">Line</th>
+              <th className="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {items.map((it) => (
+              <tr key={it.id}>
+                <td className="px-3 py-2">{it.description}</td>
+                <td className="px-3 py-2 text-right">{Number(it.quantity).toFixed(2)}</td>
+                <td className="px-3 py-2 text-right">${Number(it.unit_price).toFixed(2)}</td>
+                <td className="px-3 py-2 text-right">
+                  ${(Number(it.quantity)*Number(it.unit_price)).toFixed(2)}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <Button variant="ghost" onClick={() => onDelete(it.id!)}>Delete</Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add row */}
+      <div className="form-grid">
+        <div className="col-span-2">
+          <Input placeholder="Description"
+                 value={draft.description}
+                 onChange={(e)=>setDraft({...draft, description:e.target.value})}/>
+        </div>
+        <Input type="number" step="0.01" placeholder="Qty"
+               value={draft.quantity}
+               onChange={(e)=>setDraft({...draft, quantity:Number(e.target.value)})}/>
+        <Input type="number" step="0.01" placeholder="Unit Price"
+               value={draft.unit_price}
+               onChange={(e)=>setDraft({...draft, unit_price:Number(e.target.value)})}/>
+        <Button onClick={async()=>{ if(!draft.description) return; await onAdd(draft); setDraft({description:"",quantity:1,unit_price:0}); }}>
+          Add item
+        </Button>
+      </div>
+
+      <div className="text-right text-sm">
+        <div className="font-medium">Subtotal: ${subtotal.toFixed(2)}</div>
+      </div>
+    </div>
+  );
+}
+
+
+Quotes
+
+client/src/pages/quotes.tsx
+
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { quotesApi } from "@/lib/api";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Link } from "wouter";
+
+export default function QuotesPage() {
+  const qc = useQueryClient();
+  const { data: list = [], isLoading } = useQuery({ queryKey:["/api/quotes"], queryFn: quotesApi.getAll });
+  const [q, setQ] = useState("");
+
+  const filtered = (list as any[]).filter(x => [x.title,x.customer_name,x.status].join(" ").toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <div className="page space-y-4">
+      <div className="header-row">
+        <h1 className="text-2xl font-bold">Quotes</h1>
+        <div className="header-actions">
+          <Input className="w-64" placeholder="Search quotes…" value={q} onChange={(e)=>setQ(e.target.value)} />
+          <Link href="/quotes/new"><a><Button data-mobile-full="true">New Quote</Button></a></Link>
+        </div>
+      </div>
+
+      <Card><CardContent className="card-pad">
+        {isLoading ? "Loading…" : (
+          <div className="table-wrap">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr><th className="px-3 py-2 text-left">Title</th><th className="px-3 py-2">Customer</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Actions</th></tr>
+              </thead>
+              <tbody className="divide-y">
+                {filtered.map((q:any)=>(
+                  <tr key={q.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-left">
+                      <Link href={`/quotes/${q.id}`}><a className="font-medium hover:underline">{q.title}</a></Link>
+                    </td>
+                    <td className="px-3 py-2 text-center">{q.customer_name}</td>
+                    <td className="px-3 py-2 text-center capitalize">{q.status}</td>
+                    <td className="px-3 py-2 text-center">
+                      <Link href={`/quotes/${q.id}/edit`}><a className="text-blue-600">Edit</a></Link>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length===0 && <tr><td colSpan={4} className="px-3 py-10 text-center text-gray-500">No quotes</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent></Card>
+    </div>
+  );
+}
+
+
+client/src/pages/quote-edit.tsx
+
+import { useEffect, useState } from "react";
+import { useRoute, useLocation } from "wouter";
+import { quotesApi, customersApi } from "@/lib/api";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { LineItemsEditor } from "@/components/line-items-editor";
+
+export default function QuoteEdit() {
+  const [isNewMatch] = useRoute("/quotes/new");
+  const [isEditMatch, params] = useRoute("/quotes/:id/edit");
+  const [, nav] = useLocation();
+  const id = params?.id;
+
+  const [title,setTitle] = useState(""); const [customerId,setCustomerId] = useState("");
+  const [notes,setNotes] = useState(""); const [status,setStatus] = useState("draft");
+  const [items,setItems] = useState<any[]>([]); const [customers,setCustomers] = useState<any[]>([]);
+  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [err,setErr]=useState<string|null>(null);
+
+  useEffect(()=>{(async()=>{
+    try{
+      const cs = await customersApi.getAll(); setCustomers(cs||[]);
+      if (id) {
+        const q = await quotesApi.get(id);
+        setTitle(q.title||""); setCustomerId(q.customer_id||""); setNotes(q.notes||""); setStatus(q.status||"draft"); setItems(q.items||[]);
+      }
+    } catch(e:any){ setErr(e.message); } finally { setLoading(false); }
+  })()},[id]);
+
+  async function saveHeader(){
+    setSaving(true); setErr(null);
+    try{
+      if (id){
+        await quotesApi.update(id,{ title, customerId, notes, status });
+        nav(`/quotes/${id}`);
+      } else {
+        const r = await quotesApi.create({ title, customerId, notes });
+        nav(`/quotes/${r.id}/edit`);
+      }
+    }catch(e:any){ setErr(e.message||"Failed"); } finally{ setSaving(false); }
+  }
+
+  if (loading) return <div className="page">Loading…</div>;
+
+  return (
+    <div className="page space-y-6">
+      <div className="header-row">
+        <h1 className="text-2xl font-bold">{id ? "Edit Quote" : "New Quote"}</h1>
+        <div className="header-actions"><Button onClick={saveHeader} disabled={saving} data-mobile-full="true">{saving?"Saving…":"Save"}</Button></div>
+      </div>
+
+      {err && <div className="text-red-600">{err}</div>}
+
+      <Card><CardHeader><CardTitle>Details</CardTitle></CardHeader>
+        <CardContent className="form-grid">
+          <div className="col-span-2"><Input placeholder="Title" value={title} onChange={(e)=>setTitle(e.target.value)} /></div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Customer</label>
+            <select className="w-full border rounded p-2" value={customerId} onChange={(e)=>setCustomerId(e.target.value)}>
+              <option value="">Select customer…</option>
+              {customers.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="block text-sm font-medium mb-1">Notes</label>
+            <Textarea rows={3} value={notes} onChange={(e)=>setNotes(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Status</label>
+            <select className="w-full border rounded p-2" value={status} onChange={(e)=>setStatus(e.target.value)}>
+              <option value="draft">draft</option><option value="sent">sent</option>
+              <option value="accepted">accepted</option><option value="rejected">rejected</option>
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {id && (
+        <Card>
+          <CardHeader><CardTitle>Line Items</CardTitle></CardHeader>
+          <CardContent className="card-pad">
+            <LineItemsEditor
+              items={items}
+              onAdd={async (d)=>{ const r = await quotesApi.addItem(id, d); const q = await quotesApi.get(id); setItems(q.items||[]); }}
+              onUpdate={async (itemId, patch)=>{ await quotesApi.updateItem(id, itemId, patch); const q = await quotesApi.get(id); setItems(q.items||[]); }}
+              onDelete={async (itemId)=>{ await quotesApi.deleteItem(id, itemId); const q = await quotesApi.get(id); setItems(q.items||[]); }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+
+client/src/pages/quote-view.tsx (compact detail view) — mirror your job view but read from quotesApi.get(id) and show items/totals; add buttons Accept and Convert to Job calling quotesApi.accept(id) and quotesApi.convertToJob(id).
+
+Invoices
+
+Create analogous files:
+
+client/src/pages/invoices.tsx (list like quotes.tsx)
+
+client/src/pages/invoice-edit.tsx (same editor, calls invoicesApi)
+
+client/src/pages/invoice-view.tsx (detail with Mark Paid button)
+
+(Structure is identical; use invoicesApi.*.)
+
+4) Extend client API helpers (if missing)
+
+In client/src/lib/api.ts, ensure these exist:
+
+export const quotesApi = {
+  getAll: () => api("/api/quotes"),
+  get: (id: string) => api(`/api/quotes/${id}`),
+  create: (body: any) => api("/api/quotes", { method:"POST", body: JSON.stringify(body) }),
+  update: (id: string, body:any) => api(`/api/quotes/${id}`, { method:"PUT", body: JSON.stringify(body) }),
+  addItem: (id:string, item:any) => api(`/api/quotes/${id}/items`, { method:"POST", body: JSON.stringify(item) }),
+  updateItem: (id:string, itemId:string, body:any) => api(`/api/quotes/${id}/items/${itemId}`, { method:"PUT", body: JSON.stringify(body) }),
+  deleteItem: (id:string, itemId:string) => api(`/api/quotes/${id}/items/${itemId}`, { method:"DELETE" }),
+  accept: (id:string) => api(`/api/quotes/${id}/accept`, { method:"POST" }),
+  convertToJob: (id:string) => api(`/api/quotes/${id}/convert`, { method:"POST" }),
+};
+
+export const invoicesApi = {
+  getAll: () => api("/api/invoices"),
+  get: (id: string) => api(`/api/invoices/${id}`),
+  create: (body: any) => api("/api/invoices", { method:"POST", body: JSON.stringify(body) }),
+  update: (id: string, body:any) => api(`/api/invoices/${id}`, { method:"PUT", body: JSON.stringify(body) }),
+  addItem: (id:string, item:any) => api(`/api/invoices/${id}/items`, { method:"POST", body: JSON.stringify(item) }),
+  updateItem: (id:string, itemId:string, body:any) => api(`/api/invoices/${id}/items/${itemId}`, { method:"PUT", body: JSON.stringify(body) }),
+  deleteItem: (id:string, itemId:string) => api(`/api/invoices/${id}/items/${itemId}`, { method:"DELETE" }),
+  markPaid: (id:string) => api(`/api/invoices/${id}/pay`, { method:"POST" }),
+};
+
+5) Routes & Sidebar (client)
+
+Edit: client/src/App.tsx
+Add:
+
+import QuotesPage from "@/pages/quotes";
+import QuoteEdit from "@/pages/quote-edit";
+import QuoteView from "@/pages/quote-view";
+import InvoicesPage from "@/pages/invoices";
+import InvoiceEdit from "@/pages/invoice-edit";
+import InvoiceView from "@/pages/invoice-view";
+
+<Route path="/quotes" component={QuotesPage} />
+<Route path="/quotes/new" component={QuoteEdit} />
+<Route path="/quotes/:id" component={QuoteView} />
+<Route path="/quotes/:id/edit" component={QuoteEdit} />
+
+<Route path="/invoices" component={InvoicesPage} />
+<Route path="/invoices/new" component={InvoiceEdit} />
+<Route path="/invoices/:id" component={InvoiceView} />
+<Route path="/invoices/:id/edit" component={InvoiceEdit} />
+
+
+Your sidebar already has “Quotes” and “Invoices” entries; no change needed unless you hid them behind PRO — the pages will still work.
+
+6) Smoke test
+
+Create a quote → add line items → subtotal updates → Accept / Convert to Job works.
+
+Create an invoice → add items → Mark Paid flips status.
+
+Lists show customer names & statuses; rows are clickable.

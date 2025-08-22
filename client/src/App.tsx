@@ -19,7 +19,11 @@ import Equipment from "@/pages/equipment";
 import Teams from "@/pages/teams";
 import Schedule from "@/pages/schedule";
 import Quotes from "@/pages/quotes";
+import QuoteEdit from "@/pages/quote-edit";
+import QuoteView from "@/pages/quote-view";
 import Invoices from "@/pages/invoices";
+import InvoiceEdit from "@/pages/invoice-edit";
+import InvoiceView from "@/pages/invoice-view";
 import NotFound from "@/pages/not-found";
 import Profile from "@/pages/Profile";
 import JobView from "./pages/job-view";
@@ -130,7 +134,13 @@ function AppContent() {
           <Route path="/teams" component={Teams} />
           <Route path="/schedule" component={Schedule} />
           <Route path="/quotes" component={Quotes} />
+          <Route path="/quotes/new" component={QuoteEdit} />
+          <Route path="/quotes/:id" component={QuoteView} />
+          <Route path="/quotes/:id/edit" component={QuoteEdit} />
           <Route path="/invoices" component={Invoices} />
+          <Route path="/invoices/new" component={InvoiceEdit} />
+          <Route path="/invoices/:id" component={InvoiceView} />
+          <Route path="/invoices/:id/edit" component={InvoiceEdit} />
           <Route path="/profile" component={Profile} />
           <Route path="/settings" component={SettingsPage} />
           <Route path="/members" component={MembersPage} />

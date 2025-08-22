@@ -90,21 +90,27 @@ export function Sidebar({ onClose }: SidebarProps) {
         </nav>
 
         {/* User Profile */}
-        <div className="mt-6 p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {user?.name?.[0] || "U"}
-              </span>
+        <Link href="/settings">
+          <a className="block">
+            <div className="mt-6 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {user?.name?.[0] || "U"}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {user?.name || "User"}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">Field Service Pro</p>
+                </div>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.name || "User"}
-              </p>
-              <p className="text-xs text-gray-500 truncate">Field Service Pro</p>
-            </div>
-          </div>
-          
+          </a>
+        </Link>
+        
+        <div className="mt-2">
           {!isProUser && (
             <div className="text-xs text-gray-600 bg-amber-50 p-2 rounded border border-amber-200">
               <div className="flex items-center gap-1 mb-1">

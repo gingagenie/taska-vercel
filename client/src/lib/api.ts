@@ -123,6 +123,13 @@ export const equipmentApi = {
   delete: (id: string) => api(`/api/equipment/${id}`, { method: "DELETE" }),
 };
 
+export const meApi = {
+  get: () => api("/api/me"),
+  updateProfile: (body: any) => api("/api/me/profile", { method: "PUT", body: JSON.stringify(body) }),
+  changePassword: (body: any) => api("/api/me/change-password", { method: "POST", body: JSON.stringify(body) }),
+  updateOrg: (body: any) => api("/api/me/org", { method: "PUT", body: JSON.stringify(body) }),
+};
+
 /** PRO features (routes assumed as /api/quotes and /api/invoices) */
 export const quotesApi = {
   getAll: () => api("/api/quotes"),

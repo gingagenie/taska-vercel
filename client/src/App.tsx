@@ -25,6 +25,7 @@ import JobView from "./pages/job-view";
 import JobEdit from "./pages/job-edit";
 import JobNotesCharges from "./pages/job-notes-charges";
 import CustomerView from "./pages/customer-view";
+import SettingsPage from "@/pages/settings";
 
 // Import modals
 import { JobModal } from "@/components/modals/job-modal";
@@ -136,6 +137,7 @@ function AppContent() {
           <Route path="/quotes" component={Quotes} />
           <Route path="/invoices" component={Invoices} />
           <Route path="/profile" component={Profile} />
+          <Route path="/settings" component={SettingsPage} />
           <Route path="/jobs/:id">{() => <JobView />}</Route>
           <Route path="/jobs/:id/edit">{() => <JobEdit />}</Route>
           <Route path="/jobs/:id/notes">{() => <JobNotesCharges />}</Route>

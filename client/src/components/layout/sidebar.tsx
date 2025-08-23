@@ -91,12 +91,20 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
       </nav>
 
       {/* User Profile */}
-      <Link href="/settings">
-        <div className="mt-6 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+      <Link href="/profile">
+        <div 
+          className="mt-6 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+          onClick={() => onClose?.()}
+        >
           <div className="flex items-center gap-3 mb-3">
             <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
               {user?.avatar_seed && user?.avatar_variant ? (
-                <Avatar size={32} name={user.avatar_seed} variant={user.avatar_variant as any} />
+                <Avatar 
+                  size={32} 
+                  name={user.avatar_seed} 
+                  variant={user.avatar_variant as any} 
+                  colors={["#92A1C6", "#146A7C", "#F0AB3D", "#C271B4", "#C20D90"]}
+                />
               ) : user?.avatar_url ? (
                 <img src={user.avatar_url} alt="avatar" className="h-8 w-8 object-cover" />
               ) : (

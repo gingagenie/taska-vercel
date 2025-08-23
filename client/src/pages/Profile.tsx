@@ -41,10 +41,12 @@ export default function Profile() {
 
   // Avatar preview component
   function AvatarPreview() {
+    const colors = ["#92A1C6", "#146A7C", "#F0AB3D", "#C271B4", "#C20D90"];
+    
     if (avatarSeed && avatarVariant) {
       return (
         <div className="h-16 w-16 rounded-full overflow-hidden">
-          <Avatar size={64} name={avatarSeed} variant={avatarVariant as any} />
+          <Avatar size={64} name={avatarSeed} variant={avatarVariant as any} colors={colors} />
         </div>
       );
     }

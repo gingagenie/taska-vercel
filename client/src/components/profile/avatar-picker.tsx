@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 
 const seeds = ["taska-1","taska-2","taska-3","taska-4","taska-5","taska-6","taska-7","taska-8","taska-9","taska-10"];
 const variants = ["beam","marble","pixel","sunset","ring","bauhaus"] as const;
+const colors = ["#92A1C6", "#146A7C", "#F0AB3D", "#C271B4", "#C20D90"];
 
 export function AvatarPicker({
   value,
@@ -37,7 +38,7 @@ export function AvatarPicker({
             title={`${variant}:${seed}`}
           >
             <div className="h-14 w-14 rounded-full overflow-hidden">
-              <Avatar size={56} name={seed} variant={variant} />
+              <Avatar size={56} name={seed} variant={variant} colors={colors} />
             </div>
           </button>
         ))}

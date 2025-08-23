@@ -32,13 +32,16 @@ import JobNotesCharges from "./pages/job-notes-charges";
 import CustomerView from "./pages/customer-view";
 import SettingsPage from "@/pages/settings";
 import MembersPage from "@/pages/members";
+import Landing from "@/pages/landing";
+import Register from "@/pages/auth-register";
+import Login from "@/pages/auth-login";
 
 // Import modals
 import { JobModal } from "@/components/modals/job-modal";
 import { CustomerModal } from "@/components/modals/customer-modal";
 import { UpgradeModal } from "@/components/modals/upgrade-modal";
 
-function AppContent() {
+function AuthenticatedApp() {
   const [location] = useLocation();
   const { isProUser } = useAuth();
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
@@ -159,6 +162,33 @@ function AppContent() {
       <UpgradeModal open={isUpgradeModalOpen} onOpenChange={setIsUpgradeModalOpen} />
     </div>
   );
+}
+
+function AppContent() {
+  const { isLoading, isAuthenticated } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/auth/register" component={Register} />
+        <Route path="/auth/login" component={Login} />
+        <Route path="*" component={Landing} />
+      </Switch>
+    );
+  }
+
+  return <AuthenticatedApp />;
 }
 
 function App() {

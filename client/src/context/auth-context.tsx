@@ -1,28 +1,24 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 interface User {
   id: string;
-  name: string;
-  email: string;
-  role: string;
-  initials: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  initials?: string;
   avatar_url?: string | null;
   avatar_seed?: string | null;
   avatar_variant?: string | null;
 }
 
-interface Organization {
-  id: string;
-  name: string;
-}
-
 interface AuthContextType {
   user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
   selectedOrgId: string | null;
-  organizations: Organization[];
+  organizations: any[];
   setSelectedOrgId: (orgId: string) => void;
-  setUser: (user: User | null) => void;
-  setOrganizations: (orgs: Organization[]) => void;
   isProUser: boolean;
   setIsProUser: (isPro: boolean) => void;
 }
@@ -30,39 +26,38 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>({
-    id: "user-1",
-    name: "John Doe",
-    email: "john@example.com",
-    role: "Administrator",
-    initials: "JD",
-    avatar_url: null,
-    avatar_seed: "taska-1",
-    avatar_variant: "beam"
-  });
-  const [selectedOrgId, setSelectedOrgId] = useState<string | null>("4500ba4e-e575-4f82-b196-27dd4c7d0eaf");
-  const [organizations, setOrganizations] = useState<Organization[]>([
-    { id: "4500ba4e-e575-4f82-b196-27dd4c7d0eaf", name: "Taska Demo Org" },
-    { id: "05e9e656-475e-4094-a1a2-33b09815cf82", name: "Tech Solutions Co" }
-  ]);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [organizations] = useState<any[]>([]);
   const [isProUser, setIsProUser] = useState(false);
 
-  // Set default headers for API requests
-  useEffect(() => {
-    if (user?.id) {
-      // These would normally be JWT tokens or session cookies
-      // For now we use the header-based auth system from the backend
-    }
-  }, [user, selectedOrgId]);
+  // Check authentication status from session
+  const { data: authData, isLoading, error } = useQuery({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const user = authData ? {
+    id: authData.id,
+    name: authData.name,
+    email: authData.email,
+    role: authData.role,
+    initials: authData.name ? authData.name.split(' ').map((n: string) => n[0]).join('').toUpperCase() : 'U',
+    avatar_url: authData.avatar_url,
+    avatar_seed: authData.avatar_seed,
+    avatar_variant: authData.avatar_variant
+  } : null;
+
+  const isAuthenticated = !!authData && !error;
 
   return (
     <AuthContext.Provider value={{
       user,
-      selectedOrgId,
+      isLoading,
+      isAuthenticated,
+      selectedOrgId: selectedOrgId || authData?.orgId,
       organizations,
       setSelectedOrgId,
-      setUser,
-      setOrganizations,
       isProUser,
       setIsProUser
     }}>

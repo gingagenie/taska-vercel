@@ -10,6 +10,28 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Session support
+import session from "express-session";
+import pgSession from "connect-pg-simple";
+import { Pool } from "pg";
+
+const PgStore = pgSession(session as any);
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+app.use(
+  session({
+    store: new PgStore({ pool, tableName: "session" }),
+    secret: process.env.SESSION_SECRET || "dev-secret-change-me",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      sameSite: "lax",
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+    },
+  })
+);
+
 // Ensure database schema is up to date
 (async () => {
   try {
@@ -52,7 +74,9 @@ app.get("/health/db", (_req, res) => res.json({ ok: true })); // replace with re
 
 /** Mount API routes that aren't part of registerRoutes */
 import members from "./routes/members";
+import auth from "./routes/auth";
 app.use("/api/me", me);
+app.use("/api/auth", auth);
 app.use("/api/members", members);
 
 // Legacy compatibility endpoint

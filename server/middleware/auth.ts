@@ -5,18 +5,24 @@ function header(req: Request, name: string): string | undefined {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  // Support dev headers for backward compatibility
   const hUser =
     header(req, "x-user-id") ||
     header(req, "x-userid") ||
     header(req, "x-user") ||
     (req.query.userId as string | undefined);
 
-  const auth = header(req, "authorization");
-  const bearer = auth?.startsWith("Bearer ") ? auth.slice(7) : undefined;
+  if (hUser) {
+    (req as any).user = { id: hUser };
+    return next();
+  }
 
-  const userId = hUser || bearer;
-  if (!userId) return res.status(401).json({ error: "Not authenticated" });
-
+  // Check session auth
+  const userId = req.session.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  
   (req as any).user = { id: userId };
   next();
 }

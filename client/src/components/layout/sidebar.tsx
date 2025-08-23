@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/auth-context";
+import { apiRequest } from "@/lib/queryClient";
 import Avatar from "boring-avatars";
 import { 
   Briefcase, 
@@ -10,7 +11,8 @@ import {
   Receipt,
   BarChart3,
   Crown,
-  Calendar
+  Calendar,
+  LogOut
 } from "lucide-react";
 import logoUrl from "@assets/Taska_1755842483680.png";
 
@@ -120,6 +122,23 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
           </div>
         </div>
       </Link>
+      
+      {/* Logout Button */}
+      <button
+        onClick={async () => {
+          try {
+            await apiRequest("/api/auth/logout", { method: "POST" });
+            window.location.href = "/";
+          } catch (error) {
+            console.error("Logout failed:", error);
+          }
+        }}
+        className="w-full mt-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
+        data-testid="button-logout"
+      >
+        <LogOut className="w-4 h-4" />
+        Sign Out
+      </button>
       
       <div className="mt-2">
         {!isProUser && (

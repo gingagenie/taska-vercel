@@ -131,10 +131,10 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
         </DialogHeader>
 
         {/* Scrollable content area */}
-        <div className="flex-1 overflow-y-auto px-1">
+        <div className="flex-1 overflow-y-auto px-1 pb-6">
           {err && <div className="text-red-600 text-sm mb-4">{err}</div>}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-8">
             <div className="md:col-span-2">
               <Label>Company name *</Label>
               <Input
@@ -218,14 +218,15 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
           </div>
         </div>
 
-        {/* Sticky footer actions */}
-        <div className="sticky bottom-0 border-t bg-white/95 backdrop-blur px-1 py-4 mt-2">
-          <div className="flex justify-end gap-2">
+        {/* Sticky footer actions - always visible at bottom */}
+        <div className="sticky bottom-0 inset-x-0 border-t bg-white/98 backdrop-blur-sm px-4 py-4 mt-auto">
+          <div className="flex gap-3 w-full">
             <Button 
               variant="outline" 
               onClick={() => onOpenChange(false)} 
               disabled={mutation.isPending}
-              className="flex-1 sm:flex-none"
+              className="flex-1"
+              data-testid="button-cancel-customer"
             >
               Cancel
             </Button>
@@ -233,7 +234,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
               onClick={handleSave} 
               disabled={mutation.isPending} 
               data-testid="button-save-customer"
-              className="flex-1 sm:flex-none"
+              className="flex-1"
             >
               {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {isEdit ? "Update" : "Create"} Customer

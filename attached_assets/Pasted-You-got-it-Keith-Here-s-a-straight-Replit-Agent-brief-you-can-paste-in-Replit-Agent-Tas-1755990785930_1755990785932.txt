@@ -1,0 +1,74 @@
+You got it, Keith. Here’s a straight Replit Agent brief you can paste in.
+
+
+---
+
+🔧 Replit Agent Task — Pin “Cancel / Create Customer” to bottom (parent-agnostic)
+
+Goal: In the Flutter app, the New Customer UI currently shows the Cancel / Create Customer buttons floating mid-screen. Replace the current implementation with a layout that always anchors buttons to the bottom, even when rendered inside AlertDialog, showDialog, or any centered/limited parent. Form must scroll and lift above the keyboard.
+
+Steps
+
+1. Locate the New Customer UI (files likely include new_customer_*, customer_form_*, or wherever the “New Customer” modal is launched).
+
+
+2. Create lib/ui/customers/new_customer_sheet_content.dart with the code below.
+
+
+3. Switch the presenter:
+
+If currently using AlertDialog/showDialog, wrap with a Dialog and use NewCustomerSheetContent().
+
+If using showModalBottomSheet, keep it but set isScrollControlled: true, useSafeArea: true, and return NewCustomerSheetContent().
+
+
+
+4. Move existing form fields into the ListView section in the code (keep controllers/validators).
+
+
+5. Remove any parent Center, Align, or Column(mainAxisAlignment: center) that wraps the content. Only one scrollable (the provided ListView).
+
+
+
+Code (drop-in)
+
+// lib/ui/customers/new_customer_sheet_content.dart
+import 'package:flutter/material.dart';
+
+class NewCustomerSheetContent extends StatefulWidget {
+  const NewCustomerSheetContent({super.key});
+
+  @override
+  State<NewCustomerSheetContent> createState() => _NewCustomerSheetContentState();
+}
+
+class _NewCustomerSheetContentState extends State<NewCustomerSheetContent> {
+  final _formKey = GlobalKey<FormState>();
+  // TODO: inject or wire your existing TextEditingControllers here
+  // final companyCtrl = TextEditingController();
+
+  void _onCreate() {
+    // TODO: validate + submit existing create-customer logic
+    // if (_formKey.currentState?.validate() ?? false) { ... }
+    Navigator.of(context).maybePop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboard = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboard), // lifts buttons above keyboard
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          // force near-full height so buttons can sit at the bottom in any parent
+          height: MediaQuery.of(context).size.height * 0.9,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child
+

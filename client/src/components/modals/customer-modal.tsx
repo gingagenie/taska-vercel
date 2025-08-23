@@ -125,104 +125,120 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Customer" : "New Customer"}</DialogTitle>
         </DialogHeader>
 
-        {err && <div className="text-red-600 text-sm">{err}</div>}
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto px-1">
+          {err && <div className="text-red-600 text-sm mb-4">{err}</div>}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="md:col-span-2">
-            <Label>Company name *</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., ABC Manufacturing"
-              data-testid="input-company-name"
-            />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
+            <div className="md:col-span-2">
+              <Label>Company name *</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., ABC Manufacturing"
+                data-testid="input-company-name"
+              />
+            </div>
 
-          <div>
-            <Label>Contact name</Label>
-            <Input
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              placeholder="Primary contact person"
-              data-testid="input-contact-name"
-            />
-          </div>
-          
-          <div>
-            <Label>Phone</Label>
-            <Input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Phone number"
-              data-testid="input-phone"
-            />
-          </div>
+            <div>
+              <Label>Contact name</Label>
+              <Input
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+                placeholder="Primary contact person"
+                data-testid="input-contact-name"
+              />
+            </div>
+            
+            <div>
+              <Label>Phone</Label>
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Phone number"
+                data-testid="input-phone"
+              />
+            </div>
 
-          <div className="md:col-span-2">
-            <Label>Email</Label>
-            <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="contact@company.com"
-              type="email"
-              data-testid="input-email"
-            />
-          </div>
+            <div className="md:col-span-2">
+              <Label>Email</Label>
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="contact@company.com"
+                type="email"
+                data-testid="input-email"
+              />
+            </div>
 
-          <div className="md:col-span-2">
-            <Label>Street Address</Label>
-            <Input
-              value={street}
-              onChange={(e) => setStreet(e.target.value)}
-              placeholder="123 Main Street"
-              data-testid="input-street"
-            />
-          </div>
+            <div className="md:col-span-2">
+              <Label>Street Address</Label>
+              <Input
+                value={street}
+                onChange={(e) => setStreet(e.target.value)}
+                placeholder="123 Main Street"
+                data-testid="input-street"
+              />
+            </div>
 
-          <div>
-            <Label>Suburb</Label>
-            <Input
-              value={suburb}
-              onChange={(e) => setSuburb(e.target.value)}
-              placeholder="Suburb"
-              data-testid="input-suburb"
-            />
-          </div>
+            <div>
+              <Label>Suburb</Label>
+              <Input
+                value={suburb}
+                onChange={(e) => setSuburb(e.target.value)}
+                placeholder="Suburb"
+                data-testid="input-suburb"
+              />
+            </div>
 
-          <div>
-            <Label>State</Label>
-            <Input
-              value={state}
-              onChange={(e) => setState(e.target.value)}
-              placeholder="State"
-              data-testid="input-state"
-            />
-          </div>
+            <div>
+              <Label>State</Label>
+              <Input
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+                placeholder="State"
+                data-testid="input-state"
+              />
+            </div>
 
-          <div className="md:col-span-2">
-            <Label>Postcode</Label>
-            <Input
-              value={postcode}
-              onChange={(e) => setPostcode(e.target.value)}
-              placeholder="Postcode"
-              data-testid="input-postcode"
-            />
+            <div className="md:col-span-2">
+              <Label>Postcode</Label>
+              <Input
+                value={postcode}
+                onChange={(e) => setPostcode(e.target.value)}
+                placeholder="Postcode"
+                data-testid="input-postcode"
+              />
+            </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={mutation.isPending} data-testid="button-save-customer">
-            {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {isEdit ? "Update" : "Create"} Customer
-          </Button>
+        {/* Sticky footer actions */}
+        <div className="sticky bottom-0 border-t bg-white/95 backdrop-blur px-1 py-4 mt-2">
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => onOpenChange(false)} 
+              disabled={mutation.isPending}
+              className="flex-1 sm:flex-none"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSave} 
+              disabled={mutation.isPending} 
+              data-testid="button-save-customer"
+              className="flex-1 sm:flex-none"
+            >
+              {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isEdit ? "Update" : "Create"} Customer
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

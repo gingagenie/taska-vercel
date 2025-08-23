@@ -6,6 +6,16 @@ Taska is a comprehensive field service management application built with a moder
 
 ## Recent Changes (August 2025)
 
+### Email/Password Authentication System (August 23, 2025)
+- **Session-Based Authentication**: Replaced header-based dev auth with proper email/password authentication
+- **PostgreSQL Session Store**: Implemented secure session storage using connect-pg-simple with existing database
+- **User Registration & Login**: Built complete auth flow with bcrypt password hashing and email validation
+- **Multi-tenant Session Support**: Sessions properly scope to organization context for data isolation
+- **Backward Compatibility**: Maintained header-based auth for development while adding session support
+- **Landing Page System**: Created marketing landing page for unauthenticated users with feature highlights
+- **Demo Account Ready**: `demo@taska.com` / `demo123` for testing and demonstrations
+- **Session Security**: 30-day session expiry, httpOnly cookies, proper logout with session destruction
+
 ### Complete Members Management Fix (August 23, 2025)
 - **Database Schema Resolution**: Created missing `team_members` table and ensured all user table columns exist
 - **SQL Query Fixes**: Removed all unnecessary UUID casting (`::uuid`) that was causing type mismatch errors
@@ -114,12 +124,14 @@ PostgreSQL database with Drizzle ORM for type-safe database operations:
 - **Type Safety**: Generated TypeScript types from database schema
 
 ### Authentication and Authorization
-Header-based authentication with organization-level access control:
+Session-based authentication with PostgreSQL storage and organization-level access control:
 
-- **Development Auth**: Temporary header-based system (x-user-id) for rapid development
-- **Multi-tenancy**: Organization scoping with x-org-id header
-- **Authorization Middleware**: Role-based access control with pro feature gating
-- **Future-ready**: Architecture designed for easy JWT/session replacement
+- **Session Authentication**: Email/password login with bcrypt hashing and secure session management
+- **PostgreSQL Session Store**: Sessions stored in database with 30-day expiry and httpOnly cookies
+- **Multi-tenancy**: Organization scoping maintained through session context (orgId stored in session)
+- **Authorization Middleware**: Role-based access control with pro feature gating, supports both session and header auth
+- **Development Compatibility**: Header-based auth (x-user-id, x-org-id) maintained for development convenience
+- **Demo Account**: `demo@taska.com` / `demo123` available for testing and demonstrations
 
 ### Component Design System
 Shadcn/ui component library with Tailwind CSS for consistent styling:

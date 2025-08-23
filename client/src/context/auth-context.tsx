@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { clearDevAuth } from "@/lib/api";
 
 interface User {
   id: string;
@@ -22,6 +23,7 @@ interface AuthContextType {
   isProUser: boolean;
   setIsProUser: (isPro: boolean) => void;
   reload: () => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -58,6 +60,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.invalidateQueries();
   };
 
+  const logout = () => {
+    clearDevAuth(); // Clear any dev headers
+    window.location.href = '/api/auth/logout';
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -68,7 +75,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSelectedOrgId,
       isProUser,
       setIsProUser,
-      reload
+      reload,
+      logout
     }}>
       {children}
     </AuthContext.Provider>

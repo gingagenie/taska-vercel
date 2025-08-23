@@ -75,18 +75,8 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Always-on auth shim for API (inject demo ids if missing)
-app.use((req, _res, next) => {
-  if (req.path.startsWith("/api")) {
-    if (!req.headers["x-user-id"]) {
-      req.headers["x-user-id"] = process.env.DEMO_USER_ID || "315e3119-1b17-4dee-807f-bbc1e4d5c5b6";
-    }
-    if (!req.headers["x-org-id"]) {
-      req.headers["x-org-id"] = process.env.DEMO_ORG_ID || "4500ba4e-e575-4f82-b196-27dd4c7d0eaf";
-    }
-  }
-  next();
-});
+// Remove default header injection - session auth only in production
+// In development, allow headers but don't default to demo values
 
 /** Quick health checks (sanity) */
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -96,9 +86,11 @@ app.get("/health/db", (_req, res) => res.json({ ok: true })); // replace with re
 import members from "./routes/members";
 import auth from "./routes/auth";
 import { health } from "./routes/health";
+import { debugRouter } from "./routes/debug";
 app.use("/api/me", me);
 app.use("/api/auth", auth);
 app.use("/api/members", members);
+app.use("/api/debug", debugRouter);
 app.use("/health", health);
 
 // Legacy compatibility endpoint

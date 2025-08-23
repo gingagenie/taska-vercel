@@ -96,17 +96,24 @@ export default function JobView() {
                 customer_address: job.customer_address 
               });
               
-              // For testing purposes, if no real address, use a demo address
-              const testAddress = job.customer_address || "1600 Amphitheatre Parkway, Mountain View, CA";
-              const customerName = job.customer_name || "Test Location";
+              // Use customer address if available, otherwise fallback to customer name search
+              const address = job.customer_address;
+              const customerName = job.customer_name || "Unknown Location";
               
-              console.log("Opening maps with:", { customerName, testAddress });
-              openMaps(customerName, testAddress);
+              if (address) {
+                console.log("Opening maps with customer address:", address);
+                openMaps(customerName, address);
+              } else if (customerName && customerName !== "Unknown Location") {
+                console.log("Opening maps with customer name search:", customerName);
+                openMaps(customerName);
+              } else {
+                console.warn("No navigation destination available");
+              }
             }}
-            disabled={false} // Enable for testing
+            disabled={!job.customer_address && !job.customer_name}
             title={
               !job.customer_address && !job.customer_name 
-                ? "Testing navigation with demo address" 
+                ? "No destination available" 
                 : job.customer_address 
                   ? "Navigate to customer address" 
                   : "Search for customer location"

@@ -1,0 +1,206 @@
+---
+
+1) Tenancy: make requireOrg bulletproof (fallback via user → org)
+
+Edit: server/middleware/tenancy.ts
+
+import { Request, Response, NextFunction } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+
+export async function requireOrg(req: Request, res: Response, next: NextFunction) {
+  const sessOrg = (req.session as any)?.orgId as string | undefined;
+  const headerOrg = (req.headers["x-org-id"] as string | undefined) || undefined;
+  const isProd = process.env.NODE_ENV === "production";
+
+  let chosen = isProd ? sessOrg : (sessOrg || headerOrg);
+
+  // 🔁 Fallback: if we have a user but no org yet (mobile not sending cookie),
+  // derive the org from the user row once.
+  if (!chosen && (req.session as any)?.userId) {
+    const userId = (req.session as any).userId as string;
+    const r: any = await db.execute(sql`
+      select org_id from users where id=${userId}::uuid
+    `);
+    const derived = r.rows?.[0]?.org_id;
+    if (derived) chosen = derived;
+  }
+
+  if (!chosen) return res.status(400).json({ error: "No organization selected" });
+
+  // Safety: if both present and conflict, reject
+  if (sessOrg && headerOrg && sessOrg !== headerOrg) {
+    return res.status(400).json({ error: "Org mismatch between session and header" });
+  }
+
+  (req as any).orgId = chosen;
+  next();
+}
+
+> This means even if the mobile webview isn’t sending the cookie yet, as long as the session has a userId, the server will pull org_id from that user and attach it.
+
+
+
+
+---
+
+2) Customers API: ensure org is always written on create
+
+Edit: server/routes/customers.ts (or wherever your customers router lives)
+
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+
+export const customers = Router();
+
+/* LIST (scoped) */
+customers.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    select id, name, contact, phone, email,
+           street, suburb, state, postcode,
+           created_at
+    from customers
+    where org_id=${orgId}::uuid
+    order by created_at desc
+  `);
+  res.json(r.rows);
+});
+
+/* CREATE (force org_id) */
+customers.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const {
+    name, contact, phone, email,
+    street, suburb, state, postcode, notes
+  } = req.body || {};
+
+  if (!name) return res.status(400).json({ error: "name required" });
+
+  const ins: any = await db.execute(sql`
+    insert into customers (
+      org_id, name, contact, phone, email,
+      street, suburb, state, postcode, notes
+    ) values (
+      ${orgId}::uuid, ${name}, ${contact||null}, ${phone||null}, ${email||null},
+      ${street||null}, ${suburb||null}, ${state||null}, ${postcode||null}, ${notes||null}
+    )
+    returning id
+  `);
+
+  const row: any = await db.execute(sql`
+    select id, name, contact, phone, email,
+           street, suburb, state, postcode, notes, created_at
+    from customers
+    where id=${ins.rows[0].id}::uuid
+  `);
+
+  res.json({ ok: true, customer: row.rows[0] });
+});
+
+> This guarantees the insert always carries org_id, preventing the FK violation.
+
+
+
+
+---
+
+3) Mobile/API calls: include cookies OR pass headers
+
+If your mobile app is a WebView hitting a different origin, cookies may not ride along. Two quick options (choose one):
+
+A) Cookies: ensure your mobile fetches use credentials: "include" and your server session cookie uses SameSite: "none" + secure: true in prod (we set this earlier).
+
+B) Headers: after login, call:
+
+setAuth("<user-uuid>", "<org-uuid>");
+
+so the client sends x-user-id / x-org-id headers until we wire a proper token.
+(You already have setAuth in client/src/lib/api.ts.)
+
+
+Either way, with the new requireOrg fallback you should be covered, but A is preferred.
+
+
+---
+
+4) Make the “New Customer” screen scrollable on mobile
+
+Wrap the page with a safe, scrollable layout that respects the on-screen keyboard.
+
+Edit: client/src/pages/customers-new.tsx (or your create form page)
+
+export default function CustomerNew() {
+  // ...state + handlers...
+
+  return (
+    <div className="min-h-[100svh] flex flex-col bg-white">
+      {/* Content scroll area */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+        <div className="max-w-xl mx-auto space-y-4">
+          {/* Your form fields */}
+          {/* Example: */}
+          {/* <Input label="Company Name" ... /> */}
+          {/* <Input label="Contact" ... /> */}
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"> address fields ... </div> */}
+          {/* <Textarea label="Notes" ... /> */}
+        </div>
+      </div>
+
+      {/* Sticky footer actions */}
+      <div className="sticky bottom-0 inset-x-0 border-t bg-white/80 backdrop-blur px-4 py-3 sm:px-6">
+        <div className="max-w-xl mx-auto flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 sm:flex-none px-4 py-2 rounded-md border text-gray-700"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            className="flex-1 sm:flex-none px-4 py-2 rounded-md bg-blue-600 text-white"
+          >
+            Save Customer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Also make sure your index.html has a viewport with safe areas for iOS:
+
+<meta name="viewport"
+  content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+
+> Notes:
+
+min-h-[100svh] uses the new small viewport unit to avoid iOS Safari’s URL bar jumps.
+
+flex-1 overflow-y-auto makes the content scroll.
+
+Sticky footer keeps “Save” visible above the keyboard.
+
+Use pb-24 on the form area if you need extra space above the footer when the keyboard opens.
+
+
+
+
+
+---
+
+5) Quick test checklist
+
+On the mobile app, open DevTools (if you can) or log network:
+
+POST /api/customers returns { ok: true, customer: {...} }
+
+GET /api/customers now shows the new row without refresh (you already have react-query invalidation).
+
+
+In Neon, the new customer row should have org_id = <your org>.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { customersApi } from "@/lib/api";
 import { Link, useLocation } from "wouter";
@@ -6,12 +6,9 @@ import { Link, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { CustomerModal } from "@/components/modals/customer-modal";
 
-
-
-import { Mail, Phone, MapPin, MoreHorizontal } from "lucide-react";
+import { Mail, Phone, MapPin, MoreHorizontal, Edit, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -63,20 +60,16 @@ export default function Customers() {
   }, [list, q]);
 
   return (
-    <div className="space-y-5">
-      {/* Page header */}
+    <div className="space-y-4">
       <div className="header-row">
-        <div>
-          <h1 className="text-2xl font-bold">Customers</h1>
-          <div className="text-sm text-gray-500">{list.length} total</div>
-        </div>
+        <h1 className="text-2xl font-bold">Customers</h1>
         <div className="header-actions">
           <Input
             placeholder="Search company, contact, email…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="w-full sm:w-72"
-            data-testid="input-search"
+            className="w-72"
+            data-testid="input-search-customers"
           />
           <Button 
             onClick={() => setOpenCreate(true)} 
@@ -88,126 +81,107 @@ export default function Customers() {
         </div>
       </div>
 
-      {/* Customer table */}
       {isLoading ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-gray-500">
-            Loading…
+          <CardContent className="py-12 text-center">
+            <p className="text-gray-500">Loading customers...</p>
           </CardContent>
         </Card>
       ) : filtered.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-gray-500">
-            No customers found
+          <CardContent className="py-12 text-center">
+            <p className="text-gray-500">
+              {q ? "No customers match your search" : "No customers found. Create your first customer!"}
+            </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="table-wrap">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-gray-50 text-gray-600 text-xs uppercase">
-              <tr className="[&>th]:px-4 [&>th]:py-3">
-                <th className="text-left">Company</th>
-                <th className="text-left">Contact</th>
-                <th className="text-left">Email</th>
-                <th className="text-left">Phone</th>
-                <th className="text-left">Address</th>
-                <th className="text-left w-10"> </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((c: any, i: number) => {
-                const addr = addrLine(c);
-                const hue = hueFrom(c.name);
-                return (
-                  <tr
-                    key={c.id}
-                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${i % 2 ? "bg-gray-50/30" : "bg-white"}`}
-                    onClick={() => navigate(`/customers/${c.id}`)}
-                    data-testid={`row-customer-${c.id}`}
-                  >
-                    {/* Company */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3 min-w-0">
+        <div className="grid gap-4">
+          {filtered.map((c: any) => {
+            const addr = addrLine(c);
+            const hue = hueFrom(c.name);
+            return (
+              <Card key={c.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-start gap-3">
                         <div
-                          className="h-9 w-9 flex items-center justify-center rounded-lg text-white text-xs font-semibold shadow-sm shrink-0"
+                          className="h-12 w-12 flex items-center justify-center rounded-lg text-white text-sm font-semibold shadow-sm shrink-0"
                           style={{ background: `hsl(${hue} 70% 45%)` }}
                         >
                           {initials(c.name)}
                         </div>
-                        <div className="min-w-0">
-                          <div className="font-medium truncate max-w-[280px]">{c.name}</div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-lg">
+                            {c.name || "Unnamed Customer"}
+                          </div>
                           {c.contact_name && (
-                            <div className="text-xs text-gray-500 truncate max-w-[280px]">
-                              Primary: {c.contact_name}
+                            <div className="text-sm text-gray-600">
+                              Contact: {c.contact_name}
                             </div>
                           )}
                         </div>
                       </div>
-                    </td>
-
-                    {/* Contact */}
-                    <td className="px-4 py-3">
-                      <div className="truncate max-w-[180px]">{c.contact_name || "—"}</div>
-                    </td>
-
-                    {/* Email */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 truncate max-w-[240px] text-gray-700">
-                        <Mail className="h-3.5 w-3.5 opacity-60" />
-                        <span className="truncate">{c.email || "—"}</span>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <div className="text-gray-500">Email</div>
+                          <div className="font-medium flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            {c.email || "—"}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-gray-500">Phone</div>
+                          <div className="font-medium flex items-center gap-1">
+                            <Phone className="h-3 w-3" />
+                            {c.phone || "—"}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-gray-500">Address</div>
+                          <div className="font-medium flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {addr || "—"}
+                          </div>
+                        </div>
                       </div>
-                    </td>
-
-                    {/* Phone */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 truncate max-w-[160px] text-gray-700">
-                        <Phone className="h-3.5 w-3.5 opacity-60" />
-                        <span className="truncate">{c.phone || "—"}</span>
-                      </div>
-                    </td>
-
-                    {/* Address */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 truncate max-w-[360px] text-gray-700">
-                        <MapPin className="h-3.5 w-3.5 opacity-60" />
-                        <span className="truncate">{addr || "—"}</span>
-                      </div>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-70 hover:opacity-100">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Actions</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-36">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/customers/${c.id}`}><a>View</a></Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/customers/${c.id}`)}>
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-700"
-                            onClick={() => navigate(`/customers/${c.id}`)} // delete modal lives on view page
-                          >
-                            Delete…
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 opacity-70 hover:opacity-100"
+                          data-testid={`button-actions-customer-${c.id}`}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-36">
+                        <DropdownMenuItem onClick={() => navigate(`/customers/${c.id}`)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/customers/${c.id}`)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      {/* Create modal */}
       <CustomerModal open={openCreate} onOpenChange={setOpenCreate} />
     </div>
   );

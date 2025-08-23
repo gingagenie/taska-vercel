@@ -1,14 +1,15 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { JobModal } from "@/components/modals/job-modal";
 import { jobsApi } from "@/lib/api";
-import { Eye, Edit } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Eye, Edit, MoreHorizontal, Calendar, User } from "lucide-react";
 
 export default function Jobs() {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
@@ -64,145 +65,125 @@ export default function Jobs() {
   }
 
   return (
-    <div className="p-4 sm:p-6">
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <CardTitle className="text-lg sm:text-xl">All Jobs</CardTitle>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="done">Done</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="Search by title, customer, or ID…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full sm:w-64"
-              />
-              <Button onClick={() => setIsJobModalOpen(true)}>New Job</Button>
-            </div>
-          </div>
-        </CardHeader>
+    <div className="space-y-4">
+      <div className="header-row">
+        <h1 className="text-2xl font-bold">Jobs</h1>
+        <div className="header-actions">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="new">New</SelectItem>
+              <SelectItem value="scheduled">Scheduled</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="done">Done</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            placeholder="Search title, customer, ID…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-72"
+            data-testid="input-search-jobs"
+          />
+          <Button 
+            onClick={() => setIsJobModalOpen(true)}
+            data-testid="button-new-job"
+            data-mobile-full="true"
+          >
+            New Job
+          </Button>
+        </div>
+      </div>
 
-        <CardContent>
-          {filteredJobs.length === 0 ? (
-            <div className="text-center py-8">
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No jobs found</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                {jobs.length === 0 ? "Get started by creating a new job." : "Try adjusting your search or filter."}
-              </p>
-            </div>
-          ) : (
-            <>
-            {/* Mobile Card View */}
-            <div className="block md:hidden space-y-4">
-              {filteredJobs.map((job: any) => (
-                <Card key={job.id} className="p-4 cursor-pointer hover:bg-gray-50" onClick={() => navigate(`/jobs/${job.id}`)}>
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900 text-sm">{job.title}</h3>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {job.description?.trim()
-                          ? job.description
-                          : "No description yet"}
+      {filteredJobs.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-gray-500">
+              {jobs.length === 0 ? "No jobs found. Create your first job!" : "No jobs match your search or filter"}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredJobs.map((job: any) => (
+            <Card key={job.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-start gap-3">
+                      <div className="font-semibold text-lg">
+                        {job.title || "Untitled Job"}
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">{job.customer_name || "Not assigned"}</p>
+                      <Badge className={getStatusBadgeClass(job.status)}>
+                        {(job.status || "new").replace("_", " ")}
+                      </Badge>
                     </div>
-                    <Badge className={getStatusBadgeClass(job.status)}>
-                      {(job.status || "new").replace("_", " ")}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-500">
-                      {job.scheduled_at ? new Date(job.scheduled_at).toLocaleString() : "Not scheduled"}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-gray-600 hover:text-gray-900 p-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/jobs/${job.id}/edit`);
-                        }}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-            
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scheduled</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredJobs.map((job: any) => (
-                    <tr key={job.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/jobs/${job.id}`)}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{job.title}</div>
-                          <div className="text-sm text-gray-500">
-                            {job.description?.trim()
-                              ? job.description
-                              : "No description yet"}
-                          </div>
+                    
+                    {job.description && (
+                      <div className="text-sm text-gray-600">
+                        {job.description}
+                      </div>
+                    )}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <div className="text-gray-500">Customer</div>
+                        <div className="font-medium flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          {job.customer_name || "Not assigned"}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {job.customer_name || "Not assigned"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge className={getStatusBadgeClass(job.status)}>
-                          {(job.status || "new").replace("_", " ")}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {job.scheduled_at ? new Date(job.scheduled_at).toLocaleString() : "Not scheduled"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-gray-600 hover:text-gray-800"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/jobs/${job.id}/edit`);
-                          }}
-                        >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                      </div>
+                      
+                      <div>
+                        <div className="text-gray-500">Scheduled</div>
+                        <div className="font-medium flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {job.scheduled_at ? new Date(job.scheduled_at).toLocaleDateString() : "Not scheduled"}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-gray-500">Time</div>
+                        <div className="font-medium">
+                          {job.scheduled_at ? new Date(job.scheduled_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "—"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0 opacity-70 hover:opacity-100"
+                        data-testid={`button-actions-job-${job.id}`}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="sr-only">Actions</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-36">
+                      <DropdownMenuItem onClick={() => navigate(`/jobs/${job.id}`)}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        View
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate(`/jobs/${job.id}/edit`)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <JobModal 
         open={isJobModalOpen} 

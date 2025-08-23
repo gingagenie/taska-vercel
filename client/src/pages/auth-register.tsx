@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/context/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Label } from "@/components/ui/label";
 
 export default function Register() {
   const [, nav] = useLocation();
+  const { reload } = useAuth();
   const [orgName, setOrgName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,6 +24,7 @@ export default function Register() {
     
     try {
       await apiRequest("POST", "/api/auth/register", { orgName, name, email, password });
+      await reload(); // Ensure user is set from session cookie
       nav("/"); // now logged in via session
     } catch (e: any) {
       setError(e.message || "Failed to create account");

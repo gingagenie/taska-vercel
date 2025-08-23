@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface User {
   id: string;
@@ -21,6 +21,7 @@ interface AuthContextType {
   setSelectedOrgId: (orgId: string) => void;
   isProUser: boolean;
   setIsProUser: (isPro: boolean) => void;
+  reload: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,12 +30,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [organizations] = useState<any[]>([]);
   const [isProUser, setIsProUser] = useState(false);
+  const queryClient = useQueryClient();
 
   // Check authentication status from session
-  const { data: authData, isLoading, error } = useQuery({
+  const { data: authData, isLoading, error, refetch } = useQuery({
     queryKey: ["/api/auth/me"],
     retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always fresh to catch session changes
   });
 
   const user = authData ? {
@@ -50,6 +52,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = !!authData && !error;
 
+  const reload = async () => {
+    await refetch();
+    // Also invalidate all other queries to refresh the app state
+    queryClient.invalidateQueries();
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -59,7 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       organizations,
       setSelectedOrgId,
       isProUser,
-      setIsProUser
+      setIsProUser,
+      reload
     }}>
       {children}
     </AuthContext.Provider>

@@ -97,17 +97,41 @@ router.post("/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
-router.get("/me", (req, res) => {
+router.get("/me", async (req, res) => {
   const userId = req.session?.userId;
+  const orgId = req.session?.orgId;
+  
   if (!userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
   
-  // Return user info from session - you could also fetch from DB
-  res.json({ 
-    id: userId, 
-    orgId: req.session?.orgId 
-  });
+  try {
+    // Fetch full user info from database
+    const r: any = await db.execute(sql`
+      select id, name, email, role, avatar_url, avatar_seed, avatar_variant
+      from users 
+      where id = ${userId}
+    `);
+    const user = r.rows?.[0];
+    
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+    
+    res.json({ 
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      avatar_url: user.avatar_url,
+      avatar_seed: user.avatar_seed,
+      avatar_variant: user.avatar_variant,
+      orgId: orgId
+    });
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    res.status(500).json({ error: "Failed to fetch user" });
+  }
 });
 
 export default router;

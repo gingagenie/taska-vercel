@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/context/auth-context";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Label } from "@/components/ui/label";
 
 export default function Login() {
   const [, nav] = useLocation();
+  const { reload } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +22,7 @@ export default function Login() {
     
     try {
       await apiRequest("POST", "/api/auth/login", { email, password });
+      await reload(); // Ensure user is set from session cookie
       nav("/");
     } catch (e: any) {
       setError(e.message || "Failed to log in");

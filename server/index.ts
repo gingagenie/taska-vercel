@@ -6,7 +6,17 @@ import { ensureUsersTableShape } from "./db/ensure";
 import fs from "node:fs";
 import path from "node:path";
 
+import cors from "cors";
+
 const app = express();
+
+// CORS setup for credentials
+const origin = process.env.CLIENT_ORIGIN || true;
+app.use(cors({
+  origin,
+  credentials: true, // Allow cookies
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -18,6 +28,11 @@ import { Pool } from "pg";
 const PgStore = pgSession(session as any);
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+// Trust proxy for Replit environment
+app.set("trust proxy", 1);
+
+const isProd = process.env.NODE_ENV === "production";
+
 app.use(
   session({
     store: new PgStore({ pool, tableName: "session" }),
@@ -25,8 +40,9 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      sameSite: "lax",
       httpOnly: true,
+      sameSite: isProd ? "none" : "lax",
+      secure: isProd ? true : false,
       maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
     },
   })

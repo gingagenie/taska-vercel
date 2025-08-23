@@ -34,11 +34,15 @@ router.post("/register", async (req, res) => {
     `);
     const user = userIns.rows[0];
 
-    // Set session
-    req.session.userId = user.id;
-    req.session.orgId = orgId;
-
-    res.json({ ok: true, orgId, user });
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ error: "session error" });
+      req.session.userId = user.id;
+      req.session.orgId = orgId;
+      req.session.save((err2) => {
+        if (err2) return res.status(500).json({ error: "session save error" });
+        res.json({ ok: true, orgId, user });
+      });
+    });
   } catch (error: any) {
     console.error("Register error:", error);
     if (error.message?.includes("duplicate key")) {
@@ -78,14 +82,18 @@ router.post("/login", async (req, res) => {
     // Update last login
     await db.execute(sql`update users set last_login_at = now() where id = ${user.id}`);
 
-    // Set session
-    req.session.userId = user.id;
-    req.session.orgId = user.org_id;
-
-    res.json({ 
-      ok: true, 
-      orgId: user.org_id, 
-      user: { id: user.id, name: user.name, email: user.email, role: user.role } 
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ error: "session error" });
+      req.session.userId = user.id;
+      req.session.orgId = user.org_id;
+      req.session.save((err2) => {
+        if (err2) return res.status(500).json({ error: "session save error" });
+        res.json({ 
+          ok: true, 
+          orgId: user.org_id, 
+          user: { id: user.id, name: user.name, email: user.email, role: user.role } 
+        });
+      });
     });
   } catch (error: any) {
     console.error("Login error:", error);

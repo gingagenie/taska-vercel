@@ -10,28 +10,31 @@ import cors from "cors";
 
 const app = express();
 
-// CORS setup for credentials
-const origin = process.env.CLIENT_ORIGIN || true;
-app.use(cors({
-  origin,
-  credentials: true, // Allow cookies
-}));
+// 1) TRUST the Replit/Proxy so secure cookies survive
+app.set("trust proxy", 1);
+
+const isProd = process.env.NODE_ENV === "production";
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || undefined; 
+// e.g. "https://your-deploy-client.replit.app" or custom domain
+
+// 2) If your client hits a DIFFERENT origin than the API, enable CORS with credentials
+if (CLIENT_ORIGIN) {
+  app.use(cors({
+    origin: CLIENT_ORIGIN,
+    credentials: true,
+  }));
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Session support
+// 3) Session store + cookie flags that work in Deploy
 import session from "express-session";
 import pgSession from "connect-pg-simple";
 import { Pool } from "pg";
 
 const PgStore = pgSession(session as any);
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-// Trust proxy for Replit environment
-app.set("trust proxy", 1);
-
-const isProd = process.env.NODE_ENV === "production";
 
 app.use(
   session({
@@ -41,9 +44,10 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      sameSite: isProd ? "none" : "lax",
-      secure: isProd ? true : false,
-      maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+      // If cross-origin in production, cookie must be SameSite=None + Secure
+      sameSite: (CLIENT_ORIGIN && isProd) ? "none" : "lax",
+      secure: (CLIENT_ORIGIN && isProd) ? true : false,
+      maxAge: 1000 * 60 * 60 * 24 * 30,
     },
   })
 );

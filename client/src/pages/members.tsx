@@ -13,7 +13,12 @@ import { useToast } from "@/hooks/use-toast";
 export default function MembersPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: list = [], isLoading } = useQuery({ queryKey: ["/api/members"], queryFn: membersApi.getAll });
+  const { data: list = [], isLoading } = useQuery({
+    queryKey: ["/api/members"],
+    queryFn: membersApi.getAll,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -188,6 +193,7 @@ export default function MembersPage() {
 
 function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenChange:(v:boolean)=>void; onSaved:()=>void; }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<string>("technician");
@@ -198,6 +204,28 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
     setSaving(true);
     try {
       const result = await membersApi.create({ email, name, role, phone });
+      
+      // Optimistically insert at top of cache
+      qc.setQueryData<any[]>(["/api/members"], (old) => {
+        const prev = Array.isArray(old) ? old : [];
+        // avoid duplicate if it already exists (by id)
+        const next = prev.filter(u => u.id !== result.user?.id);
+        return result.user ? [result.user, ...next] : prev;
+      });
+      
+      onOpenChange(false);
+      onSaved(); // still triggers invalidateQueries as a safety net
+      
+      // Reset fields
+      setEmail("");
+      setName("");
+      setRole("technician");
+      setPhone("");
+      
+      toast({
+        title: "Member added",
+        description: `${name || email} has been added to the team.`,
+      });
       onOpenChange(false);
       onSaved();
       setEmail(""); setName(""); setRole("technician"); setPhone("");

@@ -17,7 +17,7 @@ members.get("/", requireAuth, requireOrg, async (req, res) => {
       select id, email, name, role, phone, avatar_url, created_at
       from users
       where org_id=${orgId}::uuid
-      order by created_at desc
+      order by created_at desc, id desc
     `);
     res.json(r.rows);
   } catch (error: any) {
@@ -51,7 +51,11 @@ members.post("/", requireAuth, requireOrg, async (req, res) => {
           email = ${email}
         where id=${id}::uuid
       `);
-      return res.json({ ok: true, id, created: false });
+      const row: any = await db.execute(sql`
+        select id, email, name, role, phone, avatar_url, created_at
+        from users where id=${id}::uuid
+      `);
+      return res.json({ ok: true, created: false, user: row.rows[0] });
     }
 
     const ins: any = await db.execute(sql`
@@ -59,7 +63,11 @@ members.post("/", requireAuth, requireOrg, async (req, res) => {
       values (${orgId}::uuid, ${email}, ${name || null}, ${roleNorm}, ${phone || null})
       returning id
     `);
-    res.json({ ok: true, id: ins.rows[0].id, created: true });
+    const row: any = await db.execute(sql`
+      select id, email, name, role, phone, avatar_url, created_at
+      from users where id=${ins.rows[0].id}::uuid
+    `);
+    res.json({ ok: true, created: true, user: row.rows[0] });
   } catch (error: any) {
     console.error("POST /api/members error:", error);
     res.status(500).json({ error: error?.message || "Failed to create member" });

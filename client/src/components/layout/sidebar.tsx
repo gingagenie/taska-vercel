@@ -127,7 +127,7 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
       <button
         onClick={async () => {
           try {
-            await apiRequest("/api/auth/logout", { method: "POST" });
+            await apiRequest("/api/auth/logout", "POST");
             window.location.href = "/";
           } catch (error) {
             console.error("Logout failed:", error);

@@ -79,10 +79,8 @@ export default function Login() {
             </Button>
             <div className="text-center text-sm text-gray-600">
               Don't have an account?{" "}
-              <Link href="/auth/register">
-                <a className="text-blue-600 hover:underline" data-testid="link-register">
-                  Create one
-                </a>
+              <Link href="/auth/register" className="text-blue-600 hover:underline" data-testid="link-register">
+                Create one
               </Link>
             </div>
           </form>

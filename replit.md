@@ -2,7 +2,14 @@
 
 ## Overview
 
-Taska is a comprehensive field service management application built with a modern full-stack architecture. The application enables service businesses to manage jobs, customers, equipment, teams, quotes, and invoices through an intuitive web interface. It features a React frontend with TypeScript, an Express.js backend API, and PostgreSQL database with Drizzle ORM for data management.
+Taska is a comprehensive field service management application built with a modern full-stack **React web architecture** (not Flutter mobile). The application enables service businesses to manage jobs, customers, equipment, teams, quotes, and invoices through an intuitive responsive web interface. It features a React frontend with TypeScript, an Express.js backend API, and PostgreSQL database with Drizzle ORM for data management.
+
+**Technology Stack:**
+- **Frontend**: React 18 + TypeScript + Tailwind CSS (responsive web, not Flutter)
+- **Backend**: Express.js + TypeScript with RESTful API design
+- **Database**: PostgreSQL with Drizzle ORM for type-safe operations
+- **Authentication**: Session-based auth with email/password login
+- **Mobile Support**: Responsive web design optimized for mobile browsers
 
 ## Recent Changes (August 2025)
 
@@ -23,6 +30,15 @@ Taska is a comprehensive field service management application built with a moder
 - **Optimistic UI Updates**: Added real-time cache updates with automatic invalidation fallbacks
 - **Error Resolution**: Fixed "relation team_members does not exist" and "operator does not exist" SQL errors
 - **Full CRUD Operations**: Add, delete, and list members now work seamlessly with proper error handling
+
+### Mobile-Optimized Customer Form (August 23, 2025)
+- **Fixed Bottom Buttons**: Cancel/Create Customer buttons now permanently anchored to bottom of modal
+- **Keyboard-Aware Layout**: Buttons remain visible and accessible when mobile keyboard appears
+- **Scrollable Content Area**: Form fields scroll independently above the fixed button footer
+- **Full-Width Touch Targets**: Mobile-optimized button layout with proper spacing and touch areas
+- **Enhanced Viewport Support**: Updated meta tag with viewport-fit=cover for iOS safe area compatibility
+- **Responsive Design**: Seamless experience across desktop, tablet, and mobile devices
+- **Professional Styling**: Enhanced backdrop blur and proper visual hierarchy for production quality
 
 ### Route-Aware Header System & Avatar Fixes (January 23, 2025)
 - **Route-Aware Headers**: Implemented intelligent header component that detects current route and displays proper page titles

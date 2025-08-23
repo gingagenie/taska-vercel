@@ -16,7 +16,7 @@ members.get("/", requireAuth, requireOrg, async (req, res) => {
     const r: any = await db.execute(sql`
       select id, email, name, role, phone, avatar_url, created_at
       from users
-      where org_id=${orgId}::uuid
+      where org_id=${orgId}
       order by created_at desc, id desc
     `);
     res.json(r.rows);
@@ -38,7 +38,7 @@ members.post("/", requireAuth, requireOrg, async (req, res) => {
     const roleNorm = ALLOWED_ROLES.has(String(role)) ? String(role) : "technician";
 
     const existing: any = await db.execute(sql`
-      select id from users where org_id=${orgId}::uuid and lower(email)=${emailLC}
+      select id from users where org_id=${orgId} and lower(email)=${emailLC}
     `);
 
     if (existing.rows?.[0]?.id) {
@@ -49,23 +49,23 @@ members.post("/", requireAuth, requireOrg, async (req, res) => {
           role  = ${roleNorm},
           phone = coalesce(${phone}, phone),
           email = ${email}
-        where id=${id}::uuid
+        where id=${id}
       `);
       const row: any = await db.execute(sql`
         select id, email, name, role, phone, avatar_url, created_at
-        from users where id=${id}::uuid
+        from users where id=${id}
       `);
       return res.json({ ok: true, created: false, user: row.rows[0] });
     }
 
     const ins: any = await db.execute(sql`
       insert into users (org_id, email, name, role, phone)
-      values (${orgId}::uuid, ${email}, ${name || null}, ${roleNorm}, ${phone || null})
+      values (${orgId}, ${email}, ${name || null}, ${roleNorm}, ${phone || null})
       returning id
     `);
     const row: any = await db.execute(sql`
       select id, email, name, role, phone, avatar_url, created_at
-      from users where id=${ins.rows[0].id}::uuid
+      from users where id=${ins.rows[0].id}
     `);
     res.json({ ok: true, created: true, user: row.rows[0] });
   } catch (error: any) {
@@ -85,9 +85,9 @@ members.delete("/:userId", requireAuth, requireOrg, async (req, res) => {
     // if ((req as any).user.id === userId) return res.status(400).json({ error: "cannot delete yourself" });
 
     // Remove from team_members first
-    await db.execute(sql`delete from team_members where user_id=${userId}::uuid`);
+    await db.execute(sql`delete from team_members where user_id=${userId}`);
     // Delete user (scoped to org)
-    await db.execute(sql`delete from users where id=${userId}::uuid and org_id=${orgId}::uuid`);
+    await db.execute(sql`delete from users where id=${userId} and org_id=${orgId}`);
     res.json({ ok: true });
   } catch (error: any) {
     console.error("DELETE /api/members error:", error);
@@ -108,7 +108,7 @@ members.post("/_compat/teams-add-member", requireAuth, requireOrg, async (req, r
     const roleNorm = ALLOWED_ROLES.has(String(role)) ? String(role) : "technician";
 
     const existing: any = await db.execute(sql`
-      select id from users where org_id=${orgId}::uuid and lower(email)=${emailLC}
+      select id from users where org_id=${orgId} and lower(email)=${emailLC}
     `);
 
     let userId: string;
@@ -120,12 +120,12 @@ members.post("/_compat/teams-add-member", requireAuth, requireOrg, async (req, r
           role  = ${roleNorm},
           phone = coalesce(${phone}, phone),
           email = ${email}
-        where id=${userId}::uuid
+        where id=${userId}
       `);
     } else {
       const ins: any = await db.execute(sql`
         insert into users (org_id, email, name, role, phone)
-        values (${orgId}::uuid, ${email}, ${name || null}, ${roleNorm}, ${phone || null})
+        values (${orgId}, ${email}, ${name || null}, ${roleNorm}, ${phone || null})
         returning id
       `);
       userId = ins.rows[0].id;
@@ -133,7 +133,7 @@ members.post("/_compat/teams-add-member", requireAuth, requireOrg, async (req, r
 
     await db.execute(sql`
       insert into team_members (team_id, user_id)
-      values (${teamId}::uuid, ${userId}::uuid)
+      values (${teamId}, ${userId})
       on conflict do nothing
     `);
 

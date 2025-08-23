@@ -95,9 +95,11 @@ app.get("/health/db", (_req, res) => res.json({ ok: true })); // replace with re
 /** Mount API routes that aren't part of registerRoutes */
 import members from "./routes/members";
 import auth from "./routes/auth";
+import { health } from "./routes/health";
 app.use("/api/me", me);
 app.use("/api/auth", auth);
 app.use("/api/members", members);
+app.use("/health", health);
 
 // Legacy compatibility endpoint
 app.post("/api/teams/add-member", (req, res, next) => {

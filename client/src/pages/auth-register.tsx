@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/context/auth-context";
+import { clearDevAuth } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,8 @@ export default function Register() {
     
     try {
       await apiRequest("POST", "/api/auth/register", { orgName, name, email, password });
-      await reload(); // Ensure user is set from session cookie
+      clearDevAuth();     // 👈 nuke dev headers
+      await reload();     // Ensure user is set from session cookie
       nav("/"); // now logged in via session
     } catch (e: any) {
       setError(e.message || "Failed to create account");

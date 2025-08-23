@@ -1,11 +1,13 @@
 // client/src/lib/api.ts
 const BASE = import.meta.env.VITE_API_BASE_URL || "";
 
-/** Demo/dev auth headers (overridable via setAuth) */
 function getAuthHeaders() {
-  const uid = localStorage.getItem("x-user-id") || "315e3119-1b17-4dee-807f-bbc1e4d5c5b6";
-  const oid = localStorage.getItem("x-org-id") || "4500ba4e-e575-4f82-b196-27dd4c7d0eaf";
-  return { "x-user-id": uid, "x-org-id": oid };
+  const uid = localStorage.getItem("x-user-id"); // no default
+  const oid = localStorage.getItem("x-org-id");  // no default
+  const h: Record<string,string> = {};
+  if (uid) h["x-user-id"] = uid;
+  if (oid) h["x-org-id"] = oid;
+  return h;
 }
 
 /** Low-level fetcher with timeout + good errors */
@@ -29,7 +31,7 @@ export async function api(path: string, init: RequestInit = {}) {
 
   let res: Response;
   try {
-    res = await fetch(url, { ...init, headers, signal: controller.signal });
+    res = await fetch(url, { ...init, headers, signal: controller.signal, credentials: "include" });
   } catch (e: any) {
     clearTimeout(to);
     if (e?.name === "AbortError") throw new Error("Request timed out");
@@ -56,6 +58,12 @@ export async function api(path: string, init: RequestInit = {}) {
 export function setAuth(uid: string, oid: string) {
   localStorage.setItem("x-user-id", uid);
   localStorage.setItem("x-org-id", oid);
+}
+
+// Ensure we can clear any old dev overrides
+export function clearDevAuth() {
+  localStorage.removeItem("x-user-id");
+  localStorage.removeItem("x-org-id");
 }
 
 /* ------------------------------------------------------------------ */

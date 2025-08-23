@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/context/auth-context";
+import { clearDevAuth } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,8 @@ export default function Login() {
     
     try {
       await apiRequest("POST", "/api/auth/login", { email, password });
-      await reload(); // Ensure user is set from session cookie
+      clearDevAuth();     // 👈 nuke dev headers
+      await reload();     // Ensure user is set from session cookie
       nav("/");
     } catch (e: any) {
       setError(e.message || "Failed to log in");

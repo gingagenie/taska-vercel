@@ -21,7 +21,7 @@ export default function Register() {
     setError(null);
     
     try {
-      await apiRequest("/api/auth/register", "POST", { orgName, name, email, password });
+      await apiRequest("POST", "/api/auth/register", { orgName, name, email, password });
       nav("/"); // now logged in via session
     } catch (e: any) {
       setError(e.message || "Failed to create account");

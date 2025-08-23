@@ -19,10 +19,7 @@ export default function Login() {
     setError(null);
     
     try {
-      await apiRequest("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
+      await apiRequest("/api/auth/login", "POST", { email, password });
       nav("/");
     } catch (e: any) {
       setError(e.message || "Failed to log in");

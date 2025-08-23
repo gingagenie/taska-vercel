@@ -121,7 +121,7 @@ function AppContent() {
       {/* Main content */}
       <div className="sm:ml-64">
         {/* Mobile header */}
-        <MobileHeader title={pageConfig.title} />
+        <MobileHeader />
         
         {/* Page container */}
         <main className="page">

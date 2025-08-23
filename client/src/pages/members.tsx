@@ -45,7 +45,7 @@ export default function MembersPage() {
         <h1 className="text-2xl font-bold">Team Members</h1>
         <div className="header-actions">
           <Input 
-            className="w-64" 
+            className="w-full sm:w-64" 
             placeholder="Search name, email, role…" 
             value={q} 
             onChange={(e)=>setQ(e.target.value)}
@@ -54,7 +54,7 @@ export default function MembersPage() {
           <Button 
             onClick={()=>setOpen(true)}
             data-testid="button-add-member"
-            data-mobile-full="true"
+            className="w-full sm:w-auto"
           >
             Add Member
           </Button>
@@ -68,55 +68,113 @@ export default function MembersPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="table-wrap">
-          <table className="w-full text-sm" data-testid="table-members">
-            <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
-              <tr className="[&>th]:px-4 [&>th]:py-3">
-                <th className="text-left">Name</th>
-                <th className="text-left">Email</th>
-                <th className="text-left">Role</th>
-                <th className="text-left">Phone</th>
-                <th className="text-left w-12"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((u:any) => (
-                <tr key={u.id} className="hover:bg-gray-50" data-testid={`row-member-${u.id}`}>
-                  <td className="px-4 py-3" data-testid={`text-member-name-${u.id}`}>
-                    {u.name || "—"}
-                  </td>
-                  <td className="px-4 py-3" data-testid={`text-member-email-${u.id}`}>
-                    {u.email}
-                  </td>
-                  <td className="px-4 py-3 capitalize" data-testid={`text-member-role-${u.id}`}>
-                    {u.role || "technician"}
-                  </td>
-                  <td className="px-4 py-3" data-testid={`text-member-phone-${u.id}`}>
-                    {u.phone || "—"}
-                  </td>
-                  <td className="px-2 py-3 text-right">
+        <>
+          {/* Desktop Table View */}
+          <div className="hidden sm:block table-wrap">
+            <table className="w-full text-sm" data-testid="table-members">
+              <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
+                <tr className="[&>th]:px-4 [&>th]:py-3">
+                  <th className="text-left">Name</th>
+                  <th className="text-left">Email</th>
+                  <th className="text-left">Role</th>
+                  <th className="text-left">Phone</th>
+                  <th className="text-left w-12"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((u:any) => (
+                  <tr key={u.id} className="hover:bg-gray-50" data-testid={`row-member-${u.id}`}>
+                    <td className="px-4 py-3" data-testid={`text-member-name-${u.id}`}>
+                      {u.name || "—"}
+                    </td>
+                    <td className="px-4 py-3" data-testid={`text-member-email-${u.id}`}>
+                      {u.email}
+                    </td>
+                    <td className="px-4 py-3 capitalize" data-testid={`text-member-role-${u.id}`}>
+                      {u.role || "technician"}
+                    </td>
+                    <td className="px-4 py-3" data-testid={`text-member-phone-${u.id}`}>
+                      {u.phone || "—"}
+                    </td>
+                    <td className="px-2 py-3 text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-600"
+                        onClick={() => handleDelete(u)}
+                        data-testid={`button-delete-member-${u.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500" data-testid="text-no-members">
+                      {q ? "No members match your search" : "No members found"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="sm:hidden space-y-3">
+            {filtered.map((u:any) => (
+              <Card key={u.id} data-testid={`card-member-${u.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                          <span className="text-blue-600 text-sm font-medium">
+                            {(u.name || u.email)?.[0]?.toUpperCase() || "?"}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900" data-testid={`text-member-name-${u.id}`}>
+                            {u.name || u.email}
+                          </div>
+                          <div className="text-xs text-gray-500 capitalize" data-testid={`text-member-role-${u.id}`}>
+                            {u.role || "technician"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div data-testid={`text-member-email-${u.id}`}>
+                          📧 {u.email}
+                        </div>
+                        {u.phone && (
+                          <div data-testid={`text-member-phone-${u.id}`}>
+                            📞 {u.phone}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-red-600"
+                      className="h-8 w-8 text-red-600 shrink-0"
                       onClick={() => handleDelete(u)}
                       data-testid={`button-delete-member-${u.id}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500" data-testid="text-no-members">
-                    {q ? "No members match your search" : "No members found"}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {filtered.length === 0 && (
+              <Card>
+                <CardContent className="py-10 text-center text-sm text-gray-500" data-testid="text-no-members">
+                  {q ? "No members match your search" : "No members found"}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </>
       )}
 
       <AddMemberModal 
@@ -208,12 +266,13 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
             />
           </div>
         </div>
-        <div className="pt-3 flex justify-end gap-2">
+        <div className="pt-3 flex flex-col-reverse sm:flex-row justify-end gap-2">
           <Button 
             variant="outline" 
             onClick={()=>onOpenChange(false)} 
             disabled={saving}
             data-testid="button-cancel-member"
+            className="w-full sm:w-auto"
           >
             Cancel
           </Button>
@@ -221,6 +280,7 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
             onClick={save} 
             disabled={saving || !email}
             data-testid="button-save-member"
+            className="w-full sm:w-auto"
           >
             {saving ? "Saving…" : "Add member"}
           </Button>

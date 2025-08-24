@@ -21,7 +21,7 @@ router.post("/register", async (req, res) => {
   try {
     // Create organization
     const orgIns: any = await db.execute(sql`
-      insert into orgs (name) values (${orgName}) returning id
+      insert into organisations (name) values (${orgName}) returning id
     `);
     const orgId = orgIns.rows[0].id;
 
@@ -59,6 +59,8 @@ router.post("/login", async (req, res) => {
   }
 
   try {
+    console.log("[DEBUG] Login attempt for email:", email);
+    
     // Find user by email (optionally scoped to org)
     const r: any = await db.execute(sql`
       select id, org_id, email, password_hash, name, role
@@ -69,12 +71,16 @@ router.post("/login", async (req, res) => {
       limit 1
     `);
     const user = r.rows?.[0];
+    console.log("[DEBUG] User found:", !!user, user ? { id: user.id, email: user.email, hasPassword: !!user.password_hash } : null);
+    
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     // Verify password
     const ok = await bcrypt.compare(password, user.password_hash || "");
+    console.log("[DEBUG] Password verification:", ok);
+    
     if (!ok) {
       return res.status(401).json({ error: "Invalid credentials" });
     }

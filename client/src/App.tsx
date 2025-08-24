@@ -17,7 +17,7 @@ import Jobs from "@/pages/jobs";
 import Customers from "@/pages/customers";
 import Equipment from "@/pages/equipment";
 import Teams from "@/pages/teams";
-import Schedule from "@/pages/schedule";
+import ScheduleResponsive from "@/pages/schedule-responsive";
 import Quotes from "@/pages/quotes";
 import QuoteEdit from "@/pages/quote-edit";
 import QuoteView from "@/pages/quote-view";
@@ -137,7 +137,7 @@ function AuthenticatedApp() {
           <Route path="/customers/new" component={CustomerNew} />
           <Route path="/equipment" component={Equipment} />
           <Route path="/teams" component={Teams} />
-          <Route path="/schedule" component={Schedule} />
+          <Route path="/schedule" component={ScheduleResponsive} />
           <Route path="/quotes" component={Quotes} />
           <Route path="/quotes/new" component={QuoteEdit} />
           <Route path="/quotes/:id" component={QuoteView} />

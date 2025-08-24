@@ -202,4 +202,11 @@ export const invoicesApi = {
   markPaid: (id: string) => api(`/api/invoices/${id}/pay`, { method: "POST" }),
 };
 
+export const scheduleApi = {
+  range: (p: { start: string; end: string; techId?: string }) => {
+    const q = new URLSearchParams(p as any).toString();
+    return api(`/api/schedule/range?${q}`);
+  },
+};
+
 // Photos API helper functions already defined above in photosApi

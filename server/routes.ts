@@ -9,6 +9,7 @@ import { teams } from "./routes/teams";
 import jobs from "./routes/jobs";
 import quotes from "./routes/quotes";
 import invoices from "./routes/invoices";
+import { schedule } from "./routes/schedule";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
@@ -22,6 +23,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/teams", teams);
   app.use("/api/jobs", jobs);
   console.log("[mount] /api/jobs");
+  app.use("/api/schedule", schedule);
+  console.log("[mount] /api/schedule");
   app.use("/api/quotes", quotes);
   app.use("/api/invoices", invoices);
   

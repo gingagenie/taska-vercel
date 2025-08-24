@@ -21,10 +21,12 @@ export default function ScheduleWeekMobile() {
   const [, navigate] = useLocation();
   const [selectedTech, setSelectedTech] = useState<string>("all");
   
-  // Get current week range
+  // Get current week range - use Australian timezone for consistency 
   const now = new Date();
-  const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
-  const weekEnd = endOfWeek(now, { weekStartsOn: 1 }); // Sunday
+  // Adjust for Australian timezone to match server filtering
+  const australianTime = new Date(now.toLocaleString("en-US", {timeZone: "Australia/Melbourne"}));
+  const weekStart = startOfWeek(australianTime, { weekStartsOn: 1 }); // Monday
+  const weekEnd = endOfWeek(australianTime, { weekStartsOn: 1 }); // Sunday
   
   const startStr = format(weekStart, "yyyy-MM-dd");
   const endStr = format(addDays(weekEnd, 1), "yyyy-MM-dd"); // Include Sunday

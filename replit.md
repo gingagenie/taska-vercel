@@ -18,6 +18,13 @@ Taska is a comprehensive field service management application designed for servi
 - Added comprehensive cleanup scripts for production database hygiene
 - Session-based authentication in production, header-based auth only for development
 
+**Mobile Schedule Timezone Fix:**
+- Implemented timezone-aware schedule endpoint supporting Australia/Melbourne timezone
+- Fixed mobile schedule blank issue caused by UTC vs local time mismatch
+- Mobile app now requests jobs filtered by Australian local time
+- Server converts timestamps to specified timezone before date filtering
+- Desktop schedule continues working unchanged
+
 **Customer Notes Feature:**
 - Added `notes` text field to customers table with safe migration
 - Enhanced customer modal UI with notes textarea input

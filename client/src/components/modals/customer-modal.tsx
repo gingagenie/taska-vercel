@@ -4,6 +4,7 @@ import { customersApi } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
@@ -26,6 +27,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
   const [suburb, setSuburb] = useState("");
   const [state, setState] = useState("");
   const [postcode, setPostcode] = useState("");
+  const [notes, setNotes] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,6 +40,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
       setSuburb(customer.suburb || "");
       setState(customer.state || "");
       setPostcode(customer.postcode || "");
+      setNotes(customer.notes || "");
     }
     if (open && !isEdit) {
       setName("");
@@ -48,6 +51,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
       setSuburb("");
       setState("");
       setPostcode("");
+      setNotes("");
       setErr(null);
     }
   }, [open, isEdit, customer]);
@@ -70,6 +74,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
         suburb: suburb || null,
         state: state || null,
         postcode: postcode || null,
+        notes: notes || null,
       };
 
       if (isEdit) {
@@ -98,6 +103,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
           suburb: suburb || null,
           state: state || null,
           postcode: postcode || null,
+          notes: notes || null,
         };
 
         queryClient.setQueryData<any[]>(["/api/customers"], (prev = []) => {
@@ -221,6 +227,17 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
                 onChange={(e) => setPostcode(e.target.value)}
                 placeholder="Postcode"
                 data-testid="input-postcode"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Additional notes about this customer..."
+                rows={3}
+                data-testid="textarea-notes"
               />
             </div>
           </div>

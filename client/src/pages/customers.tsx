@@ -50,7 +50,7 @@ export default function Customers() {
   const filtered = useMemo(() => {
     const text = q.toLowerCase();
     const byText = (c: any) =>
-      [c.name, c.contact_name, c.email, c.phone, addrLine(c)]
+      [c.name, c.contact_name, c.email, c.phone, addrLine(c), c.notes]
         .join(" ")
         .toLowerCase()
         .includes(text);
@@ -148,6 +148,13 @@ export default function Customers() {
                           </div>
                         </div>
                       </div>
+                      
+                      {c.notes && (
+                        <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                          <div className="text-gray-500 text-xs uppercase tracking-wide mb-1">Notes</div>
+                          <div className="text-sm text-gray-700">{c.notes}</div>
+                        </div>
+                      )}
                     </div>
                     
                     <DropdownMenu>

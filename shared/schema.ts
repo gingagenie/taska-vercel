@@ -60,6 +60,7 @@ export const customers = pgTable("customers", {
   suburb: text("suburb"),
   state: text("state"),
   postcode: text("postcode"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

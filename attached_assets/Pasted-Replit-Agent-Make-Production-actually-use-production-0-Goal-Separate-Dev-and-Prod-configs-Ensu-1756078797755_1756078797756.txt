@@ -1,0 +1,163 @@
+Replit Agent — Make Production actually use production
+0) Goal
+
+Separate Dev and Prod configs.
+
+Ensure the public domain (taska.info) runs NODE_ENV=production, with prod API URL + prod DB.
+
+Add a tiny /api/debug/env so we can see where we are.
+
+1) Add an env debug route (so we can verify instantly)
+
+Create: server/routes/debug.ts
+
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+
+export const debugRouter = Router();
+
+debugRouter.get("/env", async (_req, res) => {
+  try {
+    const r: any = await db.execute(sql`select inet_server_addr() as db_host`);
+    res.json({
+      nodeEnv: process.env.NODE_ENV,
+      clientOrigin: process.env.CLIENT_ORIGIN,
+      apiBase: process.env.VITE_API_BASE_URL || process.env.API_BASE || null,
+      bizTz: process.env.BIZ_TZ || null,
+      dbHost: r.rows?.[0]?.db_host || null,
+      dbUrlHash: (process.env.DATABASE_URL || "").slice(0, 24) + "...",
+    });
+  } catch {
+    res.json({
+      nodeEnv: process.env.NODE_ENV,
+      clientOrigin: process.env.CLIENT_ORIGIN,
+      apiBase: process.env.VITE_API_BASE_URL || process.env.API_BASE || null,
+      bizTz: process.env.BIZ_TZ || null,
+      dbHost: null,
+      dbUrlHash: (process.env.DATABASE_URL || "").slice(0, 24) + "...",
+    });
+  }
+});
+
+
+Mount it: in server/index.ts
+
+import { debugRouter } from "./routes/debug";
+app.use("/api/debug", debugRouter);
+
+
+Now hit https://taska.info/api/debug/env on your phone. You should see:
+
+nodeEnv: "production"
+
+clientOrigin: "https://taska.info"
+
+apiBase pointing to your prod API
+
+a prod DB URL hash/host
+
+If any of those look “devvy”, fix in step 2.
+
+2) Set Prod environment variables (Deployment tab)
+
+Set these for the deployed app (not the Repl preview):
+
+NODE_ENV=production
+
+CLIENT_ORIGIN=https://taska.info
+
+VITE_API_BASE_URL=https://taska.info (your frontend calls this)
+
+DATABASE_URL=<your Neon PROD url>
+
+SESSION_SECRET=<random-long-string>
+
+BIZ_TZ=Australia/Melbourne
+
+Got both a preview and a deployment environment? Set vars in both where relevant. Your issue came from only changing the Repl (dev) vars.
+
+3) Make scripts unambiguous
+
+package.json
+
+{
+  "scripts": {
+    "dev": "NODE_ENV=development tsx server/index.ts",
+    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "start": "NODE_ENV=production node dist/index.js",
+    "db:push": "drizzle-kit push"
+  }
+}
+
+
+Deploy uses build → start (not dev).
+
+The preview Repl uses dev.
+
+4) Server prod-only behaviors
+
+server/index.ts (confirm these are already in)
+
+app.set("trust proxy", 1);
+
+Sessions with:
+
+sameSite: "none" and secure: true when NODE_ENV=production and CLIENT_ORIGIN set
+
+CORS:
+
+app.use(cors({
+  origin: process.env.CLIENT_ORIGIN, // "https://taska.info"
+  credentials: true,
+}));
+
+
+In requireOrg: ignore x-org-id in prod (session only)
+
+5) Vite frontend actually pointing to prod
+
+Your client fetch must use:
+
+const BASE = import.meta.env.VITE_API_BASE_URL || "";
+// ...
+fetch(`${BASE}${path}`, { credentials: "include", ... })
+
+
+And in Deployment env, set:
+
+VITE_API_BASE_URL=https://taska.info
+
+Rebuild + deploy so the client bundle bakes this in.
+
+6) DB sanity: Prod uses Prod Neon
+
+If you have multiple Neon branches:
+
+Set prod DATABASE_URL to the prod branch.
+
+Set dev Repl DATABASE_URL to your dev branch.
+
+(If you run migrations with Replit Agent, confirm it’s pointed at prod before running prod migrations.)
+
+7) Quick checklist (do in order)
+
+Set env vars in Deployment (step 2).
+
+Rebuild & Deploy (runs build then start).
+
+On your phone, open https://taska.info/api/debug/env → confirm production values.
+
+In the app, create a customer/job.
+
+If something still looks off, compare:
+
+/api/debug/env on preview vs prod
+
+Neon branch names in each DATABASE_URL
+
+Bonus guardrails
+
+Add a tiny footer badge in dev builds: “Dev” vs “Prod” (check import.meta.env.MODE).
+
+In the backend logs, print NODE_ENV and dbUrlHash once at boot so you can see what you’re running on.

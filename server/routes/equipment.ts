@@ -62,6 +62,14 @@ equipment.get("/:id", requireAuth, requireOrg, async (req, res) => {
 /* CREATE */
 equipment.post("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
+  
+  // Double-check org existence right before insert
+  const ok: any = await db.execute(sql`select 1 from orgs where id=${orgId}::uuid`);
+  if (!ok.rows?.length) {
+    console.log(`[AUTH] 400 - Invalid org at equipment insert: orgId=${orgId}`);
+    return res.status(400).json({ error: "Invalid org" });
+  }
+  
   let { name, make, model, serial, notes, customerId } = req.body || {};
   if (customerId === "") customerId = null;
 

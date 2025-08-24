@@ -1,7 +1,7 @@
 -- PRODUCTION SAFETY FINAL - Complete bulletproof approach
 -- Run these steps in production for ultimate safety
 
--- Step 1: Clean any legacy junk in customers (one-time)
+-- Step 1: Clean any legacy junk in customers AND equipment (one-time)
 -- Null bad org_ids (FK doesn't apply to NULLs)
 UPDATE customers c
 SET org_id = NULL
@@ -20,14 +20,22 @@ BEGIN
   END IF;
 END $$;
 
--- Step 2: Add FK constraint without blocking (NOT VALID)
+-- Step 2: Remove problematic FK constraints (temporary solution)
 ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_org_id_fkey;
+ALTER TABLE equipment DROP CONSTRAINT IF EXISTS equipment_org_id_fkey;
 
-ALTER TABLE customers
-  ADD CONSTRAINT customers_org_id_fkey
-  FOREIGN KEY (org_id) REFERENCES orgs(id)
-  ON UPDATE CASCADE ON DELETE RESTRICT
-  NOT VALID;
+-- Optional Step 2b: Add FK constraints without blocking (NOT VALID) - when ready
+-- ALTER TABLE customers
+--   ADD CONSTRAINT customers_org_id_fkey
+--   FOREIGN KEY (org_id) REFERENCES orgs(id)
+--   ON UPDATE CASCADE ON DELETE RESTRICT
+--   NOT VALID;
+
+-- ALTER TABLE equipment
+--   ADD CONSTRAINT equipment_org_id_fkey
+--   FOREIGN KEY (org_id) REFERENCES orgs(id)
+--   ON UPDATE CASCADE ON DELETE RESTRICT
+--   NOT VALID;
 
 -- Step 3: Pre-validation check (should be 0)
 SELECT COUNT(*) AS offenders

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { jobsApi } from "@/lib/api";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { jobsApi, membersApi } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -22,11 +22,18 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
   const [equipmentId, setEquipmentId] = useState<string>(""); // single-select
+  const [assignedTechIds, setAssignedTechIds] = useState<string[]>([]);
 
   const [customers, setCustomers] = useState<any[]>([]);
   const [equipment, setEquipment] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Fetch members for assignment
+  const { data: members = [] } = useQuery({
+    queryKey: ["/api/members"],
+    queryFn: membersApi.getAll,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +78,7 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
         customerId: customerId || null,
         scheduledAt: normalizeDate(scheduledAt) || null,
         equipmentId: equipmentId || null, // single equipment
+        assignedTechIds,
       };
       const r = await jobsApi.create(body);
       // Invalidate jobs list and schedule range to refresh
@@ -80,8 +88,7 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
       onCreated?.(r?.id);
       // reset
       setTitle(""); setDescription(""); setScheduledAt("");
-      setCustomerId(""); setEquipmentId("");
-      onCreated?.(r?.id);
+      setCustomerId(""); setEquipmentId(""); setAssignedTechIds([]);
     } catch (e: any) {
       setErr(e?.message || "Failed to create job");
     } finally {
@@ -154,6 +161,26 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Assign technicians</label>
+            {/* Simple multi-select using native <select multiple>. */}
+            <select
+              multiple
+              className="w-full border rounded p-2 h-28"
+              value={assignedTechIds}
+              onChange={(e) => {
+                const opts = Array.from(e.target.selectedOptions).map(o => o.value);
+                setAssignedTechIds(opts);
+              }}
+              data-testid="select-assigned-techs"
+            >
+              {members.map((m: any) => (
+                <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+              ))}
+            </select>
+            <div className="text-xs text-gray-500 mt-1">Tip: Ctrl/Cmd-click to select multiple</div>
           </div>
 
           <div className="pt-2 flex gap-2 justify-end">

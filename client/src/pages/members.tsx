@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { membersApi } from "@/lib/api";
+import MemberEditModal from "@/components/modals/member-edit-modal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ export default function MembersPage() {
   });
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any|null>(null);
 
   const filtered = (list as any[]).filter((u) =>
     [u.name, u.email, u.role, u.phone].join(" ").toLowerCase().includes(q.toLowerCase())
@@ -102,15 +104,25 @@ export default function MembersPage() {
                       {u.phone || "—"}
                     </td>
                     <td className="px-2 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-red-600"
-                        onClick={() => handleDelete(u)}
-                        data-testid={`button-delete-member-${u.id}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditing(u)}
+                          data-testid={`button-edit-member-${u.id}`}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-600"
+                          onClick={() => handleDelete(u)}
+                          data-testid={`button-delete-member-${u.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -158,15 +170,25 @@ export default function MembersPage() {
                         )}
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-600 shrink-0"
-                      onClick={() => handleDelete(u)}
-                      data-testid={`button-delete-member-${u.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditing(u)}
+                        data-testid={`button-edit-member-${u.id}`}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-600"
+                        onClick={() => handleDelete(u)}
+                        data-testid={`button-delete-member-${u.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -186,6 +208,11 @@ export default function MembersPage() {
         open={open} 
         onOpenChange={setOpen} 
         onSaved={() => qc.invalidateQueries({ queryKey: ["/api/members"] })} 
+      />
+      <MemberEditModal
+        member={editing}
+        open={!!editing}
+        onOpenChange={(v)=>!v && setEditing(null)}
       />
     </div>
   );

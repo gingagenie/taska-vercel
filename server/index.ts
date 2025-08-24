@@ -83,7 +83,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/health/db", (_req, res) => res.json({ ok: true })); // replace with real db check later
 
 /** Mount API routes that aren't part of registerRoutes */
-import members from "./routes/members";
+import { members } from "./routes/members";
 import auth from "./routes/auth";
 import { health } from "./routes/health";
 import { debugRouter } from "./routes/debug";

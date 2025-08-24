@@ -21,7 +21,7 @@ const navigationItems = [
   { path: "/jobs", label: "Jobs", icon: Briefcase },
   { path: "/customers", label: "Customers", icon: Users },
   { path: "/equipment", label: "Equipment", icon: Settings },
-  { path: "/teams", label: "Teams", icon: UsersRound },
+
   { path: "/members", label: "Members", icon: Users },
   { path: "/schedule", label: "Schedule", icon: Calendar },
   { path: "/quotes", label: "Quotes", icon: FileText, isPro: true },

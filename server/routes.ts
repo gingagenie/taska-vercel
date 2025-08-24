@@ -10,6 +10,7 @@ import jobs from "./routes/jobs";
 import quotes from "./routes/quotes";
 import invoices from "./routes/invoices";
 import { schedule } from "./routes/schedule";
+import { members } from "./routes/members";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
@@ -25,6 +26,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/jobs");
   app.use("/api/schedule", schedule);
   console.log("[mount] /api/schedule");
+  app.use("/api/members", members);
+  console.log("[mount] /api/members");
   app.use("/api/quotes", quotes);
   app.use("/api/invoices", invoices);
   

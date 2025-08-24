@@ -183,7 +183,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   const userId = (req as any).user?.id || null;
 
-  let { title, description, customerId, scheduledAt, equipmentId } = req.body || {};
+  let { title, description, customerId, scheduledAt, equipmentId, assignedTechIds } = req.body || {};
   if (!title) return res.status(400).json({ error: "title required" });
 
   // normalize inputs
@@ -236,6 +236,18 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
         values (${jobId}::uuid, ${equipmentId}::uuid)
         on conflict do nothing
       `);
+    }
+
+    // create job assignments if provided
+    if (Array.isArray(assignedTechIds) && assignedTechIds.length > 0) {
+      for (const uid of assignedTechIds) {
+        if (!uid) continue;
+        await db.execute(sql`
+          insert into job_assignments (job_id, user_id)
+          values (${jobId}::uuid, ${uid}::uuid)
+          on conflict do nothing
+        `);
+      }
     }
 
     res.json({ ok: true, id: jobId });

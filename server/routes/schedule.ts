@@ -23,15 +23,24 @@ schedule.get("/range", requireAuth, requireOrg, async (req, res) => {
   // Default business timezone; mobile can override with &tz=Australia/Melbourne
   const zone = tz || process.env.BIZ_TZ || "Australia/Melbourne";
 
-  // Simplified query without job_assignments table for now
-  const techFilter = techId ? sql`and j.created_by = ${techId}::uuid` : sql``;
+  const techFilter = techId ? sql`
+    and exists (
+      select 1 from job_assignments ja
+      where ja.job_id = j.id and ja.user_id = ${techId}
+    )
+  ` : sql``;
 
   try {
     const r: any = await db.execute(sql`
       select
         j.id, j.title, j.description, j.status, j.scheduled_at,
         j.customer_id, coalesce(c.name,'—') as customer_name,
-        '[]'::json as technicians
+        (
+          select json_agg(json_build_object('id', u.id, 'name', u.name) order by u.name)
+          from job_assignments ja
+          join users u on u.id = ja.user_id
+          where ja.job_id = j.id
+        ) as technicians
       from jobs j
       left join customers c on c.id = j.customer_id
       where j.org_id=${orgId}::uuid

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, varchar, text, timestamp, integer, decimal, boolean, jsonb, uuid } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, integer, decimal, boolean, jsonb, uuid, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -99,11 +99,12 @@ export const jobs = pgTable("jobs", {
 
 // Job assignments
 export const jobAssignments = pgTable("job_assignments", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  jobId: uuid("job_id").references(() => jobs.id).notNull(),
-  userId: uuid("user_id").references(() => users.id).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+  jobId: uuid("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }).defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.jobId, t.userId] }),
+}));
 
 // Job equipment
 export const jobEquipment = pgTable("job_equipment", {

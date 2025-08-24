@@ -1,0 +1,80 @@
+Replit Agent — Create job_assignments table (idempotent)
+1) SQL migration (safe to run on prod)
+
+Create the pivot table + indexes:
+
+-- Create pivot table if missing
+CREATE TABLE IF NOT EXISTS job_assignments (
+  job_id     uuid NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_at timestamptz DEFAULT now(),
+  PRIMARY KEY (job_id, user_id)
+);
+
+-- Helpful indexes (no-op if they already exist)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'job_assignments_job_idx') THEN
+    CREATE INDEX job_assignments_job_idx ON job_assignments(job_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'job_assignments_user_idx') THEN
+    CREATE INDEX job_assignments_user_idx ON job_assignments(user_id);
+  END IF;
+END $$;
+
+
+If your deploy only allows single statements, run these lines one by one (the CREATE TABLE IF NOT EXISTS … first, then each CREATE INDEX guarded block— or just run the two CREATE INDEX lines without the DO $$ wrapper; duplicate index creation will error, so prefer the guarded version if supported).
+
+2) Drizzle schema (so future pushes don’t drop it)
+
+Edit: server/db/schema.ts (or wherever your tables live)
+
+import { pgTable, uuid, timestamp, primaryKey, index } from "drizzle-orm/pg-core";
+import { jobs } from "./jobs";   // adjust import paths
+import { users } from "./users";
+
+export const jobAssignments = pgTable(
+  "job_assignments",
+  {
+    jobId: uuid("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.jobId, t.userId] }),
+    jobIdx: index("job_assignments_job_idx").on(t.jobId),
+    userIdx: index("job_assignments_user_idx").on(t.userId),
+  })
+);
+
+
+(If you keep schema split per file, drop this into the appropriate one.)
+
+3) Backend routes already compatible
+
+Your create-job route that handles assignedTechIds will now work:
+
+// server/routes/jobs.ts (snippet)
+if (Array.isArray(assignedTechIds) && assignedTechIds.length > 0) {
+  for (const uid of assignedTechIds) {
+    if (!uid) continue;
+    await db.execute(sql`
+      insert into job_assignments (job_id, user_id)
+      values (${jobId}::uuid, ${uid}::uuid)
+      on conflict do nothing
+    `);
+  }
+}
+
+
+Your schedule and job view queries that JOIN/subselect from job_assignments will also stop erroring once the table exists.
+
+4) Quick sanity checklist
+
+Run the SQL in step 1 on your Neon production DB.
+
+Reload the app and try Create Job (with assigned techs).
+
+Open the job card → “Assigned Technicians” should list them.
+
+Check Schedule page still loads (no 500s).

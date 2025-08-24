@@ -31,6 +31,13 @@ Taska is a comprehensive field service management application designed for servi
 - Added notes display in customer cards and search functionality
 - Complete CRUD operations for customer notes working in development and production
 
+**Job Assignments Feature:**
+- Created `job_assignments` table with proper FK constraints to jobs and users tables
+- Implemented technician assignment workflow for job creation and scheduling
+- Enhanced schedule API to display assigned technicians with job details
+- Fixed timezone-aware filtering to work with job assignment queries
+- Complete CRUD operations for job-technician relationships working in development and production
+
 **Technology Stack:**
 - **Frontend**: React 18 + TypeScript + Tailwind CSS (responsive web)
 - **Backend**: Express.js + TypeScript with RESTful API

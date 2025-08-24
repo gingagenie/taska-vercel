@@ -6,10 +6,17 @@ Taska is a comprehensive field service management application designed for servi
 
 ## Recent Changes (August 2024)
 
-**Database Schema Fixes:**
-- Fixed foreign key constraint `customers_org_id_fkey` to properly reference `orgs(id)` instead of `organisations(id)`
-- Added comprehensive data validation and cleanup migration for production deployment
-- Resolved dangling org_id references by migrating data between organization tables
+**Production Deployment Success:**
+- Successfully deployed to production after resolving FK constraint conflicts
+- Implemented bulletproof safety measures with session-only authentication in production
+- Added double-validation for org existence at both middleware and endpoint levels
+- Enhanced logging for 400/401 errors with org/user ID tracking for monitoring
+
+**Database Schema & Safety:**
+- Removed problematic FK constraint that caused deployment loops, replaced with application-level validation
+- Production uses NOT VALID FK constraint approach for zero-downtime data integrity
+- Added comprehensive cleanup scripts for production database hygiene
+- Session-based authentication in production, header-based auth only for development
 
 **Customer Notes Feature:**
 - Added `notes` text field to customers table with safe migration

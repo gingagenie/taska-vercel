@@ -54,6 +54,13 @@ customers.post("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId; // guaranteed after requireOrg
   console.log("[TRACE] POST /api/customers org=%s", orgId);
   
+  // Double-check org existence right before insert
+  const ok: any = await db.execute(sql`select 1 from orgs where id=${orgId}::uuid`);
+  if (!ok.rows?.length) {
+    console.log(`[AUTH] 400 - Invalid org at insert: orgId=${orgId}`);
+    return res.status(400).json({ error: "Invalid org" });
+  }
+  
   const { name, contact_name, email, phone, street, suburb, state, postcode, notes } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: "name required" });
 

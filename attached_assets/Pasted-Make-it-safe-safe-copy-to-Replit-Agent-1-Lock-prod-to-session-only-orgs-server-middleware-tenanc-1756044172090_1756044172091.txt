@@ -1,0 +1,83 @@
+Make it safe-safe (copy to Replit Agent)
+1) Lock prod to session-only orgs
+
+server/middleware/tenancy.ts
+
+const isProd = process.env.NODE_ENV === "production";
+const sessOrg = (req.session as any)?.orgId as string | undefined;
+const headerOrg = (req.headers["x-org-id"] as string | undefined) || undefined;
+
+// 🚫 In production, ignore header org completely
+let chosen = isProd ? sessOrg : (sessOrg || headerOrg);
+
+// Fallback from user row if we have a session user
+if (!chosen && (req.session as any)?.userId) {
+  const r: any = await db.execute(sql`
+    select org_id from users where id=${(req.session as any).userId}::uuid
+  `);
+  chosen = r.rows?.[0]?.org_id;
+}
+
+if (!chosen) return res.status(401).json({ error: "Not authenticated" });
+(req as any).orgId = chosen;
+next();
+
+2) Double-check org existence right before insert
+
+server/routes/customers.ts
+
+customers.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const ok: any = await db.execute(sql`select 1 from orgs where id=${orgId}::uuid`);
+  if (!ok.rows?.length) return res.status(400).json({ error: "Invalid org" });
+
+  // ... proceed with insert using ${orgId}::uuid
+});
+
+3) Clean any legacy junk in customers (one-time)
+
+Run these in prod:
+
+-- Null bad org_ids (FK doesn’t apply to NULLs)
+UPDATE customers c
+SET org_id = NULL
+WHERE org_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM orgs o WHERE o.id = c.org_id);
+
+-- (If org_id column isn’t uuid in prod)
+ALTER TABLE customers
+  ALTER COLUMN org_id TYPE uuid USING NULLIF(org_id::text,'')::uuid;
+
+4) Add FK without blocking (if not already)
+ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_org_id_fkey;
+
+ALTER TABLE customers
+  ADD CONSTRAINT customers_org_id_fkey
+  FOREIGN KEY (org_id) REFERENCES orgs(id)
+  ON UPDATE CASCADE ON DELETE RESTRICT
+  NOT VALID;
+
+5) Validate the FK off-hours (becomes bulletproof)
+-- Optional pre-check: should be 0
+SELECT COUNT(*) AS offenders
+FROM customers c
+LEFT JOIN orgs o ON o.id = c.org_id
+WHERE c.org_id IS NOT NULL AND o.id IS NULL;
+
+-- Validate (will scan; do this off-hours)
+ALTER TABLE customers VALIDATE CONSTRAINT customers_org_id_fkey;
+
+
+If validation fails, run step 3 again (there’s still a bad row), then re-run the validate.
+
+Nice-to-haves (quick wins)
+
+Disable header auth in prod entirely (done in step 1).
+
+Expose GET /api/debug/whoami in prod and ensure it shows effectiveOrgId for your login.
+
+Snapshot Neon (branch/snapshot) before the FK validation (quick rollback safety).
+
+Log 400/401s with org/user ids so you can spot any odd clients fast.
+
+CI check: a tiny SQL in your deploy pipeline to assert zero offenders before “VALIDATE”.

@@ -114,7 +114,15 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
       setErr(null);
     },
     onError: (error: any) => {
-      setErr(error?.message || "Failed to save");
+      const message = error?.message || "Failed to save customer";
+      setErr(message);
+      
+      // If authentication error, redirect to login
+      if (message.includes("Not authenticated") || message.includes("401")) {
+        setTimeout(() => {
+          window.location.href = '/api/auth/logout';
+        }, 2000);
+      }
     },
   });
 

@@ -4,7 +4,6 @@ import { requireOrg } from "../middleware/tenancy";
 
 export const debugRouter = Router();
 
-/** Debug whoami (session + effective org) */
 debugRouter.get("/whoami", requireAuth, requireOrg, (req, res) => {
   res.json({
     env: process.env.NODE_ENV,

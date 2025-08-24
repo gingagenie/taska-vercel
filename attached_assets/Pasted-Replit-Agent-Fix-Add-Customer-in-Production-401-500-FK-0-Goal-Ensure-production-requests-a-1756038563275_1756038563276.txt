@@ -1,0 +1,219 @@
+Replit Agent — Fix “Add Customer” in Production (401/500 + FK)
+0) Goal
+
+Ensure production requests are authenticated and the server always has an effective org.
+
+Verify and, if needed, repair the foreign key on customers.org_id to reference the correct orgs(id).
+
+Harden the route so missing auth yields a helpful 401, not a 500.
+
+1) Verify session + org are present on prod
+
+Add (or confirm) debug route and check it while logged in on taska.info:
+
+// server/routes/debug.ts
+import { Router } from "express";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+export const debugRouter = Router();
+debugRouter.get("/whoami", requireAuth, requireOrg, (req, res) => {
+  res.json({
+    env: process.env.NODE_ENV,
+    sessionUserId: (req.session as any)?.userId || null,
+    sessionOrgId: (req.session as any)?.orgId || null,
+    effectiveOrgId: (req as any).orgId || null,
+  });
+});
+
+
+Mount:
+
+// server/index.ts
+import { debugRouter } from "./routes/debug";
+app.use("/api/debug", debugRouter);
+
+
+Test (in the deployed browser, after login):
+GET https://taska.info/api/debug/whoami should show all three IDs non-null.
+If effectiveOrgId is null → cookies/CORS config issue (step 2).
+
+2) Make sure cookies flow in production (client + server)
+client/src/lib/api.ts
+
+Ensure every request sends cookies:
+
+const res = await fetch(`${BASE}${path}`, {
+  ...init,
+  headers,
+  credentials: "include", // REQUIRED
+});
+
+server/index.ts
+
+Trust proxy + cookie flags + CORS when cross-origin:
+
+import cors from "cors";
+import session from "express-session";
+import pgSession from "connect-pg-simple";
+import { Pool } from "pg";
+
+app.set("trust proxy", 1);
+
+const isProd = process.env.NODE_ENV === "production";
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || undefined; // set to https://taska.info
+
+if (CLIENT_ORIGIN) {
+  app.use(cors({
+    origin: CLIENT_ORIGIN,
+    credentials: true,
+  }));
+}
+
+const PgStore = pgSession(session as any);
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+app.use(session({
+  store: new PgStore({ pool, tableName: "session" }),
+  secret: process.env.SESSION_SECRET || "dev-secret-change-me",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: (CLIENT_ORIGIN && isProd) ? "none" : "lax",
+    secure:   (CLIENT_ORIGIN && isProd) ? true  : false,
+    maxAge: 1000 * 60 * 60 * 24 * 30,
+  },
+}));
+
+
+Set env on Deploy:
+CLIENT_ORIGIN=https://taska.info (or your exact frontend origin), SESSION_SECRET=<random>.
+
+3) Harden tenancy fallback
+
+If a session user exists but no org is attached to the request, derive it from the user row:
+
+// server/middleware/tenancy.ts
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+
+export async function requireOrg(req, res, next) {
+  const sessOrg = (req.session as any)?.orgId as string | undefined;
+  const headerOrg = (req.headers["x-org-id"] as string | undefined) || undefined;
+  const isProd = process.env.NODE_ENV === "production";
+
+  let chosen = isProd ? sessOrg : (sessOrg || headerOrg);
+
+  if (!chosen && (req.session as any)?.userId) {
+    const r: any = await db.execute(sql`
+      select org_id from users where id=${(req.session as any).userId}::uuid
+    `);
+    chosen = r.rows?.[0]?.org_id;
+  }
+
+  if (!chosen) return res.status(401).json({ error: "Not authenticated" }); // 401, not 500
+  if (sessOrg && headerOrg && sessOrg !== headerOrg) {
+    return res.status(400).json({ error: "Org mismatch between session and header" });
+  }
+
+  (req as any).orgId = chosen;
+  next();
+}
+
+4) Fix the foreign key (if it’s pointing to the wrong table)
+
+Inspect constraint:
+
+-- Which table/column does the FK reference?
+SELECT
+  tc.constraint_name,
+  kcu.column_name,
+  ccu.table_name  AS foreign_table,
+  ccu.column_name AS foreign_column
+FROM information_schema.table_constraints AS tc
+JOIN information_schema.key_column_usage AS kcu
+  ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage AS ccu
+  ON ccu.constraint_name = tc.constraint_name
+WHERE tc.table_name = 'customers' AND tc.constraint_type = 'FOREIGN KEY';
+
+
+If it shows foreign_table = organisations, we need to swap it to orgs(id):
+
+BEGIN;
+
+-- drop the wrong FK
+ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_org_id_fkey;
+
+-- ensure org_id type is uuid (adjust if needed)
+-- ALTER TABLE customers ALTER COLUMN org_id TYPE uuid USING org_id::uuid;
+
+-- add correct FK to orgs(id)
+ALTER TABLE customers
+  ADD CONSTRAINT customers_org_id_fkey
+  FOREIGN KEY (org_id) REFERENCES orgs(id)
+  ON UPDATE CASCADE ON DELETE RESTRICT;
+
+COMMIT;
+
+
+(If your table is named differently, adjust names accordingly.)
+
+5) Make /api/customers create route fail gracefully when unauth’d
+
+So the UI shows a clean message instead of a 500:
+
+// server/routes/customers.ts
+customers.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId; // guaranteed after requireOrg
+  const { name, contact, phone, email, street, suburb, state, postcode, notes } = req.body || {};
+  if (!name) return res.status(400).json({ error: "name required" });
+
+  const ins: any = await db.execute(sql`
+    insert into customers (
+      org_id, name, contact, phone, email, street, suburb, state, postcode, notes
+    ) values (
+      ${orgId}::uuid, ${name}, ${contact||null}, ${phone||null}, ${email||null},
+      ${street||null}, ${suburb||null}, ${state||null}, ${postcode||null}, ${notes||null}
+    )
+    returning id
+  `);
+
+  const row: any = await db.execute(sql`
+    select id, name, contact, phone, email, street, suburb, state, postcode, notes, created_at
+    from customers where id=${ins.rows[0].id}::uuid
+  `);
+
+  res.json({ ok: true, customer: row.rows[0] });
+});
+
+
+And ensure your global error handler doesn’t rethrow (which can crash the process). It should res.status(status).json({ message }) and stop.
+
+6) Frontend UX: show the real error
+
+In your create form, surface a friendly error:
+
+try {
+  const res = await customersApi.create(payload);
+  // success path…
+} catch (e:any) {
+  setErr(e.message || "Failed to create customer");
+  // if e.message includes "Not authenticated", redirect to /login
+}
+
+7) Quick test plan (prod)
+
+Open taska.info, log in.
+
+Hit /api/debug/whoami → confirm effectiveOrgId is set.
+
+Create a customer from the app UI → should 200 + appear in list.
+
+If it still errors:
+
+Check Network → POST /api/customers sends Cookie header.
+
+Run the FK inspection SQL; repair if needed.
+
+Verify /api/customers route includes requireAuth, requireOrg.

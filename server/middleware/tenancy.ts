@@ -24,7 +24,7 @@ export async function requireOrg(req: Request, res: Response, next: NextFunction
     }
   }
 
-  if (!chosen) return res.status(400).json({ error: "No organization selected" });
+  if (!chosen) return res.status(401).json({ error: "Not authenticated" });
 
   // Safety: if both present and conflict, reject
   if (sessOrg && headerOrg && sessOrg !== headerOrg) {

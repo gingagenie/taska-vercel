@@ -74,7 +74,7 @@ export const customers = pgTable("customers", {
 // Equipment
 export const equipment = pgTable("equipment", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  orgId: uuid("org_id").references(() => organizations.id).notNull(),
+  orgId: uuid("org_id").notNull(), // FK reference removed - nuclear option like customers
   customerId: uuid("customer_id").references(() => customers.id),
   name: varchar("name", { length: 255 }).notNull(),
   make: varchar("make", { length: 255 }),

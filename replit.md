@@ -12,6 +12,13 @@ Taska is a comprehensive field service management application designed for servi
 - Added double-validation for org existence at both middleware and endpoint levels
 - Enhanced logging for 400/401 errors with org/user ID tracking for monitoring
 
+**Production Environment Separation:**
+- Created debug endpoint `/api/debug/env` for environment verification
+- Proper development vs production configuration separation
+- Session-based authentication in production, header-based auth in development
+- Environment-specific CORS and cookie configurations
+- Complete production setup guide (PRODUCTION_ENV_SETUP.md)
+
 **Production Ready Features:**
 - Job assignments table with FK constraints (PRODUCTION_JOB_ASSIGNMENTS.sql)
 - Mobile schedule timezone fix for Australia/Melbourne filtering

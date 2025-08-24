@@ -166,7 +166,9 @@ app.use((req, res, next) => {
       reusePort: true, // harmless on Node; ignored if unsupported
     },
     () => {
+      const dbUrlHash = (process.env.DATABASE_URL || "").slice(0, 24) + "...";
       log(`serving on port ${port} (NODE_ENV=${app.get("env")})`);
+      log(`Database: ${dbUrlHash}`);
       log("Health: /health  |  API health: /health/db  |  Jobs: /api/jobs");
     }
   );

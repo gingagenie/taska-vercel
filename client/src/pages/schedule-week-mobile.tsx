@@ -42,6 +42,27 @@ export default function ScheduleWeekMobile() {
     }),
   });
 
+  // Sanity check: Log raw scheduled_at values whenever jobs change
+  React.useEffect(() => {
+    if (jobs && jobs.length > 0) {
+      console.log("[Mobile Schedule] Raw job data:");
+      jobs.forEach((job: any, i: number) => {
+        console.log(`Job ${i + 1}: ${job.title}`);
+        console.log(`  Raw scheduled_at: ${job.scheduled_at}`);
+        console.log(`  Ends with Z: ${job.scheduled_at?.endsWith?.('Z') || false}`);
+        if (job.scheduled_at) {
+          try {
+            const parsed = parseISO(job.scheduled_at);
+            console.log(`  Parsed date: ${parsed.toISOString()}`);
+            console.log(`  Local string: ${parsed.toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}`);
+          } catch (e) {
+            console.log(`  Parse error: ${e}`);
+          }
+        }
+      });
+    }
+  }, [jobs]);
+
   // Group jobs by day
   const jobsByDay = useMemo(() => {
     const groups: Record<string, any[]> = {};

@@ -31,6 +31,19 @@ export async function requireOrg(req: Request, res: Response, next: NextFunction
     return res.status(400).json({ error: "Org mismatch between session and header" });
   }
 
+  // Extra safety: verify org exists in database (critical without FK constraint)
+  try {
+    const orgCheck: any = await db.execute(sql`
+      select id from orgs where id=${chosen}::uuid
+    `);
+    if (!orgCheck.rows?.[0]) {
+      return res.status(400).json({ error: "Organization not found" });
+    }
+  } catch (error) {
+    console.error("Org validation error:", error);
+    return res.status(500).json({ error: "Failed to validate organization" });
+  }
+
   (req as any).orgId = chosen;
   next();
 }

@@ -13,6 +13,13 @@ Taska is a comprehensive field service management application built with a moder
 
 ## Recent Changes (August 2025)
 
+### Database Client Import Fix (August 24, 2025)
+- **Fixed Foreign Key Constraint Error**: Resolved customer creation foreign key constraint issue
+- **Database Client Import**: Updated all route files to use proper `../db/client` import path
+- **UUID Casting Corrections**: Fixed member operations by removing incorrect UUID casting on VARCHAR ID columns
+- **Comprehensive Error Handling**: Added proper try/catch blocks to all API endpoints
+- **Member Deletion Fixed**: Resolved "operator does not exist: character varying = uuid" errors in member management
+
 ### Email/Password Authentication System (August 23, 2025)
 - **Session-Based Authentication**: Replaced header-based dev auth with proper email/password authentication
 - **PostgreSQL Session Store**: Implemented secure session storage using connect-pg-simple with existing database

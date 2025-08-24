@@ -86,7 +86,7 @@ export const equipment = pgTable("equipment", {
 // Jobs
 export const jobs = pgTable("jobs", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  orgId: uuid("org_id").references(() => organizations.id).notNull(),
+  orgId: uuid("org_id").notNull(), // FK reference removed - nuclear option
   customerId: uuid("customer_id").references(() => customers.id),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),

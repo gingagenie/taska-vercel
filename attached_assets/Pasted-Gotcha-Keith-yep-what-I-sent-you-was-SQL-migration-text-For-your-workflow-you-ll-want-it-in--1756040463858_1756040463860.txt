@@ -1,0 +1,106 @@
+Gotcha Keith 👍 — yep, what I sent you was SQL migration text. For your workflow, you’ll want it in a Replit Agent–ready brief so you can just paste and let it handle the DB fix. Here’s that version:
+
+
+---
+
+🔧 Replit Agent Task — Fix customers_org_id_fkey Constraint
+
+Goal:
+Customer creation fails in production with
+insert or update on table "customers" violates foreign key constraint "customers_org_id_fkey".
+We need to repair the schema so customers.org_id correctly references orgs(id) and existing data doesn’t block redeploy.
+
+
+---
+
+Steps for Agent
+
+1. Normalize column
+
+Ensure customers.org_id is of type uuid.
+
+Convert any junk/invalid values to NULL.
+
+
+
+2. Guarantee orgs exist
+
+For any org_id in customers or users not present in orgs, insert a placeholder row into orgs.
+
+
+
+3. Reset the FK
+
+Drop existing customers_org_id_fkey if it exists.
+
+Re-add the FK pointing to orgs(id) with ON UPDATE CASCADE ON DELETE RESTRICT.
+
+Add as NOT VALID first, then run VALIDATE CONSTRAINT.
+
+
+
+
+
+---
+
+Migration SQL (ready to run)
+
+BEGIN;
+
+-- 1. Normalize org_id values
+UPDATE customers
+SET org_id = NULL
+WHERE org_id IS NOT NULL
+  AND (org_id::text !~ '^[0-9a-f-]{8}-[0-9a-f-]{4}-[0-9a-f-]{4}-[0-9a-f-]{4}-[0-9a-f-]{12}$');
+
+ALTER TABLE customers
+  ALTER COLUMN org_id TYPE uuid USING NULLIF(org_id::text, '')::uuid;
+
+-- 2. Insert placeholder orgs for any missing
+INSERT INTO orgs (id, name, created_at)
+SELECT DISTINCT c.org_id, 'Imported Org', NOW()
+FROM customers c
+LEFT JOIN orgs o ON o.id = c.org_id
+WHERE c.org_id IS NOT NULL AND o.id IS NULL;
+
+INSERT INTO orgs (id, name, created_at)
+SELECT DISTINCT u.org_id, 'Imported Org', NOW()
+FROM users u
+LEFT JOIN orgs o ON o.id = u.org_id
+WHERE u.org_id IS NOT NULL AND o.id IS NULL;
+
+-- 3. Reset FK constraint
+ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_org_id_fkey;
+
+ALTER TABLE customers
+  ADD CONSTRAINT customers_org_id_fkey
+  FOREIGN KEY (org_id) REFERENCES orgs(id)
+  ON UPDATE CASCADE ON DELETE RESTRICT
+  NOT VALID;
+
+-- 4. Clean any stragglers
+UPDATE customers c
+SET org_id = NULL
+WHERE c.org_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM orgs o WHERE o.id = c.org_id);
+
+-- 5. Validate the FK
+ALTER TABLE customers VALIDATE CONSTRAINT customers_org_id_fkey;
+
+COMMIT;
+
+
+---
+
+✅ After migration, test in production:
+
+Log in to taska.info
+
+Create a new customer → should succeed without FK errors.
+
+
+
+---
+
+Do you want me to also draft a
+

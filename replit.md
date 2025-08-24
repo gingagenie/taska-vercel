@@ -4,6 +4,19 @@
 
 Taska is a comprehensive field service management application designed for service businesses. It provides tools to manage jobs, customers, equipment, teams, quotes, and invoices through a responsive web interface. The project aims to deliver an intuitive solution for streamlining field service operations.
 
+## Recent Changes (August 2024)
+
+**Database Schema Fixes:**
+- Fixed foreign key constraint `customers_org_id_fkey` to properly reference `orgs(id)` instead of `organisations(id)`
+- Added comprehensive data validation and cleanup migration for production deployment
+- Resolved dangling org_id references by migrating data between organization tables
+
+**Customer Notes Feature:**
+- Added `notes` text field to customers table with safe migration
+- Enhanced customer modal UI with notes textarea input
+- Added notes display in customer cards and search functionality
+- Complete CRUD operations for customer notes working in development and production
+
 **Technology Stack:**
 - **Frontend**: React 18 + TypeScript + Tailwind CSS (responsive web)
 - **Backend**: Express.js + TypeScript with RESTful API

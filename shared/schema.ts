@@ -3,8 +3,15 @@ import { pgTable, varchar, text, timestamp, integer, decimal, boolean, jsonb, uu
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Organizations
-export const organizations = pgTable("organisations", {
+// Organizations - using 'orgs' table name for consistency
+export const organizations = pgTable("orgs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Legacy organizations table reference (deprecated)
+export const organisations = pgTable("organisations", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),

@@ -57,7 +57,7 @@ export const teamMembers = pgTable("team_members", {
 // Customers
 export const customers = pgTable("customers", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  orgId: uuid("org_id").references(() => organizations.id).notNull(),
+  orgId: uuid("org_id").notNull(), // FK constraint managed manually in production
   name: varchar("name", { length: 255 }).notNull(),
   contactName: text("contact_name"),
   email: varchar("email", { length: 255 }),

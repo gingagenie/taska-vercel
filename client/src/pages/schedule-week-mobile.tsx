@@ -31,8 +31,13 @@ export default function ScheduleWeekMobile() {
 
   // Fetch jobs for current week
   const { data: jobs = [], isLoading } = useQuery({
-    queryKey: ["/api/schedule/range", { start: startStr, end: endStr, techId: selectedTech === "all" ? undefined : selectedTech }],
-    queryFn: () => scheduleApi.range({ start: startStr, end: endStr, techId: selectedTech === "all" ? undefined : selectedTech }),
+    queryKey: ["/api/schedule/range", { start: startStr, end: endStr, techId: selectedTech === "all" ? undefined : selectedTech, tz: "Australia/Melbourne" }],
+    queryFn: () => scheduleApi.range({ 
+      start: startStr, 
+      end: endStr, 
+      techId: selectedTech === "all" ? undefined : selectedTech,
+      tz: "Australia/Melbourne"   // ← ensure server filters by local day
+    }),
   });
 
   // Group jobs by day

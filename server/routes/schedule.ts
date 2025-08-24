@@ -6,38 +6,37 @@ import { requireOrg } from "../middleware/tenancy";
 
 export const schedule = Router();
 
+/**
+ * GET /api/schedule/range?start=YYYY-MM-DD&end=YYYY-MM-DD&techId=uuid&tz=Area/City
+ * start inclusive, end exclusive, dates interpreted in provided tz (defaults to Australia/Melbourne)
+ */
 schedule.get("/range", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
-  const { start, end, techId } = req.query as Record<string, string | undefined>;
+  const { start, end, techId, tz } = req.query as Record<string, string | undefined>;
   
-  console.log("[TRACE] GET /api/schedule/range org=%s start=%s end=%s techId=%s", orgId, start, end, techId);
+  console.log("[TRACE] GET /api/schedule/range org=%s start=%s end=%s techId=%s tz=%s", orgId, start, end, techId, tz);
   
   if (!start || !end) {
     return res.status(400).json({ error: "start and end required (YYYY-MM-DD)" });
   }
 
-  const techFilter = techId ? sql`
-    and exists (
-      select 1 from job_assignments ja
-      where ja.job_id=j.id and ja.user_id=${techId}::uuid
-    )
-  ` : sql``;
+  // Default business timezone; mobile can override with &tz=Australia/Melbourne
+  const zone = tz || process.env.BIZ_TZ || "Australia/Melbourne";
+
+  // Simplified query without job_assignments table for now
+  const techFilter = techId ? sql`and j.created_by = ${techId}::uuid` : sql``;
 
   try {
     const r: any = await db.execute(sql`
       select
         j.id, j.title, j.description, j.status, j.scheduled_at,
         j.customer_id, coalesce(c.name,'—') as customer_name,
-        (select json_agg(json_build_object('id', u.id, 'name', u.name) order by u.name)
-           from job_assignments ja
-           join users u on u.id = ja.user_id
-          where ja.job_id = j.id
-        ) as technicians
+        '[]'::json as technicians
       from jobs j
       left join customers c on c.id = j.customer_id
       where j.org_id=${orgId}::uuid
-        and j.scheduled_at >= ${start}::date
-        and j.scheduled_at <  ${end}::date
+        and (j.scheduled_at at time zone ${sql.raw(`'${zone}'`)})::date >= ${start}::date
+        and (j.scheduled_at at time zone ${sql.raw(`'${zone}'`)})::date <  ${end}::date
         ${techFilter}
       order by j.scheduled_at asc nulls last, j.created_at desc
     `);

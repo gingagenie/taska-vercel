@@ -204,7 +204,7 @@ export const invoicesApi = {
 };
 
 export const scheduleApi = {
-  range: (p: { start: string; end: string; techId?: string }) => {
+  range: (p: { start: string; end: string; techId?: string; tz?: string }) => {
     const q = new URLSearchParams(p as any).toString();
     return api(`/api/schedule/range?${q}`);
   },

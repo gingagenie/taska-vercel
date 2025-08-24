@@ -6,7 +6,7 @@ import { Link, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CustomerModal } from "@/components/modals/customer-modal";
+
 
 import { Mail, Phone, MapPin, MoreHorizontal, Edit, Eye } from "lucide-react";
 import {
@@ -45,7 +45,6 @@ export default function Customers() {
 
 
   const [q, setQ] = useState("");
-  const [openCreate, setOpenCreate] = useState(false);
   const [, navigate] = useLocation();
 
   const filtered = useMemo(() => {
@@ -72,7 +71,7 @@ export default function Customers() {
             data-testid="input-search-customers"
           />
           <Button 
-            onClick={() => setOpenCreate(true)} 
+            onClick={() => navigate("/customers/new")} 
             data-testid="button-new-customer"
             data-mobile-full="true"
           >
@@ -181,8 +180,6 @@ export default function Customers() {
           })}
         </div>
       )}
-
-      <CustomerModal open={openCreate} onOpenChange={setOpenCreate} />
     </div>
   );
 }

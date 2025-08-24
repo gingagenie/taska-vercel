@@ -1,0 +1,251 @@
+Ahh my bad — I assumed Flutter earlier. We’ll fix this in React.
+
+You’ve got two issues:
+
+1. FK error when creating a customer (insert missing org_id).
+
+
+2. Mobile page not scrollable + action buttons float mid-screen.
+
+
+
+Below is a Replit-agent friendly patch for both.
+
+
+---
+
+🔧 Part 1 — Foreign key error (customers/org_id)
+
+This happens when the request that creates a customer isn’t carrying the session cookie (or dev headers), so the server can’t resolve org_id.
+
+Server (ensure we always attach org_id)
+
+You likely already have this, but here’s the final, safe version:
+
+// server/middleware/tenancy.ts
+import { Request, Response, NextFunction } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+
+export async function requireOrg(req: Request, res: Response, next: NextFunction) {
+  const sessOrg = (req.session as any)?.orgId as string | undefined;
+  const headerOrg = (req.headers["x-org-id"] as string | undefined) || undefined;
+  const isProd = process.env.NODE_ENV === "production";
+
+  let chosen = isProd ? sessOrg : (sessOrg || headerOrg);
+
+  if (!chosen && (req.session as any)?.userId) {
+    const r: any = await db.execute(sql`
+      select org_id from users where id=${(req.session as any).userId}::uuid
+    `);
+    chosen = r.rows?.[0]?.org_id;
+  }
+
+  if (!chosen) return res.status(400).json({ error: "No organization selected" });
+  if (sessOrg && headerOrg && sessOrg !== headerOrg) {
+    return res.status(400).json({ error: "Org mismatch between session and header" });
+  }
+
+  (req as any).orgId = chosen;
+  next();
+}
+
+// server/routes/customers.ts
+customers.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { name, contact, phone, email, street, suburb, state, postcode, notes } = req.body || {};
+  if (!name) return res.status(400).json({ error: "name required" });
+
+  const ins: any = await db.execute(sql`
+    insert into customers (
+      org_id, name, contact, phone, email, street, suburb, state, postcode, notes
+    ) values (
+      ${orgId}::uuid, ${name}, ${contact||null}, ${phone||null}, ${email||null},
+      ${street||null}, ${suburb||null}, ${state||null}, ${postcode||null}, ${notes||null}
+    )
+    returning id
+  `);
+
+  const row: any = await db.execute(sql`
+    select id, name, contact, phone, email, street, suburb, state, postcode, notes, created_at
+    from customers where id=${ins.rows[0].id}::uuid
+  `);
+
+  res.json({ ok: true, customer: row.rows[0] });
+});
+
+Client (make sure cookies ride along)
+
+In client/src/lib/api.ts you should already have:
+
+const res = await fetch(`${BASE}${path}`, {
+  ...init,
+  headers,
+  credentials: "include",   // <- REQUIRED so session cookie is sent
+});
+
+If you’re calling the API anywhere without going through api(...), add credentials: "include" there too.
+
+
+---
+
+📱 Part 2 — Mobile “New Customer” page: scrollable body + sticky footer
+
+Use a full-height flex column, with the content in a scrollable container and actions in a sticky footer. No dialogs/centering wrappers.
+
+Replace your New Customer component with this layout:
+
+// client/src/pages/customers-new.tsx
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { customersApi } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
+
+export default function CustomerNew() {
+  const [, nav] = useLocation();
+  const qc = useQueryClient();
+
+  const [name, setName] = useState("");
+  const [contact, setContact] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [street, setStreet] = useState("");
+  const [suburb, setSuburb] = useState("");
+  const [state, setState] = useState("");
+  const [postcode, setPostcode] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true); setErr(null);
+    try {
+      const res = await customersApi.create({
+        name, contact, phone, email, street, suburb, state, postcode, notes
+      });
+      // Optimistic insert + refetch list
+      qc.setQueryData<any[]>(["/api/customers"], (old) => {
+        const prev = Array.isArray(old) ? old : [];
+        return res?.customer ? [res.customer, ...prev] : prev;
+      });
+      qc.invalidateQueries({ queryKey: ["/api/customers"] });
+      nav("/customers");
+    } catch (e:any) {
+      setErr(e.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="min-h-[100svh] flex flex-col bg-white">
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+        <div className="max-w-2xl mx-auto space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>New Customer</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {err && <div className="text-sm text-red-600">{err}</div>}
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Company Name *</label>
+                <Input value={name} onChange={(e)=>setName(e.target.value)} placeholder="e.g. ABC Manufacturing" />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Contact</label>
+                  <Input value={contact} onChange={(e)=>setContact(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Phone</label>
+                  <Input value={phone} onChange={(e)=>setPhone(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Email</label>
+                  <Input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Street</label>
+                  <Input value={street} onChange={(e)=>setStreet(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Suburb</label>
+                  <Input value={suburb} onChange={(e)=>setSuburb(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">State</label>
+                  <Input value={state} onChange={(e)=>setState(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Postcode</label>
+                  <Input value={postcode} onChange={(e)=>setPostcode(e.target.value)} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Notes</label>
+                <Textarea rows={4} value={notes} onChange={(e)=>setNotes(e.target.value)} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* add bottom padding so content isn't hidden behind footer */}
+          <div className="h-20" />
+        </div>
+      </div>
+
+      {/* Sticky footer actions */}
+      <div className="sticky bottom-0 inset-x-0 border-t bg-white/90 backdrop-blur px-4 py-3 sm:px-6">
+        <div className="max-w-2xl mx-auto flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={()=>nav("/customers")}>
+            Cancel
+          </Button>
+          <Button className="flex-1" onClick={save} disabled={saving || !name.trim()}>
+            {saving ? "Saving…" : "Create Customer"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Why this works:
+
+min-h-[100svh] = correct mobile height unit (better than 100vh on iOS).
+
+flex-1 overflow-y-auto = content scrolls.
+
+Sticky footer sits at the bottom and stays visible when the keyboard opens.
+
+Extra spacer <div className="h-20" /> prevents the last field from sitting under the footer.
+
+
+Also ensure your index.html meta tag includes safe areas:
+
+<meta name="viewport"
+  content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+
+
+---
+
+Quick test checklist
+
+On mobile, open New Customer → the page scrolls; buttons stick to bottom.
+
+Submit → no FK error; the row appears in the list (you’ve got react-query invalidate).
+
+If you still see the FK error, hit /api/debug/whoami on the same device; you should see effectiveOrgId set. If it’s null, your mobile browser isn’t sending the cookie — confirm credentials: "include" and your session cookie flags (SameSite=None, Secure=true in prod) are set.
+
+
+If anything still fights you, paste the Network tab request/response for POST /api/customers from the mobile browser and I’ll zero in on it.
+

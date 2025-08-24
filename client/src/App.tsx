@@ -30,6 +30,7 @@ import JobView from "./pages/job-view";
 import JobEdit from "./pages/job-edit";
 import JobNotesCharges from "./pages/job-notes-charges";
 import CustomerView from "./pages/customer-view";
+import CustomerNew from "./pages/customers-new";
 import SettingsPage from "@/pages/settings";
 import MembersPage from "@/pages/members";
 import Landing from "@/pages/landing";
@@ -71,7 +72,7 @@ function AuthenticatedApp() {
           title: "Customers",
           subtitle: "Manage customer relationships",
           addNewText: "New Customer",
-          onAddNew: () => setIsCustomerModalOpen(true),
+          onAddNew: () => (window as any).location = "/customers/new",
         };
       case "/equipment":
         return {
@@ -133,6 +134,7 @@ function AuthenticatedApp() {
           <Route path="/" component={Dashboard} />
           <Route path="/jobs" component={Jobs} />
           <Route path="/customers" component={Customers} />
+          <Route path="/customers/new" component={CustomerNew} />
           <Route path="/equipment" component={Equipment} />
           <Route path="/teams" component={Teams} />
           <Route path="/schedule" component={Schedule} />

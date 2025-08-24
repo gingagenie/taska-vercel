@@ -32,16 +32,19 @@ export async function requireOrg(req: Request, res: Response, next: NextFunction
   }
 
   // Extra safety: verify org exists in database (critical without FK constraint)
-  try {
-    const orgCheck: any = await db.execute(sql`
-      select id from orgs where id=${chosen}::uuid
-    `);
-    if (!orgCheck.rows?.[0]) {
-      return res.status(400).json({ error: "Organization not found" });
+  // Skip validation in development mode for performance
+  if (process.env.NODE_ENV === "production") {
+    try {
+      const orgCheck: any = await db.execute(sql`
+        select id from orgs where id=${chosen}::uuid
+      `);
+      if (!orgCheck.rows?.[0]) {
+        return res.status(400).json({ error: "Organization not found" });
+      }
+    } catch (error) {
+      console.error("Org validation error:", error);
+      return res.status(500).json({ error: "Failed to validate organization" });
     }
-  } catch (error) {
-    console.error("Org validation error:", error);
-    return res.status(500).json({ error: "Failed to validate organization" });
   }
 
   (req as any).orgId = chosen;

@@ -65,20 +65,25 @@ equipment.post("/", requireAuth, requireOrg, async (req, res) => {
   let { name, make, model, serial, notes, customerId } = req.body || {};
   if (customerId === "") customerId = null;
 
-  const r: any = await db.execute(sql`
-    insert into equipment (org_id, name, make, model, serial_number, notes, customer_id)
-    values (
-      ${orgId}::uuid,
-      ${name || null},
-      ${make || null},
-      ${model || null},
-      ${serial || null},
-      ${notes || null},
-      ${customerId}::uuid
-    )
-    returning id
-  `);
-  res.json({ ok: true, id: r.rows[0].id });
+  try {
+    const r: any = await db.execute(sql`
+      insert into equipment (org_id, name, make, model, serial_number, notes, customer_id)
+      values (
+        ${orgId},
+        ${name || null},
+        ${make || null},
+        ${model || null},
+        ${serial || null},
+        ${notes || null},
+        ${customerId || null}
+      )
+      returning id
+    `);
+    res.json({ ok: true, id: r.rows[0].id });
+  } catch (error: any) {
+    console.error("Equipment creation error:", error);
+    res.status(500).json({ error: error?.message || "Failed to create equipment" });
+  }
 });
 
 /* UPDATE */
@@ -97,7 +102,7 @@ equipment.put("/:id", requireAuth, requireOrg, async (req, res) => {
       model        = coalesce(${model}, model),
       serial_number = coalesce(${serial}, serial_number),
       notes        = coalesce(${notes}, notes),
-      customer_id  = ${customerId}::uuid
+      customer_id  = ${customerId ? sql`${customerId}::uuid` : null}
     where id=${id}::uuid and org_id=${orgId}::uuid
   `);
   res.json({ ok: true });

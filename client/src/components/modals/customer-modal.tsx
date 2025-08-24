@@ -125,16 +125,16 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl h-[90vh] flex flex-col p-0 relative">
+      <DialogContent className="max-w-xl h-[90vh] p-0 grid grid-rows-[auto_1fr_auto]">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>{isEdit ? "Edit Customer" : "New Customer"}</DialogTitle>
         </DialogHeader>
 
         {/* Scrollable content area */}
-        <div className="flex-1 overflow-y-auto px-6 pb-24">
+        <div className="overflow-y-auto px-6">
           {err && <div className="text-red-600 text-sm mb-4">{err}</div>}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-6">
             <div className="md:col-span-2">
               <Label>Company name *</Label>
               <Input
@@ -218,8 +218,8 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
           </div>
         </div>
 
-        {/* Fixed footer at absolute bottom */}
-        <div className="absolute bottom-0 left-0 right-0 border-t bg-white p-6">
+        {/* Fixed footer using CSS Grid */}
+        <div className="border-t bg-white p-6">
           <div className="flex gap-3 w-full">
             <Button 
               variant="outline" 

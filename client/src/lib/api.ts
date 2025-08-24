@@ -161,6 +161,7 @@ export const meApi = {
 export const membersApi = {
   getAll: () => api("/api/members"),
   create: (body: any) => api("/api/members", { method: "POST", body: JSON.stringify(body) }),
+  update: (id: string, body: any) => api(`/api/members/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   remove: (userId: string) => api(`/api/members/${userId}`, { method: "DELETE" }),
 
   // legacy compatibility so existing flows keep working

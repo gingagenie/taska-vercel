@@ -3,6 +3,7 @@ import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import bcrypt from "bcryptjs";
 
 export const members = Router();
 
@@ -48,53 +49,41 @@ members.put("/:memberId", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
-// POST / - create new member (existing functionality preserved)
+// POST / - create member + login (password)
 members.post("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
-  const { email, name, role = "technician", phone } = req.body || {};
+  const { name, email, role = "technician", password } = req.body || {};
   
   console.log("[TRACE] POST /api/members org=%s", orgId);
   
-  if (!email?.trim()) {
-    return res.status(400).json({ error: "email required" });
+  if (!email || !name) {
+    return res.status(400).json({ error: "name and email required" });
   }
-  
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: "password must be at least 6 chars" });
+  }
+
   try {
-    // Check if user exists
+    // Check if user exists in this org
     const existing: any = await db.execute(sql`
-      select id, name, email, role from users 
-      where email=${email} and org_id=${orgId}::uuid
+      select 1 from users where org_id=${orgId}::uuid and lower(email)=lower(${email})
     `);
-    
-    if (existing.rows.length > 0) {
-      // Update existing user
-      await db.execute(sql`
-        update users 
-        set name = coalesce(${name}, name),
-            role = coalesce(${role}, role),
-            phone = coalesce(${phone}, phone)
-        where email=${email} and org_id=${orgId}::uuid
-      `);
-      
-      const updated: any = await db.execute(sql`
-        select id, name, email, role, phone from users 
-        where email=${email} and org_id=${orgId}::uuid
-      `);
-      
-      res.json(updated.rows[0]);
-    } else {
-      // Create new user
-      const result: any = await db.execute(sql`
-        insert into users (org_id, email, name, role, phone)
-        values (${orgId}::uuid, ${email}, ${name || email.split('@')[0]}, ${role}, ${phone})
-        returning id, name, email, role, phone
-      `);
-      
-      res.json(result.rows[0]);
+    if (existing.rows?.length) {
+      return res.status(409).json({ error: "email already exists in this org" });
     }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const ins: any = await db.execute(sql`
+      insert into users (org_id, name, email, role, password_hash)
+      values (${orgId}::uuid, ${name}, ${email}, ${role}, ${hash})
+      returning id, name, email, role
+    `);
+
+    res.json({ ok: true, user: ins.rows[0] });
   } catch (error: any) {
     console.error("POST /api/members error:", error);
-    res.status(500).json({ error: error?.message || "Failed to create/update member" });
+    res.status(500).json({ error: error?.message || "Failed to create member" });
   }
 });
 

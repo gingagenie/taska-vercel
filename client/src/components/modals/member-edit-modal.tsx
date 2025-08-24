@@ -43,34 +43,73 @@ export default function MemberEditModal({
   if (!open || !member) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-end sm:items-center justify-center z-50">
-      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-4 sm:p-6">
-        <div className="text-lg font-semibold mb-4">Edit Member</div>
-        {err && <div className="text-sm text-red-600 mb-2">{err}</div>}
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm">Name</label>
-            <Input value={name} onChange={(e)=>setName(e.target.value)} data-testid="input-member-name" />
+    <div className="fixed inset-0 z-50">
+      {/* dim background + click to close */}
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={() => onOpenChange(false)}
+      />
+      {/* centered container */}
+      <div className="absolute inset-0 flex items-center justify-center p-4">
+        <div
+          className="
+            w-[92vw] sm:w-full sm:max-w-md
+            max-h-[85vh] rounded-2xl bg-white shadow-xl
+            flex flex-col
+          "
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Header */}
+          <div className="px-5 pt-4 pb-3 border-b">
+            <div className="text-lg font-semibold">Edit Member</div>
           </div>
-          <div>
-            <label className="text-sm">Email</label>
-            <Input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} data-testid="input-member-email" />
+
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {err && <div className="text-sm text-red-600 mb-3">{err}</div>}
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm">Name</label>
+                <Input value={name} onChange={(e)=>setName(e.target.value)} data-testid="input-member-name" />
+              </div>
+              <div>
+                <label className="text-sm">Email</label>
+                <Input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} data-testid="input-member-email" />
+              </div>
+              <div>
+                <label className="text-sm">Role</label>
+                <Select value={role} onValueChange={setRole}>
+                  <SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="technician">Technician</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* spacer so content never hides under footer */}
+            <div className="h-3" />
           </div>
-          <div>
-            <label className="text-sm">Role</label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="technician">Technician</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
+
+          {/* Sticky footer with safe-area bottom padding */}
+          <div
+            className="
+              border-t px-5 py-3
+              pb-[max(env(safe-area-inset-bottom),12px)]
+              bg-white rounded-b-2xl
+            "
+          >
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={()=>onOpenChange(false)} data-testid="button-cancel-edit">Cancel</Button>
+              <Button className="flex-1" onClick={save} disabled={saving} data-testid="button-save-member">
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="mt-5 flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={()=>onOpenChange(false)} data-testid="button-cancel-edit">Cancel</Button>
-          <Button className="flex-1" onClick={save} disabled={saving} data-testid="button-save-member">{saving ? "Saving…" : "Save"}</Button>
         </div>
       </div>
     </div>

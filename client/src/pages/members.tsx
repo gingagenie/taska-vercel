@@ -224,43 +224,22 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<string>("technician");
-  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function save() {
     setSaving(true);
     try {
-      const result = await membersApi.create({ email, name, role, phone });
+      const result = await membersApi.create({ email, name, role, password });
       
-      // Optimistically insert at top of cache
-      qc.setQueryData<any[]>(["/api/members"], (old) => {
-        const prev = Array.isArray(old) ? old : [];
-        // avoid duplicate if it already exists (by id)
-        const next = prev.filter(u => u.id !== result.user?.id);
-        return result.user ? [result.user, ...next] : prev;
-      });
-      
+      // Clear form
+      setEmail(""); setName(""); setRole("technician"); setPassword("");
       onOpenChange(false);
-      onSaved(); // still triggers invalidateQueries as a safety net
-      
-      // Reset fields
-      setEmail("");
-      setName("");
-      setRole("technician");
-      setPhone("");
+      onSaved();
       
       toast({
         title: "Member added",
-        description: `${name || email} has been added to the team.`,
-      });
-      onOpenChange(false);
-      onSaved();
-      setEmail(""); setName(""); setRole("technician"); setPhone("");
-      toast({
-        title: result.created ? "Member added" : "Member updated",
-        description: result.created 
-          ? "New team member has been added successfully." 
-          : "Existing member information has been updated.",
+        description: `${name || email} has been added with login access.`,
       });
     } catch (e:any) {
       toast({
@@ -273,74 +252,99 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
     }
   }
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add Member</DialogTitle>
-        </DialogHeader>
-        <div className="grid grid-cols-1 gap-3">
-          <div>
-            <Label>Email *</Label>
-            <Input 
-              value={email} 
-              onChange={(e)=>setEmail(e.target.value)} 
-              placeholder="brad@company.com"
-              data-testid="input-member-email"
-            />
+    <div className="fixed inset-0 z-50">
+      {/* dim background + click to close */}
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={() => onOpenChange(false)}
+      />
+      {/* centered container */}
+      <div className="absolute inset-0 flex items-center justify-center p-4">
+        <div
+          className="
+            w-[92vw] sm:w-full sm:max-w-md
+            max-h-[85vh] rounded-2xl bg-white shadow-xl
+            flex flex-col
+          "
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Header */}
+          <div className="px-5 pt-4 pb-3 border-b">
+            <div className="text-lg font-semibold">Add Member</div>
           </div>
-          <div>
-            <Label>Name</Label>
-            <Input 
-              value={name} 
-              onChange={(e)=>setName(e.target.value)} 
-              placeholder="Brad Smith"
-              data-testid="input-member-name"
-            />
+
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="space-y-3">
+              <div>
+                <Label>Name *</Label>
+                <Input 
+                  value={name} 
+                  onChange={(e)=>setName(e.target.value)} 
+                  placeholder="Brad Smith"
+                  data-testid="input-member-name"
+                />
+              </div>
+              <div>
+                <Label>Email *</Label>
+                <Input 
+                  type="email"
+                  value={email} 
+                  onChange={(e)=>setEmail(e.target.value)} 
+                  placeholder="brad@company.com"
+                  data-testid="input-member-email"
+                />
+              </div>
+              <div>
+                <Label>Password *</Label>
+                <Input 
+                  type="password"
+                  value={password} 
+                  onChange={(e)=>setPassword(e.target.value)} 
+                  placeholder="At least 6 characters"
+                  data-testid="input-member-password"
+                />
+              </div>
+              <div>
+                <Label>Role</Label>
+                <Select value={role} onValueChange={(v)=>setRole(v)}>
+                  <SelectTrigger className="w-full" data-testid="select-member-role">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="technician">Technician</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* spacer so content never hides under footer */}
+            <div className="h-3" />
           </div>
-          <div>
-            <Label>Role</Label>
-            <Select value={role} onValueChange={(v)=>setRole(v)}>
-              <SelectTrigger className="w-full" data-testid="select-member-role">
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="technician">Technician</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Phone</Label>
-            <Input 
-              value={phone} 
-              onChange={(e)=>setPhone(e.target.value)} 
-              placeholder="+61 400 123 456"
-              data-testid="input-member-phone"
-            />
+
+          {/* Sticky footer with safe-area bottom padding */}
+          <div
+            className="
+              border-t px-5 py-3
+              pb-[max(env(safe-area-inset-bottom),12px)]
+              bg-white rounded-b-2xl
+            "
+          >
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={()=>onOpenChange(false)} disabled={saving} data-testid="button-cancel-member">Cancel</Button>
+              <Button className="flex-1" onClick={save} disabled={saving || !email || !name || !password} data-testid="button-save-member">
+                {saving ? "Saving…" : "Add Member"}
+              </Button>
+            </div>
           </div>
         </div>
-        <div className="pt-3 flex flex-col-reverse sm:flex-row justify-end gap-2">
-          <Button 
-            variant="outline" 
-            onClick={()=>onOpenChange(false)} 
-            disabled={saving}
-            data-testid="button-cancel-member"
-            className="w-full sm:w-auto"
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={save} 
-            disabled={saving || !email}
-            data-testid="button-save-member"
-            className="w-full sm:w-auto"
-          >
-            {saving ? "Saving…" : "Add member"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }

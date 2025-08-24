@@ -1,8 +1,4 @@
--- Migration: Fix customers_org_id_fkey constraint - comprehensive production-ready approach
--- Date: 2025-08-24
--- Purpose: Ensure customers.org_id properly references orgs(id) for production deployment
--- Handles all edge cases: varchar→uuid conversion, missing orgs, legacy data
-
+Replit/Neon — Paste this as the migration
 -- 1) Ensure customers.org_id is uuid (junk -> NULL so the cast won't explode)
 DO $$
 BEGIN

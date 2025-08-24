@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { db } from "../db";
+import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 
 export async function requireOrg(req: Request, res: Response, next: NextFunction) {

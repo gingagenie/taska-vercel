@@ -53,11 +53,25 @@ customers.get("/:id", requireAuth, requireOrg, async (req, res) => {
 customers.post("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] POST /api/customers org=%s", orgId);
+  console.log("[DEBUG] Headers:", {
+    'x-user-id': req.headers['x-user-id'],
+    'x-org-id': req.headers['x-org-id']
+  });
   
   const { name, contact_name, email, phone, street, suburb, state, postcode } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: "name required" });
 
   try {
+    // Verify org exists before trying to insert
+    const orgCheck: any = await db.execute(sql`
+      select id from organisations where id = ${orgId}::uuid
+    `);
+    
+    if (!orgCheck.rows?.length) {
+      console.error("[ERROR] Organization not found:", orgId);
+      return res.status(400).json({ error: "Organization not found" });
+    }
+
     const r: any = await db.execute(sql`
       insert into customers (org_id, name, contact_name, email, phone, street, suburb, state, postcode)
       values (
@@ -69,6 +83,7 @@ customers.post("/", requireAuth, requireOrg, async (req, res) => {
     res.json({ ok: true, id: r.rows[0].id });
   } catch (error: any) {
     console.error("POST /api/customers error:", error);
+    console.error("Error details:", error.message);
     res.status(500).json({ error: error?.message || "Failed to create customer" });
   }
 });

@@ -33,10 +33,8 @@ export default function LineEditor({
     setLines(next); 
   }
   
-  function change(i: number, patch: Partial<Line>) { 
-    const next = [...lines]; 
-    next[i] = { ...next[i], ...patch }; 
-    setLines(next); 
+  function change(idx: number, patch: Partial<Line>) {
+    setLines(lines.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
   }
 
   const totals = useMemo(() => {

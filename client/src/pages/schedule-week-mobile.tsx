@@ -217,14 +217,22 @@ export default function ScheduleWeekMobile() {
                             <span>
                               {(() => {
                                 try {
-                                  const utcDate = parseISO(job.scheduled_at);
-                                  const melbourneTime = toZonedTime(utcDate, 'Australia/Melbourne');
-                                  const formatted = format(melbourneTime, "h:mm a");
+                                  // Let's try a different approach - manual timezone conversion
+                                  const utcDate = new Date(job.scheduled_at);
+                                  // Melbourne is UTC+10 (or UTC+11 during DST)
+                                  // For August (winter), it's UTC+10
+                                  const melbourneTime = new Date(utcDate.getTime() + (10 * 60 * 60 * 1000));
+                                  const hours = melbourneTime.getUTCHours();
+                                  const minutes = melbourneTime.getUTCMinutes();
+                                  const ampm = hours >= 12 ? 'PM' : 'AM';
+                                  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+                                  const formatted = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                                  
                                   return (
                                     <div>
                                       <div>{formatted}</div>
                                       <div className="text-xs text-red-500">
-                                        UTC: {job.scheduled_at} → MEL: {melbourneTime.toISOString()}
+                                        Raw: {job.scheduled_at} → Manual+10: {melbourneTime.toISOString()}
                                       </div>
                                     </div>
                                   );

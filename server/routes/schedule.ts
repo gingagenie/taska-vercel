@@ -21,7 +21,8 @@ schedule.get("/range", requireAuth, requireOrg, async (req, res) => {
   }
 
   // Default business timezone; mobile can override with &tz=Australia/Melbourne
-  const zone = tz || process.env.BIZ_TZ || "Australia/Melbourne";
+  const BIZ_TZ = process.env.BIZ_TZ || "Australia/Melbourne";
+  const zone = tz || BIZ_TZ;
 
   const techFilter = techId ? sql`
     and exists (
@@ -44,9 +45,9 @@ schedule.get("/range", requireAuth, requireOrg, async (req, res) => {
         ) as technicians
       from jobs j
       left join customers c on c.id = j.customer_id
-      where j.org_id=${orgId}::uuid
-        and (j.scheduled_at at time zone ${sql.raw(`'${zone}'`)})::date >= ${start}::date
-        and (j.scheduled_at at time zone ${sql.raw(`'${zone}'`)})::date <  ${end}::date
+      where j.org_id = ${orgId}::uuid
+        and ((j.scheduled_at at time zone ${sql.raw(`'${zone}'`)})::date >= ${start}::date)
+        and ((j.scheduled_at at time zone ${sql.raw(`'${zone}'`)})::date <  ${end}::date)
         ${techFilter}
       order by j.scheduled_at asc nulls last, j.created_at desc
     `);

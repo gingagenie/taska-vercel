@@ -15,6 +15,20 @@ function isUuid(str: string): boolean {
   return /^[0-9a-f-]{36}$/i.test(str);
 }
 
+// Timezone-aware scheduled_at normalization
+function normalizeScheduledAt(raw: any): string|null {
+  if (!raw) return null;
+  // If client already sent ISO with Z, pass it through
+  if (typeof raw === "string" && /Z$/.test(raw)) return raw;
+  // If it looks like "YYYY-MM-DDTHH:mm" (datetime-local), treat as local AEST and convert to UTC
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) {
+    const d = new Date(raw); // local
+    if (!isNaN(d.valueOf())) return d.toISOString();
+  }
+  // Fallback: let Postgres parse; but ensure timestamptz column
+  return raw;
+}
+
 // Configure multer for file uploads
 const upload = multer({ dest: "uploads/" });
 
@@ -192,18 +206,8 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
   if (customerId === "") customerId = null;
   if (equipmentId === "") equipmentId = null;
 
-  // allow datetime-local values like 2025-08-22T10:30
-  const normalizeDate = (v: any): string | null => {
-    if (v === undefined || v === null || v === "") return null;
-    const s = String(v);
-    if (s.includes("T")) {
-      const [d, t] = s.split("T");
-      const tt = t.length === 5 ? `${t}:00` : t; // HH:MM -> HH:MM:SS
-      return `${d} ${tt}`.slice(0, 19);
-    }
-    return s;
-  };
-  scheduledAt = normalizeDate(scheduledAt);
+  // Use the new timezone normalization function
+  const scheduled = normalizeScheduledAt(scheduledAt);
 
   try {
     console.log("[DEBUG] Creating job with values:", {
@@ -223,7 +227,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
         ${customerId || null},
         ${title},
         ${description || null},
-        ${scheduledAt || null},
+        ${scheduled || null},
         'new',
         ${userId || null}
       )
@@ -288,58 +292,28 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
   let { title, description, status, scheduledAt, customerId } = req.body || {};
   if (customerId === "") customerId = null;
 
-  // Convert date strings to Date objects for Drizzle
-  let scheduledAtDate: Date | null = null;
-  if (scheduledAt && scheduledAt !== "") {
-    console.log("[DEBUG] Converting scheduledAt:", scheduledAt, typeof scheduledAt);
-    try {
-      // Handle various date formats
-      let dateStr = String(scheduledAt);
-      if (dateStr.includes("T")) {
-        // Convert "2024-08-22T10:00" to "2024-08-22 10:00:00"
-        const [d, t] = dateStr.split("T");
-        const time = t.length === 5 ? `${t}:00` : t;
-        dateStr = `${d} ${time}`;
-      }
-      
-      const date = new Date(dateStr);
-      if (!isNaN(date.getTime())) {
-        scheduledAtDate = date;
-        console.log("[DEBUG] Converted to Date:", scheduledAtDate);
-      } else {
-        console.warn("[DEBUG] Invalid date:", dateStr);
-      }
-    } catch (err) {
-      console.warn("[DEBUG] Date conversion error:", err);
-    }
-  }
-  
-  scheduledAt = scheduledAtDate;
+  // Use the new timezone normalization function
+  const scheduled = normalizeScheduledAt(scheduledAt);
 
   // Always log what we received (so we know the route is hit)
   console.log("PUT /api/jobs/%s org=%s body=%o", jobId, orgId, {
-    title, description, status, scheduledAt, customerId
+    title, description, status, scheduledAt: scheduled, customerId
   });
 
   try {
-    // Prepare update data - only include defined fields and handle nulls properly
-    const updateData: any = {};
-    if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (status !== undefined) updateData.status = status;
-    if (scheduledAt !== undefined) updateData.scheduledAt = scheduledAt; // Already converted to Date above
-    if (customerId !== undefined) updateData.customerId = customerId;
-    
-    // Skip updatedAt to avoid timestamp issues
-    // updateData.updatedAt = new Date();
+    // Use SQL for update with timezone-aware scheduled_at
+    const result = await db.execute(sql`
+      UPDATE jobs SET 
+        title = coalesce(${title}, title),
+        description = coalesce(${description}, description),
+        status = coalesce(${status}, status),
+        scheduled_at = coalesce(${scheduled}, scheduled_at),
+        customer_id = ${customerId}
+      WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+      RETURNING id
+    `);
 
-    const result = await db
-      .update(jobsSchema)
-      .set(updateData)
-      .where(and(eq(jobsSchema.id, jobId), eq(jobsSchema.orgId, orgId)))
-      .returning({ id: jobsSchema.id });
-
-    if (!result.length) {
+    if (!(result as any).rows.length) {
       console.warn("PUT /api/jobs/%s -> no match for org=%s", jobId, orgId);
       return res.status(404).json({ error: "Job not found" });
     }

@@ -26,3 +26,28 @@ debugRouter.get("/env", async (_req, res) => {
     });
   }
 });
+
+debugRouter.get("/time", async (req, res) => {
+  const tz = (req.query.tz as string) || process.env.BIZ_TZ || "Australia/Melbourne";
+  const sample = (req.query.ts as string) || null; // ISO string or omit
+
+  try {
+    const r: any = await db.execute(sql`
+      select
+        now() as db_now_utc,
+        current_setting('TimeZone') as db_timezone,
+        ${tz} as biz_tz,
+        ${sample}::timestamptz as sample_in_db,
+        (${sample}::timestamptz at time zone ${sql.raw(`'${tz}'`)}) as sample_in_${sql.raw(tz.replace('/','_'))}
+    `);
+    res.json({
+      server_now_utc: new Date().toISOString(),
+      db: r.rows?.[0] || null,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: error.message,
+      server_now_utc: new Date().toISOString()
+    });
+  }
+});

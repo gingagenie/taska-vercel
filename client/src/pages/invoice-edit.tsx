@@ -79,7 +79,7 @@ export default function InvoiceEdit() {
 
       <Card>
         <CardHeader><CardTitle>Line Items</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="min-h-[400px]">
           <LineEditor
             lines={lines}
             setLines={setLines}

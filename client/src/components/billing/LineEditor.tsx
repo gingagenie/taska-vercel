@@ -59,7 +59,7 @@ export default function LineEditor({
               const lineTotal = (Number(l.quantity||0) * Number(l.unit_amount||0)) * (1 + Number(l.tax_rate||0)/100);
               return (
                 <tr key={i} className="border-b dark:border-gray-700">
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-4">
                     <ItemPresetInput
                       description={l.description}
                       setDescription={(v)=>change(i,{ description: v })}
@@ -70,7 +70,7 @@ export default function LineEditor({
                       autoSave={true}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-4">
                     <Input 
                       inputMode="decimal" 
                       className="text-right w-20" 
@@ -79,7 +79,7 @@ export default function LineEditor({
                       data-testid={`input-line-${i}-quantity`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-4">
                     <Input 
                       inputMode="decimal" 
                       className="text-right w-24" 
@@ -88,7 +88,7 @@ export default function LineEditor({
                       data-testid={`input-line-${i}-unit-amount`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-4">
                     <Input 
                       inputMode="decimal" 
                       className="text-right w-20" 
@@ -97,10 +97,10 @@ export default function LineEditor({
                       data-testid={`input-line-${i}-tax-rate`}
                     />
                   </td>
-                  <td className="px-3 py-2 text-right font-mono" data-testid={`text-line-${i}-total`}>
+                  <td className="px-3 py-4 text-right font-mono" data-testid={`text-line-${i}-total`}>
                     ${lineTotal.toFixed(2)}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-4 text-right">
                     <Button 
                       variant="ghost" 
                       size="sm" 

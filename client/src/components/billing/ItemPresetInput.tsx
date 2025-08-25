@@ -153,7 +153,7 @@ export default function ItemPresetInput({
       </div>
       
       {open && (
-        <div className="absolute z-40 mt-2 w-full rounded-lg border bg-white dark:bg-gray-800 shadow-xl border-gray-200 dark:border-gray-700">
+        <div className="absolute z-50 mt-2 w-full rounded-lg border bg-white dark:bg-gray-800 shadow-xl border-gray-200 dark:border-gray-700">
           {loading && (
             <div className="px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
               <div className="animate-spin rounded-full h-3 w-3 border border-gray-300 border-t-blue-600"></div>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { localInputFromISO, isoFromLocalInput } from "@/lib/datetime";
 
 export default function JobEdit() {
   const [match, params] = useRoute("/jobs/:id/edit");
@@ -33,7 +34,7 @@ export default function JobEdit() {
         setTitle(j.title || "");
         setDescription(j.description || "");
         setStatus(j.status || "new");
-        setScheduledAt(j.scheduled_at || "");
+        setScheduledAt(localInputFromISO(j.scheduled_at));
         setCustomerId(j.customer_id || "");
 
         const [cs, photosData] = await Promise.all([
@@ -77,7 +78,7 @@ export default function JobEdit() {
           title,
           description,
           status,
-          scheduledAt: scheduledAt ? scheduledAt.replace("T", " ") + (scheduledAt.length === 16 ? ":00" : "") : null,
+          scheduledAt: isoFromLocalInput(scheduledAt),
           customerId: customerId || null,
         }),
       });
@@ -135,9 +136,9 @@ export default function JobEdit() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Scheduled At</label>
+            <label className="block text-sm font-medium mb-1">Scheduled At (Melbourne Time)</label>
             <Input
-              placeholder="YYYY-MM-DD HH:MM:SS or 2025-08-22T10:00"
+              type="datetime-local"
               value={scheduledAt}
               onChange={(e) => setScheduledAt(e.target.value)}
             />

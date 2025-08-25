@@ -79,32 +79,13 @@ export default function SchedulePage() {
     const map: Record<string, Job[]> = {};
     (jobs as Job[]).forEach((j) => {
       try {
-        console.log(`[Desktop] Job ${j.title}: raw=${j.scheduled_at}`);
-        
-        // Handle both formats: "2025-08-23T09:00:00.000Z" and "2025-08-23 09:00:00+00"
-        const normalizedTime = j.scheduled_at.includes('T') 
-          ? j.scheduled_at 
-          : j.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
-        
-        console.log(`[Desktop] Job ${j.title}: normalized=${normalizedTime}`);
-        
-        const parsed = parseISO(normalizedTime);
-        console.log(`[Desktop] Job ${j.title}: parsed=${parsed.toISOString()}`);
-        
-        // Convert to Australia/Melbourne timezone for correct date grouping
-        const melbourneTime = toZonedTime(parsed, 'Australia/Melbourne');
+        // Parse UTC timestamp and convert to Melbourne timezone for grouping
+        const utcDate = parseISO(j.scheduled_at);
+        const melbourneTime = toZonedTime(utcDate, 'Australia/Melbourne');
         const key = format(melbourneTime, "yyyy-MM-dd");
-        
-        console.log(`[Desktop] Job ${j.title}: melbourne=${melbourneTime.toISOString()} key=${key}`);
-        
         (map[key] ||= []).push(j);
       } catch (e) {
-        console.error(`[Desktop] Date parse error for job ${j.title}:`, e);
-        // Fallback: try to extract date from malformed timestamp
-        const dateMatch = j.scheduled_at.match(/(\d{4}-\d{2}-\d{2})/);
-        if (dateMatch) {
-          (map[dateMatch[1]] ||= []).push(j);
-        }
+        console.error(`Date parse error for job ${j.title}:`, e);
       }
     });
     return map;
@@ -126,12 +107,9 @@ export default function SchedulePage() {
   function onDragStart(e: React.DragEvent, job: Job) {
     e.dataTransfer.setData("application/x-job-id", job.id);
     
-    // Properly parse the timestamp with timezone handling
+    // Parse the UTC timestamp for drag operations
     try {
-      const normalizedTime = job.scheduled_at.includes('T') 
-        ? job.scheduled_at 
-        : job.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
-      const parsed = parseISO(normalizedTime);
+      const parsed = parseISO(job.scheduled_at);
       e.dataTransfer.setData("application/x-job-time", parsed.toISOString());
     } catch (err) {
       // Fallback to original
@@ -339,23 +317,12 @@ export default function SchedulePage() {
                     <div className="text-xs text-gray-600">
                       {j.customer_name || "—"} • {(() => {
                         try {
-                          console.log(`[Desktop Modal] Job ${j.title}: raw=${j.scheduled_at}`);
-                          
-                          // Handle both formats and convert to local timezone
-                          const normalizedTime = j.scheduled_at.includes('T') 
-                            ? j.scheduled_at 
-                            : j.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
-                          
-                          const parsed = parseISO(normalizedTime);
-                          const melbourneTime = toZonedTime(parsed, 'Australia/Melbourne');
-                          const localTime = format(melbourneTime, "h:mm a");
-                          
-                          console.log(`[Desktop Modal] Job ${j.title}: local=${localTime}`);
-                          
-                          return localTime;
+                          // Parse UTC timestamp and convert to Melbourne time
+                          const utcDate = parseISO(j.scheduled_at);
+                          const melbourneTime = toZonedTime(utcDate, 'Australia/Melbourne');
+                          return format(melbourneTime, "h:mm a");
                         } catch (e) {
-                          console.error(`[Desktop Modal] Time parse error for ${j.title}:`, e);
-                          return new Date(j.scheduled_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+                          return "Time TBA";
                         }
                       })()}
                     </div>

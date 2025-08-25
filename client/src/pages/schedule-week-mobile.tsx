@@ -217,29 +217,12 @@ export default function ScheduleWeekMobile() {
                             <span>
                               {(() => {
                                 try {
-                                  console.log(`[Mobile] Job ${job.title}: raw=${job.scheduled_at}`);
-                                  
-                                  // Handle both formats: "2025-08-23T09:00:00.000Z" and "2025-08-23 09:00:00+00"
-                                  const normalizedTime = job.scheduled_at.includes('T') 
-                                    ? job.scheduled_at 
-                                    : job.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
-                                  
-                                  console.log(`[Mobile] Job ${job.title}: normalized=${normalizedTime}`);
-                                  
-                                  const parsed = parseISO(normalizedTime);
-                                  console.log(`[Mobile] Job ${job.title}: parsed=${parsed.toISOString()}`);
-                                  
-                                  // Convert UTC to Australia/Melbourne timezone using date-fns-tz
-                                  const melbourneTime = toZonedTime(parsed, 'Australia/Melbourne');
-                                  const localTime = format(melbourneTime, "h:mm a");
-                                  console.log(`[Mobile] Job ${job.title}: melbourne=${melbourneTime.toISOString()} local=${localTime}`);
-                                  
-                                  return localTime;
+                                  // Parse UTC timestamp and convert to Melbourne time
+                                  const utcDate = parseISO(job.scheduled_at);
+                                  const melbourneTime = toZonedTime(utcDate, 'Australia/Melbourne');
+                                  return format(melbourneTime, "h:mm a");
                                 } catch (e) {
-                                  console.error(`[Mobile] Time parse error for ${job.title}:`, e);
-                                  // Extract time from malformed format as fallback
-                                  const timeMatch = job.scheduled_at.match(/(\d{2}):(\d{2})/);
-                                  return timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : "Time TBA";
+                                  return "Time TBA";
                                 }
                               })()}
                             </span>

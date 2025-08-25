@@ -184,12 +184,12 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid grid-cols-5 w-full">
-          <TabsTrigger value="profile" data-testid="tab-profile">Profile</TabsTrigger>
-          <TabsTrigger value="org" data-testid="tab-organization">Organization</TabsTrigger>
-          <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
-          <TabsTrigger value="subscription" data-testid="tab-subscription">Subscription</TabsTrigger>
-          <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
+          <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
+          <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>
+          <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
+          <TabsTrigger value="subscription" data-testid="tab-subscription" className="text-xs px-2 py-2">Sub</TabsTrigger>
+          <TabsTrigger value="security" data-testid="tab-security" className="text-xs px-2 py-2">Security</TabsTrigger>
         </TabsList>
 
         {/* Profile */}

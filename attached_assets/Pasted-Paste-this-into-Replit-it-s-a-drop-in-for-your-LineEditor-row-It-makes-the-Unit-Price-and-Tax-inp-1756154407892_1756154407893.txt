@@ -1,0 +1,73 @@
+Paste this into Replit (it’s a drop-in for your LineEditor row). It makes the Unit Price and Tax inputs properly controlled, stringified, and always display after a preset pick.
+
+// client/src/components/billing/LineEditor.tsx
+// key helpers
+const toStr = (v: any) => (v === null || v === undefined ? "" : String(v));
+const toNum = (v: string) => {
+  const n = parseFloat(v.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+// inside your LineEditor component…
+
+function Row({ l, i, change, remove }: any) {
+  const lineTotal =
+    Number(l.qty || 0) * Number(l.unit_amount || 0) *
+    (1 + Number(l.tax_rate || 0) / 100);
+
+  return (
+    <tr className="border-b">
+      {/* Description (uses ItemPresetInput) */}
+      <td className="px-3 py-2 align-top">
+        <ItemPresetInput
+          description={l.description || ""}
+          setDescription={(v) => change(i, { description: v })}
+          unitAmount={Number(l.unit_amount || 0)}
+          setUnitAmount={(v) => change(i, { unit_amount: v })}
+          taxRate={Number(l.tax_rate || 0)}
+          setTaxRate={(v) => change(i, { tax_rate: v })}
+          autoSave
+        />
+      </td>
+
+      {/* Qty */}
+      <td className="px-3 py-2 w-24">
+        <input
+          className="w-full border rounded p-2 text-right"
+          inputMode="decimal"
+          value={toStr(l.qty)}
+          onChange={(e) => change(i, { qty: toNum(e.target.value) })}
+        />
+      </td>
+
+      {/* Unit Price */}
+      <td className="px-3 py-2 w-32">
+        <input
+          className="w-full border rounded p-2 text-right"
+          inputMode="decimal"
+          value={toStr(l.unit_amount)}          {/* <- ALWAYS string */}
+          onChange={(e) => change(i, { unit_amount: toNum(e.target.value) })}
+        />
+      </td>
+
+      {/* Tax % */}
+      <td className="px-3 py-2 w-24">
+        <input
+          className="w-full border rounded p-2 text-right"
+          inputMode="decimal"
+          value={toStr(l.tax_rate)}              {/* <- ALWAYS string */}
+          onChange={(e) => change(i, { tax_rate: toNum(e.target.value) })}
+        />
+      </td>
+
+      {/* Line Total */}
+      <td className="px-3 py-2 text-right w-28">
+        ${lineTotal.toFixed(2)}
+      </td>
+
+      <td className="px-3 py-2 w-20 text-right">
+        <button className="text-red-600" onClick={() => remove(i)}>Delete</button>
+      </td>
+    </tr>
+  );
+}

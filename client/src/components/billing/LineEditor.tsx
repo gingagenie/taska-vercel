@@ -5,6 +5,13 @@ import ItemPresetInput from "./ItemPresetInput";
 
 export type Line = { description: string; quantity: number; unit_amount: number; tax_rate: number; };
 
+// Key helpers for proper value handling
+const toStr = (v: any) => (v === null || v === undefined ? "" : String(v));
+const toNum = (v: string) => {
+  const n = parseFloat(v.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
 interface LineEditorProps {
   lines: Line[];
   setLines: (v: Line[]) => void;
@@ -61,39 +68,39 @@ export default function LineEditor({
                 <tr key={i} className="border-b dark:border-gray-700">
                   <td className="px-3 py-4">
                     <ItemPresetInput
-                      description={l.description}
+                      description={l.description || ""}
                       setDescription={(v)=>change(i,{ description: v })}
-                      unitAmount={Number(l.unit_amount)}
-                      setUnitAmount={(v)=>change(i,{ unit_amount: Number(v) })}
-                      taxRate={Number(l.tax_rate)}
-                      setTaxRate={(v)=>change(i,{ tax_rate: Number(v) })}
+                      unitAmount={Number(l.unit_amount || 0)}
+                      setUnitAmount={(v)=>change(i,{ unit_amount: v })}
+                      taxRate={Number(l.tax_rate || 0)}
+                      setTaxRate={(v)=>change(i,{ tax_rate: v })}
                       autoSave={true}
                     />
                   </td>
-                  <td className="px-3 py-4">
-                    <Input 
-                      inputMode="decimal" 
-                      className="text-right w-20" 
-                      value={l.quantity} 
-                      onChange={e => change(i, {quantity: Number(e.target.value||0)})}
+                  <td className="px-3 py-4 w-24">
+                    <input
+                      className="w-full border rounded p-2 text-right bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                      inputMode="decimal"
+                      value={toStr(l.quantity)}
+                      onChange={e => change(i, {quantity: toNum(e.target.value)})}
                       data-testid={`input-line-${i}-quantity`}
                     />
                   </td>
-                  <td className="px-3 py-4">
-                    <Input 
-                      inputMode="decimal" 
-                      className="text-right w-24" 
-                      value={l.unit_amount?.toString() || ''} 
-                      onChange={e => change(i, {unit_amount: Number(e.target.value||0)})}
+                  <td className="px-3 py-4 w-32">
+                    <input
+                      className="w-full border rounded p-2 text-right bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                      inputMode="decimal"
+                      value={toStr(l.unit_amount)}
+                      onChange={e => change(i, {unit_amount: toNum(e.target.value)})}
                       data-testid={`input-line-${i}-unit-amount`}
                     />
                   </td>
-                  <td className="px-3 py-4">
-                    <Input 
-                      inputMode="decimal" 
-                      className="text-right w-20" 
-                      value={l.tax_rate?.toString() || ''} 
-                      onChange={e => change(i, {tax_rate: Number(e.target.value||0)})}
+                  <td className="px-3 py-4 w-24">
+                    <input
+                      className="w-full border rounded p-2 text-right bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                      inputMode="decimal"
+                      value={toStr(l.tax_rate)}
+                      onChange={e => change(i, {tax_rate: toNum(e.target.value)})}
                       data-testid={`input-line-${i}-tax-rate`}
                     />
                   </td>

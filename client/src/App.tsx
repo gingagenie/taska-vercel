@@ -31,6 +31,7 @@ import JobEdit from "./pages/job-edit";
 import JobNotesCharges from "./pages/job-notes-charges";
 import CustomerView from "./pages/customer-view";
 import CustomerNew from "./pages/customers-new";
+import EquipmentView from "./pages/equipment-view";
 import SettingsPage from "@/pages/settings";
 import MembersPage from "@/pages/members";
 import Landing from "@/pages/landing";
@@ -153,6 +154,7 @@ function AuthenticatedApp() {
           <Route path="/jobs/:id/edit">{() => <JobEdit />}</Route>
           <Route path="/jobs/:id/notes">{() => <JobNotesCharges />}</Route>
           <Route path="/customers/:id">{() => <CustomerView />}</Route>
+          <Route path="/equipment/:id">{() => <EquipmentView />}</Route>
           <Route component={NotFound} />
         </Switch>
         </main>

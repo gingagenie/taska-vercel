@@ -34,15 +34,20 @@ router.get('/connect', requireAuth, requireOrg, async (req: AuthenticatedRequest
 router.get('/callback', async (req: Request, res: Response) => {
   const { code } = req.query;
   
+  // Get the correct base URL based on the request
+  const protocol = req.get('X-Forwarded-Proto') || req.protocol;
+  const host = req.get('Host');
+  const baseUrl = `${protocol}://${host}`;
+  
   if (!code || typeof code !== 'string') {
-    return res.redirect('/settings?xero_error=invalid_code');
+    return res.redirect(`${baseUrl}/settings?xero_error=invalid_code`);
   }
 
   try {
     // Get orgId from session
     const orgId = (req.session as any)?.xeroOrgId;
     if (!orgId) {
-      return res.redirect('/settings?xero_error=session_expired');
+      return res.redirect(`${baseUrl}/settings?xero_error=session_expired`);
     }
 
     const result = await xeroService.handleCallback(code, orgId);
@@ -52,10 +57,10 @@ router.get('/callback', async (req: Request, res: Response) => {
       delete (req.session as any).xeroOrgId;
     }
 
-    res.redirect(`/settings?xero_success=true&tenant=${encodeURIComponent(result.tenantName)}`);
+    res.redirect(`${baseUrl}/settings?xero_success=true&tenant=${encodeURIComponent(result.tenantName)}`);
   } catch (error) {
     console.error('Xero callback error:', error);
-    res.redirect('/settings?xero_error=connection_failed');
+    res.redirect(`${baseUrl}/settings?xero_error=connection_failed`);
   }
 });
 

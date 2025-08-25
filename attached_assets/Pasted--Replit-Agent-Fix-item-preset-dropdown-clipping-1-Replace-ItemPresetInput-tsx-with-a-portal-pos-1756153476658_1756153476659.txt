@@ -1,3 +1,6 @@
+🔧 Replit Agent — Fix item preset dropdown clipping
+1) Replace ItemPresetInput.tsx with a portal-positioned menu
+// client/src/components/billing/ItemPresetInput.tsx
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { itemPresetsApi } from "@/lib/api";
@@ -117,7 +120,7 @@ export default function ItemPresetInput({
         </button>
       ))}
       {!loading && opts.length === 0 && (
-        <div className="px-3 py-2 text-sm text-gray-500">Press Enter to use "{q}"</div>
+        <div className="px-3 py-2 text-sm text-gray-500">Press Enter to use “{q}”</div>
       )}
     </div>,
     document.body
@@ -141,3 +144,21 @@ export default function ItemPresetInput({
     </div>
   );
 }
+
+2) Give the editor extra breathing room
+
+Open your LineEditor wrapper and add bottom padding so the popup never overlaps totals.
+
+Where you render the whole editor card/section, add pb-28 (or pb-36 if you like more).
+
+Ensure wrappers don’t clip: prefer overflow-visible on the card content that holds the table.
+
+Example (where LineEditor lives):
+
+// around the Line Items card content
+<CardContent className="space-y-3 overflow-visible pb-28">
+  {/* ...table + LineEditor... */}
+</CardContent>
+
+
+Inside LineEditor.tsx, if you have an overflow-x-auto around the table, keep that, but don’t wrap the entire section in overflow-hidden. The portal avoids clipping anyway, the padding ensures you don’t need to scroll the page a tiny bit to see the menu.

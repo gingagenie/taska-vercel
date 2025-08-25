@@ -127,7 +127,7 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
           </div>
 
           <div>
-            <Label>Scheduled At</Label>
+            <Label>Scheduled At (Melbourne Time)</Label>
             <Input
               type="datetime-local"
               value={scheduledAt}

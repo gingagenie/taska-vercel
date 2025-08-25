@@ -317,10 +317,14 @@ export default function SchedulePage() {
                     <div className="text-xs text-gray-600">
                       {j.customer_name || "—"} • {(() => {
                         try {
-                          // Parse UTC timestamp and convert to Melbourne time
-                          const utcDate = parseISO(j.scheduled_at);
-                          const melbourneTime = toZonedTime(utcDate, 'Australia/Melbourne');
-                          return format(melbourneTime, "h:mm a");
+                          // Simple UTC to Melbourne (+10 hours)
+                          const utc = new Date(j.scheduled_at);
+                          const melb = new Date(utc.getTime() + (10 * 60 * 60 * 1000));
+                          const h = melb.getUTCHours();
+                          const m = melb.getUTCMinutes();
+                          const ampm = h >= 12 ? 'PM' : 'AM';
+                          const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                          return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
                         } catch (e) {
                           return "Time TBA";
                         }

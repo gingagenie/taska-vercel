@@ -118,9 +118,11 @@ export default function LineEditor({
         </table>
       </div>
 
-      <Button onClick={add} variant="secondary" data-testid="button-add-line">
-        Add Line Item
-      </Button>
+      <div className="pt-12">
+        <Button onClick={add} variant="secondary" data-testid="button-add-line">
+          Add Line Item
+        </Button>
+      </div>
 
       <div className="flex flex-col items-end gap-1 pt-4 border-t">
         <div className="text-sm font-mono" data-testid="text-subtotal">

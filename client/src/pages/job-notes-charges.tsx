@@ -127,6 +127,8 @@ export default function JobNotesCharges() {
         method: "PUT",
         body: JSON.stringify({ notes: notesText }),
       });
+      // Reload data to confirm save was successful
+      await loadAll();
     } catch (e: any) {
       setErr(e?.message || "Failed to save notes");
     } finally {

@@ -135,15 +135,15 @@ export default function EquipmentPage() {
                         size="sm" 
                         className="h-8 w-8 p-0 opacity-70 hover:opacity-100"
                         data-testid={`button-actions-equipment-${e.id}`}
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(event) => event.stopPropagation()}
                       >
                         <MoreHorizontal className="h-4 w-4" />
                         <span className="sr-only">Actions</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-36">
-                      <DropdownMenuItem onClick={(e) => {
-                        e.stopPropagation();
+                      <DropdownMenuItem onClick={(event) => {
+                        event.stopPropagation();
                         setEditEquipment(e);
                       }}>
                         <Edit className="h-4 w-4 mr-2" />
@@ -151,8 +151,8 @@ export default function EquipmentPage() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-700"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                        onClick={(event) => {
+                          event.stopPropagation();
                           setConfirmId(e.id);
                         }}
                         data-testid={`button-delete-equipment-${e.id}`}

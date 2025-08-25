@@ -114,7 +114,7 @@ export default function Jobs() {
               key={job.id} 
               className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
               onClick={() => {
-                console.log('Clicking job card:', job.id);
+                alert(`Clicked job card: ${job.id}`);
                 navigate(`/jobs/${job.id}`);
               }}
               data-testid={`card-job-${job.id}`}

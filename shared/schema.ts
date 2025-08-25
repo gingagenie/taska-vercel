@@ -201,10 +201,7 @@ export const itemPresets = pgTable("item_presets", {
   unitAmount: decimal("unit_amount", { precision: 10, scale: 2 }).default("0"),
   taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => ({
-  // Unique constraint on org_id and lowercase name
-  uniqueOrgName: uniqueIndex("item_presets_org_name_unique").on(table.orgId, sql`lower(${table.name})`),
-}));
+});
 
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });

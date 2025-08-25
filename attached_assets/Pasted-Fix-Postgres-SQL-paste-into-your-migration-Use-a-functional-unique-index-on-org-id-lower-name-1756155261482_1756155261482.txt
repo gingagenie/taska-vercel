@@ -1,0 +1,69 @@
+Fix (Postgres SQL – paste into your migration)
+
+Use a functional unique index on (org_id, lower(name)):
+
+-- clean up any bad attempt first
+DROP INDEX IF EXISTS item_presets_org_name_unique;
+
+-- correct unique index: org_id (uuid) + lower(name) (text expression)
+CREATE UNIQUE INDEX item_presets_org_name_unique
+ON item_presets (org_id, lower(name));
+
+
+That enforces “one preset name per org, case-insensitive” without casting UUIDs.
+
+If you’re defining it in Drizzle schema (recommended)
+// server/db/schema/itemPresets.ts
+import { pgTable, uuid, text, numeric, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { orgs } from "./orgs";
+
+export const itemPresets = pgTable("item_presets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orgId: uuid("org_id").notNull().references(() => orgs.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  unitAmount: numeric("unit_amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+}, (t) => ({
+  // This generates: CREATE UNIQUE INDEX ... ON item_presets (org_id, lower(name))
+  orgNameUnique: uniqueIndex("item_presets_org_name_unique").on(
+    t.orgId,
+    sql`lower(${t.name})`,
+  ),
+}));
+
+
+Then run your normal migration (drizzle-kit push / Replit deploy).
+
+Optional (alternate approach)
+
+If you prefer not to use a functional index, you can switch name to citext:
+
+CREATE EXTENSION IF NOT EXISTS citext;
+ALTER TABLE item_presets ALTER COLUMN name TYPE citext;
+CREATE UNIQUE INDEX item_presets_org_name_unique ON item_presets (org_id, name);
+
+
+But the functional index you see above is simpler and plays nicely with your current schema.
+
+Quick Replit Agent brief (copy/paste)
+
+Task: Fix migration error for item_presets unique index.
+
+Open the latest migration that creates item_presets_org_name_unique.
+
+Replace the index DDL with:
+
+DROP INDEX IF EXISTS item_presets_org_name_unique;
+CREATE UNIQUE INDEX item_presets_org_name_unique
+ON item_presets (org_id, lower(name));
+
+
+If schema is managed in Drizzle, update the table definition to:
+
+orgNameUnique: uniqueIndex("item_presets_org_name_unique").on(
+  t.orgId, sql`lower(${t.name})`
+)
+
+
+Apply migrations and redeploy.

@@ -196,12 +196,18 @@ export const orgIntegrations = pgTable("org_integrations", {
 // Item presets (for billing line items)
 export const itemPresets = pgTable("item_presets", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  orgId: uuid("org_id").references(() => organizations.id).notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  unitAmount: decimal("unit_amount", { precision: 10, scale: 2 }).default("0"),
-  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
+  orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  unitAmount: decimal("unit_amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  // This generates: CREATE UNIQUE INDEX ... ON item_presets (org_id, lower(name))
+  orgNameUnique: uniqueIndex("item_presets_org_name_unique").on(
+    t.orgId,
+    sql`lower(${t.name})`,
+  ),
+}));
 
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });

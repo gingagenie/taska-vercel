@@ -133,7 +133,7 @@ export default function SchedulePage() {
         : job.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
       const parsed = parseISO(normalizedTime);
       e.dataTransfer.setData("application/x-job-time", parsed.toISOString());
-    } catch (e) {
+    } catch (err) {
       // Fallback to original
       e.dataTransfer.setData("application/x-job-time", new Date(job.scheduled_at).toISOString());
     }

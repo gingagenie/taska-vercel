@@ -46,7 +46,15 @@ export class XeroService {
 
   async handleCallback(code: string, orgId: string) {
     const client = this.ensureClient();
+    console.log('Xero callback: Processing code:', code.substring(0, 20) + '...');
+    
     const tokenSet = await client.apiCallback(code);
+    console.log('Xero callback: Token set received:', !!tokenSet.access_token);
+    
+    if (!tokenSet.access_token) {
+      throw new Error('Failed to get access token from Xero');
+    }
+    
     await client.updateTenants();
     
     const activeTenant = client.tenants[0]; // Use first tenant

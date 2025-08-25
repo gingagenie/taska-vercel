@@ -18,8 +18,6 @@ export default function JobNotesCharges() {
   const [photos, setPhotos] = useState<any[]>([]);
   
   const [newNote, setNewNote] = useState("");
-  const [notesText, setNotesText] = useState("");
-  const [savingNotes, setSavingNotes] = useState(false);
   const [chargeDesc, setChargeDesc] = useState("");
   const [chargeQty, setChargeQty] = useState(1);
   const [chargeUnit, setChargeUnit] = useState(0);
@@ -83,16 +81,14 @@ export default function JobNotesCharges() {
 
   const loadAll = async () => {
     try {
-      const [notesData, chargesData, photosData, jobData] = await Promise.all([
+      const [notesData, chargesData, photosData] = await Promise.all([
         notesApi.list(jobId),
         chargesApi.list(jobId),
         photosApi.list(jobId),
-        api(`/api/jobs/${jobId}`),
       ]);
       setNotes(notesData || []);
       setCharges(chargesData || []);
       setPhotos(photosData || []);
-      setNotesText(jobData?.notes || "");
     } catch (e: any) {
       setErr(e?.message || "Failed to load data");
     } finally {
@@ -119,22 +115,6 @@ export default function JobNotesCharges() {
     }
   };
 
-  const saveNotes = async () => {
-    setSavingNotes(true);
-    setErr(null);
-    try {
-      await api(`/api/jobs/${jobId}/notes`, {
-        method: "PUT",
-        body: JSON.stringify({ notes: notesText }),
-      });
-      // Reload data to confirm save was successful
-      await loadAll();
-    } catch (e: any) {
-      setErr(e?.message || "Failed to save notes");
-    } finally {
-      setSavingNotes(false);
-    }
-  };
 
 
 
@@ -191,24 +171,11 @@ export default function JobNotesCharges() {
         <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Work Performed</Label>
-            <Textarea
-              rows={6}
-              placeholder="Describe the work performed..."
-              value={notesText}
-              onChange={(e) => setNotesText(e.target.value)}
-            />
-            <Button onClick={saveNotes} disabled={savingNotes}>
-              {savingNotes ? "Saving..." : "Save notes"}
-            </Button>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Add Quick Note</Label>
+            <Label>Notes</Label>
             <Textarea
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
-              placeholder="Enter a quick work note..."
+              placeholder="Enter work notes..."
               rows={3}
             />
             <Button onClick={addNote} disabled={savingNote || !newNote.trim()}>

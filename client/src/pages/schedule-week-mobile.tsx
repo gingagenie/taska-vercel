@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { scheduleApi } from "@/lib/api";
@@ -43,7 +43,7 @@ export default function ScheduleWeekMobile() {
   });
 
   // Sanity check: Log raw scheduled_at values whenever jobs change
-  React.useEffect(() => {
+  useEffect(() => {
     if (jobs && jobs.length > 0) {
       console.log("[Mobile Schedule] Raw job data:");
       jobs.forEach((job: any, i: number) => {
@@ -52,7 +52,10 @@ export default function ScheduleWeekMobile() {
         console.log(`  Ends with Z: ${job.scheduled_at?.endsWith?.('Z') || false}`);
         if (job.scheduled_at) {
           try {
-            const parsed = parseISO(job.scheduled_at);
+            // Fix malformed timestamp: "2025-08-23 09:00:00+00" -> "2025-08-23T09:00:00.000Z"
+            const fixedTimestamp = job.scheduled_at.replace(' ', 'T').replace('+00', '.000Z');
+            const parsed = parseISO(fixedTimestamp);
+            console.log(`  Fixed timestamp: ${fixedTimestamp}`);
             console.log(`  Parsed date: ${parsed.toISOString()}`);
             console.log(`  Local string: ${parsed.toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}`);
           } catch (e) {
@@ -77,9 +80,15 @@ export default function ScheduleWeekMobile() {
     // Group jobs by their scheduled date
     jobs.forEach((job: any) => {
       if (job.scheduled_at) {
-        const jobDate = format(parseISO(job.scheduled_at), "yyyy-MM-dd");
-        if (groups[jobDate]) {
-          groups[jobDate].push(job);
+        try {
+          // Fix malformed timestamp: "2025-08-23 09:00:00+00" -> "2025-08-23T09:00:00.000Z"
+          const fixedTimestamp = job.scheduled_at.replace(' ', 'T').replace('+00', '.000Z');
+          const jobDate = format(parseISO(fixedTimestamp), "yyyy-MM-dd");
+          if (groups[jobDate]) {
+            groups[jobDate].push(job);
+          }
+        } catch (e) {
+          console.error('Failed to parse job timestamp:', job.scheduled_at, e);
         }
       }
     });
@@ -212,7 +221,17 @@ export default function ScheduleWeekMobile() {
                         {job.scheduled_at && (
                           <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                             <Clock className="h-4 w-4" />
-                            <span>{format(parseISO(job.scheduled_at), "h:mm a")}</span>
+                            <span>
+                              {(() => {
+                                try {
+                                  // Fix malformed timestamp: "2025-08-23 09:00:00+00" -> "2025-08-23T09:00:00.000Z"
+                                  const fixedTimestamp = job.scheduled_at.replace(' ', 'T').replace('+00', '.000Z');
+                                  return format(parseISO(fixedTimestamp), "h:mm a");
+                                } catch (e) {
+                                  return job.scheduled_at; // Fallback to raw timestamp
+                                }
+                              })()}
+                            </span>
                           </div>
                         )}
 

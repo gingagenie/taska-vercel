@@ -189,7 +189,7 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
@@ -270,14 +270,17 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-xs text-gray-500 mt-1">PNG/JPG/WebP up to 5MB.</p>
               </div>
-              <div className="md:col-span-2 flex justify-end">
-                <Button 
-                  onClick={saveProfile} 
-                  disabled={saving}
-                  data-testid="button-save-profile"
-                >
-                  {saving ? "Saving..." : "Save Profile"}
-                </Button>
+              <div className="md:col-span-2">
+                <div className="grid grid-cols-1 max-w-md ml-auto">
+                  <Button 
+                    onClick={saveProfile} 
+                    disabled={saving}
+                    data-testid="button-save-profile"
+                    className="w-full"
+                  >
+                    {saving ? "Saving..." : "Save Profile"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -346,14 +349,17 @@ export default function SettingsPage() {
                   data-testid="input-org-labour-rate"
                 />
               </div>
-              <div className="md:col-span-2 flex justify-end">
-                <Button 
-                  onClick={saveOrg} 
-                  disabled={saving}
-                  data-testid="button-save-organization"
-                >
-                  {saving ? "Saving..." : "Save Organization"}
-                </Button>
+              <div className="md:col-span-2">
+                <div className="grid grid-cols-1 max-w-md ml-auto">
+                  <Button 
+                    onClick={saveOrg} 
+                    disabled={saving}
+                    data-testid="button-save-organization"
+                    className="w-full"
+                  >
+                    {saving ? "Saving..." : "Save Organization"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -403,21 +409,21 @@ export default function SettingsPage() {
                         Connected {new Date(xeroStatus.connectedAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-3 max-w-md">
                       <Button
                         variant="outline"
-                        size="sm"
                         onClick={() => disconnectXeroMutation.mutate()}
                         disabled={disconnectXeroMutation.isPending}
                         data-testid="button-disconnect-xero"
+                        className="w-full"
                       >
                         {disconnectXeroMutation.isPending ? "Disconnecting..." : "Disconnect"}
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
                         onClick={() => window.open('https://my.xero.com', '_blank')}
                         data-testid="button-xero-dashboard"
+                        className="w-full"
                       >
                         Open Xero <ExternalLink className="h-3 w-3 ml-1" />
                       </Button>
@@ -510,14 +516,17 @@ export default function SettingsPage() {
                   data-testid="input-confirm-password"
                 />
               </div>
-              <div className="md:col-span-2 flex justify-end">
-                <Button 
-                  onClick={changePassword} 
-                  disabled={saving}
-                  data-testid="button-change-password"
-                >
-                  {saving ? "Changing..." : "Change Password"}
-                </Button>
+              <div className="md:col-span-2">
+                <div className="grid grid-cols-1 max-w-md ml-auto">
+                  <Button 
+                    onClick={changePassword} 
+                    disabled={saving}
+                    data-testid="button-change-password"
+                    className="w-full"
+                  >
+                    {saving ? "Changing..." : "Change Password"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

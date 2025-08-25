@@ -39,7 +39,7 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
     if (bodyUpper === "YES" || bodyUpper === "Y") {
       // Find the most recent outbound SMS to this phone number
       const outboundResult: any = await db.execute(sql`
-        select distinct jn.job_id, j.org_id
+        select jn.job_id, j.org_id, jn.created_at
         from job_notifications jn
         join jobs j on j.id = jn.job_id
         where jn.to_addr = ${normalizedFrom}

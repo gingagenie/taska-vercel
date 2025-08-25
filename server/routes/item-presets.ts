@@ -1,0 +1,67 @@
+import { Router } from "express";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+
+export const itemPresets = Router();
+
+/** GET /api/item-presets?search=lab */
+itemPresets.get("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const q = String(req.query.search || "").trim();
+  const r: any = await db.execute(sql`
+    select id, name, unit_amount, tax_rate
+    from item_presets
+    where org_id=${orgId}::uuid
+      and (${q === ""} or lower(name) like ${"%" + q.toLowerCase() + "%"})
+    order by name asc
+    limit 20
+  `);
+  res.json(r.rows);
+});
+
+/** POST /api/item-presets  { name, unit_amount, tax_rate }  (manual add in Settings) */
+itemPresets.post("/", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { name, unit_amount, tax_rate } = req.body || {};
+  if (!name || String(name).trim() === "") {
+    return res.status(400).json({ error: "name required" });
+  }
+  const r: any = await db.execute(sql`
+    insert into item_presets (org_id, name, unit_amount, tax_rate)
+    values (${orgId}::uuid, ${name.trim()}, ${Number(unit_amount) || 0}, ${Number(tax_rate) ?? 0})
+    on conflict (org_id, lower(name)) do update
+      set unit_amount = excluded.unit_amount,
+          tax_rate    = excluded.tax_rate
+    returning id, name, unit_amount, tax_rate
+  `);
+  res.json(r.rows[0]);
+});
+
+/** POST /api/item-presets/ensure  { name, unit_amount, tax_rate }
+ * Creates if not exists (used by auto-save on first use)
+ */
+itemPresets.post("/ensure", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { name, unit_amount, tax_rate } = req.body || {};
+  if (!name || String(name).trim() === "") {
+    return res.status(400).json({ error: "name required" });
+  }
+  const r: any = await db.execute(sql`
+    insert into item_presets (org_id, name, unit_amount, tax_rate)
+    values (${orgId}::uuid, ${name.trim()}, ${Number(unit_amount) || 0}, ${Number(tax_rate) ?? 0})
+    on conflict (org_id, lower(name)) do nothing
+    returning id, name, unit_amount, tax_rate
+  `);
+  if (r.rows?.[0]) return res.json(r.rows[0]);
+
+  // existed — return existing
+  const e: any = await db.execute(sql`
+    select id, name, unit_amount, tax_rate
+    from item_presets
+    where org_id=${orgId}::uuid and lower(name)=${name.trim().toLowerCase()}
+    limit 1
+  `);
+  res.json(e.rows?.[0]);
+});

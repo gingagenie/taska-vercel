@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { meApi } from "@/lib/api";
+import { meApi, itemPresetsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,11 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState({ name: "", role: "", phone: "", avatar_url: "" });
   const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", default_labour_rate_cents: 0 });
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
+  
+  // Item presets state
+  const [presets, setPresets] = useState<any[]>([]);
+  const [presetForm, setPresetForm] = useState({ name: "", unit: "0", tax: "10" });
+  const [presetsLoading, setPresetsLoading] = useState(false);
   
   const [saving, setSaving] = useState(false);
 
@@ -182,6 +187,48 @@ export default function SettingsPage() {
     }
   }
 
+  // Item presets functions
+  async function loadPresets() {
+    setPresetsLoading(true);
+    try {
+      const data = await itemPresetsApi.search("");
+      setPresets(data || []);
+    } catch (error) {
+      console.error("Failed to load presets:", error);
+    }
+    setPresetsLoading(false);
+  }
+
+  async function addPreset() {
+    if (!presetForm.name.trim()) return;
+    setSaving(true);
+    try {
+      await itemPresetsApi.create({
+        name: presetForm.name.trim(),
+        unit_amount: Number(presetForm.unit || 0),
+        tax_rate: Number(presetForm.tax || 0),
+      });
+      setPresetForm({ name: "", unit: "0", tax: "10" });
+      await loadPresets();
+      toast({
+        title: "Preset added",
+        description: `${presetForm.name} has been added to your item presets.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to create preset",
+        variant: "destructive",
+      });
+    }
+    setSaving(false);
+  }
+
+  // Load presets when component mounts
+  useEffect(() => {
+    loadPresets();
+  }, []);
+
   if (isLoading) return <div className="p-6">Loading settings...</div>;
 
   return (
@@ -189,9 +236,10 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>
+          <TabsTrigger value="items" data-testid="tab-items" className="text-xs px-2 py-2">Items</TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
           <TabsTrigger value="subscription" data-testid="tab-subscription" className="text-xs px-2 py-2">Sub</TabsTrigger>
           <TabsTrigger value="security" data-testid="tab-security" className="text-xs px-2 py-2">Security</TabsTrigger>
@@ -530,6 +578,88 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Items */}
+        <TabsContent value="items" className="mt-4">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Add New Item Preset</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-4 gap-3 max-w-3xl">
+                  <Input 
+                    placeholder="Name (e.g., Labour)" 
+                    value={presetForm.name} 
+                    onChange={e=>setPresetForm(p=>({...p, name: e.target.value}))}
+                    data-testid="input-preset-name"
+                  />
+                  <Input 
+                    placeholder="Unit $" 
+                    inputMode="decimal" 
+                    value={presetForm.unit} 
+                    onChange={e=>setPresetForm(p=>({...p, unit: e.target.value}))}
+                    data-testid="input-preset-unit"
+                  />
+                  <Input 
+                    placeholder="Tax %" 
+                    inputMode="decimal" 
+                    value={presetForm.tax} 
+                    onChange={e=>setPresetForm(p=>({...p, tax: e.target.value}))}
+                    data-testid="input-preset-tax"
+                  />
+                  <Button 
+                    onClick={addPreset} 
+                    disabled={saving || !presetForm.name.trim()}
+                    data-testid="button-add-preset"
+                  >
+                    {saving ? "Adding..." : "Add / Update"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Existing Item Presets</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {presetsLoading ? (
+                  <div className="text-center py-4">Loading presets...</div>
+                ) : (
+                  <div className="max-w-3xl overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-gray-800">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Name</th>
+                          <th className="px-3 py-2 text-right font-medium">Unit Price</th>
+                          <th className="px-3 py-2 text-right font-medium">Tax %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {presets.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="px-3 py-4 text-center text-gray-500">
+                              No presets yet. Add some common items above to speed up billing.
+                            </td>
+                          </tr>
+                        ) : (
+                          presets.map((p:any)=>(
+                            <tr key={p.id} className="border-b dark:border-gray-700" data-testid={`row-preset-${p.name.toLowerCase().replace(/\s+/g, '-')}`}>
+                              <td className="px-3 py-2 font-medium">{p.name}</td>
+                              <td className="px-3 py-2 text-right font-mono">${Number(p.unit_amount).toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{Number(p.tax_rate).toFixed(2)}%</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

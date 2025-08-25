@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import ItemPresetInput from "./ItemPresetInput";
 
 export type Line = { description: string; quantity: number; unit_amount: number; tax_rate: number; };
 
@@ -59,11 +60,14 @@ export default function LineEditor({
               return (
                 <tr key={i} className="border-b dark:border-gray-700">
                   <td className="px-3 py-2">
-                    <Input 
-                      value={l.description} 
-                      onChange={e => change(i, {description: e.target.value})} 
-                      placeholder="Description" 
-                      data-testid={`input-line-${i}-description`}
+                    <ItemPresetInput
+                      description={l.description}
+                      setDescription={(v)=>change(i,{ description: v })}
+                      unitAmount={Number(l.unit_amount)}
+                      setUnitAmount={(v)=>change(i,{ unit_amount: Number(v) })}
+                      taxRate={Number(l.tax_rate)}
+                      setTaxRate={(v)=>change(i,{ tax_rate: Number(v) })}
+                      autoSave={true}
                     />
                   </td>
                   <td className="px-3 py-2">

@@ -14,6 +14,7 @@ import { members } from "./routes/members";
 import { jobSms } from "./routes/job-sms";
 import { twilioWebhooks } from "./routes/twilio-webhooks";
 import xero from "./routes/xero";
+import { itemPresets } from "./routes/item-presets";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
@@ -37,7 +38,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/quotes", quotes);
   app.use("/api/invoices", invoices);
   app.use("/api/xero", xero);
+  app.use("/api/item-presets", itemPresets);
   console.log("[mount] /api/xero");
+  console.log("[mount] /api/item-presets");
   
   app.get("/api", (_req, res) => res.json({ ok: true, name: "Taska 2.0 API" }));
 

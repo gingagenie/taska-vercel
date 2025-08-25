@@ -82,10 +82,6 @@ export default function ItemPresetInput({
   }
 
   function applyPreset(p: Preset) {
-    console.log('Applying preset:', p);
-    console.log('Unit amount:', p.unit_amount, 'converted:', Number(p.unit_amount || 0));
-    console.log('Tax rate:', p.tax_rate, 'converted:', Number(p.tax_rate || 0));
-    
     setDescription(p.name);
     setUnitAmount(Number(p.unit_amount || 0));
     setTaxRate(Number(p.tax_rate || 0));

@@ -21,6 +21,8 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
     const { From, To, Body, MessageSid, AccountSid } = req.body;
     
     console.log("[TWILIO] Inbound SMS:", { From, To, Body, MessageSid });
+    console.log("[TWILIO] Environment:", process.env.NODE_ENV);
+    console.log("[TWILIO] Database URL:", process.env.DATABASE_URL ? "Connected" : "Missing");
     
     if (!From || !Body || !MessageSid) {
       return res.status(400).send("Missing required fields");
@@ -79,6 +81,21 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
     
   } catch (error: any) {
     console.error("[TWILIO] Webhook error:", error);
+    console.error("[TWILIO] Error details:", {
+      message: error.message,
+      stack: error.stack,
+      requestBody: req.body
+    });
     res.status(500).send("Internal server error");
   }
+});
+
+// Test endpoint to verify webhook is reachable in production
+twilioWebhooks.get("/webhook/test", async (req, res) => {
+  res.json({ 
+    status: "OK",
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+    message: "Twilio webhook endpoint is reachable"
+  });
 });

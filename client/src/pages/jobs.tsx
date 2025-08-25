@@ -109,17 +109,25 @@ export default function Jobs() {
         </Card>
       ) : (
         <div className="grid gap-4">
+          {/* Test button to verify event handling */}
+          <button 
+            onClick={() => alert('Test button works!')}
+            className="bg-red-500 text-white p-4 rounded"
+          >
+            TEST CLICK - If you see this alert, events work
+          </button>
+          
           {filteredJobs.map((job: any) => (
-            <Card 
+            <div
               key={job.id} 
-              className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
+              className="rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
               onClick={() => {
                 alert(`Clicked job card: ${job.id}`);
                 navigate(`/jobs/${job.id}`);
               }}
               data-testid={`card-job-${job.id}`}
             >
-              <CardContent className="p-4">
+              <div className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start gap-3">
@@ -192,8 +200,8 @@ export default function Jobs() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}

@@ -45,6 +45,14 @@ Taska is a comprehensive field service management application designed for servi
 - Server converts timestamps to specified timezone before date filtering
 - Desktop schedule continues working unchanged
 
+**Equipment-Customer Relationship Feature:**
+- Added `equipment.customer_id` foreign key relationship to customers table
+- Created equipment filtering API endpoint `/api/jobs/equipment?customerId=uuid`
+- Enhanced job creation modal to filter equipment by selected customer
+- Equipment dropdown disabled until customer is selected to prevent cross-customer equipment assignments
+- Equipment creation/editing forms support customer assignment
+- Complete customer-equipment relationship system working in development
+
 **Customer Notes Feature:**
 - Added `notes` text field to customers table with safe migration
 - Enhanced customer modal UI with notes textarea input
@@ -68,6 +76,7 @@ Taska is a comprehensive field service management application designed for servi
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Deployment preference: All changes should go to production unless otherwise stated.
 
 ## System Architecture
 

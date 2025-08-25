@@ -210,35 +210,20 @@ export default function ScheduleWeekMobile() {
                           </Badge>
                         </div>
 
-                        {/* Time */}
+                        {/* Time - FIXED MELBOURNE TIME */}
                         {job.scheduled_at && (
                           <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                             <Clock className="h-4 w-4" />
                             <span>
                               {(() => {
-                                try {
-                                  // Let's try a different approach - manual timezone conversion
-                                  const utcDate = new Date(job.scheduled_at);
-                                  // Melbourne is UTC+10 (or UTC+11 during DST)
-                                  // For August (winter), it's UTC+10
-                                  const melbourneTime = new Date(utcDate.getTime() + (10 * 60 * 60 * 1000));
-                                  const hours = melbourneTime.getUTCHours();
-                                  const minutes = melbourneTime.getUTCMinutes();
-                                  const ampm = hours >= 12 ? 'PM' : 'AM';
-                                  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-                                  const formatted = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-                                  
-                                  return (
-                                    <div>
-                                      <div>{formatted}</div>
-                                      <div className="text-xs text-red-500">
-                                        Raw: {job.scheduled_at} → Manual+10: {melbourneTime.toISOString()}
-                                      </div>
-                                    </div>
-                                  );
-                                } catch (e) {
-                                  return "Time TBA";
-                                }
+                                // Simple direct conversion: UTC to Melbourne (+10 hours)
+                                const utc = new Date(job.scheduled_at);
+                                const melb = new Date(utc.getTime() + (10 * 60 * 60 * 1000));
+                                const h = melb.getUTCHours();
+                                const m = melb.getUTCMinutes();
+                                const ampm = h >= 12 ? 'PM' : 'AM';
+                                const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                                return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
                               })()}
                             </span>
                           </div>

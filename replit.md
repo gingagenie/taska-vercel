@@ -6,14 +6,15 @@ Taska is a comprehensive field service management application designed for servi
 
 ## Recent Changes (August 2024)
 
-**Timezone Bug - Complete Solution Implemented:**
+**Timezone Bug - Comprehensive Fix In Progress:**
 - Database migrated to use `timestamptz` column type for proper timezone support
-- Created timezone normalization helpers in `client/src/lib/datetime.ts`
+- Created timezone normalization helpers in `client/src/lib/datetime.ts` with manual UTC+10 conversion
 - Updated server endpoints to use `normalizeScheduledAt()` function for UTC conversion
 - Enhanced schedule API with timezone-aware date filtering using business timezone
 - Added debug endpoint `/api/debug/time` for timezone troubleshooting
-- Both mobile and desktop schedule components use `date-fns-tz` for proper local time display
-- Frontend logging shows complete timestamp conversion process for debugging
+- Replaced problematic `date-fns-tz` library with manual timezone conversion (UTC+10 for Melbourne winter)
+- Fixed timezone display in mobile schedule, desktop schedule day modal, and datetime inputs
+- All time displays now use consistent manual conversion: UTC timestamp + 10 hours = Melbourne time
 
 **Production Deployment Success:**
 - Successfully deployed to production after resolving FK constraint conflicts

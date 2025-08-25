@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LineItemsEditor } from "@/components/line-items-editor";
+import LineEditor, { Line } from "@/components/billing/LineEditor";
 
 export default function QuoteEdit() {
   const [isNewMatch] = useRoute("/quotes/new");
@@ -15,7 +15,7 @@ export default function QuoteEdit() {
 
   const [title,setTitle] = useState(""); const [customerId,setCustomerId] = useState("");
   const [notes,setNotes] = useState(""); const [status,setStatus] = useState("draft");
-  const [items,setItems] = useState<any[]>([]); const [customers,setCustomers] = useState<any[]>([]);
+  const [lines,setLines] = useState<Line[]>([]); const [customers,setCustomers] = useState<any[]>([]);
   const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [err,setErr]=useState<string|null>(null);
 
   useEffect(()=>{(async()=>{
@@ -23,16 +23,17 @@ export default function QuoteEdit() {
       const cs = await customersApi.getAll(); setCustomers(cs||[]);
       if (id) {
         const q = await quotesApi.get(id);
-        setTitle(q.title||""); setCustomerId(q.customer_id||""); setNotes(q.notes||""); setStatus(q.status||"draft"); setItems(q.items||[]);
+        setTitle(q.title||""); setCustomerId(q.customer_id||""); setNotes(q.notes||""); setStatus(q.status||"draft"); 
+        setLines((q.lines||[]).map((l:any)=>({description:l.description, quantity:Number(l.quantity), unit_amount:Number(l.unit_amount), tax_rate:Number(l.tax_rate)})));
       }
     } catch(e:any){ setErr(e.message); } finally { setLoading(false); }
   })()},[id]);
 
-  async function saveHeader(){
+  async function save(){
     setSaving(true); setErr(null);
     try{
       if (id){
-        await quotesApi.update(id,{ title, customerId, notes, status });
+        await quotesApi.update(id,{ title, customer_id: customerId, notes, lines });
         nav(`/quotes/${id}`);
       } else {
         const r = await quotesApi.create({ title, customerId, notes });
@@ -47,7 +48,7 @@ export default function QuoteEdit() {
     <div className="page space-y-6">
       <div className="header-row">
         <h1 className="text-2xl font-bold">{id ? "Edit Quote" : "New Quote"}</h1>
-        <div className="header-actions"><Button onClick={saveHeader} disabled={saving} data-mobile-full="true">{saving?"Saving…":"Save"}</Button></div>
+        <div className="header-actions"><Button onClick={save} disabled={saving} data-mobile-full="true">{saving?"Saving…":"Save"}</Button></div>
       </div>
 
       {err && <div className="text-red-600">{err}</div>}
@@ -76,19 +77,15 @@ export default function QuoteEdit() {
         </CardContent>
       </Card>
 
-      {id && (
-        <Card>
-          <CardHeader><CardTitle>Line Items</CardTitle></CardHeader>
-          <CardContent className="card-pad">
-            <LineItemsEditor
-              items={items}
-              onAdd={async (d)=>{ const r = await quotesApi.addItem(id, d); const q = await quotesApi.get(id); setItems(q.items||[]); }}
-              onUpdate={async (itemId, patch)=>{ await quotesApi.updateItem(id, itemId, patch); const q = await quotesApi.get(id); setItems(q.items||[]); }}
-              onDelete={async (itemId)=>{ await quotesApi.deleteItem(id, itemId); const q = await quotesApi.get(id); setItems(q.items||[]); }}
-            />
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader><CardTitle>Line Items</CardTitle></CardHeader>
+        <CardContent>
+          <LineEditor
+            lines={lines}
+            setLines={setLines}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { xeroService } from "../services/xero";
+import { sumLines } from "../lib/totals";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -36,7 +37,7 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   res.json({ ok: true, id: ins.rows[0].id });
 });
 
-/** Get (with items + computed totals) */
+/** Get (with lines + computed totals) */
 router.get("/:id", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params; const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
@@ -49,30 +50,54 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
   const quote = q.rows?.[0];
   if (!quote) return res.status(404).json({ error: "not found" });
 
-  const items: any = await db.execute(sql`
-    select * from quote_items where quote_id=${id}::uuid order by created_at nulls last, id
+  const lr: any = await db.execute(sql`
+    select * from quote_lines 
+    where quote_id=${id}::uuid and org_id=${orgId}::uuid 
+    order by position asc, created_at asc
   `);
 
-  const subtotal = items.rows.reduce((s: number, it: any) => s + Number(it.quantity)*Number(it.unit_price), 0);
-  res.json({ ...quote, items: items.rows, subtotal, total: subtotal }); // taxes later
+  res.json({ ...quote, lines: lr.rows });
 });
 
-/** Update header */
+/** Update header and lines with totals */
 router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params; const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
-  const { title, notes, status, customerId, jobId } = req.body || {};
+  const { title, customer_id, notes, lines = [] } = req.body || {};
+  
+  // Update header
   await db.execute(sql`
-    update quotes
-      set title=coalesce(${title}, title),
-          notes=coalesce(${notes}, notes),
-          status=coalesce(${status}, status),
-          customer_id=coalesce(${customerId}::uuid, customer_id),
-          job_id=coalesce(${jobId}::uuid, job_id),
-          updated_at=now()
+    update quotes set
+      title=coalesce(${title}, title),
+      customer_id=coalesce(${customer_id}::uuid, customer_id),
+      notes=coalesce(${notes}, notes),
+      updated_at=now()
     where id=${id}::uuid and org_id=${orgId}::uuid
   `);
-  res.json({ ok: true });
+  
+  // Replace lines (simple path)
+  await db.execute(sql`delete from quote_lines where quote_id=${id}::uuid and org_id=${orgId}::uuid`);
+  
+  // Insert new lines
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    await db.execute(sql`
+      insert into quote_lines (org_id, quote_id, position, description, quantity, unit_amount, tax_rate)
+      values (${orgId}::uuid, ${id}::uuid, ${i}, ${l.description||""}, ${l.quantity||0}, ${l.unit_amount||0}, ${l.tax_rate||0})
+    `);
+  }
+  
+  // Recompute and store totals
+  const sums = sumLines(lines);
+  await db.execute(sql`
+    update quotes set
+      sub_total=${sums.sub_total},
+      tax_total=${sums.tax_total},
+      grand_total=${sums.grand_total}
+    where id=${id}::uuid and org_id=${orgId}::uuid
+  `);
+  
+  res.json({ ok: true, totals: sums });
 });
 
 /** Items CRUD */

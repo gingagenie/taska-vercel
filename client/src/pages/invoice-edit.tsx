@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LineItemsEditor } from "@/components/line-items-editor";
+import LineEditor, { Line } from "@/components/billing/LineEditor";
 
 export default function InvoiceEdit() {
   const [isNewMatch] = useRoute("/invoices/new");
@@ -15,7 +15,7 @@ export default function InvoiceEdit() {
 
   const [title,setTitle] = useState(""); const [customerId,setCustomerId] = useState("");
   const [notes,setNotes] = useState(""); const [status,setStatus] = useState("draft");
-  const [items,setItems] = useState<any[]>([]); const [customers,setCustomers] = useState<any[]>([]);
+  const [lines,setLines] = useState<Line[]>([]); const [customers,setCustomers] = useState<any[]>([]);
   const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [err,setErr]=useState<string|null>(null);
 
   useEffect(()=>{(async()=>{
@@ -23,16 +23,17 @@ export default function InvoiceEdit() {
       const cs = await customersApi.getAll(); setCustomers(cs||[]);
       if (id) {
         const i = await invoicesApi.get(id);
-        setTitle(i.title||""); setCustomerId(i.customer_id||""); setNotes(i.notes||""); setStatus(i.status||"draft"); setItems(i.items||[]);
+        setTitle(i.title||""); setCustomerId(i.customer_id||""); setNotes(i.notes||""); setStatus(i.status||"draft"); 
+        setLines((i.lines||[]).map((l:any)=>({description:l.description, quantity:Number(l.quantity), unit_amount:Number(l.unit_amount), tax_rate:Number(l.tax_rate)})));
       }
     } catch(e:any){ setErr(e.message); } finally { setLoading(false); }
   })()},[id]);
 
-  async function saveHeader(){
+  async function save(){
     setSaving(true); setErr(null);
     try{
       if (id){
-        await invoicesApi.update(id,{ title, customerId, notes, status });
+        await invoicesApi.update(id,{ title, customer_id: customerId, notes, lines });
         nav(`/invoices/${id}`);
       } else {
         const r = await invoicesApi.create({ title, customerId, notes });
@@ -47,7 +48,7 @@ export default function InvoiceEdit() {
     <div className="page space-y-6">
       <div className="header-row">
         <h1 className="text-2xl font-bold">{id ? "Edit Invoice" : "New Invoice"}</h1>
-        <div className="header-actions"><Button onClick={saveHeader} disabled={saving} data-mobile-full="true">{saving?"Saving…":"Save"}</Button></div>
+        <div className="header-actions"><Button onClick={save} disabled={saving} data-mobile-full="true">{saving?"Saving…":"Save"}</Button></div>
       </div>
 
       {err && <div className="text-red-600">{err}</div>}
@@ -76,19 +77,15 @@ export default function InvoiceEdit() {
         </CardContent>
       </Card>
 
-      {id && (
-        <Card>
-          <CardHeader><CardTitle>Line Items</CardTitle></CardHeader>
-          <CardContent className="card-pad">
-            <LineItemsEditor
-              items={items}
-              onAdd={async (d)=>{ const r = await invoicesApi.addItem(id, d); const i = await invoicesApi.get(id); setItems(i.items||[]); }}
-              onUpdate={async (itemId, patch)=>{ await invoicesApi.updateItem(id, itemId, patch); const i = await invoicesApi.get(id); setItems(i.items||[]); }}
-              onDelete={async (itemId)=>{ await invoicesApi.deleteItem(id, itemId); const i = await invoicesApi.get(id); setItems(i.items||[]); }}
-            />
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader><CardTitle>Line Items</CardTitle></CardHeader>
+        <CardContent>
+          <LineEditor
+            lines={lines}
+            setLines={setLines}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

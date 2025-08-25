@@ -182,6 +182,7 @@ export const quotesApi = {
     api("/api/quotes", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) =>
     api(`/api/quotes/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  // Legacy item methods - deprecated, use update() with lines array instead
   addItem: (id: string, item: any) => 
     api(`/api/quotes/${id}/items`, { method: "POST", body: JSON.stringify(item) }),
   updateItem: (id: string, itemId: string, body: any) => 
@@ -199,6 +200,7 @@ export const invoicesApi = {
     api("/api/invoices", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) =>
     api(`/api/invoices/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  // Legacy item methods - deprecated, use update() with lines array instead
   addItem: (id: string, item: any) => 
     api(`/api/invoices/${id}/items`, { method: "POST", body: JSON.stringify(item) }),
   updateItem: (id: string, itemId: string, body: any) => 

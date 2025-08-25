@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { CheckCircle, ExternalLink, AlertCircle } from "lucide-react";
+import { CheckCircle, ExternalLink, AlertCircle, Trash2 } from "lucide-react";
 
 export default function SettingsPage() {
   const qc = useQueryClient();
@@ -218,6 +218,27 @@ export default function SettingsPage() {
       toast({
         title: "Error",
         description: error?.message || "Failed to create preset",
+        variant: "destructive",
+      });
+    }
+    setSaving(false);
+  }
+
+  async function deletePreset(id: string, name: string) {
+    if (!confirm(`Delete "${name}" preset? This cannot be undone.`)) return;
+    
+    setSaving(true);
+    try {
+      await itemPresetsApi.delete(id);
+      await loadPresets();
+      toast({
+        title: "Preset deleted",
+        description: `${name} has been removed from your item presets.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete preset",
         variant: "destructive",
       });
     }
@@ -635,12 +656,13 @@ export default function SettingsPage() {
                           <th className="px-3 py-2 text-left font-medium">Name</th>
                           <th className="px-3 py-2 text-right font-medium">Unit Price</th>
                           <th className="px-3 py-2 text-right font-medium">Tax %</th>
+                          <th className="px-3 py-2 text-center font-medium">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {presets.length === 0 ? (
                           <tr>
-                            <td colSpan={3} className="px-3 py-4 text-center text-gray-500">
+                            <td colSpan={4} className="px-3 py-4 text-center text-gray-500">
                               No presets yet. Add some common items above to speed up billing.
                             </td>
                           </tr>
@@ -650,6 +672,18 @@ export default function SettingsPage() {
                               <td className="px-3 py-2 font-medium">{p.name}</td>
                               <td className="px-3 py-2 text-right font-mono">${Number(p.unit_amount).toFixed(2)}</td>
                               <td className="px-3 py-2 text-right font-mono">{Number(p.tax_rate).toFixed(2)}%</td>
+                              <td className="px-3 py-2 text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deletePreset(p.id, p.name)}
+                                  disabled={saving}
+                                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                                  data-testid={`button-delete-preset-${p.name.toLowerCase().replace(/\s+/g, '-')}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </td>
                             </tr>
                           ))
                         )}

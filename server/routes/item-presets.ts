@@ -65,3 +65,25 @@ itemPresets.post("/ensure", requireAuth, requireOrg, async (req, res) => {
   `);
   res.json(e.rows?.[0]);
 });
+
+/** DELETE /api/item-presets/:id */
+itemPresets.delete("/:id", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { id } = req.params;
+  
+  if (!id) {
+    return res.status(400).json({ error: "ID required" });
+  }
+
+  const r: any = await db.execute(sql`
+    delete from item_presets
+    where id=${id}::uuid and org_id=${orgId}::uuid
+    returning id, name
+  `);
+  
+  if (r.rows?.length === 0) {
+    return res.status(404).json({ error: "Preset not found" });
+  }
+  
+  res.json({ deleted: true, id, name: r.rows[0].name });
+});

@@ -221,6 +221,7 @@ export const itemPresetsApi = {
   search: (q: string) => api(`/api/item-presets?search=${encodeURIComponent(q)}`),
   create: (body: any) => api(`/api/item-presets`, { method: "POST", body: JSON.stringify(body) }),
   ensure: (body: any) => api(`/api/item-presets/ensure`, { method: "POST", body: JSON.stringify(body) }),
+  delete: (id: string) => api(`/api/item-presets/${id}`, { method: "DELETE" }),
 };
 
 // Photos API helper functions already defined above in photosApi

@@ -36,7 +36,7 @@ jobs.get("/", requireAuth, requireOrg, async (req, res) => {
         j.title,
         j.description,             -- added
         j.status,
-        j.scheduled_at,
+        to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
         j.customer_id,
         coalesce(c.name,'—') as customer_name
       from jobs j
@@ -84,7 +84,8 @@ jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
 
     // Get all jobs in date range without technician filtering
     const r: any = await db.execute(sql`
-      select j.id, j.title, j.status, j.scheduled_at,
+      select j.id, j.title, j.status, 
+             to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
              j.customer_id, coalesce(c.name,'—') as customer_name
       from jobs j
       left join customers c on c.id = j.customer_id
@@ -156,7 +157,8 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
 
     const jr: any = await db.execute(sql`
       select
-        j.id, j.title, j.description, j.status, j.scheduled_at,
+        j.id, j.title, j.description, j.status, 
+        to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
         j.customer_id,
         coalesce(c.name,'—') as customer_name,
         c.address as customer_address

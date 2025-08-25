@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { JobModal } from "@/components/modals/job-modal";
 import { jobsApi } from "@/lib/api";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Eye, Edit, MoreHorizontal, Calendar, User } from "lucide-react";
+import { Edit, MoreHorizontal, Calendar, User, ArrowRight } from "lucide-react";
 
 export default function Jobs() {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
@@ -110,12 +110,17 @@ export default function Jobs() {
       ) : (
         <div className="grid gap-4">
           {filteredJobs.map((job: any) => (
-            <Card key={job.id} className="hover:shadow-md transition-shadow">
+            <Card 
+              key={job.id} 
+              className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
+              onClick={() => navigate(`/jobs/${job.id}`)}
+              data-testid={`card-job-${job.id}`}
+            >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start gap-3">
-                      <div className="font-semibold text-lg">
+                      <div className="font-semibold text-lg group-hover:text-blue-600 transition-colors">
                         {job.title || "Untitled Job"}
                       </div>
                       <Badge className={getStatusBadgeClass(job.status)}>
@@ -153,6 +158,11 @@ export default function Jobs() {
                         </div>
                       </div>
                     </div>
+                    
+                    <div className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-blue-500 transition-colors pt-1">
+                      <span>Click for details</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </div>
                   </div>
                   
                   <DropdownMenu>
@@ -162,17 +172,17 @@ export default function Jobs() {
                         size="sm" 
                         className="h-8 w-8 p-0 opacity-70 hover:opacity-100"
                         data-testid={`button-actions-job-${job.id}`}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <MoreHorizontal className="h-4 w-4" />
                         <span className="sr-only">Actions</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-36">
-                      <DropdownMenuItem onClick={() => navigate(`/jobs/${job.id}`)}>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate(`/jobs/${job.id}/edit`)}>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/jobs/${job.id}/edit`);
+                      }}>
                         <Edit className="h-4 w-4 mr-2" />
                         Edit
                       </DropdownMenuItem>

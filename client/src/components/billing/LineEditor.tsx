@@ -27,6 +27,7 @@ export default function LineEditor({
   }
   
   function change(i: number, patch: Partial<Line>) { 
+    console.log(`Line ${i} change:`, patch);
     const next = [...lines]; 
     next[i] = { ...next[i], ...patch }; 
     setLines(next); 

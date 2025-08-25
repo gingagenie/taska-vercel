@@ -10,10 +10,23 @@ export class XeroService {
   constructor() {
     // Only initialize if credentials are available
     if (process.env.XERO_CLIENT_ID && process.env.XERO_CLIENT_SECRET) {
+      // Support both development and production URLs
+      const devDomain = '9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev';
+      const prodDomain = process.env.REPLIT_DOMAINS?.split(',')[0];
+      
+      const redirectUris = [
+        `https://${devDomain}/api/xero/callback`,
+      ];
+      
+      // Add production domain if different from dev
+      if (prodDomain && prodDomain !== devDomain) {
+        redirectUris.push(`https://${prodDomain}/api/xero/callback`);
+      }
+      
       this.client = new XeroClient({
         clientId: process.env.XERO_CLIENT_ID,
         clientSecret: process.env.XERO_CLIENT_SECRET,
-        redirectUris: [`https://${process.env.REPLIT_DOMAINS?.split(',')[0] || '9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev'}/api/xero/callback`],
+        redirectUris,
         scopes: ['openid', 'profile', 'email', 'accounting.transactions'],
       });
     }

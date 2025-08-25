@@ -91,6 +91,7 @@ export const jobs = pgTable("jobs", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   status: varchar("status", { length: 50 }).default("new"),
+  notes: text("notes"), // Work performed notes
   scheduledAt: timestamp("scheduled_at"),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

@@ -476,6 +476,23 @@ jobs.post("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+jobs.put("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params; 
+  const orgId = (req as any).orgId;
+  const { notes } = req.body || {};
+  try {
+    await db.execute(sql`
+      update jobs 
+      set notes = ${notes || ''}, updated_at = now()
+      where id = ${jobId}::uuid and org_id = ${orgId}::uuid
+    `);
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error("PUT /api/jobs/:jobId/notes error:", e);
+    res.status(500).json({ error: e?.message || "Failed to save notes" });
+  }
+});
+
 /* CHARGES */
 jobs.get("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params; 

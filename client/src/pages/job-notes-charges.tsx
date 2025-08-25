@@ -83,14 +83,16 @@ export default function JobNotesCharges() {
 
   const loadAll = async () => {
     try {
-      const [notesData, chargesData, photosData] = await Promise.all([
+      const [notesData, chargesData, photosData, jobData] = await Promise.all([
         notesApi.list(jobId),
         chargesApi.list(jobId),
         photosApi.list(jobId),
+        api(`/api/jobs/${jobId}`),
       ]);
       setNotes(notesData || []);
       setCharges(chargesData || []);
       setPhotos(photosData || []);
+      setNotesText(jobData?.notes || "");
     } catch (e: any) {
       setErr(e?.message || "Failed to load data");
     } finally {

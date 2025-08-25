@@ -4,7 +4,17 @@
 
 Taska is a comprehensive field service management application designed for service businesses. It provides tools to manage jobs, customers, equipment, teams, quotes, and invoices through a responsive web interface. The project aims to deliver an intuitive solution for streamlining field service operations.
 
-## Recent Changes (August 2024)
+## Recent Changes (August 2025)
+
+**Xero Integration - Production Ready:**
+- Complete OAuth2 integration with Xero accounting software
+- New "Integrations" tab in Settings page for managing connections
+- "Create in Xero" functionality for quotes and invoices (one-way push)
+- Automatic creation of quotes and invoices in Xero as drafts
+- Secure token storage and automatic refresh mechanism
+- Mobile-responsive settings interface with proper tab layout
+- Graceful error handling and user feedback system
+- Ready for production deployment with environment variable configuration
 
 **Bidirectional SMS Confirmation System - Production Ready:**
 - Integrated Twilio SMS service for automated job confirmation messages to customers

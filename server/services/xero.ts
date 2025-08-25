@@ -13,7 +13,7 @@ export class XeroService {
       this.client = new XeroClient({
         clientId: process.env.XERO_CLIENT_ID,
         clientSecret: process.env.XERO_CLIENT_SECRET,
-        redirectUris: [`${process.env.APP_URL || 'https://taska-gingagenie.replit.app'}/api/xero/callback`],
+        redirectUris: [`https://${process.env.REPLIT_DOMAINS?.split(',')[0] || '9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev'}/api/xero/callback`],
         scopes: ['openid', 'profile', 'email', 'accounting.transactions'],
       });
     }

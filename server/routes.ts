@@ -27,6 +27,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/jobs", jobs);
   app.use("/api/jobs", jobSms);
   app.use("/api/twilio", twilioWebhooks);
+  console.log("[mount] /api/twilio");
   console.log("[mount] /api/jobs");
   app.use("/api/schedule", schedule);
   console.log("[mount] /api/schedule");

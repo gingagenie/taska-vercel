@@ -190,7 +190,8 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
         to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
         j.customer_id,
         coalesce(c.name,'—') as customer_name,
-        c.address as customer_address
+        c.address as customer_address,
+        c.phone as customer_phone
       from jobs j
       left join customers c on c.id = j.customer_id
       where j.id=${jobId}::uuid and j.org_id=${orgId}::uuid

@@ -83,20 +83,18 @@ export default function LineEditor({
                     <Input 
                       inputMode="decimal" 
                       className="text-right w-24" 
-                      value={l.unit_amount || ''} 
+                      value={l.unit_amount?.toString() || ''} 
                       onChange={e => change(i, {unit_amount: Number(e.target.value||0)})}
                       data-testid={`input-line-${i}-unit-amount`}
-                      key={`unit-${i}-${l.unit_amount}`}
                     />
                   </td>
                   <td className="px-3 py-4">
                     <Input 
                       inputMode="decimal" 
                       className="text-right w-20" 
-                      value={l.tax_rate || ''} 
+                      value={l.tax_rate?.toString() || ''} 
                       onChange={e => change(i, {tax_rate: Number(e.target.value||0)})}
                       data-testid={`input-line-${i}-tax-rate`}
-                      key={`tax-${i}-${l.tax_rate}`}
                     />
                   </td>
                   <td className="px-3 py-4 text-right font-mono" data-testid={`text-line-${i}-total`}>

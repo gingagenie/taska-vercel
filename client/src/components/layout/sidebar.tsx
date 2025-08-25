@@ -12,7 +12,8 @@ import {
   BarChart3,
   Crown,
   Calendar,
-  LogOut
+  LogOut,
+  Cog
 } from "lucide-react";
 import logoUrl from "@assets/Taska_1755842483680.png";
 
@@ -26,6 +27,7 @@ const navigationItems = [
   { path: "/schedule", label: "Schedule", icon: Calendar },
   { path: "/quotes", label: "Quotes", icon: FileText, isPro: true },
   { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true },
+  { path: "/settings", label: "Settings", icon: Cog },
 ];
 
 interface SidebarContentProps {

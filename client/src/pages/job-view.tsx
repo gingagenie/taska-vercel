@@ -162,7 +162,7 @@ export default function JobView() {
             </span>
           )}
         </div>
-        <div className="header-actions">
+        <div className="grid grid-cols-2 gap-3 w-full max-w-md">
           <Button
             variant="secondary"
             onClick={() => {
@@ -193,7 +193,7 @@ export default function JobView() {
                   ? "Navigate to customer address" 
                   : "Search for customer location"
             }
-            className="flex-1 sm:flex-none"
+            className="w-full"
             data-testid="button-navigate"
           >
             <MapPin className="h-4 w-4 mr-1" />
@@ -202,23 +202,23 @@ export default function JobView() {
           <Button 
             variant="secondary" 
             onClick={openSmsDialog}
-            className="flex-1 sm:flex-none"
+            className="w-full"
             data-testid="button-send-sms"
           >
             <MessageSquare className="h-4 w-4 mr-1" />
             Send SMS
           </Button>
-          <Link href={`/jobs/${jobId}/notes`}>
-            <Button variant="secondary" className="flex-1 sm:flex-none">Notes & Charges</Button>
+          <Link href={`/jobs/${jobId}/notes`} className="w-full">
+            <Button variant="secondary" className="w-full">Notes & Charges</Button>
           </Link>
-          <Link href={`/jobs/${jobId}/edit`}>
-            <Button className="flex-1 sm:flex-none">Edit Job</Button>
+          <Link href={`/jobs/${jobId}/edit`} className="w-full">
+            <Button className="w-full">Edit Job</Button>
           </Link>
           <Button 
             variant="destructive" 
             onClick={() => setConfirmDelete(true)}
             data-testid="button-delete-job"
-            className="flex-1 sm:flex-none"
+            className="w-full col-span-2"
           >
             <Trash className="h-4 w-4 mr-1" /> Delete
           </Button>

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { EquipmentModal } from "@/components/modals/equipment-modal";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { MapPin, Edit, MoreHorizontal, Trash2, AlertTriangle } from "lucide-react";
+import { MapPin, Edit, MoreHorizontal, Trash2, AlertTriangle, ArrowRight } from "lucide-react";
 
 function addrLine(e: any) {
   return e.customer_address || "";
@@ -72,12 +72,17 @@ export default function EquipmentPage() {
       ) : (
         <div className="grid gap-4">
           {filtered.map((e: any) => (
-            <Card key={e.id} className="hover:shadow-md transition-shadow">
+            <Card 
+              key={e.id} 
+              className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
+              onClick={() => navigate(`/equipment/${e.id}`)}
+              data-testid={`card-equipment-${e.id}`}
+            >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start gap-3">
-                      <div className="font-semibold text-lg">
+                      <div className="font-semibold text-lg group-hover:text-blue-600 transition-colors">
                         {e.name || "Unnamed Equipment"}
                       </div>
                     </div>
@@ -113,6 +118,11 @@ export default function EquipmentPage() {
                         <div className="font-medium">{e.notes}</div>
                       </div>
                     )}
+                    
+                    <div className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-blue-500 transition-colors pt-1">
+                      <span>Click for details</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </div>
                   </div>
                   
                   <DropdownMenu>
@@ -122,19 +132,26 @@ export default function EquipmentPage() {
                         size="sm" 
                         className="h-8 w-8 p-0 opacity-70 hover:opacity-100"
                         data-testid={`button-actions-equipment-${e.id}`}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <MoreHorizontal className="h-4 w-4" />
                         <span className="sr-only">Actions</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-36">
-                      <DropdownMenuItem onClick={() => setEditEquipment(e)}>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        setEditEquipment(e);
+                      }}>
                         <Edit className="h-4 w-4 mr-2" />
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-700"
-                        onClick={() => setConfirmId(e.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmId(e.id);
+                        }}
                         data-testid={`button-delete-equipment-${e.id}`}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 
-import { Mail, Phone, MapPin, MoreHorizontal, Edit, Eye } from "lucide-react";
+import { Mail, Phone, MapPin, MoreHorizontal, Edit, ArrowRight } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -100,7 +100,12 @@ export default function Customers() {
             const addr = addrLine(c);
             const hue = hueFrom(c.name);
             return (
-              <Card key={c.id} className="hover:shadow-md transition-shadow">
+              <Card 
+                key={c.id} 
+                className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
+                onClick={() => navigate(`/customers/${c.id}`)}
+                data-testid={`card-customer-${c.id}`}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 space-y-2">
@@ -112,7 +117,7 @@ export default function Customers() {
                           {initials(c.name)}
                         </div>
                         <div className="flex-1">
-                          <div className="font-semibold text-lg">
+                          <div className="font-semibold text-lg group-hover:text-blue-600 transition-colors">
                             {c.name || "Unnamed Customer"}
                           </div>
                           {c.contact_name && (
@@ -155,6 +160,11 @@ export default function Customers() {
                           <div className="text-sm text-gray-700">{c.notes}</div>
                         </div>
                       )}
+                      
+                      <div className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-blue-500 transition-colors pt-1">
+                        <span>Click for details</span>
+                        <ArrowRight className="h-3 w-3" />
+                      </div>
                     </div>
                     
                     <DropdownMenu>
@@ -164,17 +174,17 @@ export default function Customers() {
                           size="sm" 
                           className="h-8 w-8 p-0 opacity-70 hover:opacity-100"
                           data-testid={`button-actions-customer-${c.id}`}
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <MoreHorizontal className="h-4 w-4" />
                           <span className="sr-only">Actions</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-36">
-                        <DropdownMenuItem onClick={() => navigate(`/customers/${c.id}`)}>
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate(`/customers/${c.id}`)}>
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/customers/${c.id}/edit`);
+                        }}>
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </DropdownMenuItem>

@@ -19,6 +19,15 @@ const statusColors: Record<string, string> = {
 
 export default function ScheduleWeekMobile() {
   console.log("[Mobile Schedule] Component loading...");
+  
+  // Early return with simple content to test if the route is working
+  return (
+    <div className="p-4">
+      <h1 className="text-xl font-bold">Mobile Schedule Test</h1>
+      <p>This page is loading...</p>
+    </div>
+  );
+
   const [, navigate] = useLocation();
   const [selectedTech, setSelectedTech] = useState<string>("all");
   

@@ -29,7 +29,7 @@ export default function SettingsPage() {
 
   const connectXeroMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/xero/connect");
+      const response = await apiRequest("/api/xero/connect", { method: "GET" });
       window.location.href = response.authUrl;
     },
     onError: (error: any) => {

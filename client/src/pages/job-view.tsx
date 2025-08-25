@@ -154,7 +154,14 @@ export default function JobView() {
   return (
     <div className="space-y-6">
       <div className="header-row">
-        <h1 className="text-2xl font-bold">{job.title}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">{job.title}</h1>
+          {job.status === 'confirmed' && (
+            <span className="status-badge status-confirmed flex items-center gap-1">
+              ✓ Confirmed
+            </span>
+          )}
+        </div>
         <div className="header-actions">
           <Button
             variant="secondary"

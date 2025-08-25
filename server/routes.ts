@@ -12,6 +12,7 @@ import invoices from "./routes/invoices";
 import { schedule } from "./routes/schedule";
 import { members } from "./routes/members";
 import { jobSms } from "./routes/job-sms";
+import { twilioWebhooks } from "./routes/twilio-webhooks";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
@@ -25,6 +26,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/teams", teams);
   app.use("/api/jobs", jobs);
   app.use("/api/jobs", jobSms);
+  app.use("/api/twilio", twilioWebhooks);
   console.log("[mount] /api/jobs");
   app.use("/api/schedule", schedule);
   console.log("[mount] /api/schedule");

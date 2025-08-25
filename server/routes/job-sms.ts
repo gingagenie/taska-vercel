@@ -67,36 +67,20 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
   const row = qr.rows?.[0];
   if (!row) return res.status(404).json({ error: "Job not found" });
 
-  // Helper function to format Australian phone numbers
-  function formatAustralianPhone(phone: string): string {
-    if (!phone) return "";
-    
-    // Remove any spaces, dashes, or parentheses
-    const cleaned = phone.replace(/[\s\-\(\)]/g, "");
-    
-    // If already has country code, return as is
-    if (cleaned.startsWith("+61") || cleaned.startsWith("61")) {
-      return cleaned.startsWith("+") ? cleaned : "+" + cleaned;
-    }
-    
-    // If starts with 0, remove it and add +61
-    if (cleaned.startsWith("0")) {
-      return "+61" + cleaned.slice(1);
-    }
-    
-    // If it's just the mobile number without 0, add +61
-    if (/^\d{9}$/.test(cleaned)) {
-      return "+61" + cleaned;
-    }
-    
-    // Otherwise, assume it needs +61 prefix
-    return "+61" + cleaned;
+  // Normalize phone number for consistent formatting and matching
+  function normPhone(s?: string | null) {
+    if (!s) return "";
+    const digits = s.replace(/[^\d]/g, "");
+    if (digits.startsWith("04")) return "+61" + digits.slice(1);
+    if (digits.startsWith("61")) return "+" + digits;
+    if (digits.startsWith("0")) return "+61" + digits.slice(1);
+    return s.startsWith("+") ? s : "+" + digits;
   }
 
   const rawPhone = (phoneOverride || row.customer_phone || "").trim();
   if (!rawPhone) return res.status(400).json({ error: "No customer phone on file. Provide { phone } in request body or set customer.phone." });
   
-  const toPhone = formatAustralianPhone(rawPhone);
+  const toPhone = normPhone(rawPhone);
 
   // Build default confirmation message
   const when = formatAEST(row.scheduled_at);
@@ -112,11 +96,11 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
       body,
     });
 
-    // (Optional) store a log row
-    // await db.execute(sql`
-    //   insert into job_notifications (org_id, job_id, channel, to_addr, body, provider_id, status)
-    //   values (${orgId}::uuid, ${jobId}::uuid, 'sms', ${toPhone}, ${body}, ${msg.sid}, ${msg.status})
-    // `);
+    // Log outbound SMS for inbound matching
+    await db.execute(sql`
+      insert into job_notifications (org_id, job_id, channel, to_addr, body, provider_id, direction, status)
+      values (${orgId}::uuid, ${row.id}::uuid, 'sms', ${toPhone}, ${body}, ${msg.sid}, 'out', ${msg.status})
+    `);
 
     return res.json({ ok: true, sid: msg.sid, status: msg.status });
   } catch (e: any) {

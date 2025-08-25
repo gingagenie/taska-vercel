@@ -161,6 +161,20 @@ export const invoices = pgTable("invoices", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Job notifications for SMS logging and tracking
+export const jobNotifications = pgTable("job_notifications", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").notNull(),
+  jobId: uuid("job_id").references(() => jobs.id),
+  channel: varchar("channel", { length: 50 }).notNull(), // 'sms', 'email', etc.
+  toAddr: varchar("to_addr", { length: 255 }).notNull(), // phone number or email
+  body: text("body"),
+  providerId: varchar("provider_id", { length: 255 }), // Twilio SID, etc.
+  direction: varchar("direction", { length: 10 }).notNull(), // 'in' or 'out'
+  status: varchar("status", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -168,6 +182,7 @@ export const insertJobPhotoSchema = createInsertSchema(jobPhotos).omit({ id: tru
 export const insertEquipmentSchema = createInsertSchema(equipment).omit({ id: true, createdAt: true });
 export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, createdAt: true });
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true });
+export const insertJobNotificationSchema = createInsertSchema(jobNotifications).omit({ id: true, createdAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -187,3 +202,6 @@ export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 
 export type JobPhoto = typeof jobPhotos.$inferSelect;
 export type InsertJobPhoto = z.infer<typeof insertJobPhotoSchema>;
+
+export type JobNotification = typeof jobNotifications.$inferSelect;
+export type InsertJobNotification = z.infer<typeof insertJobNotificationSchema>;

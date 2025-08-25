@@ -29,6 +29,8 @@ export default function Jobs() {
         return "status-badge status-new";
       case "scheduled":
         return "status-badge status-scheduled";
+      case "confirmed":
+        return "status-badge status-confirmed";
       case "in_progress":
         return "status-badge status-in-progress";
       case "done":
@@ -77,6 +79,7 @@ export default function Jobs() {
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="new">New</SelectItem>
               <SelectItem value="scheduled">Scheduled</SelectItem>
+              <SelectItem value="confirmed">Confirmed</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="done">Done</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>

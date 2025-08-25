@@ -17,7 +17,8 @@ Taska is a comprehensive field service management application designed for servi
 - **NEW: Job Status Updates** - Automatic status change to "confirmed" with visual indicators
 - **NEW: SMS Logging** - Complete audit trail in `job_notifications` table
 - Complete bidirectional SMS workflow: outbound notification → customer reply → automatic confirmation
-- Feature fully tested and deployed to production (August 2025)
+- **PRODUCTION ISSUE IDENTIFIED**: Twilio webhook URL configured incorrectly (taska.info vs taska-gingagenie.replit.app)
+- Feature fully tested in development, production webhook configuration needed (August 2025)
 
 **Clickable Cards UX Enhancement - Deployed:**
 - Replaced separate "View" buttons with intuitive clickable card interfaces across Jobs, Customers, and Equipment pages

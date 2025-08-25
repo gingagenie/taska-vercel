@@ -22,15 +22,20 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
 
   // Xero integration state and hooks
-  const { data: xeroStatus, refetch: refetchXeroStatus } = useQuery({
+  const { data: xeroStatus, refetch: refetchXeroStatus } = useQuery<{
+    connected: boolean;
+    tenantName?: string;
+    connectedAt?: string;
+  }>({
     queryKey: ["/api/xero/status"],
     retry: false,
   });
 
   const connectXeroMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/xero/connect", { method: "GET" });
-      window.location.href = response.authUrl;
+      const response = await apiRequest("GET", "/api/xero/connect");
+      const data = await response.json();
+      window.location.href = data.authUrl;
     },
     onError: (error: any) => {
       toast({
@@ -42,7 +47,7 @@ export default function SettingsPage() {
   });
 
   const disconnectXeroMutation = useMutation({
-    mutationFn: () => apiRequest("/api/xero/disconnect", { method: "DELETE" }),
+    mutationFn: () => apiRequest("DELETE", "/api/xero/disconnect"),
     onSuccess: () => {
       refetchXeroStatus();
       toast({

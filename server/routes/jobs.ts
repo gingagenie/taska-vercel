@@ -186,7 +186,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
 
     const jr: any = await db.execute(sql`
       select
-        j.id, j.title, j.description, j.status, 
+        j.id, j.title, j.description, j.status, j.notes,
         to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
         j.customer_id,
         coalesce(c.name,'—') as customer_name,

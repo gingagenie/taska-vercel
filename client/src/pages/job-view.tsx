@@ -66,8 +66,34 @@ export default function JobView() {
     return `Hi from Taska! Job "${job.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
   }
 
+  function formatAustralianPhone(phone: string): string {
+    if (!phone) return "";
+    
+    // Remove any spaces, dashes, or parentheses
+    const cleaned = phone.replace(/[\s\-\(\)]/g, "");
+    
+    // If already has country code, return as is
+    if (cleaned.startsWith("+61") || cleaned.startsWith("61")) {
+      return cleaned.startsWith("+") ? cleaned : "+" + cleaned;
+    }
+    
+    // If starts with 0, remove it and add +61
+    if (cleaned.startsWith("0")) {
+      return "+61" + cleaned.slice(1);
+    }
+    
+    // If it's just the mobile number without 0, add +61
+    if (/^\d{9}$/.test(cleaned)) {
+      return "+61" + cleaned;
+    }
+    
+    // Otherwise, assume it needs +61 prefix
+    return "+61" + cleaned;
+  }
+
   function openSmsDialog() {
-    setSmsPhone(job.customer_phone || "");
+    const formattedPhone = formatAustralianPhone(job.customer_phone || "");
+    setSmsPhone(formattedPhone);
     setSmsPreview(buildDefaultPreview());
     setSmsOpen(true);
   }

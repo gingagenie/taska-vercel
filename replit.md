@@ -6,14 +6,18 @@ Taska is a comprehensive field service management application designed for servi
 
 ## Recent Changes (August 2024)
 
-**SMS Confirmation System - Completed:**
+**Bidirectional SMS Confirmation System - Production Ready:**
 - Integrated Twilio SMS service for automated job confirmation messages to customers
 - Added "Send SMS" button on job view pages with customizable message preview
 - Implemented automatic Australian phone number formatting (+61 country code)
 - Customer phone numbers auto-populate from database records
 - Timezone-aware message formatting using Australia/Melbourne time
-- Complete SMS workflow: preview → customize → send → confirmation toast
-- Feature fully tested and working in both development and production
+- **NEW: SMS Reply Processing** - Customers can reply "YES" or "Y" to automatically confirm jobs
+- **NEW: Webhook Handler** - `/api/twilio/webhook/sms` processes inbound SMS replies
+- **NEW: Job Status Updates** - Automatic status change to "confirmed" with visual indicators
+- **NEW: SMS Logging** - Complete audit trail in `job_notifications` table
+- Complete bidirectional SMS workflow: outbound notification → customer reply → automatic confirmation
+- Feature fully tested and deployed to production (August 2025)
 
 **Clickable Cards UX Enhancement - Deployed:**
 - Replaced separate "View" buttons with intuitive clickable card interfaces across Jobs, Customers, and Equipment pages

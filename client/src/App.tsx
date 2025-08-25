@@ -25,7 +25,6 @@ import Invoices from "@/pages/invoices";
 import InvoiceEdit from "@/pages/invoice-edit";
 import InvoiceView from "@/pages/invoice-view";
 import NotFound from "@/pages/not-found";
-import Profile from "@/pages/Profile";
 import JobView from "./pages/job-view";
 import JobEdit from "./pages/job-edit";
 import JobNotesCharges from "./pages/job-notes-charges";
@@ -147,7 +146,6 @@ function AuthenticatedApp() {
           <Route path="/invoices/new" component={InvoiceEdit} />
           <Route path="/invoices/:id" component={InvoiceView} />
           <Route path="/invoices/:id/edit" component={InvoiceEdit} />
-          <Route path="/profile" component={Profile} />
           <Route path="/settings" component={SettingsPage} />
           <Route path="/members" component={MembersPage} />
           <Route path="/jobs/:id">{() => <JobView />}</Route>

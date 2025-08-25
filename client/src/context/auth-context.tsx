@@ -31,7 +31,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [organizations] = useState<any[]>([]);
-  const [isProUser, setIsProUser] = useState(false);
+  const [isProUser, setIsProUser] = useState(true); // Enable pro features for demo
   const queryClient = useQueryClient();
 
   // Check authentication status from session

@@ -33,7 +33,8 @@ schedule.get("/range", requireAuth, requireOrg, async (req, res) => {
   try {
     const r: any = await db.execute(sql`
       select
-        j.id, j.title, j.description, j.status, j.scheduled_at,
+        j.id, j.title, j.description, j.status, 
+        to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
         j.customer_id, coalesce(c.name,'—') as customer_name,
         (
           select json_agg(json_build_object('id', u.id, 'name', u.name) order by u.name)

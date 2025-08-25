@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, varchar, text, timestamp, integer, decimal, boolean, jsonb, uuid, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, integer, decimal, boolean, jsonb, uuid, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -193,6 +193,19 @@ export const orgIntegrations = pgTable("org_integrations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Item presets (for billing line items)
+export const itemPresets = pgTable("item_presets", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").references(() => organizations.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  unitAmount: decimal("unit_amount", { precision: 10, scale: 2 }).default("0"),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint on org_id and lowercase name
+  uniqueOrgName: uniqueIndex("item_presets_org_name_unique").on(table.orgId, sql`lower(${table.name})`),
+}));
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -202,6 +215,7 @@ export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, cre
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true });
 export const insertJobNotificationSchema = createInsertSchema(jobNotifications).omit({ id: true, createdAt: true });
 export const insertOrgIntegrationSchema = createInsertSchema(orgIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertItemPresetSchema = createInsertSchema(itemPresets).omit({ id: true, createdAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -227,3 +241,6 @@ export type InsertJobNotification = z.infer<typeof insertJobNotificationSchema>;
 
 export type OrgIntegration = typeof orgIntegrations.$inferSelect;
 export type InsertOrgIntegration = z.infer<typeof insertOrgIntegrationSchema>;
+
+export type ItemPreset = typeof itemPresets.$inferSelect;
+export type InsertItemPreset = z.infer<typeof insertItemPresetSchema>;

@@ -14,7 +14,7 @@ export class XeroService {
         clientId: process.env.XERO_CLIENT_ID,
         clientSecret: process.env.XERO_CLIENT_SECRET,
         redirectUris: [`${process.env.APP_URL || 'https://taska-gingagenie.replit.app'}/api/xero/callback`],
-        scopes: 'openid profile email accounting.transactions',
+        scopes: ['openid', 'profile', 'email', 'accounting.transactions'],
       });
     }
   }

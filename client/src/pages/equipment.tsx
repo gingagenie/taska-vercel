@@ -75,7 +75,10 @@ export default function EquipmentPage() {
             <Card 
               key={e.id} 
               className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
-              onClick={() => navigate(`/equipment/${e.id}`)}
+              onClick={() => {
+                console.log('Clicking equipment card:', e.id);
+                navigate(`/equipment/${e.id}`);
+              }}
               data-testid={`card-equipment-${e.id}`}
             >
               <CardContent className="p-4">

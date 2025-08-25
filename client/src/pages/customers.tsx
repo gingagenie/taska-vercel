@@ -103,7 +103,10 @@ export default function Customers() {
               <Card 
                 key={c.id} 
                 className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
-                onClick={() => navigate(`/customers/${c.id}`)}
+                onClick={() => {
+                  console.log('Clicking customer card:', c.id);
+                  navigate(`/customers/${c.id}`);
+                }}
                 data-testid={`card-customer-${c.id}`}
               >
                 <CardContent className="p-4">

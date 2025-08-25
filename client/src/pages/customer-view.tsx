@@ -90,50 +90,50 @@ export default function CustomerView() {
             <h1 className="text-2xl font-bold">{customer.name}</h1>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-3 w-full max-w-md">
           <Button
             variant="secondary"
-            size="sm"
             onClick={() => openMaps(customer.name || "Destination", addr)}
             disabled={!addr}
             title={addr ? "Open in Maps" : "No address"}
             data-testid="button-navigate"
+            className="w-full"
           >
             <MapPin className="h-4 w-4 mr-1" />
             Navigate
           </Button>
           <Button 
             variant="secondary" 
-            size="sm"
             onClick={copyAddress} 
             disabled={!addr} 
             title={addr ? "Copy address" : "No address"}
             data-testid="button-copy-address"
+            className="w-full"
           >
             <Clipboard className="h-4 w-4 mr-1" />
             {copied ? "Copied!" : "Copy"}
           </Button>
           <Button 
-            size="sm"
             onClick={() => setIsJobModalOpen(true)} 
             data-testid="button-create-job"
+            className="w-full"
           >
             <Plus className="h-4 w-4 mr-1" />
             Create Job
           </Button>
           <Button 
             variant="outline" 
-            size="sm"
             onClick={() => setIsEditModalOpen(true)} 
             data-testid="button-edit-customer"
+            className="w-full"
           >
             Edit
           </Button>
           <Button 
             variant="destructive" 
-            size="sm"
             onClick={() => setConfirmDelete(true)}
             data-testid="button-delete-customer"
+            className="w-full col-span-2"
           >
             <Trash className="h-4 w-4 mr-1" />
             Delete

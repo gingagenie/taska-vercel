@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, format, set } from "date-fns";
+import { addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, format, set, parseISO } from "date-fns";
+import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import { jobsApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -73,12 +74,38 @@ export default function SchedulePage() {
     queryFn: jobsApi.technicians,
   });
 
-  // bucket jobs by yyyy-MM-dd
+  // bucket jobs by yyyy-MM-dd (using Australia/Melbourne timezone)
   const byDay = useMemo(() => {
     const map: Record<string, Job[]> = {};
     (jobs as Job[]).forEach((j) => {
-      const key = format(new Date(j.scheduled_at), "yyyy-MM-dd");
-      (map[key] ||= []).push(j);
+      try {
+        console.log(`[Desktop] Job ${j.title}: raw=${j.scheduled_at}`);
+        
+        // Handle both formats: "2025-08-23T09:00:00.000Z" and "2025-08-23 09:00:00+00"
+        const normalizedTime = j.scheduled_at.includes('T') 
+          ? j.scheduled_at 
+          : j.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
+        
+        console.log(`[Desktop] Job ${j.title}: normalized=${normalizedTime}`);
+        
+        const parsed = parseISO(normalizedTime);
+        console.log(`[Desktop] Job ${j.title}: parsed=${parsed.toISOString()}`);
+        
+        // Convert to Australia/Melbourne timezone for correct date grouping
+        const melbourneTime = toZonedTime(parsed, 'Australia/Melbourne');
+        const key = format(melbourneTime, "yyyy-MM-dd");
+        
+        console.log(`[Desktop] Job ${j.title}: melbourne=${melbourneTime.toISOString()} key=${key}`);
+        
+        (map[key] ||= []).push(j);
+      } catch (e) {
+        console.error(`[Desktop] Date parse error for job ${j.title}:`, e);
+        // Fallback: try to extract date from malformed timestamp
+        const dateMatch = j.scheduled_at.match(/(\d{4}-\d{2}-\d{2})/);
+        if (dateMatch) {
+          (map[dateMatch[1]] ||= []).push(j);
+        }
+      }
     });
     return map;
   }, [jobs]);
@@ -98,7 +125,19 @@ export default function SchedulePage() {
   // drag & drop handlers (HTML5)
   function onDragStart(e: React.DragEvent, job: Job) {
     e.dataTransfer.setData("application/x-job-id", job.id);
-    e.dataTransfer.setData("application/x-job-time", new Date(job.scheduled_at).toISOString());
+    
+    // Properly parse the timestamp with timezone handling
+    try {
+      const normalizedTime = job.scheduled_at.includes('T') 
+        ? job.scheduled_at 
+        : job.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
+      const parsed = parseISO(normalizedTime);
+      e.dataTransfer.setData("application/x-job-time", parsed.toISOString());
+    } catch (e) {
+      // Fallback to original
+      e.dataTransfer.setData("application/x-job-time", new Date(job.scheduled_at).toISOString());
+    }
+    
     // allow move effect
     e.dataTransfer.effectAllowed = "move";
   }
@@ -298,7 +337,27 @@ export default function SchedulePage() {
                   >
                     <div className="text-sm font-medium">{j.title}</div>
                     <div className="text-xs text-gray-600">
-                      {j.customer_name || "—"} • {new Date(j.scheduled_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}
+                      {j.customer_name || "—"} • {(() => {
+                        try {
+                          console.log(`[Desktop Modal] Job ${j.title}: raw=${j.scheduled_at}`);
+                          
+                          // Handle both formats and convert to local timezone
+                          const normalizedTime = j.scheduled_at.includes('T') 
+                            ? j.scheduled_at 
+                            : j.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
+                          
+                          const parsed = parseISO(normalizedTime);
+                          const melbourneTime = toZonedTime(parsed, 'Australia/Melbourne');
+                          const localTime = format(melbourneTime, "h:mm a");
+                          
+                          console.log(`[Desktop Modal] Job ${j.title}: local=${localTime}`);
+                          
+                          return localTime;
+                        } catch (e) {
+                          console.error(`[Desktop Modal] Time parse error for ${j.title}:`, e);
+                          return new Date(j.scheduled_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+                        }
+                      })()}
                     </div>
                   </a>
                 </Link>

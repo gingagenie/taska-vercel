@@ -23,6 +23,8 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
     console.log("[TWILIO] Inbound SMS:", { From, To, Body, MessageSid });
     console.log("[TWILIO] Environment:", process.env.NODE_ENV);
     console.log("[TWILIO] Database URL:", process.env.DATABASE_URL ? "Connected" : "Missing");
+    console.log("[TWILIO] Full request body:", req.body);
+    console.log("[TWILIO] Request headers:", req.headers);
     
     if (!From || !Body || !MessageSid) {
       return res.status(400).send("Missing required fields");

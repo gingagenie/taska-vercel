@@ -38,6 +38,21 @@ jobs.get("/ping", (_req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/jobs/equipment?customerId=uuid - Filter equipment by customer for job creation
+jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const customerId = (req.query.customerId as string | undefined) || undefined;
+
+  const r: any = await db.execute(sql`
+    select id, name
+    from equipment
+    where org_id=${orgId}::uuid
+      ${customerId ? sql`and customer_id=${customerId}::uuid` : sql``}
+    order by name asc
+  `);
+  res.json(r.rows);
+});
+
 /* LIST (now includes description) */
 jobs.get("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;

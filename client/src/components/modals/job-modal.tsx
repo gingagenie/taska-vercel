@@ -39,14 +39,36 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
     if (!open) return;
     (async () => {
       try {
-        const [cs, eq] = await Promise.all([jobsApi.customers(), jobsApi.equipment()]);
+        const cs = await jobsApi.customers();
         setCustomers(cs || []);
-        setEquipment(eq || []);
       } catch (e: any) {
-        setErr(e?.message || "Failed to load dropdowns");
+        setErr(e?.message || "Failed to load customers");
       }
     })();
   }, [open]);
+
+  // Fetch equipment filtered by selected customer
+  useEffect(() => {
+    if (!customerId) {
+      setEquipment([]);
+      setEquipmentId("");
+      return;
+    }
+    
+    (async () => {
+      try {
+        const url = `/api/jobs/equipment?customerId=${encodeURIComponent(customerId)}`;
+        const response = await fetch(url, { credentials: "include" });
+        if (!response.ok) throw new Error(`${response.status}: ${response.statusText}`);
+        const eq = await response.json();
+        setEquipment(eq || []);
+        setEquipmentId(""); // Reset selection when customer changes
+      } catch (e: any) {
+        setErr(e?.message || "Failed to load equipment");
+        setEquipment([]);
+      }
+    })();
+  }, [customerId]);
 
   useEffect(() => {
     if (open && defaultCustomerId) {
@@ -151,9 +173,13 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
 
           <div>
             <Label>Equipment</Label>
-            <Select value={equipmentId} onValueChange={setEquipmentId}>
+            <Select 
+              value={equipmentId} 
+              onValueChange={setEquipmentId}
+              disabled={!customerId}
+            >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select equipment" />
+                <SelectValue placeholder={customerId ? "Select equipment" : "Select a customer first"} />
               </SelectTrigger>
               <SelectContent>
                 {equipment.map((e) => (

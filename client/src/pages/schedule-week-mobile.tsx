@@ -18,6 +18,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ScheduleWeekMobile() {
+  console.log("[Mobile Schedule] Component loading...");
   const [, navigate] = useLocation();
   const [selectedTech, setSelectedTech] = useState<string>("all");
   
@@ -32,7 +33,8 @@ export default function ScheduleWeekMobile() {
   const endStr = format(addDays(weekEnd, 1), "yyyy-MM-dd"); // Include Sunday
 
   // Fetch jobs for current week
-  const { data: jobs = [], isLoading } = useQuery({
+  console.log("[Mobile Schedule] Query params:", { startStr, endStr, selectedTech });
+  const { data: jobs = [], isLoading, error } = useQuery({
     queryKey: ["/api/schedule/range", { start: startStr, end: endStr, techId: selectedTech === "all" ? undefined : selectedTech, tz: "Australia/Melbourne" }],
     queryFn: () => scheduleApi.range({ 
       start: startStr, 
@@ -42,29 +44,9 @@ export default function ScheduleWeekMobile() {
     }),
   });
 
-  // Sanity check: Log raw scheduled_at values whenever jobs change
-  useEffect(() => {
-    if (jobs && jobs.length > 0) {
-      console.log("[Mobile Schedule] Raw job data:");
-      jobs.forEach((job: any, i: number) => {
-        console.log(`Job ${i + 1}: ${job.title}`);
-        console.log(`  Raw scheduled_at: ${job.scheduled_at}`);
-        console.log(`  Ends with Z: ${job.scheduled_at?.endsWith?.('Z') || false}`);
-        if (job.scheduled_at) {
-          try {
-            // Fix malformed timestamp: "2025-08-23 09:00:00+00" -> "2025-08-23T09:00:00.000Z"
-            const fixedTimestamp = job.scheduled_at.replace(' ', 'T').replace('+00', '.000Z');
-            const parsed = parseISO(fixedTimestamp);
-            console.log(`  Fixed timestamp: ${fixedTimestamp}`);
-            console.log(`  Parsed date: ${parsed.toISOString()}`);
-            console.log(`  Local string: ${parsed.toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}`);
-          } catch (e) {
-            console.log(`  Parse error: ${e}`);
-          }
-        }
-      });
-    }
-  }, [jobs]);
+  console.log("[Mobile Schedule] Query state:", { jobs: jobs?.length, isLoading, error });
+
+
 
   // Group jobs by day
   const jobsByDay = useMemo(() => {
@@ -81,14 +63,20 @@ export default function ScheduleWeekMobile() {
     jobs.forEach((job: any) => {
       if (job.scheduled_at) {
         try {
-          // Fix malformed timestamp: "2025-08-23 09:00:00+00" -> "2025-08-23T09:00:00.000Z"
-          const fixedTimestamp = job.scheduled_at.replace(' ', 'T').replace('+00', '.000Z');
-          const jobDate = format(parseISO(fixedTimestamp), "yyyy-MM-dd");
+          // Handle both formats: "2025-08-23T09:00:00.000Z" and "2025-08-23 09:00:00+00"
+          const normalizedTime = job.scheduled_at.includes('T') 
+            ? job.scheduled_at 
+            : job.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
+          const jobDate = format(parseISO(normalizedTime), "yyyy-MM-dd");
           if (groups[jobDate]) {
             groups[jobDate].push(job);
           }
         } catch (e) {
-          console.error('Failed to parse job timestamp:', job.scheduled_at, e);
+          // Fallback: try to extract date from malformed timestamp
+          const dateMatch = job.scheduled_at.match(/(\d{4}-\d{2}-\d{2})/);
+          if (dateMatch && groups[dateMatch[1]]) {
+            groups[dateMatch[1]].push(job);
+          }
         }
       }
     });
@@ -224,11 +212,15 @@ export default function ScheduleWeekMobile() {
                             <span>
                               {(() => {
                                 try {
-                                  // Fix malformed timestamp: "2025-08-23 09:00:00+00" -> "2025-08-23T09:00:00.000Z"
-                                  const fixedTimestamp = job.scheduled_at.replace(' ', 'T').replace('+00', '.000Z');
-                                  return format(parseISO(fixedTimestamp), "h:mm a");
+                                  // Handle both formats: "2025-08-23T09:00:00.000Z" and "2025-08-23 09:00:00+00"
+                                  const normalizedTime = job.scheduled_at.includes('T') 
+                                    ? job.scheduled_at 
+                                    : job.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
+                                  return format(parseISO(normalizedTime), "h:mm a");
                                 } catch (e) {
-                                  return job.scheduled_at; // Fallback to raw timestamp
+                                  // Extract time from malformed format as fallback
+                                  const timeMatch = job.scheduled_at.match(/(\d{2}):(\d{2})/);
+                                  return timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : "Time TBA";
                                 }
                               })()}
                             </span>

@@ -133,12 +133,21 @@ app.use((req, res, next) => {
 
   try {
     // registerRoutes should mount all /api/* routers (jobs, customers, etc.)
+    // IMPORTANT: Must be called BEFORE static file serving in production!
     server = await registerRoutes(app);
   } catch (e: any) {
     console.error("registerRoutes failed:", e?.stack || e);
     // If registerRoutes throws, don't crash — create a basic HTTP server so we can see logs/health.
     const http = await import("http");
     server = http.createServer(app);
+  }
+
+  // Vite in dev, static in prod
+  // IMPORTANT: Static serving must come AFTER API routes to avoid conflicts
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
   }
 
   /** Centralized error handler — DO NOT rethrow (it kills the process) */
@@ -149,13 +158,6 @@ app.use((req, res, next) => {
     res.status(status).json({ message });
     // DON'T: throw err;
   });
-
-  // Vite in dev, static in prod
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
 
   // Always bind to PORT (Replit requirement)
   const port = parseInt(process.env.PORT || "5000", 10);

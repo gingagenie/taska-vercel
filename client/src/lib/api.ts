@@ -73,6 +73,11 @@ export function clearDevAuth() {
 export const jobsApi = {
   getAll: () => api("/api/jobs"),
   get: (id: string) => api(`/api/jobs/${id}`),
+  sendConfirm: (id: string, body?: { phone?: string; messageOverride?: string }) =>
+    api(`/api/jobs/${id}/sms/confirm`, {
+      method: "POST",
+      body: JSON.stringify(body || {}),
+    }),
   create: (body: any) =>
     api("/api/jobs/create", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) =>

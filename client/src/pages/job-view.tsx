@@ -6,8 +6,9 @@ import { api, photosApi, jobsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { MapPin, AlertTriangle, Trash } from "lucide-react";
+import { MapPin, AlertTriangle, Trash, MessageSquare } from "lucide-react";
 import { parseISO, format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
@@ -26,6 +27,13 @@ export default function JobView() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [errDelete, setErrDelete] = useState<string | null>(null);
+  
+  // SMS confirmation dialog state
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsPhone, setSmsPhone] = useState<string>("");
+  const [smsPreview, setSmsPreview] = useState<string>("");
+  const [sending, setSending] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -50,6 +58,38 @@ export default function JobView() {
   if (!job) return null;
 
   const niceStatus = (job.status || "new").replace("_", " ");
+
+  function buildDefaultPreview() {
+    const when = job.scheduled_at
+      ? new Date(job.scheduled_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })
+      : "Not scheduled";
+    return `Hi from Taska! Job "${job.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
+  }
+
+  function openSmsDialog() {
+    setSmsPhone(job.customer_phone || "");
+    setSmsPreview(buildDefaultPreview());
+    setSmsOpen(true);
+  }
+
+  async function sendSms() {
+    setSending(true);
+    try {
+      await jobsApi.sendConfirm(job.id, {
+        phone: smsPhone || undefined,
+        messageOverride: smsPreview || undefined,
+      });
+      setToast("SMS sent ✔");
+      setSmsOpen(false);
+      // Clear toast after 3 seconds
+      setTimeout(() => setToast(null), 3000);
+    } catch (e: any) {
+      setToast(e?.message || "Failed to send SMS");
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      setSending(false);
+    }
+  }
 
   function openMaps(destinationLabel: string, address?: string, lat?: number, lng?: number) {
     // If no address or coordinates, fallback to searching by customer name
@@ -125,6 +165,15 @@ export default function JobView() {
           >
             <MapPin className="h-4 w-4 mr-1" />
             Navigate
+          </Button>
+          <Button 
+            variant="secondary" 
+            onClick={openSmsDialog}
+            className="flex-1 sm:flex-none"
+            data-testid="button-send-sms"
+          >
+            <MessageSquare className="h-4 w-4 mr-1" />
+            Send SMS
           </Button>
           <Link href={`/jobs/${jobId}/notes`}>
             <Button variant="secondary" className="flex-1 sm:flex-none">Notes & Charges</Button>
@@ -278,6 +327,54 @@ export default function JobView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* SMS Confirmation Dialog */}
+      <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send confirmation SMS</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm text-gray-600">To (mobile)</label>
+              <Input 
+                value={smsPhone} 
+                onChange={(e) => setSmsPhone(e.target.value)} 
+                placeholder="+61..."
+                data-testid="input-sms-phone"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600">Message</label>
+              <textarea
+                className="w-full border rounded p-2 min-h-[120px]"
+                value={smsPreview}
+                onChange={(e) => setSmsPreview(e.target.value)}
+                data-testid="textarea-sms-message"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSmsOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={sendSms} 
+              disabled={sending || !smsPhone}
+              data-testid="button-send-sms-confirm"
+            >
+              {sending ? "Sending…" : "Send SMS"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 bg-black text-white px-3 py-2 rounded shadow-lg z-50">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,256 @@
+1) Backend: Twilio route
+1.1 Install dep
+
+package.json (dependencies)
+
+"twilio": "^4.21.0"
+
+1.2 Env vars (Deployment + Repl)
+
+Set these in your env (prod + dev as needed):
+
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_MESSAGING_SERVICE_SID=MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   # preferred
+# OR: TWILIO_FROM_NUMBER=+614xxxxxxxx
+BIZ_TZ=Australia/Melbourne
+
+
+Prefer Messaging Service SID; fall back to a From number if you must.
+
+1.3 Route: /api/jobs/:jobId/sms/confirm
+
+Create / Edit: server/routes/job-sms.ts
+
+import { Router } from "express";
+import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
+import { db } from "../db/client";
+import { sql } from "drizzle-orm";
+import twilio from "twilio";
+
+export const jobSms = Router();
+
+// Helpers
+const BIZ_TZ = process.env.BIZ_TZ || "Australia/Melbourne";
+const accountSid = process.env.TWILIO_ACCOUNT_SID!;
+const authToken = process.env.TWILIO_AUTH_TOKEN!;
+const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+const fromNumber = process.env.TWILIO_FROM_NUMBER;
+
+if (!accountSid || !authToken || !(messagingServiceSid || fromNumber)) {
+  // eslint-disable-next-line no-console
+  console.warn("[job-sms] Twilio env missing; SMS route will 400 until configured.");
+}
+const client = (accountSid && authToken) ? twilio(accountSid, authToken) : null;
+
+// Format date in business timezone (simple, no extra deps)
+function formatAEST(iso: string | null): string {
+  if (!iso) return "Not scheduled";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("en-AU", {
+      timeZone: BIZ_TZ,
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso!;
+  }
+}
+
+/**
+ * POST /api/jobs/:jobId/sms/confirm
+ * body: { phone?: string, messageOverride?: string }
+ * - phone: override customer phone (optional)
+ * - messageOverride: override full text (optional)
+ */
+jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => {
+  if (!client || !(messagingServiceSid || fromNumber)) {
+    return res.status(400).json({ error: "Twilio not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and (TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER)" });
+  }
+
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  const { phone: phoneOverride, messageOverride } = (req.body || {}) as { phone?: string; messageOverride?: string };
+
+  // Pull job + customer info
+  const qr: any = await db.execute(sql`
+    select
+      j.id, j.title, j.scheduled_at, j.description,
+      c.id as customer_id, c.name as customer_name, c.phone as customer_phone
+    from jobs j
+    left join customers c on c.id = j.customer_id
+    where j.id=${jobId}::uuid and j.org_id=${orgId}::uuid
+    limit 1
+  `);
+  const row = qr.rows?.[0];
+  if (!row) return res.status(404).json({ error: "Job not found" });
+
+  const toPhone = (phoneOverride || row.customer_phone || "").trim();
+  if (!toPhone) return res.status(400).json({ error: "No customer phone on file. Provide { phone } in request body or set customer.phone." });
+
+  // Build default confirmation message
+  const when = formatAEST(row.scheduled_at);
+  const defaultMsg =
+    `Hi from Taska! Job "${row.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
+
+  const body = (messageOverride && messageOverride.trim()) || defaultMsg;
+
+  try {
+    const msg = await client!.messages.create({
+      to: toPhone,
+      ...(messagingServiceSid ? { messagingServiceSid } : { from: fromNumber! }),
+      body,
+    });
+
+    // (Optional) store a log row
+    // await db.execute(sql`
+    //   insert into job_notifications (org_id, job_id, channel, to_addr, body, provider_id, status)
+    //   values (${orgId}::uuid, ${jobId}::uuid, 'sms', ${toPhone}, ${body}, ${msg.sid}, ${msg.status})
+    // `);
+
+    return res.json({ ok: true, sid: msg.sid, status: msg.status });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Twilio send failed" });
+  }
+});
+
+
+Mount it: in server/routes.ts (or server/index.ts where you mount routers)
+
+import { jobSms } from "./routes/job-sms";
+app.use("/api/jobs", jobSms);
+
+2) Client: add API helper + button on Job View
+2.1 API helper
+
+Edit: client/src/lib/api.ts
+
+export const jobsApi = {
+  // ...existing
+  sendConfirm: (id: string, body?: { phone?: string; messageOverride?: string }) =>
+    api(`/api/jobs/${id}/sms/confirm`, {
+      method: "POST",
+      body: JSON.stringify(body || {}),
+    }),
+};
+
+2.2 Job page button (preview + send)
+
+Edit: client/src/pages/job-view.tsx (your JobView component)
+
+import { useState } from "react";
+import { jobsApi } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+
+export default function JobView() {
+  // ...existing state
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsPhone, setSmsPhone] = useState<string>("");
+  const [smsPreview, setSmsPreview] = useState<string>("");
+  const [sending, setSending] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // after job loaded:
+  // setSmsPhone(job.customer_phone || "");
+
+  function buildDefaultPreview() {
+    const when = job.scheduled_at
+      ? new Date(job.scheduled_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })
+      : "Not scheduled";
+    return `Hi from Taska! Job "${job.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
+  }
+
+  // open dialog
+  // <Button onClick={() => { setSmsPreview(buildDefaultPreview()); setSmsOpen(true); }}>Send confirmation SMS</Button>
+
+  async function sendSms() {
+    setSending(true);
+    try {
+      const r = await jobsApi.sendConfirm(job.id, {
+        phone: smsPhone || undefined,
+        messageOverride: smsPreview || undefined,
+      });
+      setToast("SMS sent ✔");
+      setSmsOpen(false);
+    } catch (e: any) {
+      setToast(e?.message || "Failed to send SMS");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <>
+      {/* existing JobView UI ... */}
+
+      <div className="flex gap-2">
+        <Button onClick={() => { setSmsPhone(job.customer_phone || ""); setSmsPreview(buildDefaultPreview()); setSmsOpen(true); }}>
+          Send confirmation SMS
+        </Button>
+        {/* keep your Edit Job button, etc */}
+      </div>
+
+      <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send confirmation SMS</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm text-gray-600">To (mobile)</label>
+              <Input value={smsPhone} onChange={(e) => setSmsPhone(e.target.value)} placeholder="+61…" />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600">Message</label>
+              <textarea
+                className="w-full border rounded p-2 min-h-[120px]"
+                value={smsPreview}
+                onChange={(e) => setSmsPreview(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSmsOpen(false)}>Cancel</Button>
+            <Button onClick={sendSms} disabled={sending || !smsPhone}>
+              {sending ? "Sending…" : "Send SMS"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {toast && <div className="fixed bottom-4 right-4 bg-black text-white px-3 py-2 rounded">{toast}</div>}
+    </>
+  );
+}
+
+3) (Optional) Delivery log table
+
+If you want an audit trail:
+
+SQL
+
+CREATE TABLE IF NOT EXISTS job_notifications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  job_id uuid NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  channel text NOT NULL,               -- 'sms'
+  to_addr text NOT NULL,
+  body text NOT NULL,
+  provider_id text,                    -- Twilio SID
+  status text,                         -- queued/sent/delivered/failed
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS job_notifications_job_idx ON job_notifications(job_id);
+
+
+Then uncomment the insert in the route.

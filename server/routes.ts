@@ -11,6 +11,7 @@ import quotes from "./routes/quotes";
 import invoices from "./routes/invoices";
 import { schedule } from "./routes/schedule";
 import { members } from "./routes/members";
+import { jobSms } from "./routes/job-sms";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
@@ -23,6 +24,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/equipment");
   app.use("/api/teams", teams);
   app.use("/api/jobs", jobs);
+  app.use("/api/jobs", jobSms);
   console.log("[mount] /api/jobs");
   app.use("/api/schedule", schedule);
   console.log("[mount] /api/schedule");

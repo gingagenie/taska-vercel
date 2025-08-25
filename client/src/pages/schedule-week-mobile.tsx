@@ -217,16 +217,18 @@ export default function ScheduleWeekMobile() {
                             <span>
                               {(() => {
                                 try {
-                                  console.log(`[Mobile Debug] Raw: ${job.scheduled_at}`);
                                   const utcDate = parseISO(job.scheduled_at);
-                                  console.log(`[Mobile Debug] Parsed UTC: ${utcDate.toISOString()}`);
                                   const melbourneTime = toZonedTime(utcDate, 'Australia/Melbourne');
-                                  console.log(`[Mobile Debug] Melbourne: ${melbourneTime.toISOString()}`);
                                   const formatted = format(melbourneTime, "h:mm a");
-                                  console.log(`[Mobile Debug] Formatted: ${formatted}`);
-                                  return formatted;
+                                  return (
+                                    <div>
+                                      <div>{formatted}</div>
+                                      <div className="text-xs text-red-500">
+                                        UTC: {job.scheduled_at} → MEL: {melbourneTime.toISOString()}
+                                      </div>
+                                    </div>
+                                  );
                                 } catch (e) {
-                                  console.error(`[Mobile Debug] Error:`, e);
                                   return "Time TBA";
                                 }
                               })()}

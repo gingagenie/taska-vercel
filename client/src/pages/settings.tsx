@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { meApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { CheckCircle, ExternalLink, AlertCircle } from "lucide-react";
 
 export default function SettingsPage() {
   const qc = useQueryClient();
@@ -18,6 +20,70 @@ export default function SettingsPage() {
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   
   const [saving, setSaving] = useState(false);
+
+  // Xero integration state and hooks
+  const { data: xeroStatus, refetch: refetchXeroStatus } = useQuery({
+    queryKey: ["/api/xero/status"],
+    retry: false,
+  });
+
+  const connectXeroMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("/api/xero/connect");
+      window.location.href = response.authUrl;
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Connection Failed",
+        description: error?.message || "Failed to connect to Xero",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const disconnectXeroMutation = useMutation({
+    mutationFn: () => apiRequest("/api/xero/disconnect", { method: "DELETE" }),
+    onSuccess: () => {
+      refetchXeroStatus();
+      toast({
+        title: "Disconnected",
+        description: "Xero integration has been disconnected",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to disconnect Xero",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Check for Xero callback success/error in URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('xero_success')) {
+      const tenant = urlParams.get('tenant');
+      toast({
+        title: "Connected Successfully",
+        description: tenant ? `Connected to Xero organization: ${tenant}` : "Connected to Xero successfully",
+      });
+      refetchXeroStatus();
+      // Clean up URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (urlParams.get('xero_error')) {
+      const error = urlParams.get('xero_error');
+      toast({
+        title: "Connection Failed",
+        description: error === 'invalid_code' ? "Invalid authorization code" :
+                    error === 'session_expired' ? "Session expired, please try again" :
+                    error === 'connection_failed' ? "Failed to establish connection" : "Unknown error occurred",
+        variant: "destructive",
+      });
+      // Clean up URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [toast, refetchXeroStatus]);
 
   useEffect(() => {
     if (!data) return;
@@ -118,9 +184,10 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid grid-cols-4 w-full">
+        <TabsList className="grid grid-cols-5 w-full">
           <TabsTrigger value="profile" data-testid="tab-profile">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization">Organization</TabsTrigger>
+          <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
           <TabsTrigger value="subscription" data-testid="tab-subscription">Subscription</TabsTrigger>
           <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
         </TabsList>
@@ -282,6 +349,95 @@ export default function SettingsPage() {
                 >
                   {saving ? "Saving..." : "Save Organization"}
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Integrations */}
+        <TabsContent value="integrations" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Integrations</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Connect your accounting software to sync quotes and invoices
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Xero Integration */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold text-sm">
+                      X
+                    </div>
+                    <div>
+                      <h3 className="font-medium">Xero</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Sync quotes and invoices to your Xero accounting
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {xeroStatus?.connected ? (
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-gray-400" />
+                    )}
+                  </div>
+                </div>
+
+                {xeroStatus?.connected ? (
+                  <div className="space-y-3">
+                    <div className="text-sm">
+                      <p className="text-green-600 font-medium">✓ Connected</p>
+                      <p className="text-muted-foreground">
+                        Organization: {xeroStatus.tenantName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Connected {new Date(xeroStatus.connectedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => disconnectXeroMutation.mutate()}
+                        disabled={disconnectXeroMutation.isPending}
+                        data-testid="button-disconnect-xero"
+                      >
+                        {disconnectXeroMutation.isPending ? "Disconnecting..." : "Disconnect"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open('https://my.xero.com', '_blank')}
+                        data-testid="button-xero-dashboard"
+                      >
+                        Open Xero <ExternalLink className="h-3 w-3 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Connect to automatically create quotes and invoices in Xero as drafts
+                    </p>
+                    <Button
+                      onClick={() => connectXeroMutation.mutate()}
+                      disabled={connectXeroMutation.isPending}
+                      data-testid="button-connect-xero"
+                    >
+                      {connectXeroMutation.isPending ? "Connecting..." : "Connect to Xero"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Coming Soon */}
+              <div className="border border-dashed rounded-lg p-4 text-center text-muted-foreground">
+                <p className="text-sm">More integrations coming soon...</p>
+                <p className="text-xs mt-1">QuickBooks, MYOB, and more</p>
               </div>
             </CardContent>
           </Card>

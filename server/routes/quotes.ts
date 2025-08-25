@@ -3,6 +3,7 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { xeroService } from "../services/xero";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -127,6 +128,68 @@ router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
   `);
   await db.execute(sql`update quotes set status='converted', job_id=${jr.rows[0].id}::uuid where id=${id}::uuid`);
   res.json({ ok: true, jobId: jr.rows[0].id });
+});
+
+/** Push to Xero */
+router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params; 
+  const orgId = (req as any).orgId;
+  
+  try {
+    // Get quote with customer details and items
+    const q: any = await db.execute(sql`
+      select q.*, c.name as customer_name, c.email as customer_email
+      from quotes q join customers c on c.id=q.customer_id
+      where q.id=${id}::uuid and q.org_id=${orgId}::uuid
+    `);
+    const quote = q.rows?.[0];
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    // Get quote items
+    const items: any = await db.execute(sql`
+      select * from quote_items where quote_id=${id}::uuid order by created_at nulls last, id
+    `);
+
+    // Check if already pushed to Xero
+    if (quote.xero_id) {
+      return res.status(400).json({ error: "Quote already exists in Xero", xeroId: quote.xero_id });
+    }
+
+    // Push to Xero
+    const xeroQuote = await xeroService.createQuoteInXero(orgId, {
+      customerName: quote.customer_name,
+      customerEmail: quote.customer_email,
+      title: quote.title,
+      currency: quote.currency || 'AUD',
+      items: items.rows.map((item: any) => ({
+        name: item.description,
+        description: item.description,
+        price: item.unit_price,
+        quantity: item.quantity
+      }))
+    });
+
+    // Update quote with Xero ID
+    await db.execute(sql`
+      update quotes 
+      set xero_id=${xeroQuote.quoteID}, updated_at=now() 
+      where id=${id}::uuid and org_id=${orgId}::uuid
+    `);
+
+    res.json({ 
+      ok: true, 
+      xeroId: xeroQuote.quoteID,
+      xeroNumber: xeroQuote.quoteNumber,
+      message: "Quote successfully created in Xero"
+    });
+
+  } catch (error) {
+    console.error('Error pushing quote to Xero:', error);
+    if (error instanceof Error && error.message.includes('not found or tokens expired')) {
+      return res.status(401).json({ error: "Xero integration not connected. Please connect Xero in Settings." });
+    }
+    res.status(500).json({ error: "Failed to create quote in Xero" });
+  }
 });
 
 export default router;

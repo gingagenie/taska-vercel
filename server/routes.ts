@@ -13,6 +13,7 @@ import { schedule } from "./routes/schedule";
 import { members } from "./routes/members";
 import { jobSms } from "./routes/job-sms";
 import { twilioWebhooks } from "./routes/twilio-webhooks";
+import xero from "./routes/xero";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
@@ -35,6 +36,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/members");
   app.use("/api/quotes", quotes);
   app.use("/api/invoices", invoices);
+  app.use("/api/xero", xero);
+  console.log("[mount] /api/xero");
   
   app.get("/api", (_req, res) => res.json({ ok: true, name: "Taska 2.0 API" }));
 

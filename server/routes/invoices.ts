@@ -3,6 +3,7 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { xeroService } from "../services/xero";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -107,6 +108,68 @@ router.post("/:id/pay", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params;
   await db.execute(sql`update invoices set status='paid', updated_at=now() where id=${id}::uuid`);
   res.json({ ok: true });
+});
+
+/** Push to Xero */
+router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params; 
+  const orgId = (req as any).orgId;
+  
+  try {
+    // Get invoice with customer details and items
+    const r: any = await db.execute(sql`
+      select i.*, c.name as customer_name, c.email as customer_email
+      from invoices i join customers c on c.id=i.customer_id
+      where i.id=${id}::uuid and i.org_id=${orgId}::uuid
+    `);
+    const invoice = r.rows?.[0];
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    // Get invoice items
+    const items: any = await db.execute(sql`
+      select * from invoice_items where invoice_id=${id}::uuid order by created_at nulls last, id
+    `);
+
+    // Check if already pushed to Xero
+    if (invoice.xero_id) {
+      return res.status(400).json({ error: "Invoice already exists in Xero", xeroId: invoice.xero_id });
+    }
+
+    // Push to Xero
+    const xeroInvoice = await xeroService.createInvoiceInXero(orgId, {
+      customerName: invoice.customer_name,
+      customerEmail: invoice.customer_email,
+      currency: invoice.currency || 'AUD',
+      dueAt: invoice.due_at,
+      items: items.rows.map((item: any) => ({
+        name: item.description,
+        description: item.description,
+        price: item.unit_price,
+        quantity: item.quantity
+      }))
+    });
+
+    // Update invoice with Xero ID
+    await db.execute(sql`
+      update invoices 
+      set xero_id=${xeroInvoice.invoiceID}, updated_at=now() 
+      where id=${id}::uuid and org_id=${orgId}::uuid
+    `);
+
+    res.json({ 
+      ok: true, 
+      xeroId: xeroInvoice.invoiceID,
+      xeroNumber: xeroInvoice.invoiceNumber,
+      message: "Invoice successfully created in Xero"
+    });
+
+  } catch (error) {
+    console.error('Error pushing invoice to Xero:', error);
+    if (error instanceof Error && error.message.includes('not found or tokens expired')) {
+      return res.status(401).json({ error: "Xero integration not connected. Please connect Xero in Settings." });
+    }
+    res.status(500).json({ error: "Failed to create invoice in Xero" });
+  }
 });
 
 export default router;

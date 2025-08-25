@@ -4,6 +4,9 @@ import { quotesApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { ExternalLink } from "lucide-react";
 
 export default function QuoteView() {
   const [match, params] = useRoute("/quotes/:id");
@@ -13,6 +16,8 @@ export default function QuoteView() {
   const [quote, setQuote] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [creatingXero, setCreatingXero] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!id) return;
@@ -49,6 +54,31 @@ export default function QuoteView() {
     }
   }
 
+  async function handleCreateInXero() {
+    if (!id) return;
+    setCreatingXero(true);
+    try {
+      const response = await apiRequest(`/api/quotes/${id}/xero`, { method: 'POST' });
+      
+      toast({
+        title: "Quote created in Xero",
+        description: `Quote #${response.xeroNumber} created successfully`,
+      });
+      
+      // Refresh quote data to show Xero ID
+      const updatedQuote = await quotesApi.get(id);
+      setQuote(updatedQuote);
+    } catch (e: any) {
+      toast({
+        title: "Failed to create in Xero",
+        description: e.message || "Unable to create quote in Xero",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingXero(false);
+    }
+  }
+
   if (loading) return <div className="page">Loading…</div>;
   if (!quote) return <div className="page">Quote not found</div>;
 
@@ -63,6 +93,25 @@ export default function QuoteView() {
           )}
           {quote.status === 'accepted' && (
             <Button onClick={handleConvert}>Convert to Job</Button>
+          )}
+          {!quote.xero_id && (
+            <Button 
+              onClick={handleCreateInXero}
+              disabled={creatingXero}
+              variant="outline"
+              data-testid="button-create-xero"
+            >
+              {creatingXero ? "Creating..." : "Create in Xero"}
+            </Button>
+          )}
+          {quote.xero_id && (
+            <Button 
+              variant="outline"
+              onClick={() => window.open('https://my.xero.com', '_blank')}
+              data-testid="button-view-xero"
+            >
+              View in Xero <ExternalLink className="h-3 w-3 ml-1" />
+            </Button>
           )}
         </div>
       </div>

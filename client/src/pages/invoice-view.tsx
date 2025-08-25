@@ -4,6 +4,9 @@ import { invoicesApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { ExternalLink } from "lucide-react";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
@@ -13,6 +16,8 @@ export default function InvoiceView() {
   const [invoice, setInvoice] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [creatingXero, setCreatingXero] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!id) return;
@@ -39,6 +44,31 @@ export default function InvoiceView() {
     }
   }
 
+  async function handleCreateInXero() {
+    if (!id) return;
+    setCreatingXero(true);
+    try {
+      const response = await apiRequest(`/api/invoices/${id}/xero`, { method: 'POST' });
+      
+      toast({
+        title: "Invoice created in Xero",
+        description: `Invoice #${response.xeroNumber} created successfully`,
+      });
+      
+      // Refresh invoice data to show Xero ID
+      const updatedInvoice = await invoicesApi.get(id);
+      setInvoice(updatedInvoice);
+    } catch (e: any) {
+      toast({
+        title: "Failed to create in Xero",
+        description: e.message || "Unable to create invoice in Xero",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingXero(false);
+    }
+  }
+
   if (loading) return <div className="page">Loading…</div>;
   if (!invoice) return <div className="page">Invoice not found</div>;
 
@@ -50,6 +80,25 @@ export default function InvoiceView() {
           <Link href={`/invoices/${id}/edit`}><a><Button variant="outline">Edit</Button></a></Link>
           {invoice.status !== 'paid' && invoice.status !== 'void' && (
             <Button onClick={handleMarkPaid}>Mark Paid</Button>
+          )}
+          {!invoice.xero_id && (
+            <Button 
+              onClick={handleCreateInXero}
+              disabled={creatingXero}
+              variant="outline"
+              data-testid="button-create-xero"
+            >
+              {creatingXero ? "Creating..." : "Create in Xero"}
+            </Button>
+          )}
+          {invoice.xero_id && (
+            <Button 
+              variant="outline"
+              onClick={() => window.open('https://my.xero.com', '_blank')}
+              data-testid="button-view-xero"
+            >
+              View in Xero <ExternalLink className="h-3 w-3 ml-1" />
+            </Button>
           )}
         </div>
       </div>

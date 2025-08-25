@@ -143,6 +143,7 @@ export const quotes = pgTable("quotes", {
   currency: varchar("currency", { length: 3 }).default("USD"),
   total: decimal("total", { precision: 10, scale: 2 }).default("0"),
   status: varchar("status", { length: 50 }).default("draft"),
+  xeroId: varchar("xero_id", { length: 255 }), // Xero Quote ID
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -158,6 +159,7 @@ export const invoices = pgTable("invoices", {
   status: varchar("status", { length: 50 }).default("draft"),
   issuedAt: timestamp("issued_at"),
   dueAt: timestamp("due_at"),
+  xeroId: varchar("xero_id", { length: 255 }), // Xero Invoice ID
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -175,6 +177,21 @@ export const jobNotifications = pgTable("job_notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Organization integrations (for Xero, QuickBooks, etc.)
+export const orgIntegrations = pgTable("org_integrations", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").references(() => organizations.id).notNull(),
+  provider: varchar("provider", { length: 50 }).notNull(), // 'xero', 'quickbooks', etc.
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  tenantId: varchar("tenant_id", { length: 255 }), // Xero tenant ID
+  tenantName: varchar("tenant_name", { length: 255 }),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -183,6 +200,7 @@ export const insertEquipmentSchema = createInsertSchema(equipment).omit({ id: tr
 export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, createdAt: true });
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true });
 export const insertJobNotificationSchema = createInsertSchema(jobNotifications).omit({ id: true, createdAt: true });
+export const insertOrgIntegrationSchema = createInsertSchema(orgIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -205,3 +223,6 @@ export type InsertJobPhoto = z.infer<typeof insertJobPhotoSchema>;
 
 export type JobNotification = typeof jobNotifications.$inferSelect;
 export type InsertJobNotification = z.infer<typeof insertJobNotificationSchema>;
+
+export type OrgIntegration = typeof orgIntegrations.$inferSelect;
+export type InsertOrgIntegration = z.infer<typeof insertOrgIntegrationSchema>;

@@ -70,8 +70,8 @@ export default function Dashboard() {
         <Card className="border-schedule bg-white">
           <CardContent className="card-pad flex items-center justify-between">
             <div>
-              <div className="text-sm text-schedule font-medium">Jobs Today</div>
-              <div className="text-2xl font-semibold text-schedule">{todaysJobs.length}</div>
+              <div className="text-sm text-gray-500 font-medium">Jobs Today</div>
+              <div className="text-2xl font-semibold">{todaysJobs.length}</div>
             </div>
             <div className="p-3 rounded-lg bg-schedule text-schedule-foreground">
               <CalendarDays className="h-6 w-6" />
@@ -82,8 +82,8 @@ export default function Dashboard() {
         <Card className="border-jobs bg-white">
           <CardContent className="card-pad flex items-center justify-between">
             <div>
-              <div className="text-sm text-jobs font-medium">Total Jobs</div>
-              <div className="text-2xl font-semibold text-jobs">{(jobs as any[]).length}</div>
+              <div className="text-sm text-gray-500 font-medium">Total Jobs</div>
+              <div className="text-2xl font-semibold">{(jobs as any[]).length}</div>
             </div>
             <div className="p-3 rounded-lg bg-jobs text-jobs-foreground">
               <Briefcase className="h-6 w-6" />
@@ -97,7 +97,7 @@ export default function Dashboard() {
         <Card className="border-schedule bg-white">
           <CardHeader>
             <div className="header-row">
-              <CardTitle className="text-schedule">Today's Schedule</CardTitle>
+              <CardTitle>Today's Schedule</CardTitle>
               <div className="header-actions">
                 <Link href="/schedule"><a><Button variant="outline" className="border-schedule text-schedule hover:bg-schedule-light">View Schedule</Button></a></Link>
               </div>
@@ -128,7 +128,7 @@ export default function Dashboard() {
         <Card className="border-jobs bg-white">
           <CardHeader>
             <div className="header-row">
-              <CardTitle className="text-jobs">Upcoming Jobs</CardTitle>
+              <CardTitle>Upcoming Jobs</CardTitle>
               <div className="header-actions">
                 <Link href="/jobs"><a><Button variant="outline" className="border-jobs text-jobs hover:bg-jobs-light">View All</Button></a></Link>
               </div>
@@ -160,7 +160,7 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <Card className="border-management bg-white">
         <CardHeader>
-          <CardTitle className="text-management">Quick Actions</CardTitle>
+          <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="card-pad">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

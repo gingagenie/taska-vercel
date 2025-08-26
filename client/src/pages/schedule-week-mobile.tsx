@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Clock, User, MapPin } from "lucide-react";
-import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays, parseISO } from "date-fns";
 import { utcIsoToLocalString } from "@/lib/time";
 
 // Status color mapping
@@ -67,12 +67,13 @@ export default function ScheduleWeekMobile() {
     jobs.forEach((job: any) => {
       if (job.scheduled_at) {
         try {
-          // Convert UTC timestamp to local Date and extract date part
-          const localDate = new Date(job.scheduled_at);
+          // Parse UTC ISO string and convert to local date for grouping
+          const utcDate = parseISO(job.scheduled_at);
+          const localDate = new Date(utcDate.getTime());
           const dateKey = format(localDate, "yyyy-MM-dd");
           if (groups[dateKey]) {
             groups[dateKey].push(job);
-            console.log('[Mobile Schedule] Added job to', dateKey, ':', job.title);
+            console.log('[Mobile Schedule] Added job to', dateKey, ':', job.title, 'at', format(localDate, "HH:mm"));
           }
         } catch (e) {
           console.error('Error processing job:', job.id, job.scheduled_at, e);

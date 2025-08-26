@@ -1,0 +1,234 @@
+Phase 1 — Stabilise (freeze the contract + add a debugger)
+1) Force the server/environment to UTC
+
+In Replit Secrets (or .env):
+
+TZ=UTC
+DEFAULT_TIMEZONE=Australia/Melbourne
+
+2) Add a single source of truth for times
+
+DB: store UTC (timestamptz)
+
+API: return ISO 8601 with Z (e.g., 2025-08-26T01:00:00.000Z)
+
+Clients: always convert at display time
+
+3) Add a /api/_tz/debug endpoint
+
+So we can see—immediately—what the server thinks, what Postgres thinks, and how your conversions behave.
+
+// server/routes/_tz.ts
+import { Router } from "express";
+import { db } from "../db/index";
+import { sql } from "drizzle-orm";
+import { formatInTimeZone } from "date-fns-tz";
+
+const r = Router();
+
+r.get("/debug", async (_req, res) => {
+  const [{ now_db }] = await db.execute(sql`SELECT now() AT TIME ZONE 'UTC' as now_db`);
+  const nowServer = new Date();
+  const mel = formatInTimeZone(nowServer, "Australia/Melbourne", "yyyy-LL-dd HH:mm:ssXXX");
+  const utc = nowServer.toISOString();
+
+  res.json({
+    envTZ: process.env.TZ,
+    defaultTz: process.env.DEFAULT_TIMEZONE,
+    server_now_iso: utc,
+    server_now_melbourne: mel,
+    db_now_utc: now_db, // should be close to server_now_iso
+  });
+});
+
+export default r;
+
+
+Wire it up:
+
+// server/index.ts
+import express from "express";
+import tzRouter from "./routes/_tz";
+import jobsRouter from "./routes/jobs";
+
+const app = express();
+app.use(express.json());
+app.get("/healthz", (_req, res) => res.send("ok"));
+app.use("/api/_tz", tzRouter);
+app.use("/api/jobs", jobsRouter);
+
+app.listen(process.env.PORT || 3000, () => console.log("Server up"));
+
+
+What success looks like: hitting /api/_tz/debug shows envTZ: "UTC", server_now_iso ends with Z, db_now_utc matches the same moment.
+
+Phase 2 — Sanitise (fix the database & stop the bleed)
+4) Make columns real timestamptz
+
+Run this SQL (Supabase/Neon psql):
+
+-- 4a) Ensure columns are timestamptz (UTC)
+ALTER TABLE jobs
+  ALTER COLUMN start_time TYPE timestamptz USING (start_time AT TIME ZONE 'UTC'),
+  ALTER COLUMN end_time   TYPE timestamptz USING (end_time   AT TIME ZONE 'UTC');
+
+-- 4b) Optional default
+ALTER TABLE jobs
+  ALTER COLUMN start_time SET DEFAULT now();
+
+5) Detect & fix already-corrupted rows
+
+Some rows are likely “double-shifted” (e.g., saved as local but treated as UTC). Let’s find anything that looks off vs AEST/AEDT.
+
+-- Rows where the hour looks like middle-of-the-night (1–4am) but probably intended as business hours
+-- (Heuristic to catch Melbourne business data saved as UTC)
+SELECT id, title, start_time, end_time
+FROM jobs
+WHERE EXTRACT(HOUR FROM start_time AT TIME ZONE 'Australia/Melbourne') BETWEEN 1 AND 4
+ORDER BY start_time DESC
+LIMIT 100;
+
+
+If you confirm these are exactly -10/-11 hours off, you can bulk fix them:
+
+-- Example: shift by +10 hours (AEST). Use +11 for AEDT records if needed.
+-- !!! Do this on a filtered subset you’ve verified first !!!
+UPDATE jobs
+SET start_time = start_time + INTERVAL '10 hours',
+    end_time   = CASE WHEN end_time IS NOT NULL THEN end_time + INTERVAL '10 hours' ELSE NULL END
+WHERE <your-verified-filter>;
+
+
+If you’re unsure, don’t mass-update; we can export the suspicious rows, sample 10, verify, then update only those patterns.
+
+6) Guardrail API inputs (stop bad writes)
+
+Accept local inputs only with a declared timezone; otherwise assume DEFAULT_TIMEZONE. Always convert to UTC before writing.
+
+// server/time.ts
+import { zonedTimeToUtc, formatInTimeZone } from "date-fns-tz";
+
+const DEFAULT_TZ = process.env.DEFAULT_TIMEZONE || "Australia/Melbourne";
+
+export function parseLocalToUTC(input: string, userTz?: string): Date {
+  return zonedTimeToUtc(input, userTz || DEFAULT_TZ);
+}
+export function toIsoUTC(d: Date) { return new Date(d).toISOString(); }
+export function fmt(d: Date, tz = DEFAULT_TZ) { return formatInTimeZone(d, tz, "yyyy-LL-dd HH:mm"); }
+
+// server/routes/jobs.ts (create/list)
+import { Router } from "express";
+import { z } from "zod";
+import { db } from "../db/index";
+import { jobs } from "../db/schema";
+import { parseLocalToUTC, toIsoUTC } from "../time";
+
+const r = Router();
+const CreateJob = z.object({
+  title: z.string().min(1),
+  start: z.string(),       // "2025-09-01 09:00" or ISO without Z
+  end: z.string().optional(),
+  userTz: z.string().optional(), // e.g., "Australia/Melbourne"
+});
+
+r.post("/", async (req, res) => {
+  const v = CreateJob.safeParse(req.body);
+  if (!v.success) return res.status(400).json(v.error);
+
+  const { title, start, end, userTz } = v.data;
+  const startUTC = parseLocalToUTC(start, userTz);
+  const endUTC = end ? parseLocalToUTC(end, userTz) : null;
+
+  const [row] = await db.insert(jobs).values({
+    title,
+    startTime: startUTC,
+    endTime: endUTC,
+  }).returning();
+
+  res.json({
+    id: row.id,
+    title: row.title,
+    start_time: toIsoUTC(row.startTime),
+    end_time: row.endTime ? toIsoUTC(row.endTime) : null,
+  });
+});
+
+r.get("/", async (_req, res) => {
+  const rows = await db.select().from(jobs).orderBy(jobs.startTime);
+  res.json(rows.map(j => ({
+    id: j.id,
+    title: j.title,
+    start_time: toIsoUTC(j.startTime),
+    end_time: j.endTime ? toIsoUTC(j.endTime) : null,
+  })));
+});
+
+export default r;
+
+Phase 3 — Fix the clients (desktop & mobile)
+7) Web (React): render ISO UTC as local (always)
+// src/lib/time.ts
+export function utcIsoToLocalString(
+  isoUtc: string,
+  opts: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" }
+) {
+  return new Date(isoUtc).toLocaleString(undefined, opts);
+}
+
+// src/components/ScheduleRow.tsx
+import { utcIsoToLocalString } from "../lib/time";
+
+export function ScheduleRow({ job }: { job: { title: string; start_time: string; end_time?: string|null } }) {
+  const start = utcIsoToLocalString(job.start_time);
+  const end = job.end_time ? utcIsoToLocalString(job.end_time) : null;
+  return (
+    <div className="flex gap-3 items-center border-b py-2">
+      <div className="font-medium">{job.title}</div>
+      <div className="text-sm opacity-80">
+        {start}{end ? ` – ${end}` : ""}
+      </div>
+    </div>
+  );
+}
+
+
+No Date.toString() anywhere. Only ISO Z in → .toLocaleString() out.
+
+8) Flutter: parse ISO Z → .toLocal() before formatting
+DateTime parseUtcIsoToLocal(String iso) => DateTime.parse(iso).toUtc().toLocal();
+
+String formatLocal(DateTime dt) =>
+  "${dt.year}-${dt.month.toString().padLeft(2,'0')}-${dt.day.toString().padLeft(2,'0')} "
+  "${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}";
+
+// usage:
+// final local = parseUtcIsoToLocal(job['start_time'] as String);
+// final label = formatLocal(local);
+
+
+If your mobile schedule “does nothing”, it’s usually because:
+
+It’s receiving non-ISO dates (e.g., "2025-08-26 09:00" with no Z)
+
+Or null/undefined times and the widget bails
+
+Or a crash due to DateFormat expecting Z
+
+The server fix above guarantees ISO with Z. That unblocks the mobile UI.
+
+Smoke tests (do these right after deploy)
+
+API health
+GET /api/_tz/debug → envTZ: "UTC" and ISO times line up.
+
+Create a job intentionally
+
+curl -X POST http://localhost:3000/api/jobs \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"9am AEST sanity check","start":"2025-09-01 09:00","userTz":"Australia/Melbourne"}'
+
+
+Response start_time should be 2025-08-31T23:00:00.000Z.
+
+List & render
+React shows 09:00 local. Flutter shows 09:00 local.

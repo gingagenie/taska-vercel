@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { isoFromLocalInput } from "@/lib/datetime";
 
 type Props = { 
   open: boolean; 
@@ -98,7 +99,7 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
         title,
         description,
         customerId: customerId || null,
-        scheduledAt: normalizeDate(scheduledAt) || null,
+        scheduledAt: isoFromLocalInput(scheduledAt),
         equipmentId: equipmentId || null, // single equipment
         assignedTechIds,
       };

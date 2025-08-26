@@ -18,12 +18,15 @@ function isUuid(str: string): boolean {
 // Timezone-aware scheduled_at normalization
 function normalizeScheduledAt(raw: any): string|null {
   if (!raw) return null;
-  // If client already sent ISO with Z, pass it through
+  // If client already sent proper UTC ISO with Z, pass it through
   if (typeof raw === "string" && /Z$/.test(raw)) return raw;
-  // If it looks like "YYYY-MM-DDTHH:mm" (datetime-local), treat as local AEST and convert to UTC
+  // If it looks like "YYYY-MM-DDTHH:mm" (datetime-local), it should now be coming pre-converted from client
+  // Client should use isoFromLocalInput() to convert Melbourne time to UTC before sending
   if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) {
-    const d = new Date(raw); // local
-    if (!isNaN(d.valueOf())) return d.toISOString();
+    // Treat as Melbourne time and convert to UTC (subtract 10 hours)
+    const localDate = new Date(raw + ":00"); // Add seconds if missing
+    const utcDate = new Date(localDate.getTime() - (10 * 60 * 60 * 1000)); // Melbourne is UTC+10
+    if (!isNaN(utcDate.valueOf())) return utcDate.toISOString();
   }
   // Fallback: let Postgres parse; but ensure timestamptz column
   return raw;

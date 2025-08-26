@@ -151,10 +151,10 @@ export default function JobView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
       <div className="header-row">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">{job.title}</h1>
+          <h1 className="text-2xl font-bold text-jobs">{job.title}</h1>
           {job.status === 'confirmed' && (
             <span className="status-badge status-confirmed flex items-center gap-1">
               ✓ Confirmed
@@ -224,7 +224,7 @@ export default function JobView() {
         </div>
       </div>
 
-      <Card>
+      <Card className="border-jobs bg-white">
         <CardHeader><CardTitle>Overview</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
           <div>
@@ -257,7 +257,7 @@ export default function JobView() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+        <Card className="border-jobs bg-white">
           <CardHeader><CardTitle>Assigned Technicians</CardTitle></CardHeader>
           <CardContent>
             {job.technicians?.length ? (
@@ -274,7 +274,7 @@ export default function JobView() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-jobs bg-white">
           <CardHeader><CardTitle>Equipment</CardTitle></CardHeader>
           <CardContent>
             {job.equipment?.length ? (
@@ -291,7 +291,7 @@ export default function JobView() {
       </div>
 
       {/* Photos Section */}
-      <Card>
+      <Card className="border-jobs bg-white">
         <CardHeader>
           <CardTitle>Photos</CardTitle>
         </CardHeader>

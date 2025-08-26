@@ -29,7 +29,7 @@ export default function EquipmentView() {
   if (error || !equipment) {
     return (
       <div className="p-6">
-        <Card>
+        <Card className="border-equipment bg-white">
           <CardContent className="py-12 text-center">
             <p className="text-gray-500">Equipment not found</p>
             <Button 
@@ -46,7 +46,7 @@ export default function EquipmentView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button 
@@ -59,7 +59,7 @@ export default function EquipmentView() {
           Back
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">{equipment.name || "Unnamed Equipment"}</h1>
+          <h1 className="text-2xl font-bold text-equipment">{equipment.name || "Unnamed Equipment"}</h1>
           <p className="text-gray-600">Equipment Details</p>
         </div>
         <Button 
@@ -74,7 +74,7 @@ export default function EquipmentView() {
       {/* Equipment Details */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Basic Information */}
-        <Card>
+        <Card className="border-equipment bg-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -108,7 +108,7 @@ export default function EquipmentView() {
         </Card>
 
         {/* Customer Assignment */}
-        <Card>
+        <Card className="border-equipment bg-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />

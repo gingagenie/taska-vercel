@@ -85,6 +85,108 @@ export default function QuoteEdit() {
     // TODO: Add send functionality
   }
 
+  function handlePreview(payload: any) {
+    // Create a preview window with the quote data
+    const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');
+    if (!previewWindow) return;
+
+    const customer = customers.find((c: any) => c.id === payload.customerId) || {};
+    
+    previewWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Quote Preview - ${payload.title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 30px; }
+            .company-info h1 { color: #0ea5e9; margin: 0; }
+            .quote-info { text-align: right; }
+            .customer-section { margin: 30px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+            th { background-color: #f8f9fa; font-weight: 600; }
+            .amount { text-align: right; }
+            .totals { margin-top: 30px; text-align: right; }
+            .totals table { width: 300px; margin-left: auto; }
+            .total-row { font-weight: bold; font-size: 1.1em; }
+            .notes { margin-top: 30px; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="company-info">
+              <h1>Your Company</h1>
+              <p>Field Service Management</p>
+            </div>
+            <div class="quote-info">
+              <h2>QUOTE</h2>
+              <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+              <p><strong>Quote #:</strong> ${payload.header?.number || 'QUOTE-001'}</p>
+            </div>
+          </div>
+          
+          <div class="customer-section">
+            <h3>Quote For:</h3>
+            <p><strong>${customer.name || 'Customer Name'}</strong></p>
+            <p>${customer.email || ''}</p>
+            <p>${customer.phone || ''}</p>
+            <p>${customer.address || ''}</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Tax</th>
+                <th class="amount">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${payload.items.map((item: any) => {
+                const amount = item.qty * item.price;
+                const taxAmount = item.tax === 'GST' ? amount * 0.1 : 0;
+                const total = amount + taxAmount;
+                return `
+                  <tr>
+                    <td>${item.description || item.itemName}</td>
+                    <td>${item.qty}</td>
+                    <td>$${item.price.toFixed(2)}</td>
+                    <td>${item.tax}</td>
+                    <td class="amount">$${total.toFixed(2)}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <table>
+              <tr><td>Subtotal:</td><td class="amount">$${payload.totals.subtotal.toFixed(2)}</td></tr>
+              <tr><td>GST:</td><td class="amount">$${payload.totals.gst.toFixed(2)}</td></tr>
+              <tr class="total-row"><td>Total:</td><td class="amount">$${payload.totals.total.toFixed(2)}</td></tr>
+            </table>
+          </div>
+
+          ${payload.notes ? `
+            <div class="notes">
+              <h3>Notes:</h3>
+              <p>${payload.notes}</p>
+            </div>
+          ` : ''}
+
+          <script>
+            window.print();
+          </script>
+        </body>
+      </html>
+    `);
+    previewWindow.document.close();
+  }
+
   return (
     <QuoteInvoicePage
       mode="quote"
@@ -93,6 +195,7 @@ export default function QuoteEdit() {
       presets={presets as any}
       onSave={handleSave}
       onSend={handleSend}
+      onPreview={handlePreview}
       loading={loading}
       saving={saving}
     />

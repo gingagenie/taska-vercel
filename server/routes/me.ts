@@ -13,22 +13,33 @@ export const me = Router();
 /** Who am I + my org (read) */
 me.get("/", requireAuth, requireOrg, async (req, res) => {
   try {
-    const user = (req as any).user;         // id, email, name, role
+    const userId = (req as any).user?.id;
     const orgId = (req as any).orgId;
 
-    // For now, return mock data since we don't have proper users/organizations tables
-    const mockUser = {
-      id: user?.id || "315e3119-1b17-4dee-807f-bbc1e4d5c5b6",
+    // Fetch user data from database
+    const userResult = await db.execute(sql`
+      SELECT id, email, name, role, phone, avatar_url 
+      FROM users 
+      WHERE id = ${userId}::uuid
+    `);
+    
+    // Fetch organization data from database
+    const orgResult = await db.execute(sql`
+      SELECT id, name, abn, street, suburb, state, postcode, default_labour_rate_cents
+      FROM orgs 
+      WHERE id = ${orgId}::uuid
+    `);
+
+    const user = userResult.rows[0] || {
+      id: userId,
       email: "user@taska.com",
       name: "John Smith",
       role: "Administrator",
       phone: "+61 400 123 456",
       avatar_url: null,
-      avatar_seed: null,
-      avatar_variant: null,
     };
 
-    const mockOrg = {
+    const org = orgResult.rows[0] || {
       id: orgId,
       name: "Taska Field Services",
       abn: "12 345 678 901",
@@ -37,13 +48,11 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
       state: "VIC",
       postcode: "3000",
       default_labour_rate_cents: 12500, // $125.00/hr
-      plan: "pro",
-      plan_renews_at: "2025-12-31T00:00:00Z"
     };
 
     res.json({
-      user: mockUser,
-      org: mockOrg
+      user: user,
+      org: { ...org, plan: "pro", plan_renews_at: "2025-12-31T00:00:00Z" }
     });
   } catch (error: any) {
     console.error("GET /api/me error:", error);
@@ -55,11 +64,20 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
 me.put("/profile", requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user?.id;
-    const { name, role, phone, avatar_url, avatar_seed, avatar_variant } = req.body || {};
+    const { name, role, phone, avatarUrl } = req.body || {};
     
-    console.log("Profile update:", { userId, name, role, phone, avatar_url, avatar_seed, avatar_variant });
+    console.log("Profile update:", { userId, name, role, phone, avatarUrl });
     
-    // Mock implementation - in reality would update database
+    // Update user in database
+    await db.execute(sql`
+      UPDATE users SET 
+        name = COALESCE(${name}, name),
+        role = COALESCE(${role}, role),
+        phone = COALESCE(${phone}, phone),
+        avatar_url = ${avatarUrl}
+      WHERE id = ${userId}::uuid
+    `);
+    
     res.json({ ok: true });
   } catch (error: any) {
     console.error("PUT /api/me/profile error:", error);
@@ -75,16 +93,14 @@ me.put("/", requireAuth, requireOrg, async (req, res) => {
     
     console.log("Profile update (PUT /):", { userId, name, phone, avatar_url, avatar_seed, avatar_variant });
     
-    // Mock implementation - in reality would update database with:
-    // await db.execute(sql`
-    //   update users set
-    //     name = coalesce(${name}, name),
-    //     phone = coalesce(${phone}, phone),
-    //     avatar_url = ${avatar_url || null},
-    //     avatar_seed = ${avatar_seed || null},
-    //     avatar_variant = ${avatar_variant || null}
-    //   where id=${userId}::uuid
-    // `);
+    // Update user in database
+    await db.execute(sql`
+      UPDATE users SET
+        name = COALESCE(${name}, name),
+        phone = COALESCE(${phone}, phone),
+        avatar_url = ${avatar_url || null}
+      WHERE id = ${userId}::uuid
+    `);
     
     res.json({ ok: true });
   } catch (error: any) {
@@ -121,7 +137,19 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
     
     console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode, defaultLabourRateCents });
     
-    // Mock implementation - in reality would update organizations table
+    // Update organization in database
+    await db.execute(sql`
+      UPDATE orgs SET 
+        name = COALESCE(${name}, name),
+        abn = COALESCE(${abn}, abn),
+        street = COALESCE(${street}, street),
+        suburb = COALESCE(${suburb}, suburb),
+        state = COALESCE(${state}, state),
+        postcode = COALESCE(${postcode}, postcode),
+        default_labour_rate_cents = COALESCE(${defaultLabourRateCents}, default_labour_rate_cents)
+      WHERE id = ${orgId}::uuid
+    `);
+    
     res.json({ ok: true });
   } catch (error: any) {
     console.error("PUT /api/me/org error:", error);
@@ -148,7 +176,12 @@ me.post("/avatar", requireAuth, upload.single("file"), async (req, res) => {
   await fs.writeFile(outPath, req.file.buffer);
   const publicUrl = `/uploads/${fname}`;
 
-  // Mock implementation - in reality would update user's avatar_url in database
+  // Update user's avatar_url in database
+  await db.execute(sql`
+    UPDATE users SET avatar_url = ${publicUrl}
+    WHERE id = ${userId}::uuid
+  `);
+  
   console.log(`Avatar uploaded for user ${userId}: ${publicUrl}`);
 
   res.json({ ok: true, url: publicUrl });

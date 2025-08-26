@@ -128,7 +128,7 @@
   /* Primary buttons */
   button[class*="bg-jobs"]:not(.no-border),
   button[class*="bg-blue"]:not(.no-border) {
-    @apply border border-jobs/40;
+    @apply border border-blue-500/30;
   }
   
   /* Secondary buttons */

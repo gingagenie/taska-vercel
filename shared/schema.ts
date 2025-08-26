@@ -202,10 +202,10 @@ export const itemPresets = pgTable("item_presets", {
   taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
-  // ✅ composite unique on (org_id, lower(name))
+  // ✅ composite unique on (org_id, name) - case sensitive for now
   orgNameUnique: uniqueIndex("item_presets_org_name_unique").on(
     t.orgId,
-    sql`lower(${t.name})`
+    t.name
   ),
 }));
 

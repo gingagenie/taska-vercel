@@ -42,13 +42,13 @@ export function LineItemsTable({
 }: LineItemsTableProps) {
   return (
     <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b text-sm font-medium text-neutral-600 grid grid-cols-12 gap-2">
-        <div className="col-span-5">Item</div>
+      <div className="px-4 py-3 border-b text-sm font-medium text-neutral-600 grid grid-cols-12 gap-3">
+        <div className="col-span-4">Item</div>
         <div className="col-span-2 text-right">Qty.</div>
         <div className="col-span-2 text-right">Price</div>
         <div className="col-span-1 text-right">Disc. %</div>
         <div className="col-span-1">Tax</div>
-        <div className="col-span-1 text-right">Amount</div>
+        <div className="col-span-2 text-right">Amount</div>
       </div>
 
       {items.map((it) => {
@@ -58,16 +58,16 @@ export function LineItemsTable({
         const total = taxMode === 'inclusive' ? base : base + gst;
         
         return (
-          <div key={it.id} className="px-4 py-3 grid grid-cols-12 gap-2 items-start border-b last:border-b-0">
-            <div className="col-span-5">
+          <div key={it.id} className="px-4 py-3 grid grid-cols-12 gap-3 items-start border-b last:border-b-0">
+            <div className="col-span-4">
               <div className="flex gap-2 items-start">
                 <input 
                   value={it.itemName} 
                   onChange={(e) => onSetItem(it.id, 'itemName', e.target.value)} 
                   placeholder="Item name" 
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm" 
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm min-w-0" 
                 />
-                <div className="relative z-10">
+                <div className="relative z-10 flex-shrink-0">
                   <PresetSelect presets={presets} onSelect={(pid: string) => onApplyPreset(it.id, pid)} />
                 </div>
               </div>
@@ -112,7 +112,7 @@ export function LineItemsTable({
                 <option value="None">None</option>
               </select>
             </div>
-            <div className="col-span-1 text-right font-medium pt-2 text-sm">{currency(total)}</div>
+            <div className="col-span-2 text-right font-medium pt-2 text-sm">{currency(total)}</div>
             <div className="col-span-12 flex items-center justify-between pt-2">
               <button 
                 className="text-sm text-neutral-600 hover:text-neutral-900" 

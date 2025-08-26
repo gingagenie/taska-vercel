@@ -28,15 +28,30 @@ itemPresets.post("/", requireAuth, requireOrg, async (req, res) => {
   if (!name || String(name).trim() === "") {
     return res.status(400).json({ error: "name required" });
   }
-  const r: any = await db.execute(sql`
-    insert into item_presets (org_id, name, unit_amount, tax_rate)
-    values (${orgId}::uuid, ${name.trim()}, ${Number(unit_amount) || 0}, ${Number(tax_rate) ?? 0})
-    on conflict (org_id, lower(name)) do update
-      set unit_amount = excluded.unit_amount,
-          tax_rate    = excluded.tax_rate
-    returning id, name, unit_amount, tax_rate
-  `);
-  res.json(r.rows[0]);
+  
+  try {
+    // First try to insert new record
+    const r: any = await db.execute(sql`
+      insert into item_presets (org_id, name, unit_amount, tax_rate)
+      values (${orgId}::uuid, ${name.trim()}, ${Number(unit_amount) || 0}, ${Number(tax_rate) ?? 0})
+      returning id, name, unit_amount, tax_rate
+    `);
+    res.json(r.rows[0]);
+  } catch (error: any) {
+    // If conflict (duplicate), update existing record
+    if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
+      const r: any = await db.execute(sql`
+        update item_presets 
+        set unit_amount = ${Number(unit_amount) || 0}, tax_rate = ${Number(tax_rate) ?? 0}
+        where org_id = ${orgId}::uuid and lower(name) = ${name.trim().toLowerCase()}
+        returning id, name, unit_amount, tax_rate
+      `);
+      res.json(r.rows[0]);
+    } else {
+      console.error("Error creating item preset:", error);
+      res.status(500).json({ error: "Failed to create preset" });
+    }
+  }
 });
 
 /** POST /api/item-presets/ensure  { name, unit_amount, tax_rate }

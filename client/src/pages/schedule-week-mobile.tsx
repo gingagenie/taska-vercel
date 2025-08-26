@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Clock, User, MapPin } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addDays, parseISO } from "date-fns";
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { utcIsoToTzString } from "@/lib/time";
 
 // Status color mapping
 const statusColors: Record<string, string> = {
@@ -63,15 +63,15 @@ export default function ScheduleWeekMobile() {
       groups[dayKey] = [];
     }
     
-    // Group jobs by their scheduled date - simple approach
+    // Group jobs by their scheduled date - clean UTC to local conversion
     jobs.forEach((job: any) => {
       if (job.scheduled_at) {
         try {
-          // Simple extraction of date part without timezone complexity
-          const dateMatch = job.scheduled_at.match(/(\d{4}-\d{2}-\d{2})/);
-          if (dateMatch && groups[dateMatch[1]]) {
-            groups[dateMatch[1]].push(job);
-            console.log('[Mobile Schedule] Added job to', dateMatch[1], ':', job.title);
+          // Convert UTC ISO to Australia/Melbourne date for grouping
+          const localDate = utcIsoToTzString(job.scheduled_at, "Australia/Melbourne", "yyyy-MM-dd");
+          if (groups[localDate]) {
+            groups[localDate].push(job);
+            console.log('[Mobile Schedule] Added job to', localDate, ':', job.title);
           }
         } catch (e) {
           console.error('Error processing job:', job.id, job.scheduled_at, e);
@@ -203,27 +203,12 @@ export default function ScheduleWeekMobile() {
                           </Badge>
                         </div>
 
-                        {/* Time - Simple display */}
+                        {/* Time - Clean UTC to local display */}
                         {job.scheduled_at && (
                           <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                             <Clock className="h-4 w-4" />
                             <span>
-                              {(() => {
-                                try {
-                                  // Just extract time portion and format nicely
-                                  const timeMatch = job.scheduled_at.match(/T(\d{2}):(\d{2}):/);
-                                  if (timeMatch) {
-                                    let h = parseInt(timeMatch[1]);
-                                    const m = timeMatch[2];
-                                    const ampm = h >= 12 ? 'PM' : 'AM';
-                                    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                                    return `${h12}:${m} ${ampm}`;
-                                  }
-                                  return job.scheduled_at.split('T')[1]?.split(':').slice(0,2).join(':') || 'Time';
-                                } catch (e) {
-                                  return 'Time';
-                                }
-                              })()}
+                              {utcIsoToTzString(job.scheduled_at, "Australia/Melbourne", "h:mm a")}
                             </span>
                           </div>
                         )}

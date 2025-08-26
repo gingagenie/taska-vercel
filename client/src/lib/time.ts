@@ -1,0 +1,25 @@
+// src/lib/time.ts
+import { formatInTimeZone } from "date-fns-tz";
+
+export function utcIsoToLocalDate(isoUtc: string): Date {
+  // Treat as UTC and convert to local Date object
+  return new Date(isoUtc); // JS Date keeps it UTC internally; .toLocaleString renders local
+}
+
+export function utcIsoToLocalString(
+  isoUtc: string,
+  opts: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" },
+  locale?: string
+) {
+  const d = new Date(isoUtc);
+  return d.toLocaleString(locale || undefined, opts);
+}
+
+// If you want a specific tz (not the browser's), use date-fns-tz:
+export function utcIsoToTzString(
+  isoUtc: string,
+  tz = "Australia/Melbourne",
+  fmt = "yyyy-LL-dd HH:mm"
+) {
+  return formatInTimeZone(isoUtc, tz, fmt);
+}

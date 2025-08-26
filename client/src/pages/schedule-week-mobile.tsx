@@ -39,9 +39,10 @@ export default function ScheduleWeekMobile() {
       if (!job.scheduled_at) return false;
       
       try {
-        // Parse the UTC time and check if it falls within our week
-        const jobDate = parseISO(job.scheduled_at);
-        return isWithinInterval(jobDate, { start: weekStart, end: weekEnd });
+        // Convert UTC to Melbourne time first, then check date range
+        const melbourneTimeStr = utcIsoToLocalString(job.scheduled_at);
+        const melbourneDate = parseISO(melbourneTimeStr);
+        return isWithinInterval(melbourneDate, { start: weekStart, end: weekEnd });
       } catch {
         return false;
       }

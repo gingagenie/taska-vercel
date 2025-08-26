@@ -59,14 +59,18 @@ export function LineItemsTable({
         
         return (
           <div key={it.id} className="px-4 py-3 grid grid-cols-12 gap-2 items-start border-b last:border-b-0">
-            <div className="col-span-5 flex gap-2">
-              <input 
-                value={it.itemName} 
-                onChange={(e) => onSetItem(it.id, 'itemName', e.target.value)} 
-                placeholder="Item name" 
-                className="flex-1 border rounded-lg px-3 py-2 text-sm" 
-              />
-              <PresetSelect presets={presets} onSelect={(pid: string) => onApplyPreset(it.id, pid)} />
+            <div className="col-span-5">
+              <div className="flex gap-2 items-start">
+                <input 
+                  value={it.itemName} 
+                  onChange={(e) => onSetItem(it.id, 'itemName', e.target.value)} 
+                  placeholder="Item name" 
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm" 
+                />
+                <div className="relative z-10">
+                  <PresetSelect presets={presets} onSelect={(pid: string) => onApplyPreset(it.id, pid)} />
+                </div>
+              </div>
             </div>
             <div className="col-span-2 text-right">
               <input 

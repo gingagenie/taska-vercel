@@ -16,7 +16,7 @@ interface PresetSelectProps {
 export function PresetSelect({ presets, onSelect }: PresetSelectProps) {
   return (
     <select 
-      className="border rounded-lg px-2 py-2 text-sm bg-white min-w-[80px]" 
+      className="border rounded-lg px-2 py-2 text-sm bg-white min-w-[100px] relative z-20" 
       onChange={(e) => {
         if (e.target.value) {
           onSelect(e.target.value);

@@ -7,6 +7,12 @@ import { z } from "zod";
 export const organizations = pgTable("orgs", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
+  abn: varchar("abn", { length: 50 }),
+  street: varchar("street", { length: 255 }),
+  suburb: varchar("suburb", { length: 100 }),
+  state: varchar("state", { length: 50 }),
+  postcode: varchar("postcode", { length: 10 }),
+  defaultLabourRateCents: integer("default_labour_rate_cents").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

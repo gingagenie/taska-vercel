@@ -122,30 +122,30 @@
 @layer components {
   .btn-default,
   button:not(.no-border) {
-    @apply border border-gray-300/60;
+    @apply border border-gray-400/80;
   }
   
   /* Primary buttons */
   button[class*="bg-jobs"]:not(.no-border),
   button[class*="bg-blue"]:not(.no-border) {
-    @apply border border-blue-500/30;
+    @apply border border-blue-600/50;
   }
   
   /* Secondary buttons */
   button[variant="secondary"]:not(.no-border),
   button[class*="bg-gray"]:not(.no-border) {
-    @apply border border-gray-400/60;
+    @apply border border-gray-500/70;
   }
   
   /* Outline buttons */
   button[variant="outline"]:not(.no-border) {
-    @apply border border-gray-400/80;
+    @apply border border-gray-500/90;
   }
   
   /* Destructive buttons */
   button[variant="destructive"]:not(.no-border),
   button[class*="bg-red"]:not(.no-border) {
-    @apply border border-red-500/40;
+    @apply border border-red-600/60;
   }
 }
 

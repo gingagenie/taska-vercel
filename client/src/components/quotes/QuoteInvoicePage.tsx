@@ -212,7 +212,7 @@ export function QuoteInvoicePage({
             <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2" />
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <label className="text-xs font-medium text-neutral-600">Due date</label>
+            <label className="text-xs font-medium text-neutral-600">{mode === 'quote' ? 'Valid until' : 'Due date'}</label>
             <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2" />
           </div>
           <div className="col-span-6 sm:col-span-3">

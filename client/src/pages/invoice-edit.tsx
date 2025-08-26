@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { invoicesApi, customersApi } from "@/lib/api";
+import { invoicesApi, customersApi, meApi } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { QuoteInvoicePage } from "@/components/quotes/QuoteInvoicePage";
 
@@ -20,6 +20,8 @@ export default function InvoiceEdit() {
   const { data: presets = [] } = useQuery({
     queryKey: ["/api/item-presets"],
   });
+
+  const { data: meData } = useQuery({ queryKey: ["/api/me"] });
 
   // Fetch invoice data if editing
   const { data: invoice, isLoading: invoiceLoading } = useQuery({
@@ -91,6 +93,7 @@ export default function InvoiceEdit() {
     if (!previewWindow) return;
 
     const customer = customers.find((c: any) => c.id === payload.customerId) || {};
+    const org = meData?.org || {};
     
     previewWindow.document.write(`
       <!DOCTYPE html>
@@ -117,8 +120,10 @@ export default function InvoiceEdit() {
         <body>
           <div class="header">
             <div class="company-info">
-              <h1>Your Company</h1>
-              <p>Field Service Management</p>
+              ${org.logo_url ? `<img src="${org.logo_url}" alt="Company Logo" style="height: 60px; margin-bottom: 10px;">` : ''}
+              <h1>${org.name || 'Your Company'}</h1>
+              <p>${[org.street, org.suburb, org.state, org.postcode].filter(Boolean).join(', ') || 'Field Service Management'}</p>
+              ${org.abn ? `<p>ABN: ${org.abn}</p>` : ''}
             </div>
             <div class="invoice-info">
               <h2>INVOICE</h2>
@@ -131,9 +136,10 @@ export default function InvoiceEdit() {
           <div class="customer-section">
             <h3>Bill To:</h3>
             <p><strong>${customer.name || 'Customer Name'}</strong></p>
-            <p>${customer.email || ''}</p>
-            <p>${customer.phone || ''}</p>
-            <p>${customer.address || ''}</p>
+            ${customer.email ? `<p>${customer.email}</p>` : ''}
+            ${customer.phone ? `<p>${customer.phone}</p>` : ''}
+            ${customer.address ? `<p>${customer.address}</p>` : ''}
+            ${customer.street || customer.suburb || customer.state || customer.postcode ? `<p>${[customer.street, customer.suburb, customer.state, customer.postcode].filter(Boolean).join(', ')}</p>` : ''}
           </div>
 
           <table>

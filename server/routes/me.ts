@@ -25,7 +25,7 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
     
     // Fetch organization data from database
     const orgResult = await db.execute(sql`
-      SELECT id, name, abn, street, suburb, state, postcode, default_labour_rate_cents
+      SELECT id, name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents
       FROM orgs 
       WHERE id = ${orgId}
     `);
@@ -46,6 +46,7 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
       suburb: "Melbourne",
       state: "VIC",
       postcode: "3000",
+      logo_url: null,
       default_labour_rate_cents: 12500, // $125.00/hr
     };
 
@@ -130,9 +131,9 @@ me.post("/change-password", requireAuth, async (req, res) => {
 me.put("/org", requireAuth, requireOrg, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
-    const { name, abn, street, suburb, state, postcode, defaultLabourRateCents } = req.body || {};
+    const { name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents } = req.body || {};
     
-    console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode, defaultLabourRateCents });
+    console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents });
     
     // Update organization in database
     await db.execute(sql`
@@ -143,7 +144,8 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
         suburb = COALESCE(${suburb}, suburb),
         state = COALESCE(${state}, state),
         postcode = COALESCE(${postcode}, postcode),
-        default_labour_rate_cents = COALESCE(${defaultLabourRateCents}, default_labour_rate_cents)
+        logo_url = COALESCE(${logo_url}, logo_url),
+        default_labour_rate_cents = COALESCE(${default_labour_rate_cents}, default_labour_rate_cents)
       WHERE id = ${orgId}
     `);
     
@@ -153,6 +155,5 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
     res.status(500).json({ error: error?.message || "Failed to update organization" });
   }
 });
-
 
 export default me;

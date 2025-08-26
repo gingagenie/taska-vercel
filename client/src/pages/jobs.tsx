@@ -10,6 +10,7 @@ import { JobModal } from "@/components/modals/job-modal";
 import { jobsApi } from "@/lib/api";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Edit, MoreHorizontal, Calendar, User, ArrowRight } from "lucide-react";
+import { utcIsoToLocalString } from "@/lib/time";
 
 export default function Jobs() {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
@@ -150,14 +151,14 @@ export default function Jobs() {
                         <div className="text-gray-500">Scheduled</div>
                         <div className="font-medium flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {job.scheduled_at ? new Date(job.scheduled_at).toLocaleDateString() : "Not scheduled"}
+                          {job.scheduled_at ? utcIsoToLocalString(job.scheduled_at, { dateStyle: "medium" }) : "Not scheduled"}
                         </div>
                       </div>
                       
                       <div>
                         <div className="text-gray-500">Time</div>
                         <div className="font-medium">
-                          {job.scheduled_at ? new Date(job.scheduled_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "—"}
+                          {job.scheduled_at ? utcIsoToLocalString(job.scheduled_at, { timeStyle: "short" }) : "—"}
                         </div>
                       </div>
                     </div>

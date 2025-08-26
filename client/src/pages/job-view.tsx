@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { MapPin, AlertTriangle, Trash, MessageSquare } from "lucide-react";
-import { parseISO, format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { utcIsoToLocalString } from "@/lib/time";
 
 export default function JobView() {
   const [match, params] = useRoute("/jobs/:id");
@@ -242,15 +241,10 @@ export default function JobView() {
           <div>
             <div className="text-gray-500">Scheduled</div>
             <div className="font-medium">
-              {job.scheduled_at ? (() => {
-                try {
-                  const utcDate = parseISO(job.scheduled_at);
-                  const melbourneTime = toZonedTime(utcDate, 'Australia/Melbourne');
-                  return format(melbourneTime, "PPP 'at' h:mm a");
-                } catch (e) {
-                  return "—";
-                }
-              })() : "—"}
+              {job.scheduled_at ? utcIsoToLocalString(job.scheduled_at, { 
+                dateStyle: "full", 
+                timeStyle: "short" 
+              }) : "—"}
             </div>
           </div>
           <div className="md:col-span-2">

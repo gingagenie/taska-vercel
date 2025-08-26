@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, format, set, parseISO } from "date-fns";
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { utcIsoToLocalString } from "@/lib/time";
 import { jobsApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -74,15 +74,14 @@ export default function SchedulePage() {
     queryFn: jobsApi.technicians,
   });
 
-  // bucket jobs by yyyy-MM-dd (using Australia/Melbourne timezone)
+  // bucket jobs by yyyy-MM-dd (using browser's local timezone)
   const byDay = useMemo(() => {
     const map: Record<string, Job[]> = {};
     (jobs as Job[]).forEach((j) => {
       try {
-        // Parse UTC timestamp and convert to Melbourne timezone for grouping
-        const utcDate = parseISO(j.scheduled_at);
-        const melbourneTime = toZonedTime(utcDate, 'Australia/Melbourne');
-        const key = format(melbourneTime, "yyyy-MM-dd");
+        // Parse UTC timestamp and convert to local timezone for grouping
+        const localDate = new Date(j.scheduled_at);
+        const key = format(localDate, "yyyy-MM-dd");
         (map[key] ||= []).push(j);
       } catch (e) {
         console.error(`Date parse error for job ${j.title}:`, e);
@@ -315,20 +314,7 @@ export default function SchedulePage() {
                   >
                     <div className="text-sm font-medium">{j.title}</div>
                     <div className="text-xs text-gray-600">
-                      {j.customer_name || "—"} • {(() => {
-                        try {
-                          // Simple UTC to Melbourne (+10 hours)
-                          const utc = new Date(j.scheduled_at);
-                          const melb = new Date(utc.getTime() + (10 * 60 * 60 * 1000));
-                          const h = melb.getUTCHours();
-                          const m = melb.getUTCMinutes();
-                          const ampm = h >= 12 ? 'PM' : 'AM';
-                          const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                          return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
-                        } catch (e) {
-                          return "Time TBA";
-                        }
-                      })()}
+                      {j.customer_name || "—"} • {utcIsoToLocalString(j.scheduled_at, { timeStyle: "short" })}
                     </div>
                   </a>
                 </Link>

@@ -86,11 +86,12 @@ export function LineItemsTable({
             <div className="col-span-2 text-right">
               <input 
                 type="number" 
-                step="0.01" 
+                step="1" 
+                min="0"
                 value={it.price} 
-                onChange={(e) => onSetItem(it.id, 'price', Number(e.target.value))} 
+                onChange={(e) => onSetItem(it.id, 'price', Math.max(0, parseInt(e.target.value) || 0))} 
                 className="w-full border rounded-lg px-3 py-2 text-right text-sm" 
-                placeholder="0.00"
+                placeholder="0"
               />
             </div>
             <div className="col-span-1 text-right">

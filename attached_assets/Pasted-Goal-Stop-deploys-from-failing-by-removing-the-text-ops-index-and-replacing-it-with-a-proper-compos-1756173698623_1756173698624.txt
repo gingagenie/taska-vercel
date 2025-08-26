@@ -1,0 +1,99 @@
+Goal: Stop deploys from failing by removing the text_ops index and replacing it with a proper composite unique index on (org_id, lower(name)). Also update the Drizzle schema so it never regenerates the bad SQL.
+
+1) Find the offending migration(s)
+
+Search the repo for the bad index:
+
+ripgrep: "item_presets_org_name_unique|text_ops"
+
+
+(It will be in your SQL migrations, e.g. drizzle/xxxx_xxx.sql or server/db/migrations/*.)
+
+2) Replace the bad SQL in that migration file
+
+Replace the whole index block with this idempotent version (works on fresh and existing DBs; same filename, same order):
+
+-- Ensure the correct unique index exists for (org_id, lower(name))
+DO $$
+BEGIN
+  -- Drop any existing index with this name (regardless of definition)
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'item_presets_org_name_unique') THEN
+    DROP INDEX item_presets_org_name_unique;
+  END IF;
+
+  -- Create correct composite unique index (uuid + expression)
+  EXECUTE $ix$
+    CREATE UNIQUE INDEX item_presets_org_name_unique
+    ON item_presets (org_id, LOWER(name))
+  $ix$;
+END
+$$;
+
+
+This avoids text_ops, works with uuid, and is safe to re-run.
+
+If your migrations framework forbids DO $$ blocks, use the simpler variant:
+
+DROP INDEX IF EXISTS item_presets_org_name_unique;
+CREATE UNIQUE INDEX item_presets_org_name_unique
+  ON item_presets (org_id, LOWER(name));
+
+3) Update Drizzle schema so future migrations are correct
+
+In your table definition for item_presets:
+
+// drizzle schema for item_presets
+import { pgTable, uuid, text, numeric, timestamp, uniqueIndex, sql } from "drizzle-orm/pg-core";
+
+export const itemPresets = pgTable("item_presets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orgId: uuid("org_id").notNull(),
+  name: text("name").notNull(),
+  unitAmount: numeric("unit_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (t) => ({
+  // ✅ correct composite unique index (uuid + expression)
+  orgNameUnique: uniqueIndex("item_presets_org_name_unique").on(
+    t.orgId,
+    sql`lower(${t.name})`
+  ),
+}));
+
+4) (Optional) Dedupe existing rows that would block the new unique index
+
+If you’ve ever inserted duplicates like (org_id, labour), this will block the index. Add this pre-index migration (another file before the index creation), only if needed:
+
+-- Keep newest row per (org_id, lower(name)), delete the rest
+WITH ranked AS (
+  SELECT
+    id,
+    org_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY org_id, LOWER(name)
+      ORDER BY created_at DESC NULLS LAST, id DESC
+    ) AS rn
+  FROM item_presets
+)
+DELETE FROM item_presets
+WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
+
+5) Deploy
+
+Commit the changes.
+
+Re-run your deploy (or drizzle-kit push, whatever your pipeline triggers).
+
+The migration will no longer try to use text_ops.
+
+6) Sanity checks (after deploy)
+-- Should exist exactly once
+SELECT * FROM pg_indexes WHERE indexname = 'item_presets_org_name_unique';
+
+-- Should succeed:
+INSERT INTO item_presets (org_id, name, unit_amount, tax_rate)
+VALUES ('<some-org-uuid>', 'Labour', 125.00, 10.00);
+
+-- Should fail (duplicate ignoring case within same org):
+INSERT INTO item_presets (org_id, name, unit_amount, tax_rate)
+VALUES ('<same-org-uuid>', 'labour', 125.00, 10.00);

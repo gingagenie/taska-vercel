@@ -25,7 +25,7 @@ router.get("/", requireAuth, requireOrg, async (req, res) => {
 router.post("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   const userId = (req as any).user?.id || null;
-  const { title, customerId, jobId, notes } = req.body || {};
+  const { title, customerId, jobId, notes, lines = [] } = req.body || {};
   if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
 
   const ins: any = await db.execute(sql`
@@ -33,7 +33,31 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
     values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId})
     returning id
   `);
-  res.json({ ok: true, id: ins.rows[0].id });
+  
+  const invoiceId = ins.rows[0].id;
+  
+  // Insert line items if provided
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    await db.execute(sql`
+      insert into invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
+      values (${orgId}::uuid, ${invoiceId}::uuid, ${i}, ${l.description||""}, ${l.quantity||0}, ${l.unit_amount||0}, ${l.tax_rate||0})
+    `);
+  }
+  
+  // Compute and store totals if there are lines
+  if (lines.length > 0) {
+    const sums = sumLines(lines);
+    await db.execute(sql`
+      update invoices set
+        sub_total=${sums.sub_total},
+        tax_total=${sums.tax_total},
+        grand_total=${sums.grand_total}
+      where id=${invoiceId}::uuid and org_id=${orgId}::uuid
+    `);
+  }
+  
+  res.json({ ok: true, id: invoiceId });
 });
 
 /** Get (with items + totals) */

@@ -4,8 +4,9 @@ import { useLocation } from "wouter";
 import { jobsApi } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, User } from "lucide-react";
-import { format, addDays, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
+import { Clock } from "lucide-react";
+import { format, addDays, startOfWeek, endOfWeek, parseISO } from "date-fns";
+import { utcRangeForLocalWeek, groupJobsByLocalDay, parseUtcIso } from "@/lib/mobileDates";
 import { utcIsoToLocalString } from "@/lib/time";
 
 // Status color mapping
@@ -23,7 +24,7 @@ export default function ScheduleWeekMobile() {
   const [, navigate] = useLocation();
   const [currentWeek] = useState(() => new Date('2025-08-25'));
   
-  // Get week range
+  // Get Melbourne week range (Monday to Sunday)
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   
@@ -33,52 +34,43 @@ export default function ScheduleWeekMobile() {
     queryFn: () => jobsApi.getAll(),
   });
 
-  // Filter jobs to current week on the frontend
+  // Filter jobs to current week using timezone-aware UTC ranges
   const weekJobs = useMemo(() => {
+    if (!allJobs.length) return [];
+    
+    const { fromUtc, toUtc } = utcRangeForLocalWeek(weekStart);
+    
     return allJobs.filter((job: any) => {
       if (!job.scheduled_at) return false;
       
       try {
-        // Convert UTC to Melbourne time first, then check date range
-        const melbourneTimeStr = utcIsoToLocalString(job.scheduled_at);
-        const melbourneDate = parseISO(melbourneTimeStr);
-        return isWithinInterval(melbourneDate, { start: weekStart, end: weekEnd });
+        const jobUtc = parseUtcIso(job.scheduled_at);
+        return jobUtc >= fromUtc && jobUtc <= toUtc;
       } catch {
         return false;
       }
     });
-  }, [allJobs, weekStart, weekEnd]);
+  }, [allJobs, weekStart]);
 
-  // Group jobs by day
-  const jobsByDay = useMemo(() => {
-    const groups: Record<string, any[]> = {};
-    
-    // Initialize all days of the week
+  // Group jobs by Melbourne local days
+  const jobsByLocalDay = useMemo(() => {
+    return groupJobsByLocalDay(weekJobs);
+  }, [weekJobs]);
+
+  // Create complete week structure with empty days
+  const weekDays = useMemo(() => {
+    const days = [];
     for (let i = 0; i < 7; i++) {
       const day = addDays(weekStart, i);
       const dayKey = format(day, "yyyy-MM-dd");
-      groups[dayKey] = [];
+      days.push({
+        date: day,
+        dayKey,
+        jobs: jobsByLocalDay[dayKey] || []
+      });
     }
-    
-    // Group jobs by their local Melbourne date
-    weekJobs.forEach((job: any) => {
-      if (job.scheduled_at) {
-        try {
-          // Convert UTC to Melbourne time, then get the date
-          const melbourneTime = utcIsoToLocalString(job.scheduled_at);
-          const dateKey = melbourneTime.split('T')[0]; // Get YYYY-MM-DD part
-          
-          if (groups[dateKey]) {
-            groups[dateKey].push(job);
-          }
-        } catch (e) {
-          console.error('Error processing job:', job.id, e);
-        }
-      }
-    });
-    
-    return groups;
-  }, [weekJobs, weekStart]);
+    return days;
+  }, [weekStart, jobsByLocalDay]);
 
   if (isLoading) {
     return (
@@ -114,16 +106,21 @@ export default function ScheduleWeekMobile() {
         </div>
       </div>
 
+      {/* Debug info - temporary */}
+      <div className="px-4 py-2 text-xs text-gray-500 bg-blue-50 border-b">
+        Total jobs: {allJobs.length} | Week jobs: {weekJobs.length} | 
+        Days with jobs: {Object.keys(jobsByLocalDay).length}
+      </div>
+
       {/* Week Days */}
       <div className="px-4 pb-4">
-        {Object.entries(jobsByDay).map(([dateKey, dayJobs]) => {
-          const date = parseISO(dateKey);
+        {weekDays.map(({ date, dayKey, jobs: dayJobs }) => {
           const dayName = format(date, "EEEE");
           const dayNumber = format(date, "d");
-          const isToday = format(new Date(), "yyyy-MM-dd") === dateKey;
+          const isToday = format(new Date(), "yyyy-MM-dd") === dayKey;
           
           return (
-            <div key={dateKey} className="mb-6">
+            <div key={dayKey} className="mb-6">
               {/* Day Header */}
               <div className={`sticky top-[80px] bg-white border rounded-lg p-3 mb-3 z-[5] ${
                 isToday ? "bg-blue-50 border-blue-200" : "border-gray-200"
@@ -140,7 +137,7 @@ export default function ScheduleWeekMobile() {
                         {dayName}
                       </div>
                       <div className="text-xs text-gray-600">
-                        {format(date, "MMM d")}
+                        {format(date, "MMM d")} ({dayKey})
                       </div>
                     </div>
                   </div>
@@ -159,52 +156,55 @@ export default function ScheduleWeekMobile() {
                     </CardContent>
                   </Card>
                 ) : (
-                  dayJobs
-                    .sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''))
-                    .map((job: any) => (
-                      <Card 
-                        key={job.id} 
-                        className="hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => navigate(`/jobs/${job.id}`)}
-                        data-testid={`card-job-${job.id}`}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex-1">
-                              <div className="font-medium text-gray-900 mb-1">
-                                {job.title || "Untitled Job"}
-                              </div>
-                              <div className="text-sm text-gray-600 mb-2">
-                                {job.customer_name}
-                              </div>
+                  dayJobs.map((job: any) => (
+                    <Card 
+                      key={job.id} 
+                      className="hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={() => navigate(`/jobs/${job.id}`)}
+                      data-testid={`card-job-${job.id}`}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900 mb-1">
+                              {job.title || "Untitled Job"}
                             </div>
-                            <Badge 
-                              className={`text-xs ${statusColors[job.status] || "bg-gray-100 text-gray-800"}`}
-                            >
-                              {job.status}
-                              {job.status === 'confirmed' && ' ✓'}
-                            </Badge>
+                            <div className="text-sm text-gray-600 mb-2">
+                              {job.customer_name}
+                            </div>
                           </div>
+                          <Badge 
+                            className={`text-xs ${statusColors[job.status] || "bg-gray-100 text-gray-800"}`}
+                          >
+                            {job.status}
+                            {job.status === 'confirmed' && ' ✓'}
+                          </Badge>
+                        </div>
 
-                          {/* Time */}
-                          {job.scheduled_at && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                              <Clock className="h-4 w-4" />
-                              <span>
-                                {utcIsoToLocalString(job.scheduled_at, { timeStyle: "short" })}
-                              </span>
-                            </div>
-                          )}
+                        {/* Time */}
+                        {job.scheduled_at && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                            <Clock className="h-4 w-4" />
+                            <span>
+                              {utcIsoToLocalString(job.scheduled_at, { timeStyle: "short" })}
+                            </span>
+                          </div>
+                        )}
 
-                          {/* Description */}
-                          {job.description && (
-                            <div className="text-sm text-gray-600 line-clamp-2">
-                              {job.description}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))
+                        {/* Description */}
+                        {job.description && (
+                          <div className="text-sm text-gray-600 line-clamp-2">
+                            {job.description}
+                          </div>
+                        )}
+
+                        {/* Debug info for each job - temporary */}
+                        <div className="text-[10px] mt-1 opacity-60 bg-gray-100 p-1 rounded">
+                          UTC: {job.scheduled_at}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
                 )}
               </div>
             </div>

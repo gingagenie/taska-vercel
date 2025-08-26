@@ -11,8 +11,12 @@ export function utcIsoToLocalString(
   opts: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" },
   locale?: string
 ) {
+  // Force Melbourne timezone since the server environment is UTC
   const d = new Date(isoUtc);
-  return d.toLocaleString(locale || undefined, opts);
+  return d.toLocaleString(locale || "en-AU", { 
+    ...opts, 
+    timeZone: "Australia/Melbourne" 
+  });
 }
 
 // If you want a specific tz (not the browser's), use date-fns-tz:

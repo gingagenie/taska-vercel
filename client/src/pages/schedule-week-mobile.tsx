@@ -63,17 +63,17 @@ export default function ScheduleWeekMobile() {
       groups[dayKey] = [];
     }
     
-    // Group jobs by their scheduled date - simple UTC to local conversion  
+    // Group jobs by their scheduled date - convert UTC to Melbourne time first, then extract date
     jobs.forEach((job: any) => {
       if (job.scheduled_at) {
         try {
-          // Parse UTC ISO string and convert to local date for grouping
-          const utcDate = parseISO(job.scheduled_at);
-          const localDate = new Date(utcDate.getTime());
-          const dateKey = format(localDate, "yyyy-MM-dd");
+          // Convert UTC to Melbourne time for proper date grouping
+          const utcDate = new Date(job.scheduled_at);
+          const melbourneDate = new Date(utcDate.toLocaleString("en-AU", { timeZone: "Australia/Melbourne" }));
+          const dateKey = format(melbourneDate, "yyyy-MM-dd");
           if (groups[dateKey]) {
             groups[dateKey].push(job);
-            console.log('[Mobile Schedule] Added job to', dateKey, ':', job.title, 'at', format(localDate, "HH:mm"));
+            console.log('[Mobile Schedule] Added job to', dateKey, ':', job.title, 'at', utcDate.toLocaleString("en-AU", { timeStyle: "short", timeZone: "Australia/Melbourne" }));
           }
         } catch (e) {
           console.error('Error processing job:', job.id, job.scheduled_at, e);

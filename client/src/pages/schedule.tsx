@@ -74,14 +74,15 @@ export default function SchedulePage() {
     queryFn: jobsApi.technicians,
   });
 
-  // bucket jobs by yyyy-MM-dd (using browser's local timezone)
+  // bucket jobs by yyyy-MM-dd (using Melbourne timezone for proper date grouping)
   const byDay = useMemo(() => {
     const map: Record<string, Job[]> = {};
     (jobs as Job[]).forEach((j) => {
       try {
-        // Parse UTC timestamp and convert to local timezone for grouping
-        const localDate = new Date(j.scheduled_at);
-        const key = format(localDate, "yyyy-MM-dd");
+        // Convert UTC to Melbourne time first, then extract date for grouping
+        const utcDate = new Date(j.scheduled_at);
+        const melbourneDate = new Date(utcDate.toLocaleString("en-AU", { timeZone: "Australia/Melbourne" }));
+        const key = format(melbourneDate, "yyyy-MM-dd");
         (map[key] ||= []).push(j);
       } catch (e) {
         console.error(`Date parse error for job ${j.title}:`, e);

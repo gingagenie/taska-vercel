@@ -43,9 +43,8 @@ export function LineItemsTable({
   return (
     <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b text-sm font-medium text-neutral-600 grid grid-cols-12 gap-2">
-        <div className="col-span-3">Item</div>
-        <div className="col-span-3">Description</div>
-        <div className="col-span-1 text-right">Qty.</div>
+        <div className="col-span-5">Item</div>
+        <div className="col-span-2 text-right">Qty.</div>
         <div className="col-span-2 text-right">Price</div>
         <div className="col-span-1 text-right">Disc. %</div>
         <div className="col-span-1">Tax</div>
@@ -60,7 +59,7 @@ export function LineItemsTable({
         
         return (
           <div key={it.id} className="px-4 py-3 grid grid-cols-12 gap-2 items-start border-b last:border-b-0">
-            <div className="col-span-3 flex gap-2">
+            <div className="col-span-5 flex gap-2">
               <input 
                 value={it.itemName} 
                 onChange={(e) => onSetItem(it.id, 'itemName', e.target.value)} 
@@ -69,21 +68,14 @@ export function LineItemsTable({
               />
               <PresetSelect presets={presets} onSelect={(pid: string) => onApplyPreset(it.id, pid)} />
             </div>
-            <div className="col-span-3">
-              <input 
-                value={it.description} 
-                onChange={(e) => onSetItem(it.id, 'description', e.target.value)} 
-                placeholder="Description" 
-                className="w-full border rounded-lg px-3 py-2 text-sm" 
-              />
-            </div>
-            <div className="col-span-1 text-right">
+            <div className="col-span-2 text-right">
               <input 
                 type="number" 
                 step="0.01" 
                 value={it.qty} 
                 onChange={(e) => onSetItem(it.id, 'qty', Number(e.target.value))} 
                 className="w-full border rounded-lg px-3 py-2 text-right text-sm" 
+                placeholder="1"
               />
             </div>
             <div className="col-span-2 text-right">

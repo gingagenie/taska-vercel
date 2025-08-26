@@ -75,9 +75,10 @@ export function LineItemsTable({
             <div className="col-span-2 text-right">
               <input 
                 type="number" 
-                step="0.01" 
+                step="1" 
+                min="1"
                 value={it.qty} 
-                onChange={(e) => onSetItem(it.id, 'qty', Number(e.target.value))} 
+                onChange={(e) => onSetItem(it.id, 'qty', Math.max(1, parseInt(e.target.value) || 1))} 
                 className="w-full border rounded-lg px-3 py-2 text-right text-sm" 
                 placeholder="1"
               />

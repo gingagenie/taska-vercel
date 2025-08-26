@@ -163,6 +163,47 @@ export default function SettingsPage() {
     });
   }, [data]);
 
+  // Auto-save profile changes after a delay
+  useEffect(() => {
+    if (!data?.user) return; // Don't auto-save until initial data is loaded
+    
+    const timer = setTimeout(() => {
+      const originalProfile = data.user || {};
+      const hasChanges = profile.name !== (originalProfile.name || "") || 
+                        profile.role !== (originalProfile.role || "") || 
+                        profile.phone !== (originalProfile.phone || "");
+      
+      if (hasChanges && !saving) {
+        saveProfile();
+      }
+    }, 1000); // Auto-save 1 second after changes
+
+    return () => clearTimeout(timer);
+  }, [profile, data?.user, saving]);
+
+  // Auto-save org changes after a delay
+  useEffect(() => {
+    if (!data?.org) return; // Don't auto-save until initial data is loaded
+    
+    const timer = setTimeout(() => {
+      const originalOrg = data.org || {};
+      const hasChanges = org.name !== (originalOrg.name || "") || 
+                        org.abn !== (originalOrg.abn || "") || 
+                        org.street !== (originalOrg.street || "") || 
+                        org.suburb !== (originalOrg.suburb || "") || 
+                        org.state !== (originalOrg.state || "") || 
+                        org.postcode !== (originalOrg.postcode || "") ||
+                        org.logo_url !== (originalOrg.logo_url || "") ||
+                        org.default_labour_rate_cents !== (originalOrg.default_labour_rate_cents || 0);
+      
+      if (hasChanges && !saving) {
+        saveOrg();
+      }
+    }, 1000); // Auto-save 1 second after changes
+
+    return () => clearTimeout(timer);
+  }, [org, data?.org, saving]);
+
   async function saveProfile() {
     setSaving(true);
     try {

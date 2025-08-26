@@ -18,16 +18,16 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
 
     // Fetch user data from database
     const userResult = await db.execute(sql`
-      SELECT id, email, name, role, phone, avatar_url 
+      SELECT id, email, name, role, phone 
       FROM users 
-      WHERE id = ${userId}::uuid
+      WHERE id = ${userId}
     `);
     
     // Fetch organization data from database
     const orgResult = await db.execute(sql`
       SELECT id, name, abn, street, suburb, state, postcode, default_labour_rate_cents
       FROM orgs 
-      WHERE id = ${orgId}::uuid
+      WHERE id = ${orgId}
     `);
 
     const user = userResult.rows[0] || {
@@ -36,7 +36,6 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
       name: "John Smith",
       role: "Administrator",
       phone: "+61 400 123 456",
-      avatar_url: null,
     };
 
     const org = orgResult.rows[0] || {
@@ -64,18 +63,17 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
 me.put("/profile", requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user?.id;
-    const { name, role, phone, avatarUrl } = req.body || {};
+    const { name, role, phone } = req.body || {};
     
-    console.log("Profile update:", { userId, name, role, phone, avatarUrl });
+    console.log("Profile update:", { userId, name, role, phone });
     
     // Update user in database
     await db.execute(sql`
       UPDATE users SET 
         name = COALESCE(${name}, name),
         role = COALESCE(${role}, role),
-        phone = COALESCE(${phone}, phone),
-        avatar_url = ${avatarUrl}
-      WHERE id = ${userId}::uuid
+        phone = COALESCE(${phone}, phone)
+      WHERE id = ${userId}
     `);
     
     res.json({ ok: true });
@@ -89,17 +87,16 @@ me.put("/profile", requireAuth, async (req, res) => {
 me.put("/", requireAuth, requireOrg, async (req, res) => {
   try {
     const userId = (req as any).user?.id;
-    const { name, phone, avatar_url, avatar_seed, avatar_variant } = req.body || {};
+    const { name, phone } = req.body || {};
     
-    console.log("Profile update (PUT /):", { userId, name, phone, avatar_url, avatar_seed, avatar_variant });
+    console.log("Profile update (PUT /):", { userId, name, phone });
     
     // Update user in database
     await db.execute(sql`
       UPDATE users SET
         name = COALESCE(${name}, name),
-        phone = COALESCE(${phone}, phone),
-        avatar_url = ${avatar_url || null}
-      WHERE id = ${userId}::uuid
+        phone = COALESCE(${phone}, phone)
+      WHERE id = ${userId}
     `);
     
     res.json({ ok: true });
@@ -147,7 +144,7 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
         state = COALESCE(${state}, state),
         postcode = COALESCE(${postcode}, postcode),
         default_labour_rate_cents = COALESCE(${defaultLabourRateCents}, default_labour_rate_cents)
-      WHERE id = ${orgId}::uuid
+      WHERE id = ${orgId}
     `);
     
     res.json({ ok: true });
@@ -157,34 +154,5 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
-/** Upload avatar (multipart/form-data with "file") */
-me.post("/avatar", requireAuth, upload.single("file"), async (req, res) => {
-  const userId = (req as any).user.id;
-  if (!req.file) return res.status(400).json({ error: "file required" });
-
-  // Guard: only images
-  const okTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-  if (!okTypes.includes(req.file.mimetype)) {
-    return res.status(415).json({ error: "unsupported file type" });
-  }
-
-  // Pick extension by mimetype
-  const ext = req.file.mimetype.split("/")[1] || "bin";
-  const fname = `${nanoid(16)}.${ext}`;
-  const outPath = path.join(process.cwd(), "uploads", fname);
-
-  await fs.writeFile(outPath, req.file.buffer);
-  const publicUrl = `/uploads/${fname}`;
-
-  // Update user's avatar_url in database
-  await db.execute(sql`
-    UPDATE users SET avatar_url = ${publicUrl}
-    WHERE id = ${userId}::uuid
-  `);
-  
-  console.log(`Avatar uploaded for user ${userId}: ${publicUrl}`);
-
-  res.json({ ok: true, url: publicUrl });
-});
 
 export default me;

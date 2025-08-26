@@ -15,7 +15,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { data, isLoading } = useQuery({ queryKey: ["/api/me"], queryFn: meApi.get });
 
-  const [profile, setProfile] = useState({ name: "", role: "", phone: "", avatar_url: "" });
+  const [profile, setProfile] = useState({ name: "", role: "", phone: "" });
   const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", default_labour_rate_cents: 0 });
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   
@@ -99,7 +99,7 @@ export default function SettingsPage() {
     if (!data) return;
     const u = data.user || {};
     const o = data.org || {};
-    setProfile({ name: u.name || "", role: u.role || "", phone: u.phone || "", avatar_url: u.avatar_url || "" });
+    setProfile({ name: u.name || "", role: u.role || "", phone: u.phone || "" });
     setOrg({
       name: o.name || "", abn: o.abn || "", street: o.street || "", suburb: o.suburb || "",
       state: o.state || "", postcode: o.postcode || "", default_labour_rate_cents: o.default_labour_rate_cents || 0
@@ -112,8 +112,7 @@ export default function SettingsPage() {
       await meApi.updateProfile({
         name: profile.name || null,
         role: profile.role || null,
-        phone: profile.phone || null,
-        avatarUrl: profile.avatar_url || null
+        phone: profile.phone || null
       });
       qc.invalidateQueries({ queryKey: ["/api/me"] });
       toast({
@@ -294,50 +293,6 @@ export default function SettingsPage() {
                   onChange={(e)=>setProfile(p=>({...p, phone: e.target.value}))} 
                   data-testid="input-profile-phone"
                 />
-              </div>
-              {/* Avatar upload */}
-              <div className="md:col-span-2">
-                <Label>Avatar</Label>
-                <div className="mt-2 flex items-center gap-4">
-                  <img
-                    src={profile.avatar_url || "/placeholder-avatar.svg"}
-                    alt="avatar"
-                    className="h-12 w-12 rounded-full object-cover border"
-                    onError={(e:any)=>{ e.currentTarget.src="/placeholder-avatar.svg"; }}
-                    data-testid="img-avatar-preview"
-                  />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        // Optional immediate preview
-                        const localUrl = URL.createObjectURL(file);
-                        setProfile(p => ({ ...p, avatar_url: localUrl }));
-
-                        const res = await meApi.uploadAvatar(file);
-                        // Use the server URL
-                        setProfile(p => ({ ...p, avatar_url: res.url }));
-                        // Refresh /api/me so rest of app sees it
-                        await qc.invalidateQueries({ queryKey: ["/api/me"] });
-                        toast({
-                          title: "Avatar updated",
-                          description: "Your profile picture has been uploaded successfully.",
-                        });
-                      } catch (err:any) {
-                        toast({
-                          title: "Upload failed",
-                          description: err.message || "Failed to upload avatar",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                    data-testid="input-avatar-file"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">PNG/JPG/WebP up to 5MB.</p>
               </div>
               <div className="md:col-span-2">
                 <div className="grid grid-cols-1 max-w-md ml-auto">

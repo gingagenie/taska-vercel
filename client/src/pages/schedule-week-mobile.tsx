@@ -23,12 +23,10 @@ export default function ScheduleWeekMobile() {
   const [, navigate] = useLocation();
   const [selectedTech, setSelectedTech] = useState<string>("all");
   
-  // Get current week range - use Australian timezone for consistency 
+  // Get current week range - use current local time
   const now = new Date();
-  // Adjust for Australian timezone to match server filtering
-  const australianTime = new Date(now.toLocaleString("en-US", {timeZone: "Australia/Melbourne"}));
-  const weekStart = startOfWeek(australianTime, { weekStartsOn: 1 }); // Monday
-  const weekEnd = endOfWeek(australianTime, { weekStartsOn: 1 }); // Sunday
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 }); // Sunday
   
   const startStr = format(weekStart, "yyyy-MM-dd");
   const endStr = format(addDays(weekEnd, 1), "yyyy-MM-dd"); // Include Sunday
@@ -64,19 +62,15 @@ export default function ScheduleWeekMobile() {
     jobs.forEach((job: any) => {
       if (job.scheduled_at) {
         try {
-          // Handle both formats: "2025-08-23T09:00:00.000Z" and "2025-08-23 09:00:00+00"
-          const normalizedTime = job.scheduled_at.includes('T') 
-            ? job.scheduled_at 
-            : job.scheduled_at.replace(' ', 'T').replace('+00', 'Z');
-          
-          // Get date in Australia/Melbourne timezone to group correctly
-          const parsed = parseISO(normalizedTime);
+          // Parse the UTC timestamp and convert to Melbourne timezone for grouping
+          const parsed = parseISO(job.scheduled_at);
           const melbourneTime = toZonedTime(parsed, 'Australia/Melbourne');
           const jobDate = format(melbourneTime, "yyyy-MM-dd");
           if (groups[jobDate]) {
             groups[jobDate].push(job);
           }
         } catch (e) {
+          console.error('Error parsing date for job:', job.id, job.scheduled_at, e);
           // Fallback: try to extract date from malformed timestamp
           const dateMatch = job.scheduled_at.match(/(\d{4}-\d{2}-\d{2})/);
           if (dateMatch && groups[dateMatch[1]]) {

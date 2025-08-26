@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Clock, User, MapPin } from "lucide-react";
-import { format, startOfWeek, endOfWeek, addDays, parseISO } from "date-fns";
-import { utcIsoToTzString } from "@/lib/time";
+import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { utcIsoToLocalString } from "@/lib/time";
 
 // Status color mapping
 const statusColors: Record<string, string> = {
@@ -63,15 +63,16 @@ export default function ScheduleWeekMobile() {
       groups[dayKey] = [];
     }
     
-    // Group jobs by their scheduled date - clean UTC to local conversion
+    // Group jobs by their scheduled date - simple UTC to local conversion  
     jobs.forEach((job: any) => {
       if (job.scheduled_at) {
         try {
-          // Convert UTC ISO to Australia/Melbourne date for grouping
-          const localDate = utcIsoToTzString(job.scheduled_at, "Australia/Melbourne", "yyyy-MM-dd");
-          if (groups[localDate]) {
-            groups[localDate].push(job);
-            console.log('[Mobile Schedule] Added job to', localDate, ':', job.title);
+          // Convert UTC timestamp to local Date and extract date part
+          const localDate = new Date(job.scheduled_at);
+          const dateKey = format(localDate, "yyyy-MM-dd");
+          if (groups[dateKey]) {
+            groups[dateKey].push(job);
+            console.log('[Mobile Schedule] Added job to', dateKey, ':', job.title);
           }
         } catch (e) {
           console.error('Error processing job:', job.id, job.scheduled_at, e);
@@ -208,7 +209,7 @@ export default function ScheduleWeekMobile() {
                           <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                             <Clock className="h-4 w-4" />
                             <span>
-                              {utcIsoToTzString(job.scheduled_at, "Australia/Melbourne", "h:mm a")}
+                              {utcIsoToLocalString(job.scheduled_at, { timeStyle: "short" })}
                             </span>
                           </div>
                         )}

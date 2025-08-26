@@ -16,14 +16,14 @@ export default function QuotesPage() {
   return (
     <div className="page space-y-4">
       <div className="header-row">
-        <h1 className="text-2xl font-bold">Quotes</h1>
+        <h1 className="text-2xl font-bold text-financial">Quotes</h1>
         <div className="header-actions">
           <Input className="w-64" placeholder="Search quotes…" value={q} onChange={(e)=>setQ(e.target.value)} />
-          <Link href="/quotes/new"><a><Button data-mobile-full="true">New Quote</Button></a></Link>
+          <Link href="/quotes/new"><a><Button data-mobile-full="true" className="bg-financial hover:bg-financial/90 text-financial-foreground">New Quote</Button></a></Link>
         </div>
       </div>
 
-      <Card><CardContent className="card-pad">
+      <Card className="border-financial bg-white"><CardContent className="card-pad">
         {isLoading ? "Loading…" : (
           <div className="table-wrap">
             <table className="w-full text-sm">

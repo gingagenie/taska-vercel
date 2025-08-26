@@ -70,7 +70,7 @@ export default function Jobs() {
   return (
     <div className="space-y-4">
       <div className="header-row">
-        <h1 className="text-2xl font-bold">Jobs</h1>
+        <h1 className="text-2xl font-bold text-jobs">Jobs</h1>
         <div className="header-actions">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
@@ -97,6 +97,7 @@ export default function Jobs() {
             onClick={() => setIsJobModalOpen(true)}
             data-testid="button-new-job"
             data-mobile-full="true"
+            className="bg-jobs hover:bg-jobs/90 text-jobs-foreground"
           >
             New Job
           </Button>
@@ -104,7 +105,7 @@ export default function Jobs() {
       </div>
 
       {filteredJobs.length === 0 ? (
-        <Card>
+        <Card className="border-jobs bg-white">
           <CardContent className="py-12 text-center">
             <p className="text-gray-500">
               {jobs.length === 0 ? "No jobs found. Create your first job!" : "No jobs match your search or filter"}
@@ -116,7 +117,7 @@ export default function Jobs() {
           {filteredJobs.map((job: any) => (
             <Card 
               key={job.id} 
-              className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
+              className="border-jobs bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
               onClick={() => navigate(`/jobs/${job.id}`)}
               data-testid={`card-job-${job.id}`}
             >

@@ -61,7 +61,7 @@ export default function Customers() {
   return (
     <div className="space-y-4">
       <div className="header-row">
-        <h1 className="text-2xl font-bold">Customers</h1>
+        <h1 className="text-2xl font-bold text-people">Customers</h1>
         <div className="header-actions">
           <Input
             placeholder="Search company, contact, email…"
@@ -74,6 +74,7 @@ export default function Customers() {
             onClick={() => navigate("/customers/new")} 
             data-testid="button-new-customer"
             data-mobile-full="true"
+            className="bg-people hover:bg-people/90 text-people-foreground"
           >
             New Customer
           </Button>
@@ -81,13 +82,13 @@ export default function Customers() {
       </div>
 
       {isLoading ? (
-        <Card>
+        <Card className="border-people bg-white">
           <CardContent className="py-12 text-center">
             <p className="text-gray-500">Loading customers...</p>
           </CardContent>
         </Card>
       ) : filtered.length === 0 ? (
-        <Card>
+        <Card className="border-people bg-white">
           <CardContent className="py-12 text-center">
             <p className="text-gray-500">
               {q ? "No customers match your search" : "No customers found. Create your first customer!"}
@@ -102,7 +103,7 @@ export default function Customers() {
             return (
               <Card 
                 key={c.id} 
-                className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
+                className="border-people bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
                 onClick={() => {
                   console.log('Clicking customer card:', c.id);
                   navigate(`/customers/${c.id}`);

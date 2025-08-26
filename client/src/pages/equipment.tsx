@@ -42,7 +42,7 @@ export default function EquipmentPage() {
   return (
     <div className="space-y-4">
       <div className="header-row">
-        <h1 className="text-2xl font-bold">Equipment</h1>
+        <h1 className="text-2xl font-bold text-equipment">Equipment</h1>
         <div className="header-actions">
           <Input 
             className="w-72" 
@@ -55,6 +55,7 @@ export default function EquipmentPage() {
             onClick={()=>setOpen(true)}
             data-testid="button-new-equipment"
             data-mobile-full="true"
+            className="bg-equipment hover:bg-equipment/90 text-equipment-foreground"
           >
             New Equipment
           </Button>
@@ -62,7 +63,7 @@ export default function EquipmentPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <Card>
+        <Card className="border-equipment bg-white">
           <CardContent className="py-12 text-center">
             <p className="text-gray-500">
               {q ? "No equipment matches your search" : "No equipment found. Create your first piece of equipment!"}
@@ -74,7 +75,7 @@ export default function EquipmentPage() {
           {filtered.map((e: any) => (
             <Card 
               key={e.id} 
-              className="hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
+              className="border-equipment bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
               onClick={() => {
                 console.log('Clicking equipment card:', e.id);
                 navigate(`/equipment/${e.id}`);

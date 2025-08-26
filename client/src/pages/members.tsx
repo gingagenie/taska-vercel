@@ -49,7 +49,7 @@ export default function MembersPage() {
   return (
     <div className="space-y-4">
       <div className="header-row">
-        <h1 className="text-2xl font-bold">Team Members</h1>
+        <h1 className="text-2xl font-bold text-management">Team Members</h1>
         <div className="header-actions">
           <Input 
             className="w-full sm:w-64" 
@@ -61,7 +61,7 @@ export default function MembersPage() {
           <Button 
             onClick={()=>setOpen(true)}
             data-testid="button-add-member"
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto bg-management hover:bg-management/90 text-management-foreground"
           >
             Add Member
           </Button>

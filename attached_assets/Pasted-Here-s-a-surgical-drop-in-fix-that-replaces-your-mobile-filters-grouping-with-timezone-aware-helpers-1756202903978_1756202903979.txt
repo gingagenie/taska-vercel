@@ -1,0 +1,205 @@
+Here’s a surgical drop-in fix that replaces your mobile filters/grouping with timezone-aware helpers. Copy these in and wire them where your mobile schedule fetches & renders.
+
+1) Install tiny helpers (one-time)
+npm i date-fns date-fns-tz
+
+2) Add robust date utils (local-day filtering, grouping)
+
+Create src/lib/mobileDates.ts:
+
+// src/lib/mobileDates.ts
+import { zonedTimeToUtc, formatInTimeZone } from "date-fns-tz";
+
+const DEFAULT_TZ = "Australia/Melbourne";
+
+/** Parse an ISO string that SHOULD be UTC (ending with Z). */
+export function parseUtcIso(iso: string): Date {
+  const fixed = iso.endsWith("Z") ? iso : iso + "Z";
+  const d = new Date(fixed);
+  if (isNaN(d.getTime())) throw new Error(`Bad ISO date: ${iso}`);
+  return d;
+}
+
+/** Build the UTC range [start,end] that corresponds to a LOCAL day in tz. */
+export function utcRangeForLocalDay(
+  anyLocalMoment: Date,
+  tz: string = DEFAULT_TZ
+): { fromUtc: Date; toUtc: Date } {
+  const day = formatInTimeZone(anyLocalMoment, tz, "yyyy-MM-dd");
+  const fromUtc = zonedTimeToUtc(`${day}T00:00:00.000`, tz);
+  const toUtc   = zonedTimeToUtc(`${day}T23:59:59.999`, tz);
+  return { fromUtc, toUtc };
+}
+
+/** Filter jobs whose startTime falls within the given LOCAL day window. */
+export function filterJobsForLocalDay<T extends { startTime: string }>(
+  jobs: T[],
+  dayLocal: Date,
+  tz: string = DEFAULT_TZ
+): T[] {
+  const { fromUtc, toUtc } = utcRangeForLocalDay(dayLocal, tz);
+  return jobs.filter(j => {
+    const d = parseUtcIso(j.startTime); // API gives ISO Z
+    return d >= fromUtc && d <= toUtc;
+  });
+}
+
+/** Make a day key in the target tz (useful for grouping headers). */
+export function dayKeyLocal(dateUtc: Date, tz: string = DEFAULT_TZ): string {
+  // "YYYY-MM-DD" in the chosen tz
+  return formatInTimeZone(dateUtc, tz, "yyyy-MM-dd");
+}
+
+/** Group jobs by local day using their startTime (UTC ISO). */
+export function groupJobsByLocalDay<T extends { startTime: string }>(
+  jobs: T[],
+  tz: string = DEFAULT_TZ
+): Record<string, T[]> {
+  const buckets: Record<string, T[]> = {};
+  for (const j of jobs) {
+    const dUtc = parseUtcIso(j.startTime);
+    const key = dayKeyLocal(dUtc, tz);
+    (buckets[key] ||= []).push(j);
+  }
+  // Optional: sort each bucket by time
+  for (const key of Object.keys(buckets)) {
+    buckets[key].sort((a, b) => +parseUtcIso(a.startTime) - +parseUtcIso(b.startTime));
+  }
+  return buckets;
+}
+
+/** Format for display in the user’s *device* local time (not forced tz). */
+export function formatLocalDevice(dUtc: Date, opts: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" }) {
+  return dUtc.toLocaleString(undefined, opts);
+}
+
+3) Use the helpers in your Mobile Schedule component
+
+Replace your current “today” filtering/grouping with the below. Create/replace src/components/MobileSchedule.tsx:
+
+import { useEffect, useMemo, useState } from "react";
+import { filterJobsForLocalDay, groupJobsByLocalDay, parseUtcIso, formatLocalDevice } from "../lib/mobileDates";
+
+// If you already have a client—use it. This is a minimal fetcher:
+type JobDto = { id: string; title: string; startTime: string; endTime: string | null };
+
+async function fetchMobileJobs(): Promise<JobDto[]> {
+  const res = await fetch("/api/jobs/mobile", { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error("Unexpected response");
+  return data;
+}
+
+export default function MobileSchedule() {
+  const [jobs, setJobs] = useState<JobDto[]>([]);
+  const [err, setErr] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const data = await fetchMobileJobs();
+        if (alive) setJobs(data);
+      } catch (e: any) {
+        console.error(e);
+        if (alive) setErr(e?.message ?? "Failed to load jobs");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  // Show "today" in local (device) timezone—but compare using UTC range derived from local day.
+  const today = new Date();
+  const todaysJobs = useMemo(() => filterJobsForLocalDay(jobs, today), [jobs]);
+
+  // If you group by day, use tz-aware keys
+  const grouped = useMemo(() => groupJobsByLocalDay(todaysJobs), [todaysJobs]);
+
+  if (loading) return <div className="p-4 text-sm opacity-70">Loading…</div>;
+  if (err) return <div className="p-4 text-red-600">Error: {err}</div>;
+
+  const dayKeys = Object.keys(grouped).sort(); // "YYYY-MM-DD"
+
+  if (!dayKeys.length) return <div className="p-4 opacity-70">No jobs found</div>;
+
+  return (
+    <div className="divide-y">
+      {dayKeys.map(day => (
+        <div key={day} className="p-3">
+          <div className="text-xs uppercase tracking-wide opacity-70 mb-2">{day}</div>
+          {grouped[day].map(j => {
+            const s = parseUtcIso(j.startTime);
+            const e = j.endTime ? parseUtcIso(j.endTime) : null;
+            return (
+              <div key={j.id} className="py-2">
+                <div className="font-medium">{j.title}</div>
+                <div className="text-sm opacity-80">
+                  {formatLocalDevice(s)}{e ? ` – ${formatLocalDevice(e)}` : ""}
+                </div>
+
+                {/* Debug strip — uncomment for 2 minutes to verify flow */}
+                {/* <div className="text-[10px] mt-1 opacity-60">UTC: {j.startTime}{j.endTime ? ` – ${j.endTime}` : ""}</div> */}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+This removes the typical failure modes:
+
+Comparing UTC datetimes against local day bounds (which misses early/late jobs).
+
+Building day headers with new Date(...).getDate() (which drifts across midnight).
+
+Android Chrome being picky about non-Z ISO strings.
+
+4) Server endpoint (if you haven’t added it yet)
+
+Make sure your mobile route returns camelCase + ISO Z. (You likely added this earlier; if not:)
+
+// server/routes/jobs.mobile.ts
+import { Router } from "express";
+import { db } from "../db";
+import { jobs } from "../db/schema";
+
+const r = Router();
+r.get("/", async (_req, res) => {
+  const rows = await db.select().from(jobs).orderBy(jobs.startTime);
+  res.json(rows.map(j => ({
+    id: j.id,
+    title: j.title,
+    startTime: j.startTime.toISOString(),
+    endTime: j.endTime ? j.endTime.toISOString() : null,
+  })));
+});
+export default r;
+
+// server/index.ts
+import jobsMobileRouter from "./routes/jobs.mobile";
+app.use("/api/jobs/mobile", jobsMobileRouter);
+
+
+Open that endpoint on your Android phone’s browser and confirm you see data.
+
+5) Quick sanity checks (takes 2 minutes)
+
+Network tab (on Android): open DevTools remote debugging → verify /api/jobs/mobile returns an array with startTime ending in Z.
+
+Temporarily enable the debug strip (commented line) to render raw UTC values under each row.
+
+If you filter “today,” temporarily log the computed UTC window:
+
+console.log("UTC window", utcRangeForLocalDay(new Date()));
+
+
+You should see something like 14:00:00Z to 13:59:59Z if your local day is AEST.
+
+Why this will unstick it

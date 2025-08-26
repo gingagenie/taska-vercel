@@ -118,6 +118,37 @@
   }
 }
 
+/* Global button styling - thin borders for all buttons */
+@layer components {
+  .btn-default,
+  button:not(.no-border) {
+    @apply border border-gray-300/60;
+  }
+  
+  /* Primary buttons */
+  button[class*="bg-jobs"]:not(.no-border),
+  button[class*="bg-blue"]:not(.no-border) {
+    @apply border border-jobs/40;
+  }
+  
+  /* Secondary buttons */
+  button[variant="secondary"]:not(.no-border),
+  button[class*="bg-gray"]:not(.no-border) {
+    @apply border border-gray-400/60;
+  }
+  
+  /* Outline buttons */
+  button[variant="outline"]:not(.no-border) {
+    @apply border border-gray-400/80;
+  }
+  
+  /* Destructive buttons */
+  button[variant="destructive"]:not(.no-border),
+  button[class*="bg-red"]:not(.no-border) {
+    @apply border border-red-500/40;
+  }
+}
+
 .status-badge {
   @apply px-2 py-1 text-xs font-medium rounded-full;
 }

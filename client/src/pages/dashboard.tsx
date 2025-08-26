@@ -163,7 +163,7 @@ export default function Dashboard() {
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="card-pad">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Button data-mobile-full="true" onClick={() => setIsJobModalOpen(true)} className="bg-jobs hover:bg-jobs/90 text-jobs-foreground">
               <Briefcase className="h-4 w-4 mr-2" /> New Job
             </Button>

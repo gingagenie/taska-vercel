@@ -23,9 +23,20 @@ export function isoFromLocalInput(local?: string) {
   if (!local) return null;
   
   try {
-    // Subtract 10 hours from Melbourne time to get UTC
-    const localDate = new Date(local);
-    const utcDate = new Date(localDate.getTime() - (10 * 60 * 60 * 1000));
+    // Parse the datetime-local input as Melbourne time
+    // We need to treat the input as if it's in Melbourne timezone, then convert to UTC
+    
+    // Parse components manually to avoid timezone interpretation issues
+    const parts = local.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!parts) return null;
+    
+    const [, year, month, day, hour, minute, second = '0'] = parts;
+    
+    // Create date in Melbourne timezone by treating input as UTC then subtracting offset
+    // Melbourne is UTC+10 in winter, so to convert Melbourne time to UTC, subtract 10 hours
+    const melbourneDateAsUTC = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`);
+    const utcDate = new Date(melbourneDateAsUTC.getTime() - (10 * 60 * 60 * 1000));
+    
     return utcDate.toISOString();
   } catch (error) {
     console.error("Error converting local input to ISO:", error);

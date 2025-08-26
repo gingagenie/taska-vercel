@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Clock, User, MapPin } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addDays, parseISO } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { utcIsoToLocalString } from "@/lib/time";
 
 // Status color mapping
@@ -67,13 +68,11 @@ export default function ScheduleWeekMobile() {
     jobs.forEach((job: any) => {
       if (job.scheduled_at) {
         try {
-          // Convert UTC to Melbourne time for proper date grouping
-          const utcDate = new Date(job.scheduled_at);
-          const melbourneDate = new Date(utcDate.toLocaleString("en-AU", { timeZone: "Australia/Melbourne" }));
-          const dateKey = format(melbourneDate, "yyyy-MM-dd");
+          // Use formatInTimeZone to get Melbourne date for grouping
+          const dateKey = formatInTimeZone(job.scheduled_at, "Australia/Melbourne", "yyyy-MM-dd");
           if (groups[dateKey]) {
             groups[dateKey].push(job);
-            console.log('[Mobile Schedule] Added job to', dateKey, ':', job.title, 'at', utcDate.toLocaleString("en-AU", { timeStyle: "short", timeZone: "Australia/Melbourne" }));
+            console.log('[Mobile Schedule] Added job to', dateKey, ':', job.title, 'at', formatInTimeZone(job.scheduled_at, "Australia/Melbourne", "HH:mm"));
           }
         } catch (e) {
           console.error('Error processing job:', job.id, job.scheduled_at, e);

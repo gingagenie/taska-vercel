@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, format, set, parseISO } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { utcIsoToLocalString } from "@/lib/time";
 import { jobsApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -79,10 +80,8 @@ export default function SchedulePage() {
     const map: Record<string, Job[]> = {};
     (jobs as Job[]).forEach((j) => {
       try {
-        // Convert UTC to Melbourne time first, then extract date for grouping
-        const utcDate = new Date(j.scheduled_at);
-        const melbourneDate = new Date(utcDate.toLocaleString("en-AU", { timeZone: "Australia/Melbourne" }));
-        const key = format(melbourneDate, "yyyy-MM-dd");
+        // Use formatInTimeZone to get Melbourne date for grouping
+        const key = formatInTimeZone(j.scheduled_at, "Australia/Melbourne", "yyyy-MM-dd");
         (map[key] ||= []).push(j);
       } catch (e) {
         console.error(`Date parse error for job ${j.title}:`, e);

@@ -67,7 +67,7 @@ export default function Dashboard() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card className="border-schedule/20 bg-schedule-light/30">
+        <Card className="border-schedule bg-white">
           <CardContent className="card-pad flex items-center justify-between">
             <div>
               <div className="text-sm text-schedule font-medium">Jobs Today</div>
@@ -79,7 +79,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-jobs/20 bg-jobs-light/30">
+        <Card className="border-jobs bg-white">
           <CardContent className="card-pad flex items-center justify-between">
             <div>
               <div className="text-sm text-jobs font-medium">Total Jobs</div>
@@ -94,7 +94,7 @@ export default function Dashboard() {
 
       {/* Today's Schedule + Upcoming */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-schedule/20">
+        <Card className="border-schedule bg-white">
           <CardHeader>
             <div className="header-row">
               <CardTitle className="text-schedule">Today's Schedule</CardTitle>
@@ -125,7 +125,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-jobs/20">
+        <Card className="border-jobs bg-white">
           <CardHeader>
             <div className="header-row">
               <CardTitle className="text-jobs">Upcoming Jobs</CardTitle>
@@ -158,7 +158,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <Card className="border-management/20">
+      <Card className="border-management bg-white">
         <CardHeader>
           <CardTitle className="text-management">Quick Actions</CardTitle>
         </CardHeader>

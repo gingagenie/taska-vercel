@@ -44,29 +44,29 @@
   --font-mono: Menlo, monospace;
   --radius: 0.75rem;
   
-  /* Functional Color Categories */
-  --jobs: hsl(220 85% 57%);           /* Soft Blue - Jobs/Work */
-  --jobs-light: hsl(220 85% 96%);
+  /* Functional Color Categories - Lighter/Softer */
+  --jobs: hsl(220 70% 65%);           /* Lighter Blue - Jobs/Work */
+  --jobs-light: hsl(220 70% 96%);
   --jobs-foreground: hsl(0 0% 100%);
   
-  --people: hsl(142 71% 45%);         /* Soft Green - People */
-  --people-light: hsl(142 71% 95%);
+  --people: hsl(142 60% 55%);         /* Lighter Green - People */
+  --people-light: hsl(142 60% 95%);
   --people-foreground: hsl(0 0% 100%);
   
-  --equipment: hsl(32 95% 44%);       /* Soft Orange - Equipment */
-  --equipment-light: hsl(32 95% 95%);
+  --equipment: hsl(32 80% 60%);       /* Lighter Orange - Equipment */
+  --equipment-light: hsl(32 80% 95%);
   --equipment-foreground: hsl(0 0% 100%);
   
-  --schedule: hsl(267 57% 50%);       /* Soft Purple - Calendar */
-  --schedule-light: hsl(267 57% 96%);
+  --schedule: hsl(267 50% 65%);       /* Lighter Purple - Calendar */
+  --schedule-light: hsl(267 50% 96%);
   --schedule-foreground: hsl(0 0% 100%);
   
-  --financial: hsl(173 58% 39%);      /* Soft Teal - Financial */
-  --financial-light: hsl(173 58% 95%);
+  --financial: hsl(173 50% 55%);      /* Lighter Teal - Financial */
+  --financial-light: hsl(173 50% 95%);
   --financial-foreground: hsl(0 0% 100%);
   
-  --management: hsl(331 48% 48%);     /* Soft Pink - Management */
-  --management-light: hsl(331 48% 96%);
+  --management: hsl(331 45% 65%);     /* Lighter Pink - Management */
+  --management-light: hsl(331 45% 96%);
   --management-foreground: hsl(0 0% 100%);
 }
 

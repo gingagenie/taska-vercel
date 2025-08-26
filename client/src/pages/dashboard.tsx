@@ -67,25 +67,25 @@ export default function Dashboard() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card>
+        <Card className="border-schedule/20 bg-schedule-light/30">
           <CardContent className="card-pad flex items-center justify-between">
             <div>
-              <div className="text-sm text-gray-500">Jobs Today</div>
-              <div className="text-2xl font-semibold">{todaysJobs.length}</div>
+              <div className="text-sm text-schedule font-medium">Jobs Today</div>
+              <div className="text-2xl font-semibold text-schedule">{todaysJobs.length}</div>
             </div>
-            <div className="p-3 rounded-lg bg-schedule-light text-schedule">
+            <div className="p-3 rounded-lg bg-schedule text-schedule-foreground">
               <CalendarDays className="h-6 w-6" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-jobs/20 bg-jobs-light/30">
           <CardContent className="card-pad flex items-center justify-between">
             <div>
-              <div className="text-sm text-gray-500">Total Jobs</div>
-              <div className="text-2xl font-semibold">{(jobs as any[]).length}</div>
+              <div className="text-sm text-jobs font-medium">Total Jobs</div>
+              <div className="text-2xl font-semibold text-jobs">{(jobs as any[]).length}</div>
             </div>
-            <div className="p-3 rounded-lg bg-jobs-light text-jobs">
+            <div className="p-3 rounded-lg bg-jobs text-jobs-foreground">
               <Briefcase className="h-6 w-6" />
             </div>
           </CardContent>
@@ -94,12 +94,12 @@ export default function Dashboard() {
 
       {/* Today's Schedule + Upcoming */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="border-schedule/20">
           <CardHeader>
             <div className="header-row">
-              <CardTitle>Today's Schedule</CardTitle>
+              <CardTitle className="text-schedule">Today's Schedule</CardTitle>
               <div className="header-actions">
-                <Link href="/schedule"><a><Button variant="outline">View Schedule</Button></a></Link>
+                <Link href="/schedule"><a><Button variant="outline" className="border-schedule text-schedule hover:bg-schedule-light">View Schedule</Button></a></Link>
               </div>
             </div>
           </CardHeader>
@@ -125,12 +125,12 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-jobs/20">
           <CardHeader>
             <div className="header-row">
-              <CardTitle>Upcoming Jobs</CardTitle>
+              <CardTitle className="text-jobs">Upcoming Jobs</CardTitle>
               <div className="header-actions">
-                <Link href="/jobs"><a><Button variant="outline">View All</Button></a></Link>
+                <Link href="/jobs"><a><Button variant="outline" className="border-jobs text-jobs hover:bg-jobs-light">View All</Button></a></Link>
               </div>
             </div>
           </CardHeader>
@@ -158,9 +158,9 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <Card>
+      <Card className="border-management/20">
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+          <CardTitle className="text-management">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="card-pad">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

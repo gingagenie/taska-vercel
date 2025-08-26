@@ -43,7 +43,12 @@ export default function ScheduleWeekMobile() {
     }),
   });
 
-  console.log("[Mobile Schedule] Query state:", { jobs: jobs?.length, isLoading, error });
+  console.log("[Mobile Schedule] Query state:", { 
+    jobs: jobs?.length, 
+    isLoading, 
+    error,
+    firstJob: jobs?.[0] ? { title: jobs[0].title, scheduled_at: jobs[0].scheduled_at } : null
+  });
 
 
 
@@ -58,24 +63,18 @@ export default function ScheduleWeekMobile() {
       groups[dayKey] = [];
     }
     
-    // Group jobs by their scheduled date
+    // Group jobs by their scheduled date - simple approach
     jobs.forEach((job: any) => {
       if (job.scheduled_at) {
         try {
-          // Parse the UTC timestamp and convert to Melbourne timezone for grouping
-          const parsed = parseISO(job.scheduled_at);
-          const melbourneTime = toZonedTime(parsed, 'Australia/Melbourne');
-          const jobDate = format(melbourneTime, "yyyy-MM-dd");
-          if (groups[jobDate]) {
-            groups[jobDate].push(job);
-          }
-        } catch (e) {
-          console.error('Error parsing date for job:', job.id, job.scheduled_at, e);
-          // Fallback: try to extract date from malformed timestamp
+          // Simple extraction of date part without timezone complexity
           const dateMatch = job.scheduled_at.match(/(\d{4}-\d{2}-\d{2})/);
           if (dateMatch && groups[dateMatch[1]]) {
             groups[dateMatch[1]].push(job);
+            console.log('[Mobile Schedule] Added job to', dateMatch[1], ':', job.title);
           }
+        } catch (e) {
+          console.error('Error processing job:', job.id, job.scheduled_at, e);
         }
       }
     });
@@ -204,20 +203,26 @@ export default function ScheduleWeekMobile() {
                           </Badge>
                         </div>
 
-                        {/* Time - FIXED MELBOURNE TIME */}
+                        {/* Time - Simple display */}
                         {job.scheduled_at && (
                           <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                             <Clock className="h-4 w-4" />
                             <span>
                               {(() => {
-                                // Simple direct conversion: UTC to Melbourne (+10 hours)
-                                const utc = new Date(job.scheduled_at);
-                                const melb = new Date(utc.getTime() + (10 * 60 * 60 * 1000));
-                                const h = melb.getUTCHours();
-                                const m = melb.getUTCMinutes();
-                                const ampm = h >= 12 ? 'PM' : 'AM';
-                                const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                                return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+                                try {
+                                  // Just extract time portion and format nicely
+                                  const timeMatch = job.scheduled_at.match(/T(\d{2}):(\d{2}):/);
+                                  if (timeMatch) {
+                                    let h = parseInt(timeMatch[1]);
+                                    const m = timeMatch[2];
+                                    const ampm = h >= 12 ? 'PM' : 'AM';
+                                    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                                    return `${h12}:${m} ${ampm}`;
+                                  }
+                                  return job.scheduled_at.split('T')[1]?.split(':').slice(0,2).join(':') || 'Time';
+                                } catch (e) {
+                                  return 'Time';
+                                }
                               })()}
                             </span>
                           </div>

@@ -118,7 +118,7 @@ function AuthenticatedApp() {
   const pageConfig = getPageConfig();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-100">
       {/* Desktop sidebar */}
       <Sidebar />
       

@@ -73,7 +73,7 @@ export default function Dashboard() {
               <div className="text-sm text-gray-500">Jobs Today</div>
               <div className="text-2xl font-semibold">{todaysJobs.length}</div>
             </div>
-            <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
+            <div className="p-3 rounded-lg bg-schedule-light text-schedule">
               <CalendarDays className="h-6 w-6" />
             </div>
           </CardContent>
@@ -85,7 +85,7 @@ export default function Dashboard() {
               <div className="text-sm text-gray-500">Total Jobs</div>
               <div className="text-2xl font-semibold">{(jobs as any[]).length}</div>
             </div>
-            <div className="p-3 rounded-lg bg-indigo-50 text-indigo-600">
+            <div className="p-3 rounded-lg bg-jobs-light text-jobs">
               <Briefcase className="h-6 w-6" />
             </div>
           </CardContent>
@@ -112,7 +112,7 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {todaysJobs.map((j: any) => (
                   <Link key={j.id} href={`/jobs/${j.id}`}>
-                    <a className="block rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 p-3 transition">
+                    <a className="block rounded-lg border border-gray-200 hover:border-schedule hover:bg-schedule-light/30 p-3 transition">
                       <div className="font-medium">{j.title}</div>
                       <div className="text-xs text-gray-500">
                         {fmtDateTime(j.scheduled_at)} • {j.customer_name || "—"}
@@ -143,7 +143,7 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {upcomingJobs.map((j: any) => (
                   <Link key={j.id} href={`/jobs/${j.id}`}>
-                    <a className="block rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/30 p-3 transition">
+                    <a className="block rounded-lg border border-gray-200 hover:border-jobs hover:bg-jobs-light/30 p-3 transition">
                       <div className="font-medium">{j.title}</div>
                       <div className="text-xs text-gray-500">
                         {fmtDateTime(j.scheduled_at)} • {j.customer_name || "—"}
@@ -164,17 +164,17 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent className="card-pad">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Button data-mobile-full="true" onClick={() => setIsJobModalOpen(true)}>
+            <Button data-mobile-full="true" onClick={() => setIsJobModalOpen(true)} className="bg-jobs hover:bg-jobs/90 text-jobs-foreground">
               <Briefcase className="h-4 w-4 mr-2" /> New Job
             </Button>
             <Link href="/schedule">
-              <a><Button data-mobile-full="true" variant="outline"><CalendarDays className="h-4 w-4 mr-2" /> Schedule</Button></a>
+              <a><Button data-mobile-full="true" variant="outline" className="border-schedule text-schedule hover:bg-schedule-light"><CalendarDays className="h-4 w-4 mr-2" /> Schedule</Button></a>
             </Link>
             <Link href="/customers">
-              <a><Button data-mobile-full="true" variant="outline"><Users className="h-4 w-4 mr-2" /> Customers</Button></a>
+              <a><Button data-mobile-full="true" variant="outline" className="border-people text-people hover:bg-people-light"><Users className="h-4 w-4 mr-2" /> Customers</Button></a>
             </Link>
             <Link href="/equipment">
-              <a><Button data-mobile-full="true" variant="outline"><Wrench className="h-4 w-4 mr-2" /> Equipment</Button></a>
+              <a><Button data-mobile-full="true" variant="outline" className="border-equipment text-equipment hover:bg-equipment-light"><Wrench className="h-4 w-4 mr-2" /> Equipment</Button></a>
             </Link>
           </div>
         </CardContent>

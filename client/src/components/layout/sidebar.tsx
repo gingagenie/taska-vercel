@@ -18,16 +18,15 @@ import {
 import logoUrl from "@assets/Taska_1755842483680.png";
 
 const navigationItems = [
-  { path: "/", label: "Dashboard", icon: BarChart3 },
-  { path: "/jobs", label: "Jobs", icon: Briefcase },
-  { path: "/customers", label: "Customers", icon: Users },
-  { path: "/equipment", label: "Equipment", icon: Settings },
-
-  { path: "/members", label: "Members", icon: Users },
-  { path: "/schedule", label: "Schedule", icon: Calendar },
-  { path: "/quotes", label: "Quotes", icon: FileText, isPro: true },
-  { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true },
-  { path: "/settings", label: "Settings", icon: Cog },
+  { path: "/", label: "Dashboard", icon: BarChart3, category: "management" },
+  { path: "/jobs", label: "Jobs", icon: Briefcase, category: "jobs" },
+  { path: "/customers", label: "Customers", icon: Users, category: "people" },
+  { path: "/equipment", label: "Equipment", icon: Settings, category: "equipment" },
+  { path: "/members", label: "Members", icon: Users, category: "people" },
+  { path: "/schedule", label: "Schedule", icon: Calendar, category: "schedule" },
+  { path: "/quotes", label: "Quotes", icon: FileText, isPro: true, category: "financial" },
+  { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true, category: "financial" },
+  { path: "/settings", label: "Settings", icon: Cog, category: "management" },
 ];
 
 interface SidebarContentProps {
@@ -56,17 +55,37 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
           const Icon = item.icon;
           const isActive = location === item.path;
           const isLocked = item.isPro && !isProUser;
+          const category = item.category as 'jobs' | 'people' | 'equipment' | 'schedule' | 'financial' | 'management';
+          
+          // Get category-specific colors
+          const getCategoryStyles = () => {
+            if (isLocked) return "text-gray-400 cursor-not-allowed";
+            
+            const activeStyles = {
+              jobs: "bg-jobs text-jobs-foreground",
+              people: "bg-people text-people-foreground", 
+              equipment: "bg-equipment text-equipment-foreground",
+              schedule: "bg-schedule text-schedule-foreground",
+              financial: "bg-financial text-financial-foreground",
+              management: "bg-management text-management-foreground"
+            };
+            
+            const hoverStyles = {
+              jobs: "text-gray-700 hover:bg-jobs-light hover:text-jobs",
+              people: "text-gray-700 hover:bg-people-light hover:text-people",
+              equipment: "text-gray-700 hover:bg-equipment-light hover:text-equipment", 
+              schedule: "text-gray-700 hover:bg-schedule-light hover:text-schedule",
+              financial: "text-gray-700 hover:bg-financial-light hover:text-financial",
+              management: "text-gray-700 hover:bg-management-light hover:text-management"
+            };
+            
+            return isActive ? activeStyles[category] : hoverStyles[category];
+          };
           
           return (
             <Link key={item.path} href={item.path}>
               <div
-                className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg cursor-pointer ${
-                  isActive
-                    ? "bg-primary text-white"
-                    : isLocked
-                    ? "text-gray-400 cursor-not-allowed"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`}
+                className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors ${getCategoryStyles()}`}
                 onClick={(e) => {
                   if (isLocked) {
                     e.preventDefault();

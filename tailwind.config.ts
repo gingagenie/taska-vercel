@@ -64,6 +64,36 @@ export default {
           border: "var(--sidebar-border)",
           ring: "var(--sidebar-ring)",
         },
+        jobs: {
+          DEFAULT: "var(--jobs)",
+          light: "var(--jobs-light)",
+          foreground: "var(--jobs-foreground)",
+        },
+        people: {
+          DEFAULT: "var(--people)",
+          light: "var(--people-light)",
+          foreground: "var(--people-foreground)",
+        },
+        equipment: {
+          DEFAULT: "var(--equipment)",
+          light: "var(--equipment-light)",
+          foreground: "var(--equipment-foreground)",
+        },
+        schedule: {
+          DEFAULT: "var(--schedule)",
+          light: "var(--schedule-light)",
+          foreground: "var(--schedule-foreground)",
+        },
+        financial: {
+          DEFAULT: "var(--financial)",
+          light: "var(--financial-light)",
+          foreground: "var(--financial-foreground)",
+        },
+        management: {
+          DEFAULT: "var(--management)",
+          light: "var(--management-light)",
+          foreground: "var(--management-foreground)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],

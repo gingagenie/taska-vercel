@@ -67,29 +67,37 @@ export default function Dashboard() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card className="border-schedule bg-white">
-          <CardContent className="card-pad flex items-center justify-between">
-            <div>
-              <div className="text-sm text-gray-500 font-medium">Jobs Today</div>
-              <div className="text-2xl font-semibold">{todaysJobs.length}</div>
-            </div>
-            <div className="p-3 rounded-lg bg-schedule text-schedule-foreground">
-              <CalendarDays className="h-6 w-6" />
-            </div>
-          </CardContent>
-        </Card>
+        <Link href="/schedule">
+          <a>
+            <Card className="border-schedule bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
+              <CardContent className="card-pad flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-gray-500 font-medium">Jobs Today</div>
+                  <div className="text-2xl font-semibold">{todaysJobs.length}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-schedule text-schedule-foreground">
+                  <CalendarDays className="h-6 w-6" />
+                </div>
+              </CardContent>
+            </Card>
+          </a>
+        </Link>
 
-        <Card className="border-jobs bg-white">
-          <CardContent className="card-pad flex items-center justify-between">
-            <div>
-              <div className="text-sm text-gray-500 font-medium">Total Jobs</div>
-              <div className="text-2xl font-semibold">{(jobs as any[]).length}</div>
-            </div>
-            <div className="p-3 rounded-lg bg-jobs text-jobs-foreground">
-              <Briefcase className="h-6 w-6" />
-            </div>
-          </CardContent>
-        </Card>
+        <Link href="/jobs">
+          <a>
+            <Card className="border-jobs bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
+              <CardContent className="card-pad flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-gray-500 font-medium">Total Jobs</div>
+                  <div className="text-2xl font-semibold">{(jobs as any[]).length}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-jobs text-jobs-foreground">
+                  <Briefcase className="h-6 w-6" />
+                </div>
+              </CardContent>
+            </Card>
+          </a>
+        </Link>
       </div>
 
       {/* Today's Schedule + Upcoming */}

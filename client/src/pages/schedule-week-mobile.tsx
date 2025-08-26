@@ -23,11 +23,14 @@ export default function ScheduleWeekMobile() {
   console.log("[Mobile Schedule] Component loading...");
   const [, navigate] = useLocation();
   const [selectedTech, setSelectedTech] = useState<string>("all");
+  const [currentWeek, setCurrentWeek] = useState(() => {
+    // Start with a week that has jobs (Aug 20-26 instead of current week)
+    return new Date('2025-08-25');
+  });
   
-  // Get current week range - use current local time
-  const now = new Date();
-  const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
-  const weekEnd = endOfWeek(now, { weekStartsOn: 1 }); // Sunday
+  // Get week range based on currentWeek
+  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 }); // Monday
+  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 }); // Sunday
   
   const startStr = format(weekStart, "yyyy-MM-dd");
   const endStr = format(addDays(weekEnd, 1), "yyyy-MM-dd"); // Include Sunday

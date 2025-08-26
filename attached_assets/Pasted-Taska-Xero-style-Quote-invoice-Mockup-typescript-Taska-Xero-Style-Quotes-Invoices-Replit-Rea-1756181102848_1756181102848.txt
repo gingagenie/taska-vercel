@@ -1,0 +1,109 @@
+Taska — Xero‑style Quote/invoice Mockup
+· typescript
+# Taska Xero‑Style Quotes/Invoices — Replit‑Ready Template
+                    <option>GST</option>
+                    <option>None</option>
+                  </select>
+                </div>
+                <div className="col-span-1 text-right font-medium pt-2">{currency(lineTotal)}</div>
+                <div className="col-span-12 flex items-center justify-between pt-2">
+                  <button className="text-sm text-neutral-600 hover:text-neutral-900" onClick={addRow}>+ Add row</button>
+                  {items.length > 1 && (
+                    <button className="text-sm text-red-600" onClick={() => removeRow(it.id)}>Remove</button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+
+        {/* Totals & actions */}
+        <div className="mt-6 grid grid-cols-12 gap-6">
+          <div className="col-span-12 lg:col-span-7">
+            <div className="bg-white rounded-2xl border shadow-sm p-4">
+              <div className="text-sm font-medium text-neutral-700">Notes / Terms</div>
+              <textarea className="mt-2 w-full border rounded-xl px-3 py-2 min-h-[96px]" placeholder="e.g. Payment due within 7 days. Parts remain property of FMF until paid in full."></textarea>
+              <div className="mt-3 flex items-center gap-3 text-sm">
+                <label className="flex items-center gap-2"><input type="checkbox" className="scale-110" /><span>Attach photos</span></label>
+                <label className="flex items-center gap-2"><input type="checkbox" className="scale-110" /><span>Show deposit request (30%)</span></label>
+              </div>
+            </div>
+          </div>
+
+
+          <div className="col-span-12 lg:col-span-5">
+            <div className="bg-white rounded-2xl border shadow-sm p-4">
+              <div className="flex items-center justify-between text-sm"><span className="text-neutral-600">Subtotal</span><span className="font-medium">{currency(totals.subtotal)}</span></div>
+              <div className="flex items-center justify-between text-sm mt-2"><span className="text-neutral-600">Total GST</span><span className="font-medium">{currency(totals.gst)}</span></div>
+              <div className="h-px bg-neutral-200 my-3" />
+              <div className="flex items-center justify-between text-lg font-semibold"><span>Total</span><span>{currency(totals.total)}</span></div>
+              <div className="mt-4 flex gap-2">
+                <button className="flex-1 px-3 py-2 rounded-xl bg-neutral-900 text-white text-sm shadow-sm disabled:opacity-50" disabled={!contact} onClick={sendDoc}>
+                  {isQuote ? 'Send quote' : 'Send invoice'}
+                </button>
+                <button className="px-3 py-2 rounded-xl border text-sm" onClick={() => window.print()}>Print</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        <div className="mt-8 text-center text-xs text-neutral-500">Dev build. API at <code>/api</code>. Replace fake send with Stripe/Xero when ready.</div>
+      </div>
+    </div>
+  );
+}
+```
+
+
+---
+
+
+## File: `.replit` (optional, but handy)
+```ini
+run = "npm run dev"
+```
+
+
+---
+
+
+## File: `README.md`
+```md
+# Taska Quotes/Invoices — Replit Quickstart
+
+
+**Dev run**
+1. Click **Shell** → run `npm install`
+2. Click **Run** (or `npm run dev`)
+3. Open the webview on port 5173. The API runs on 3000 and is proxied by Vite.
+
+
+**Build & Prod**
+```bash
+npm run build
+npm start
+```
+Express will serve the built app from `dist/`.
+
+
+**Where to plug your real stuff**
+- API: `server/index.js` → `/api/send` (email/PDF/Stripe/Xero)
+- Presets: swap the in-memory `PRESETS` for your DB or Supabase
+- Styling: Tailwind in `src/index.css`
+```
+
+
+
+Legend. I’ve turned it into a Replit-ready app on the canvas: React (Vite) + Tailwind front end, tiny Express API, dev proxy, and a “Send” endpoint that actually receives the document.
+
+Quick start:
+
+In Replit: make a new Node.js repl.
+
+Copy the files from the canvas (keep the same paths).
+
+In the Shell: npm install
+
+Hit Run (or npm run dev). Open the webview (port 5173).

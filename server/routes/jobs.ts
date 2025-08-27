@@ -627,7 +627,28 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       RETURNING id, completed_at
     `);
 
-    // Delete the job from the jobs table
+    // Delete related records first, then the job
+    await db.execute(sql`
+      DELETE FROM job_notifications
+      WHERE job_id = ${jobId}::uuid
+    `);
+    
+    await db.execute(sql`
+      DELETE FROM job_assignments
+      WHERE job_id = ${jobId}::uuid
+    `);
+    
+    await db.execute(sql`
+      DELETE FROM job_equipment
+      WHERE job_id = ${jobId}::uuid
+    `);
+    
+    await db.execute(sql`
+      DELETE FROM job_photos
+      WHERE job_id = ${jobId}::uuid
+    `);
+
+    // Finally delete the job from the jobs table
     await db.execute(sql`
       DELETE FROM jobs
       WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid

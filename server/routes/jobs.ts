@@ -757,13 +757,16 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 
     // Create invoice from completed job
     const invoiceResult: any = await db.execute(sql`
-      INSERT INTO invoices (org_id, customer_id, currency, total, status)
+      INSERT INTO invoices (org_id, customer_id, title, notes, status, sub_total, tax_total, grand_total)
       VALUES (
         ${orgId}::uuid, 
         ${completedJob.customer_id}::uuid, 
-        'AUD',
+        ${`Invoice for: ${completedJob.title}`},
+        ${completedJob.notes || ''},
+        'draft',
         0,
-        'draft'
+        0,
+        0
       )
       RETURNING id
     `);

@@ -200,8 +200,8 @@ jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
         from jobs j
         left join customers c on c.id = j.customer_id
         inner join job_assignments ja on ja.job_id = j.id
-        where j.org_id=${orgId}::uuid
-          and ja.user_id = ${techId}::uuid
+        where j.org_id = ${orgId}::uuid
+          and ja.user_id = ${techId}
           and j.scheduled_at is not null
           and j.scheduled_at >= ${start}::timestamptz
           and j.scheduled_at <  ${end}::timestamptz
@@ -214,7 +214,7 @@ jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
                j.customer_id, coalesce(c.name,'—') as customer_name
         from jobs j
         left join customers c on c.id = j.customer_id
-        where j.org_id=${orgId}::uuid
+        where j.org_id = ${orgId}::uuid
           and j.scheduled_at is not null
           and j.scheduled_at >= ${start}::timestamptz
           and j.scheduled_at <  ${end}::timestamptz

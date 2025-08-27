@@ -12,7 +12,7 @@ export class XeroService {
     if (process.env.XERO_CLIENT_ID && process.env.XERO_CLIENT_SECRET) {
       // Support both development and production URLs
       const devDomain = '9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev';
-      const prodDomain = 'taska-gingagenie.replit.app';
+      const prodDomain = 'taska.info';
       
       const redirectUris = [
         `https://${devDomain}/api/xero/callback`,

@@ -709,7 +709,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       )
     `);
 
-    // Copy existing charges to the completed job charges table
+    // Copy existing charges to the completed job charges table (if any)
     await db.execute(sql`
       INSERT INTO completed_job_charges (
         completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at
@@ -725,6 +725,38 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         total,
         created_at
       FROM job_charges
+      WHERE job_id = ${jobId}::uuid
+    `);
+
+    // Copy hours to completed job hours table
+    await db.execute(sql`
+      INSERT INTO completed_job_hours (
+        completed_job_id, original_job_id, org_id, hours, description, created_at
+      )
+      SELECT 
+        ${completedResult.rows[0].id}::uuid,
+        ${jobId}::uuid,
+        org_id,
+        hours,
+        description,
+        created_at
+      FROM job_hours
+      WHERE job_id = ${jobId}::uuid
+    `);
+
+    // Copy parts to completed job parts table
+    await db.execute(sql`
+      INSERT INTO completed_job_parts (
+        completed_job_id, original_job_id, org_id, part_name, quantity, created_at
+      )
+      SELECT 
+        ${completedResult.rows[0].id}::uuid,
+        ${jobId}::uuid,
+        org_id,
+        part_name,
+        quantity,
+        created_at
+      FROM job_parts
       WHERE job_id = ${jobId}::uuid
     `);
 
@@ -767,6 +799,95 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+/* ADD HOURS TO JOB */
+jobs.post("/:jobId/hours", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const { hours, description } = req.body;
+  const orgId = (req as any).orgId;
+  
+  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
+  if (!hours || typeof hours !== 'number' || hours % 0.5 !== 0) {
+    return res.status(400).json({ error: "Hours must be in 0.5 increments" });
+  }
+
+  try {
+    const r: any = await db.execute(sql`
+      INSERT INTO job_hours (job_id, org_id, hours, description)
+      VALUES (${jobId}::uuid, ${orgId}::uuid, ${hours}, ${description || ''})
+      RETURNING id, hours, description, created_at
+    `);
+    res.json(r.rows[0]);
+  } catch (e: any) {
+    console.error("POST /api/jobs/:jobId/hours error:", e);
+    res.status(500).json({ error: e?.message || "Failed to add hours" });
+  }
+});
+
+/* ADD PARTS TO JOB */
+jobs.post("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const { partName, quantity } = req.body;
+  const orgId = (req as any).orgId;
+  
+  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
+  if (!partName || typeof partName !== 'string') {
+    return res.status(400).json({ error: "Part name is required" });
+  }
+  if (!quantity || !Number.isInteger(quantity) || quantity <= 0) {
+    return res.status(400).json({ error: "Quantity must be a positive whole number" });
+  }
+
+  try {
+    const r: any = await db.execute(sql`
+      INSERT INTO job_parts (job_id, org_id, part_name, quantity)
+      VALUES (${jobId}::uuid, ${orgId}::uuid, ${partName}, ${quantity})
+      RETURNING id, part_name, quantity, created_at
+    `);
+    res.json(r.rows[0]);
+  } catch (e: any) {
+    console.error("POST /api/jobs/:jobId/parts error:", e);
+    res.status(500).json({ error: e?.message || "Failed to add part" });
+  }
+});
+
+/* GET HOURS FOR JOB */
+jobs.get("/:jobId/hours", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  
+  try {
+    const r: any = await db.execute(sql`
+      SELECT id, hours, description, created_at
+      FROM job_hours
+      WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at DESC
+    `);
+    res.json(r.rows);
+  } catch (e: any) {
+    console.error("GET /api/jobs/:jobId/hours error:", e);
+    res.status(500).json({ error: e?.message || "Failed to fetch hours" });
+  }
+});
+
+/* GET PARTS FOR JOB */
+jobs.get("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  
+  try {
+    const r: any = await db.execute(sql`
+      SELECT id, part_name, quantity, created_at
+      FROM job_parts
+      WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at DESC
+    `);
+    res.json(r.rows);
+  } catch (e: any) {
+    console.error("GET /api/jobs/:jobId/parts error:", e);
+    res.status(500).json({ error: e?.message || "Failed to fetch parts" });
+  }
+});
+
 /* GET CHARGES FOR COMPLETED JOB */
 jobs.get("/completed/:completedJobId/charges", requireAuth, requireOrg, async (req, res) => {
   const { completedJobId } = req.params;
@@ -783,6 +904,44 @@ jobs.get("/completed/:completedJobId/charges", requireAuth, requireOrg, async (r
   } catch (e: any) {
     console.error("GET /api/jobs/completed/:completedJobId/charges error:", e);
     res.status(500).json({ error: e?.message || "Failed to fetch completed job charges" });
+  }
+});
+
+/* GET HOURS FOR COMPLETED JOB */
+jobs.get("/completed/:completedJobId/hours", requireAuth, requireOrg, async (req, res) => {
+  const { completedJobId } = req.params;
+  const orgId = (req as any).orgId;
+  
+  try {
+    const r: any = await db.execute(sql`
+      SELECT id, hours, description, created_at
+      FROM completed_job_hours
+      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at DESC
+    `);
+    res.json(r.rows);
+  } catch (e: any) {
+    console.error("GET /api/jobs/completed/:completedJobId/hours error:", e);
+    res.status(500).json({ error: e?.message || "Failed to fetch completed job hours" });
+  }
+});
+
+/* GET PARTS FOR COMPLETED JOB */
+jobs.get("/completed/:completedJobId/parts", requireAuth, requireOrg, async (req, res) => {
+  const { completedJobId } = req.params;
+  const orgId = (req as any).orgId;
+  
+  try {
+    const r: any = await db.execute(sql`
+      SELECT id, part_name, quantity, created_at
+      FROM completed_job_parts
+      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at DESC
+    `);
+    res.json(r.rows);
+  } catch (e: any) {
+    console.error("GET /api/jobs/completed/:completedJobId/parts error:", e);
+    res.status(500).json({ error: e?.message || "Failed to fetch completed job parts" });
   }
 });
 

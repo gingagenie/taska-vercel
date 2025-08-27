@@ -38,6 +38,8 @@ export default function CompletedJobView() {
   const { toast } = useToast();
   const [job, setJob] = useState<CompletedJob | null>(null);
   const [charges, setCharges] = useState<JobCharge[]>([]);
+  const [hours, setHours] = useState<any[]>([]);
+  const [parts, setParts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [convertingToInvoice, setConvertingToInvoice] = useState(false);
@@ -56,16 +58,31 @@ export default function CompletedJobView() {
       const jobData = await response.json();
       setJob(jobData);
       
-      // Load charges for the completed job
+      // Load charges, hours, and parts for the completed job
       try {
-        const chargesResponse = await fetch(`/api/jobs/completed/${jobData.id}/charges`);
+        const [chargesResponse, hoursResponse, partsResponse] = await Promise.all([
+          fetch(`/api/jobs/completed/${jobData.id}/charges`),
+          fetch(`/api/jobs/completed/${jobData.id}/hours`),
+          fetch(`/api/jobs/completed/${jobData.id}/parts`)
+        ]);
+        
         if (chargesResponse.ok) {
           const chargesData = await chargesResponse.json();
           setCharges(chargesData);
         }
+        
+        if (hoursResponse.ok) {
+          const hoursData = await hoursResponse.json();
+          setHours(hoursData);
+        }
+        
+        if (partsResponse.ok) {
+          const partsData = await partsResponse.json();
+          setParts(partsData);
+        }
       } catch (e) {
-        console.error('Failed to load completed job charges:', e);
-        // Don't fail the whole page if charges fail to load
+        console.error('Failed to load completed job data:', e);
+        // Don't fail the whole page if these fail to load
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load completed job');
@@ -232,6 +249,56 @@ export default function CompletedJobView() {
                 <div className="border-t pt-3 flex justify-between items-center font-semibold text-lg">
                   <span>Total:</span>
                   <span>${charges.reduce((sum, charge) => sum + charge.total, 0).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Hours Worked */}
+          {hours.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Hours Worked</h3>
+              <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+                {hours.map((hour: any) => (
+                  <div key={hour.id} className="flex justify-between items-center bg-white p-3 rounded border">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{hour.hours} hours</div>
+                      {hour.description && (
+                        <div className="text-sm text-gray-500">{hour.description}</div>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {new Date(hour.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t pt-3 flex justify-between items-center font-semibold text-lg">
+                  <span>Total Hours:</span>
+                  <span>{hours.reduce((sum: number, hour: any) => sum + parseFloat(hour.hours || 0), 0)} hours</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Parts Used */}
+          {parts.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Parts Used</h3>
+              <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+                {parts.map((part: any) => (
+                  <div key={part.id} className="flex justify-between items-center bg-white p-3 rounded border">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{part.part_name}</div>
+                      <div className="text-sm text-gray-500">Quantity: {part.quantity}</div>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {new Date(part.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t pt-3 flex justify-between items-center font-semibold text-lg">
+                  <span>Total Parts:</span>
+                  <span>{parts.reduce((sum: number, part: any) => sum + parseInt(part.quantity || 0), 0)} items</span>
                 </div>
               </div>
             </div>

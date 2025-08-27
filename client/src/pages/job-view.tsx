@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle } from "lucide-react";
+import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle, Clock, Wrench } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 
 export default function JobView() {
@@ -19,6 +20,8 @@ export default function JobView() {
 
   const [job, setJob] = useState<any>(null);
   const [photos, setPhotos] = useState<any[]>([]);
+  const [hours, setHours] = useState<any[]>([]);
+  const [parts, setParts] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -39,16 +42,28 @@ export default function JobView() {
   const [completing, setCompleting] = useState(false);
   const [errComplete, setErrComplete] = useState<string | null>(null);
 
+  // Hours/Parts entry state
+  const [selectedHours, setSelectedHours] = useState<string>("");
+  const [hoursDescription, setHoursDescription] = useState<string>("");
+  const [addingHours, setAddingHours] = useState(false);
+  const [newPartName, setNewPartName] = useState<string>("");
+  const [newPartQuantity, setNewPartQuantity] = useState<string>("1");
+  const [addingPart, setAddingPart] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
-        // Load job data and photos
-        const [jobData, photoData] = await Promise.all([
+        // Load job data, photos, hours, and parts
+        const [jobData, photoData, hoursData, partsData] = await Promise.all([
           api(`/api/jobs/${jobId}`),
           photosApi.list(jobId),
+          api(`/api/jobs/${jobId}/hours`),
+          api(`/api/jobs/${jobId}/parts`),
         ]);
         setJob(jobData);
         setPhotos(photoData);
+        setHours(hoursData);
+        setParts(partsData);
       } catch (e: any) {
         setErr(e?.message || "Failed to load job");
       } finally {
@@ -118,6 +133,58 @@ export default function JobView() {
       setTimeout(() => setToast(null), 5000);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function addHours() {
+    if (!selectedHours) return;
+    setAddingHours(true);
+    try {
+      await api(`/api/jobs/${jobId}/hours`, {
+        method: 'POST',
+        body: JSON.stringify({
+          hours: parseFloat(selectedHours),
+          description: hoursDescription
+        })
+      });
+      // Refresh hours list
+      const hoursData = await api(`/api/jobs/${jobId}/hours`);
+      setHours(hoursData);
+      setSelectedHours("");
+      setHoursDescription("");
+      setToast("Hours added ✔");
+      setTimeout(() => setToast(null), 3000);
+    } catch (e: any) {
+      setToast(e?.message || "Failed to add hours");
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      setAddingHours(false);
+    }
+  }
+
+  async function addPart() {
+    if (!newPartName) return;
+    setAddingPart(true);
+    try {
+      await api(`/api/jobs/${jobId}/parts`, {
+        method: 'POST',
+        body: JSON.stringify({
+          partName: newPartName,
+          quantity: parseInt(newPartQuantity)
+        })
+      });
+      // Refresh parts list
+      const partsData = await api(`/api/jobs/${jobId}/parts`);
+      setParts(partsData);
+      setNewPartName("");
+      setNewPartQuantity("1");
+      setToast("Part added ✔");
+      setTimeout(() => setToast(null), 3000);
+    } catch (e: any) {
+      setToast(e?.message || "Failed to add part");
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      setAddingPart(false);
     }
   }
 
@@ -326,6 +393,142 @@ export default function JobView() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Hours Worked Section */}
+      <Card className="border-jobs bg-white">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Hours Worked
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Add hours form */}
+            <div className="flex gap-2 flex-wrap">
+              <Select value={selectedHours} onValueChange={setSelectedHours}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Hours" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0.5">0.5 hours</SelectItem>
+                  <SelectItem value="1">1 hour</SelectItem>
+                  <SelectItem value="1.5">1.5 hours</SelectItem>
+                  <SelectItem value="2">2 hours</SelectItem>
+                  <SelectItem value="2.5">2.5 hours</SelectItem>
+                  <SelectItem value="3">3 hours</SelectItem>
+                  <SelectItem value="3.5">3.5 hours</SelectItem>
+                  <SelectItem value="4">4 hours</SelectItem>
+                  <SelectItem value="4.5">4.5 hours</SelectItem>
+                  <SelectItem value="5">5 hours</SelectItem>
+                  <SelectItem value="5.5">5.5 hours</SelectItem>
+                  <SelectItem value="6">6 hours</SelectItem>
+                  <SelectItem value="6.5">6.5 hours</SelectItem>
+                  <SelectItem value="7">7 hours</SelectItem>
+                  <SelectItem value="7.5">7.5 hours</SelectItem>
+                  <SelectItem value="8">8 hours</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                placeholder="Description (optional)"
+                value={hoursDescription}
+                onChange={(e) => setHoursDescription(e.target.value)}
+                className="flex-1 min-w-48"
+                data-testid="input-hours-description"
+              />
+              <Button 
+                onClick={addHours}
+                disabled={!selectedHours || addingHours}
+                data-testid="button-add-hours"
+              >
+                {addingHours ? "Adding..." : "Add Hours"}
+              </Button>
+            </div>
+            
+            {/* Hours list */}
+            {hours.length > 0 ? (
+              <div className="space-y-2">
+                {hours.map((h: any) => (
+                  <div key={h.id} className="flex justify-between items-center bg-gray-50 p-3 rounded">
+                    <div>
+                      <span className="font-medium">{h.hours} hours</span>
+                      {h.description && <span className="text-gray-600 ml-2">- {h.description}</span>}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {new Date(h.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t pt-2">
+                  <span className="font-medium">Total: {hours.reduce((sum, h) => sum + parseFloat(h.hours || 0), 0)} hours</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-gray-500">No hours logged yet</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Parts Used Section */}
+      <Card className="border-jobs bg-white">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wrench className="h-5 w-5" />
+            Parts Used
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Add parts form */}
+            <div className="flex gap-2 flex-wrap">
+              <Input
+                placeholder="Part name (e.g., Exhaust)"
+                value={newPartName}
+                onChange={(e) => setNewPartName(e.target.value)}
+                className="flex-1 min-w-48"
+                data-testid="input-part-name"
+              />
+              <Select value={newPartQuantity} onValueChange={setNewPartQuantity}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                    <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button 
+                onClick={addPart}
+                disabled={!newPartName || addingPart}
+                data-testid="button-add-part"
+              >
+                {addingPart ? "Adding..." : "Add Part"}
+              </Button>
+            </div>
+            
+            {/* Parts list */}
+            {parts.length > 0 ? (
+              <div className="space-y-2">
+                {parts.map((p: any) => (
+                  <div key={p.id} className="flex justify-between items-center bg-gray-50 p-3 rounded">
+                    <div>
+                      <span className="font-medium">{p.part_name}</span>
+                      <span className="text-gray-600 ml-2">× {p.quantity}</span>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {new Date(p.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-500">No parts used yet</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Photos Section */}
       <Card className="border-jobs bg-white">

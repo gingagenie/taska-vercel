@@ -148,6 +148,48 @@ export const completedJobs = pgTable("completed_jobs", {
   originalCreatedAt: timestamp("original_created_at"),
 });
 
+// Job hours tracking (0.5 hour increments)
+export const jobHours = pgTable("job_hours", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: uuid("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" }),
+  orgId: uuid("org_id").notNull(),
+  hours: decimal("hours", { precision: 4, scale: 1 }).notNull(), // e.g., 1.5, 2.0, 0.5
+  description: text("description"), // Optional description of work performed
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Job parts used tracking  
+export const jobParts = pgTable("job_parts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: uuid("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" }),
+  orgId: uuid("org_id").notNull(),
+  partName: text("part_name").notNull(), // e.g., "Exhaust", "Air Filter"
+  quantity: integer("quantity").notNull().default(1), // Whole numbers only
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Completed job hours (preserved when job completed)
+export const completedJobHours = pgTable("completed_job_hours", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  completedJobId: uuid("completed_job_id").notNull(),
+  originalJobId: uuid("original_job_id").notNull(),
+  orgId: uuid("org_id").notNull(),
+  hours: decimal("hours", { precision: 4, scale: 1 }).notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Completed job parts (preserved when job completed)
+export const completedJobParts = pgTable("completed_job_parts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  completedJobId: uuid("completed_job_id").notNull(),
+  originalJobId: uuid("original_job_id").notNull(),
+  orgId: uuid("org_id").notNull(),
+  partName: text("part_name").notNull(),
+  quantity: integer("quantity").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Entitlements (for pro features)
 export const entitlements = pgTable("entitlements", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -244,6 +286,8 @@ export const insertJobNotificationSchema = createInsertSchema(jobNotifications).
 export const insertOrgIntegrationSchema = createInsertSchema(orgIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertItemPresetSchema = createInsertSchema(itemPresets).omit({ id: true, createdAt: true });
 export const insertCompletedJobSchema = createInsertSchema(completedJobs).omit({ id: true, completedAt: true });
+export const insertJobHoursSchema = createInsertSchema(jobHours).omit({ id: true, createdAt: true });
+export const insertJobPartsSchema = createInsertSchema(jobParts).omit({ id: true, createdAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -275,3 +319,9 @@ export type InsertItemPreset = z.infer<typeof insertItemPresetSchema>;
 
 export type CompletedJob = typeof completedJobs.$inferSelect;
 export type InsertCompletedJob = z.infer<typeof insertCompletedJobSchema>;
+
+export type JobHours = typeof jobHours.$inferSelect;
+export type InsertJobHours = z.infer<typeof insertJobHoursSchema>;
+
+export type JobParts = typeof jobParts.$inferSelect;
+export type InsertJobParts = z.infer<typeof insertJobPartsSchema>;

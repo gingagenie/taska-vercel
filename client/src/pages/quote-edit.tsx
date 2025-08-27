@@ -92,8 +92,8 @@ export default function QuoteEdit() {
     const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');
     if (!previewWindow) return;
 
-    const customer = customers.find((c: any) => c.id === payload.customerId) || {};
-    const org = meData?.org || {};
+    const customer = (customers as any[]).find((c: any) => c.id === payload.customerId) || {};
+    const org = (meData as any)?.org || {};
     
     previewWindow.document.write(`
       <!DOCTYPE html>

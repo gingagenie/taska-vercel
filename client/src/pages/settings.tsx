@@ -140,6 +140,11 @@ export default function SettingsPage() {
       // Set the object path in org state
       setOrg(o => ({...o, logo_url: updateData.objectPath}));
       
+      // Manually save the organization with the new logo
+      setTimeout(() => {
+        saveOrg();
+      }, 100);
+      
       toast({
         title: "Logo uploaded",
         description: "Your company logo has been uploaded successfully",
@@ -189,7 +194,7 @@ export default function SettingsPage() {
 
   // Auto-save org changes after a delay
   useEffect(() => {
-    if (!data?.org) return; // Don't auto-save until initial data is loaded
+    if (!data?.org || uploading) return; // Don't auto-save until initial data is loaded or during upload
     
     const timer = setTimeout(() => {
       const originalOrg = data.org || {};
@@ -202,13 +207,13 @@ export default function SettingsPage() {
                         org.logo_url !== (originalOrg.logo_url || "") ||
                         org.default_labour_rate_cents !== (originalOrg.default_labour_rate_cents || 0);
       
-      if (hasChanges && !saving) {
+      if (hasChanges && !saving && !uploading) {
         saveOrg();
       }
     }, 1000); // Auto-save 1 second after changes
 
     return () => clearTimeout(timer);
-  }, [org, data?.org, saving]);
+  }, [org, data?.org, saving, uploading]);
 
   async function saveProfile() {
     setSaving(true);
@@ -582,9 +587,11 @@ export default function SettingsPage() {
                       <p className="text-muted-foreground">
                         Organization: {xeroStatus.tenantName}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        Connected {new Date(xeroStatus.connectedAt).toLocaleDateString()}
-                      </p>
+                      {xeroStatus.connectedAt && (
+                        <p className="text-xs text-muted-foreground">
+                          Connected {new Date(xeroStatus.connectedAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-3 max-w-md">
                       <Button

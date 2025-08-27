@@ -59,17 +59,11 @@ router.put("/logo", requireAuth, requireOrg, async (req, res) => {
 
   try {
     const objectStorageService = new ObjectStorageService();
-    const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
-      logoURL,
-      {
-        owner: req.userId!,
-        visibility: "public", // Logo should be publicly accessible
-      },
-    );
+    const objectPath = objectStorageService.normalizeObjectEntityPath(logoURL);
 
     res.json({ objectPath });
   } catch (error) {
-    console.error("Error setting logo ACL:", error);
+    console.error("Error setting logo path:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

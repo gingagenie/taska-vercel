@@ -1,0 +1,137 @@
+The robust fix (Replit-friendly, Supabase/Express)
+Frontend (React) — stop loops + save the right thing
+
+Kill auto-save triggers that watch logo fields.
+
+// settings.tsx (or OrganizationSettings.tsx)
+const [isSaving, setIsSaving] = useState(false);
+const didInitRef = useRef(false);
+
+// Remove any form auto-save useEffect like:
+// useEffect(() => { saveOrg(); }, [watch()])  ❌
+
+// Keep a plain manual submit:
+const onSubmit = async (values: OrgForm) => {
+  setIsSaving(true);
+  try {
+    await api.put(`/api/orgs/${orgId}`, values);
+    toast.success("Organization updated");
+  } catch (e) {
+    toast.error("Save failed");
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+
+Upload the file, save only the object path, preview locally.
+
+async function handleLogoUpload(file: File) {
+  if (!file) return;
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+  const objectPath = `orgs/${orgId}/logo.${ext}`;
+
+  // Upload to Supabase storage via server (recommended) or directly:
+  await api.post(`/api/orgs/${orgId}/logo`, await file.arrayBuffer(), {
+    headers: { 'Content-Type': file.type || 'image/png' }
+  });
+
+  // Save ONLY the path on the org record (not a signed URL)
+  await api.put(`/api/orgs/${orgId}`, { logo_path: objectPath });
+
+  // Preview instantly without hitting network
+  const localUrl = URL.createObjectURL(file);
+  setValue('logo_preview_url', localUrl, { shouldDirty: false });
+
+  toast.success("Logo uploaded");
+}
+
+
+Display the logo via a stable server endpoint (never a temporary URL):
+
+const logoSrc = org.logo_path
+  ? `/api/orgs/${orgId}/logo`   // server streams with correct headers
+  : '/placeholder-logo.svg';
+
+<img src={logoSrc} alt="Company logo" className="h-10 w-auto" onError={(e) => {
+  (e.target as HTMLImageElement).src = '/placeholder-logo.svg';
+}} />
+
+
+Note: This prevents expiry issues and keeps your public URL surface area small.
+
+Server (Express) — upload, set ACL, and stream
+
+Upload endpoint (writes to storage and normalizes path):
+
+// server/routes/orgs.ts
+import express from 'express';
+import { supabase } from '../supabase'; // your client with service role for storage
+const router = express.Router();
+
+router.post('/api/orgs/:orgId/logo', async (req, res) => {
+  const { orgId } = req.params;
+  try {
+    const contentType = req.get('content-type') || 'image/png';
+    const ext = contentType.includes('jpeg') ? 'jpg'
+              : contentType.includes('png') ? 'png'
+              : contentType.includes('svg') ? 'svg'
+              : 'png';
+
+    const chunks: Buffer[] = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', async () => {
+      const buffer = Buffer.concat(chunks);
+      const objectPath = `orgs/${orgId}/logo.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from('logos')                // make sure bucket "logos" exists
+        .upload(objectPath, buffer, { upsert: true, contentType });
+
+      if (upErr) return res.status(500).json({ error: upErr.message });
+
+      // Ensure bucket is public or create a signed-URL per request below
+      // Update DB to store just the path:
+      await db.query('UPDATE organizations SET logo_path=$1 WHERE id=$2', [objectPath, orgId]);
+
+      res.json({ ok: true, path: objectPath });
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+Serve endpoint (streams the file w/ cache + correct type):
+
+router.get('/api/orgs/:orgId/logo', async (req, res) => {
+  const { orgId } = req.params;
+  const row = await db.query('SELECT logo_path FROM organizations WHERE id=$1', [orgId])
+                      .then(r => r.rows[0]);
+  if (!row?.logo_path) return res.status(404).send('No logo');
+
+  const { data, error } = await supabase.storage.from('logos').download(row.logo_path);
+  if (error) return res.status(404).send('Not found');
+
+  // Try to infer content-type from path
+  const ext = (row.logo_path as string).split('.').pop()?.toLowerCase();
+  const type = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+             : ext === 'svg' ? 'image/svg+xml'
+             : 'image/png';
+
+  res.setHeader('Content-Type', type);
+  res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400');
+  res.send(Buffer.from(await data.arrayBuffer()));
+});
+
+
+If your bucket isn’t public: keep using this server route; it avoids signed-URL expiry entirely. If your bucket is public: you could also build the public URL https://<proj>.supabase.co/storage/v1/object/public/logos/${logo_path}, but the server route is simpler to reason about and lets you tune caching.
+
+CORS & HTTPS
+Ensure your Express app sets CORS headers for GET /api/orgs/:id/logo and the site is loaded over HTTPS to avoid mixed content.
+
+Why your loop happens (and why this stops it)
+
+Auto-save watchers often listen to any field change (including logo_url) → save → DB updates → form refetch → state changes → watcher fires again → loop.
+
+The fix removes the watcher and isolates logo upl

@@ -84,6 +84,87 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      <section className="max-w-5xl mx-auto px-6 py-16">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold text-gray-900" data-testid="text-pricing-title">
+            Choose your plan
+          </h2>
+          <p className="text-gray-600 mt-4">Start with any plan and upgrade as you grow</p>
+        </div>
+        <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+          <div className="border rounded-lg p-6 bg-white shadow-sm" data-testid="card-pricing-solo">
+            <div className="text-center">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Taska Solo</h3>
+              <div className="mb-4">
+                <span className="text-3xl font-bold text-gray-900">$29</span>
+                <span className="text-gray-600">/month</span>
+              </div>
+              <p className="text-gray-600 text-sm mb-6">Perfect for solo operators and small businesses</p>
+              <Link href="/auth/register">
+                <Button className="w-full" data-testid="button-choose-solo">Choose Solo</Button>
+              </Link>
+            </div>
+          </div>
+          
+          <div className="border-2 border-blue-500 rounded-lg p-6 bg-white shadow-lg relative" data-testid="card-pricing-pro">
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium">Most Popular</span>
+            </div>
+            <div className="text-center">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Taska Pro</h3>
+              <div className="mb-4">
+                <span className="text-3xl font-bold text-gray-900">$49</span>
+                <span className="text-gray-600">/month</span>
+              </div>
+              <p className="text-gray-600 text-sm mb-6">Great for growing teams and advanced features</p>
+              <Link href="/auth/register">
+                <Button className="w-full" data-testid="button-choose-pro">Choose Pro</Button>
+              </Link>
+            </div>
+          </div>
+          
+          <div className="border rounded-lg p-6 bg-white shadow-sm" data-testid="card-pricing-enterprise">
+            <div className="text-center">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Taska Enterprise</h3>
+              <div className="mb-4">
+                <span className="text-3xl font-bold text-gray-900">$99</span>
+                <span className="text-gray-600">/month</span>
+              </div>
+              <p className="text-gray-600 text-sm mb-6">Full-scale solution for large organizations</p>
+              <Link href="/auth/register">
+                <Button variant="outline" className="w-full" data-testid="button-choose-enterprise">Choose Enterprise</Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+        
+        <div className="text-center mt-12">
+          <p className="text-gray-600 mb-4">All plans include:</p>
+          <div className="flex justify-center">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+              <div className="flex items-center">
+                <svg className="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                30-day free trial
+              </div>
+              <div className="flex items-center">
+                <svg className="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                No setup fees
+              </div>
+              <div className="flex items-center">
+                <svg className="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Cancel anytime
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

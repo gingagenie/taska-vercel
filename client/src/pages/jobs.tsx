@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { JobModal } from "@/components/modals/job-modal";
 import { jobsApi } from "@/lib/api";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Edit, MoreHorizontal, Calendar, User, ArrowRight } from "lucide-react";
+import { Edit, MoreHorizontal, Calendar, User, ArrowRight, CheckCircle } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 
 export default function Jobs() {
@@ -93,6 +93,15 @@ export default function Jobs() {
             className="w-72"
             data-testid="input-search-jobs"
           />
+          <Button 
+            variant="outline"
+            onClick={() => navigate('/completed-jobs')}
+            data-testid="button-view-completed"
+            className="border-green-200 text-green-700 hover:bg-green-50"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Completed Jobs
+          </Button>
           <Button 
             onClick={() => setIsJobModalOpen(true)}
             data-testid="button-new-job"

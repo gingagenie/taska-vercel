@@ -68,4 +68,54 @@ router.put("/logo", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+// Diagnostic endpoint for logo issues
+router.get("/diagnostics/:objectPath(*)", async (req, res) => {
+  try {
+    const fullPath = `/objects/${req.params.objectPath}`;
+    const objectStorageService = new ObjectStorageService();
+    
+    let storageExists = false;
+    let bytes = 0;
+    let contentType = null;
+    let storageError = null;
+    let metadata = null;
+
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(fullPath);
+      const [fileMeta] = await objectFile.getMetadata();
+      
+      storageExists = true;
+      bytes = parseInt(String(fileMeta.size || '0'));
+      contentType = fileMeta.contentType;
+      metadata = fileMeta;
+      
+    } catch (error: any) {
+      storageError = error.message;
+      if (error instanceof ObjectNotFoundError) {
+        storageExists = false;
+      }
+    }
+
+    res.json({
+      requestedPath: fullPath,
+      storage: {
+        exists: storageExists,
+        bytes,
+        contentType,
+        error: storageError,
+        metadata: metadata
+      },
+      recommendations: [
+        "Object path should be like /objects/uploads/<uuid>",
+        "Check if object exists in Google Cloud Storage",
+        "If bytes=0, re-upload the file",
+        "Ensure proper ACL policy is set for public access"
+      ]
+    });
+  } catch (error: any) {
+    console.error("Diagnostic error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

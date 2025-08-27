@@ -1,0 +1,171 @@
+One-click diagnostics (drop this in your Express routes)
+
+This prints out exactly what’s wrong (DB value, storage existence, bytes, headers), so we’re not guessing.
+
+// server/routes/orgs.ts
+import express from "express";
+import { supabase } from "../supabase"; // service-key client
+import crypto from "crypto";
+const router = express.Router();
+
+router.get("/api/diagnostics/logo/:orgId", async (req, res) => {
+  const { orgId } = req.params;
+  try {
+    const dbRow = await db
+      .query("SELECT logo_path FROM organizations WHERE id=$1", [orgId])
+      .then(r => r.rows?.[0] || null);
+
+    const logoPath = dbRow?.logo_path || null;
+    const bucket = "logos";
+
+    let storageMeta: any = null;
+    let bytes = 0;
+    let contentType = null;
+    let storageError = null;
+
+    if (logoPath) {
+      // Try to stat
+      const { data: list, error: listErr } = await supabase
+        .storage.from(bucket)
+        .list(logoPath.split("/").slice(0, -1).join("/"), { limit: 100 });
+
+      if (listErr) {
+        storageError = listErr.message;
+      } else {
+        storageMeta = list?.find(f => f.name === logoPath.split("/").pop());
+      }
+
+      // Try to download
+      const { data: blob, error: dlErr } = await supabase.storage
+        .from(bucket)
+        .download(logoPath);
+
+      if (dlErr) {
+        storageError = (storageError ? storageError + " | " : "") + dlErr.message;
+      } else if (blob) {
+        const ab = await blob.arrayBuffer();
+        bytes = ab.byteLength;
+        // naive content sniff
+        const head = Buffer.from(ab.slice(0, 12)).toString("hex");
+        if (head.startsWith("89504e470d0a1a0a")) contentType = "image/png";
+        else if (head.startsWith("ffd8ff")) contentType = "image/jpeg";
+        else if (head.includes(Buffer.from("<svg").toString("hex"))) contentType = "image/svg+xml";
+        else if (head.startsWith("52494646") && head.includes("57454250")) contentType = "image/webp";
+      }
+    }
+
+    res.json({
+      orgId,
+      db: { logo_path: logoPath },
+      storage: {
+        bucket,
+        exists: !!storageMeta,
+        file: storageMeta || null,
+        bytes,
+        inferredType: contentType,
+        error: storageError
+      },
+      recommendations: [
+        "logo_path should be like orgs/<orgId>/logo.png (no leading slash, no full URL).",
+        "Ensure bucket name matches ('logos').",
+        "If bytes=0, re-upload; the file is empty.",
+        "If exists=false, your path in DB doesn’t match the stored object."
+      ]
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+export default router;
+
+
+Hit GET /api/diagnostics/logo/<orgId> in your browser.
+If bytes is 0, wrong path, or exists: false — you’ve found the culprit in black and white.
+
+2) Make the serve endpoint foolproof (handles PNG/JPG/SVG/WebP, proper headers)
+
+Replace your current GET route with this:
+
+router.get("/api/orgs/:orgId/logo", async (req, res) => {
+  const { orgId } = req.params;
+  try {
+    const row = await db
+      .query("SELECT logo_path FROM organizations WHERE id=$1", [orgId])
+      .then(r => r.rows?.[0]);
+
+    const logoPath: string | null = row?.logo_path || null;
+    if (!logoPath) return res.status(404).send("No logo");
+
+    const { data, error } = await supabase.storage
+      .from("logos")
+      .download(logoPath);
+
+    if (error || !data) {
+      // Helpful logging for you
+      console.error("Logo download error:", error?.message, { orgId, logoPath });
+      return res.status(404).send("Not found");
+    }
+
+    const ab = await data.arrayBuffer();
+    const buf = Buffer.from(ab);
+
+    // Infer content type from bytes (more reliable than extension)
+    const head = buf.subarray(0, 12).toString("hex");
+    let type = "application/octet-stream";
+    if (head.startsWith("89504e470d0a1a0a")) type = "image/png";
+    else if (head.startsWith("ffd8ff")) type = "image/jpeg";
+    else if (buf.toString("utf8").slice(0, 256).includes("<svg")) type = "image/svg+xml";
+    else if (head.startsWith("52494646") && buf.toString("utf8", 8, 12) === "WEBP") type = "image/webp";
+
+    res.setHeader("Content-Type", type);
+    res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400");
+    res.send(buf);
+  } catch (e: any) {
+    console.error("Logo serve exception:", e);
+    res.status(500).send("Server error");
+  }
+});
+
+
+Why this helps: even if the file is SVG/WebP or the extension is missing/wrong, the browser gets the correct content-type; Replit’s proxy can’t “HTML your image” by accident.
+
+3) Frontend <img>: add cache-buster + safe fallback
+
+Sometimes the browser caches a broken response. Bust it and fallback cleanly.
+
+const cacheBuster = org.updated_at ? `?v=${new Date(org.updated_at).getTime()}` : `?v=${Date.now()}`;
+const logoSrc = org.logo_path ? `/api/orgs/${orgId}/logo${cacheBuster}` : '/placeholder-logo.svg';
+
+<img
+  src={logoSrc}
+  alt="Company logo"
+  className="h-10 w-auto"
+  onError={(e) => {
+    (e.currentTarget as HTMLImageElement).src = "/placeholder-logo.svg";
+  }}
+/>
+
+4) The usual gotchas (quick checklist)
+
+DB value: logo_path must be a path only e.g. orgs/123/logo.png (no http…, no leading /).
+
+Bucket name: route uses "logos". Confirm the bucket is actually named logos.
+
+Object exists: In Supabase Storage → logos bucket, verify that exact path exists and has a non-zero size.
+
+SVGs: If you uploaded an SVG, some servers return the wrong type; the serve code above fixes that.
+
+CSP/Mixed Content: Use relative /api/... URL; ensure your img-src CSP allows it.
+
+CORS: Not relevant if you load from same origin (/api/...).
+
+Zero-byte uploads: Happens if the upload stream ends early — the diagnostics endpoint will show bytes: 0.
+
+5) If the diagnostics say “exists: false” or wrong bytes
+
+Re-upload the logo with the server endpoint and save only the path:
+
+// After successful /api/orgs/:orgId/logo POST
+await db.query("UPDATE organizations SET logo_path=$1, updated_at=NOW() WHERE id=$2",
+               [`orgs/${orgId}/logo.${ext}`, orgId]);

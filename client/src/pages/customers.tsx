@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { customersApi } from "@/lib/api";
 import { Link, useLocation } from "wouter";
 
@@ -7,8 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-
-import { Mail, Phone, MapPin, MoreHorizontal, Edit, ArrowRight } from "lucide-react";
+import { Mail, Phone, MapPin, MoreHorizontal, Edit, ArrowRight, Upload } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -43,9 +43,12 @@ export default function Customers() {
     queryFn: customersApi.getAll,
   });
 
-
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [q, setQ] = useState("");
   const [, navigate] = useLocation();
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     const text = q.toLowerCase();
@@ -57,6 +60,64 @@ export default function Customers() {
 
     return (list as any[]).filter(byText);
   }, [list, q]);
+
+  const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a CSV file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('csvFile', file);
+
+      const response = await fetch('/api/customers/import-csv', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload CSV');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "CSV Import Successful",
+        description: `Imported ${result.imported} of ${result.total} customers${result.errors ? `. ${result.errors.length} errors occurred.` : ''}`,
+      });
+
+      if (result.errors) {
+        console.log("Import errors:", result.errors);
+      }
+
+      // Refresh the customers list
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      
+    } catch (error: any) {
+      toast({
+        title: "Import Failed",
+        description: error.message || 'Failed to import CSV',
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -70,6 +131,22 @@ export default function Customers() {
             className="w-72"
             data-testid="input-search-customers"
           />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleCSVUpload}
+            accept=".csv"
+            className="hidden"
+          />
+          <Button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            variant="outline"
+            data-testid="button-import-csv"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {isUploading ? "Importing..." : "Import CSV"}
+          </Button>
           <Button 
             onClick={() => navigate("/customers/new")} 
             data-testid="button-new-customer"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { equipmentApi } from "@/lib/api";
 import { useLocation } from "wouter";
@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { EquipmentModal } from "@/components/modals/equipment-modal";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { MapPin, Edit, MoreHorizontal, Trash2, AlertTriangle, ArrowRight } from "lucide-react";
+import { MapPin, Edit, MoreHorizontal, Trash2, AlertTriangle, ArrowRight, Upload } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 function addrLine(e: any) {
   return e.customer_address || "";
@@ -20,12 +21,15 @@ export default function EquipmentPage() {
     queryFn: equipmentApi.getAll 
   });
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [editEquipment, setEditEquipment] = useState<any>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [, navigate] = useLocation();
 
   const filtered = (list as any[]).filter((e) =>
@@ -34,6 +38,64 @@ export default function EquipmentPage() {
       .toLowerCase()
       .includes(q.toLowerCase())
   );
+
+  const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a CSV file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('csvFile', file);
+
+      const response = await fetch('/api/equipment/import-csv', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload CSV');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "CSV Import Successful",
+        description: `Imported ${result.imported} of ${result.total} equipment items${result.errors ? `. ${result.errors.length} errors occurred.` : ''}`,
+      });
+
+      if (result.errors) {
+        console.log("Import errors:", result.errors);
+      }
+
+      // Refresh the equipment list
+      qc.invalidateQueries({ queryKey: ["/api/equipment"] });
+      
+    } catch (error: any) {
+      toast({
+        title: "Import Failed",
+        description: error.message || 'Failed to import CSV',
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   if (isLoading) {
     return <div className="p-6">Loading equipment...</div>;
@@ -51,6 +113,22 @@ export default function EquipmentPage() {
             onChange={(e)=>setQ(e.target.value)} 
             data-testid="input-search-equipment"
           />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleCSVUpload}
+            accept=".csv"
+            className="hidden"
+          />
+          <Button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            variant="outline"
+            data-testid="button-import-csv"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {isUploading ? "Importing..." : "Import CSV"}
+          </Button>
           <Button 
             onClick={()=>setOpen(true)}
             data-testid="button-new-equipment"

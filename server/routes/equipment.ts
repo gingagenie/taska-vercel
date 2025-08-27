@@ -3,9 +3,18 @@ import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import multer from "multer";
+import { parse } from "csv-parse";
+import { Readable } from "stream";
 
 export const equipment = Router();
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
+
+// Configure multer for file uploads
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 /* LIST: equipment + customer name + address */
 equipment.get("/", requireAuth, requireOrg, async (req, res) => {
@@ -139,6 +148,106 @@ equipment.delete("/:id", requireAuth, requireOrg, async (req, res) => {
   `);
 
   res.json({ ok: true });
+});
+
+/* CSV IMPORT */
+equipment.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'), async (req, res) => {
+  const orgId = (req as any).orgId;
+  console.log("[TRACE] POST /api/equipment/import-csv org=%s", orgId);
+  
+  if (!req.file) {
+    return res.status(400).json({ error: "No CSV file uploaded" });
+  }
+
+  try {
+    // Double-check org existence
+    const ok: any = await db.execute(sql`select 1 from orgs where id=${orgId}::uuid`);
+    if (!ok.rows?.length) {
+      console.log(`[AUTH] 400 - Invalid org at CSV import: orgId=${orgId}`);
+      return res.status(400).json({ error: "Invalid org" });
+    }
+
+    const csvContent = req.file.buffer.toString('utf-8');
+    const records: any[] = [];
+    
+    // Parse CSV
+    const readable = Readable.from([csvContent]);
+    const parser = parse({
+      columns: true,
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    readable.pipe(parser);
+
+    for await (const record of parser) {
+      records.push(record);
+    }
+
+    if (records.length === 0) {
+      return res.status(400).json({ error: "No valid records found in CSV" });
+    }
+
+    let imported = 0;
+    let errors: string[] = [];
+
+    // Process each record
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      const rowNum = i + 2; // +2 because CSV header is row 1, data starts at row 2
+      
+      try {
+        const { name, model, serial_number, make, serial, notes, customer_name } = record;
+        
+        if (!name?.trim()) {
+          errors.push(`Row ${rowNum}: Missing required field 'name'`);
+          continue;
+        }
+
+        let customerId = null;
+        
+        // Look up customer by name if provided
+        if (customer_name?.trim()) {
+          const customerResult: any = await db.execute(sql`
+            select id from customers 
+            where name = ${customer_name} and org_id = ${orgId}::uuid
+          `);
+          
+          if (customerResult.rows.length > 0) {
+            customerId = customerResult.rows[0].id;
+          } else {
+            errors.push(`Row ${rowNum}: Customer '${customer_name}' not found`);
+            continue;
+          }
+        }
+
+        // Insert equipment
+        await db.execute(sql`
+          insert into equipment (
+            org_id, name, model, serial_number, make, serial, notes, customer_id
+          ) values (
+            ${orgId}::uuid, ${name}, ${model||null}, ${serial_number||null}, 
+            ${make||null}, ${serial||null}, ${notes||null}, ${customerId}
+          )
+        `);
+
+        imported++;
+      } catch (error: any) {
+        errors.push(`Row ${rowNum}: ${error.message}`);
+      }
+    }
+
+    res.json({
+      ok: true,
+      imported,
+      total: records.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error: any) {
+    console.error("POST /api/equipment/import-csv error:", error);
+    res.status(500).json({ error: error?.message || "Failed to import CSV" });
+  }
 });
 
 export default equipment;

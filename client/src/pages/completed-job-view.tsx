@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Calendar, User, Clock, ArrowLeft } from "lucide-react";
+import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
+import { useToast } from "@/hooks/use-toast";
 
 interface CompletedJob {
   id: string;
@@ -23,9 +24,12 @@ interface CompletedJob {
 
 export default function CompletedJobView() {
   const { id } = useParams();
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
   const [job, setJob] = useState<CompletedJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [convertingToInvoice, setConvertingToInvoice] = useState(false);
 
   useEffect(() => {
     loadCompletedJob();
@@ -73,6 +77,44 @@ export default function CompletedJobView() {
     );
   }
 
+  async function handleConvertToInvoice() {
+    if (!job) return;
+    
+    try {
+      setConvertingToInvoice(true);
+      const response = await fetch(`/api/jobs/completed/${job.id}/convert-to-invoice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to convert to invoice');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "Invoice Created",
+        description: result.message || "Invoice created successfully",
+      });
+
+      // Navigate to the created invoice (assuming you have an invoices page)
+      navigate(`/invoices/${result.invoiceId}`);
+      
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e.message || 'Failed to convert to invoice',
+        variant: "destructive",
+      });
+    } finally {
+      setConvertingToInvoice(false);
+    }
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
       {/* Header */}
@@ -92,10 +134,21 @@ export default function CompletedJobView() {
             <p className="text-sm text-gray-500">Completed Job Details</p>
           </div>
         </div>
-        <Badge className="bg-green-100 text-green-800 border-green-200">
-          <CheckCircle className="h-4 w-4 mr-2" />
-          Completed
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button 
+            onClick={handleConvertToInvoice}
+            disabled={convertingToInvoice || !job.customer_id}
+            className="bg-blue-600 hover:bg-blue-700"
+            data-testid="button-convert-to-invoice"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            {convertingToInvoice ? "Converting..." : "Convert to Invoice"}
+          </Button>
+          <Badge className="bg-green-100 text-green-800 border-green-200">
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Completed
+          </Badge>
+        </div>
       </div>
 
       {/* Job Details Card */}

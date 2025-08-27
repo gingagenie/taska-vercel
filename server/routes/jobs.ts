@@ -730,6 +730,72 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+/* CONVERT COMPLETED JOB TO INVOICE */
+jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireOrg, async (req, res) => {
+  const { completedJobId } = req.params;
+  const orgId = (req as any).orgId;
+  
+  if (!isUuid(completedJobId)) return res.status(400).json({ error: "Invalid completedJobId" });
+
+  try {
+    // Get the completed job details
+    const completedJobResult: any = await db.execute(sql`
+      SELECT * FROM completed_jobs
+      WHERE id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+
+    if (completedJobResult.rows.length === 0) {
+      return res.status(404).json({ error: "Completed job not found" });
+    }
+
+    const completedJob = completedJobResult.rows[0];
+
+    // Check if customer exists
+    if (!completedJob.customer_id) {
+      return res.status(400).json({ error: "Cannot create invoice: job has no customer" });
+    }
+
+    // Create invoice from completed job
+    const invoiceResult: any = await db.execute(sql`
+      INSERT INTO invoices (org_id, customer_id, currency, total, status)
+      VALUES (
+        ${orgId}::uuid, 
+        ${completedJob.customer_id}::uuid, 
+        'AUD',
+        0,
+        'draft'
+      )
+      RETURNING id
+    `);
+
+    const invoiceId = invoiceResult.rows[0].id;
+
+    // Add a default line item for the completed work
+    await db.execute(sql`
+      INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
+      VALUES (
+        ${orgId}::uuid,
+        ${invoiceId}::uuid,
+        0,
+        ${completedJob.description || `Work completed: ${completedJob.title}`},
+        1,
+        0,
+        0.10
+      )
+    `);
+
+    res.json({ 
+      ok: true, 
+      invoiceId: invoiceId,
+      message: "Invoice created successfully. Please edit the invoice to add pricing details."
+    });
+
+  } catch (e: any) {
+    console.error("POST /api/jobs/completed/:completedJobId/convert-to-invoice error:", e);
+    res.status(500).json({ error: e?.message || "Failed to convert to invoice" });
+  }
+});
+
 /* DELETE */
 jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;

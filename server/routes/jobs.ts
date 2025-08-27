@@ -692,7 +692,43 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       RETURNING id, completed_at
     `);
 
-    // Delete related records first, then the job
+    // Copy job charges to preserve them (since they'll be deleted by CASCADE when job is deleted)
+    // Create the table if it doesn't exist first
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS completed_job_charges (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        completed_job_id uuid NOT NULL,
+        original_job_id uuid NOT NULL,
+        org_id uuid NOT NULL,
+        kind text NOT NULL,
+        description text NOT NULL,
+        quantity numeric NOT NULL DEFAULT 0,
+        unit_price numeric NOT NULL DEFAULT 0,
+        total numeric NOT NULL DEFAULT 0,
+        created_at timestamptz DEFAULT now()
+      )
+    `);
+
+    // Copy existing charges to the completed job charges table
+    await db.execute(sql`
+      INSERT INTO completed_job_charges (
+        completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at
+      )
+      SELECT 
+        ${completedResult.rows[0].id}::uuid,
+        ${jobId}::uuid,
+        org_id,
+        kind,
+        description,
+        quantity,
+        unit_price,
+        total,
+        created_at
+      FROM job_charges
+      WHERE job_id = ${jobId}::uuid
+    `);
+
+    // Delete related records first, but preserve job_charges for the completed job
     await db.execute(sql`
       DELETE FROM job_notifications
       WHERE job_id = ${jobId}::uuid
@@ -713,6 +749,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid
     `);
 
+    // NOTE: We don't delete job_charges here so they remain accessible via original_job_id
     // Finally delete the job from the jobs table
     await db.execute(sql`
       DELETE FROM jobs
@@ -727,6 +764,25 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/complete error:", e);
     res.status(500).json({ error: e?.message || "Failed to complete job" });
+  }
+});
+
+/* GET CHARGES FOR COMPLETED JOB */
+jobs.get("/completed/:completedJobId/charges", requireAuth, requireOrg, async (req, res) => {
+  const { completedJobId } = req.params;
+  const orgId = (req as any).orgId;
+  
+  try {
+    const r: any = await db.execute(sql`
+      SELECT id, kind, description, quantity, unit_price, total, created_at
+      FROM completed_job_charges
+      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at DESC
+    `);
+    res.json(r.rows);
+  } catch (e: any) {
+    console.error("GET /api/jobs/completed/:completedJobId/charges error:", e);
+    res.status(500).json({ error: e?.message || "Failed to fetch completed job charges" });
   }
 });
 

@@ -56,18 +56,16 @@ export default function CompletedJobView() {
       const jobData = await response.json();
       setJob(jobData);
       
-      // Load charges for the original job
-      if (jobData.original_job_id) {
-        try {
-          const chargesResponse = await fetch(`/api/jobs/${jobData.original_job_id}/charges`);
-          if (chargesResponse.ok) {
-            const chargesData = await chargesResponse.json();
-            setCharges(chargesData);
-          }
-        } catch (e) {
-          console.error('Failed to load charges:', e);
-          // Don't fail the whole page if charges fail to load
+      // Load charges for the completed job
+      try {
+        const chargesResponse = await fetch(`/api/jobs/completed/${jobData.id}/charges`);
+        if (chargesResponse.ok) {
+          const chargesData = await chargesResponse.json();
+          setCharges(chargesData);
         }
+      } catch (e) {
+        console.error('Failed to load completed job charges:', e);
+        // Don't fail the whole page if charges fail to load
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load completed job');

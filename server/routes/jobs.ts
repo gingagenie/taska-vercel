@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db";
-import { jobs as jobsSchema, customers, equipment, jobPhotos, users, memberships } from "../../shared/schema";
+import { jobs as jobsSchema, customers, equipment, jobPhotos, users } from "../../shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -162,11 +162,10 @@ jobs.get("/technicians", requireAuth, requireOrg, async (req, res) => {
   
   try {
     const r: any = await db.execute(sql`
-      select u.id, u.name, u.email
-      from users u
-      join memberships m on m.user_id = u.id
-      where m.org_id = ${orgId}::uuid
-      order by u.name asc
+      select id, name, email, role
+      from users
+      where org_id = ${orgId}::uuid
+      order by name asc
     `);
     res.json(r.rows);
   } catch (error: any) {

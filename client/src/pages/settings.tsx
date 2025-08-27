@@ -16,7 +16,7 @@ export default function SettingsPage() {
   const { data, isLoading } = useQuery({ queryKey: ["/api/me"], queryFn: meApi.get });
 
   const [profile, setProfile] = useState({ name: "", role: "", phone: "" });
-  const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", logo_url: "", default_labour_rate_cents: 0 });
+  const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", default_labour_rate_cents: 0 });
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   
   // Item presets state
@@ -25,7 +25,6 @@ export default function SettingsPage() {
   const [presetsLoading, setPresetsLoading] = useState(false);
   
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   // Xero integration state and hooks
   const { data: xeroStatus, refetch: refetchXeroStatus } = useQuery<{
@@ -96,69 +95,6 @@ export default function SettingsPage() {
     }
   }, [toast, refetchXeroStatus]);
 
-  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please choose an image smaller than 5MB",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setUploading(true);
-    try {
-      // Get upload URL
-      const uploadResponse = await apiRequest("POST", "/api/objects/upload");
-      const uploadData = await uploadResponse.json();
-      
-      // Upload file
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const fileUploadResponse = await fetch(uploadData.uploadURL, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
-      });
-
-      if (!fileUploadResponse.ok) {
-        throw new Error('Failed to upload file');
-      }
-
-      // Convert the upload URL to object path and update logo
-      const updateResponse = await apiRequest("PUT", "/api/objects/logo", {
-        logoURL: uploadData.uploadURL
-      });
-      const updateData = await updateResponse.json();
-      
-      // Set the object path in org state
-      setOrg(o => ({...o, logo_url: updateData.objectPath}));
-      
-      // Logo upload is complete, user can manually save if needed
-      
-      toast({
-        title: "Logo uploaded",
-        description: "Your company logo has been uploaded successfully",
-      });
-    } catch (error: any) {
-      console.error('Logo upload error:', error);
-      toast({
-        title: "Upload failed",
-        description: error?.message || "Failed to upload logo",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
-      // Reset file input
-      e.target.value = '';
-    }
-  }
 
   useEffect(() => {
     if (!data) return;
@@ -167,7 +103,7 @@ export default function SettingsPage() {
     setProfile({ name: u.name || "", role: u.role || "", phone: u.phone || "" });
     setOrg({
       name: o.name || "", abn: o.abn || "", street: o.street || "", suburb: o.suburb || "",
-      state: o.state || "", postcode: o.postcode || "", logo_url: o.logo_url || "", default_labour_rate_cents: o.default_labour_rate_cents || 0
+      state: o.state || "", postcode: o.postcode || "", default_labour_rate_cents: o.default_labour_rate_cents || 0
     });
   }, [data]);
 
@@ -253,7 +189,6 @@ export default function SettingsPage() {
         suburb: org.suburb || null,
         state: org.state || null,
         postcode: org.postcode || null,
-        logo_url: org.logo_url || null,
         default_labour_rate_cents: Number(org.default_labour_rate_cents) || 0
       });
       qc.invalidateQueries({ queryKey: ["/api/me"] });
@@ -458,54 +393,6 @@ export default function SettingsPage() {
                   placeholder="e.g. 12500 = $125.00/hr"
                   data-testid="input-org-labour-rate"
                 />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Company Logo</Label>
-                <div className="mt-2 space-y-3">
-                  {org.logo_url ? (
-                    <div className="flex items-center gap-4">
-                      <img 
-                        src={org.logo_url.startsWith('/objects/') ? `/api${org.logo_url}` : org.logo_url} 
-                        alt="Company logo" 
-                        className="h-16 w-16 object-cover rounded border"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setOrg(o => ({...o, logo_url: ""}))}
-                        data-testid="button-remove-logo"
-                      >
-                        Remove Logo
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                      <div className="text-gray-500 mb-2">
-                        <svg className="mx-auto h-12 w-12" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                          <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-3">Upload your company logo</p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        className="hidden"
-                        id="logo-upload"
-                        data-testid="input-logo-upload"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={uploading}
-                        onClick={() => document.getElementById('logo-upload')?.click()}
-                        data-testid="button-upload-logo"
-                      >
-                        {uploading ? "Uploading..." : "Choose File"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
               </div>
               <div className="md:col-span-2">
                 <div className="grid grid-cols-1 max-w-md ml-auto">

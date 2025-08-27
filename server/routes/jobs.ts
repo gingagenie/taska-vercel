@@ -56,6 +56,37 @@ jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
   res.json(r.rows);
 });
 
+/* LIST COMPLETED JOBS */
+jobs.get("/completed", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  console.log("[TRACE] GET /api/jobs/completed org=%s", orgId);
+  
+  try {
+    const r: any = await db.execute(sql`
+      SELECT 
+        id,
+        original_job_id,
+        customer_id,
+        customer_name,
+        title,
+        description,
+        notes,
+        scheduled_at,
+        completed_at,
+        completed_by,
+        original_created_by,
+        original_created_at
+      FROM completed_jobs
+      WHERE org_id = ${orgId}::uuid
+      ORDER BY completed_at DESC
+    `);
+    res.json(r.rows);
+  } catch (e: any) {
+    console.error("GET /api/jobs/completed error:", e);
+    res.status(500).json({ error: e?.message || "Failed to fetch completed jobs" });
+  }
+});
+
 /* LIST (now includes description) */
 jobs.get("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
@@ -556,6 +587,60 @@ jobs.post("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/charges error:", e);
     res.status(500).json({ error: e?.message || "Failed to add charge" });
+  }
+});
+
+/* COMPLETE JOB - Move job to completed_jobs table */
+jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  const userId = (req as any).user?.id;
+  
+  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
+
+  try {
+    // First, get the job details from the jobs table
+    const jobResult: any = await db.execute(sql`
+      SELECT j.*, c.name as customer_name
+      FROM jobs j
+      LEFT JOIN customers c ON j.customer_id = c.id
+      WHERE j.id = ${jobId}::uuid AND j.org_id = ${orgId}::uuid
+    `);
+
+    if (jobResult.rows.length === 0) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    const job = jobResult.rows[0];
+
+    // Insert into completed_jobs table
+    const completedResult: any = await db.execute(sql`
+      INSERT INTO completed_jobs (
+        org_id, original_job_id, customer_id, customer_name, title, description, notes,
+        scheduled_at, completed_by, original_created_by, original_created_at
+      )
+      VALUES (
+        ${orgId}::uuid, ${jobId}::uuid, ${job.customer_id}::uuid, ${job.customer_name},
+        ${job.title}, ${job.description}, ${job.notes}, ${job.scheduled_at},
+        ${userId}, ${job.created_by}, ${job.created_at}
+      )
+      RETURNING id, completed_at
+    `);
+
+    // Delete the job from the jobs table
+    await db.execute(sql`
+      DELETE FROM jobs
+      WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+
+    res.json({ 
+      ok: true, 
+      completed_job_id: completedResult.rows[0].id,
+      completed_at: completedResult.rows[0].completed_at
+    });
+  } catch (e: any) {
+    console.error("POST /api/jobs/:jobId/complete error:", e);
+    res.status(500).json({ error: e?.message || "Failed to complete job" });
   }
 });
 

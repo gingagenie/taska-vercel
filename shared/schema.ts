@@ -131,6 +131,23 @@ export const jobPhotos = pgTable("job_photos", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Completed jobs - stores jobs that have been marked as completed
+export const completedJobs = pgTable("completed_jobs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").notNull(),
+  originalJobId: uuid("original_job_id").notNull(), // Reference to original job that was completed
+  customerId: uuid("customer_id"),
+  customerName: varchar("customer_name", { length: 255 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  notes: text("notes"), // Work performed notes
+  scheduledAt: timestamp("scheduled_at"),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
+  completedBy: uuid("completed_by").references(() => users.id),
+  originalCreatedBy: uuid("original_created_by").references(() => users.id),
+  originalCreatedAt: timestamp("original_created_at"),
+});
+
 // Entitlements (for pro features)
 export const entitlements = pgTable("entitlements", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -226,6 +243,7 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true,
 export const insertJobNotificationSchema = createInsertSchema(jobNotifications).omit({ id: true, createdAt: true });
 export const insertOrgIntegrationSchema = createInsertSchema(orgIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertItemPresetSchema = createInsertSchema(itemPresets).omit({ id: true, createdAt: true });
+export const insertCompletedJobSchema = createInsertSchema(completedJobs).omit({ id: true, completedAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -254,3 +272,6 @@ export type InsertOrgIntegration = z.infer<typeof insertOrgIntegrationSchema>;
 
 export type ItemPreset = typeof itemPresets.$inferSelect;
 export type InsertItemPreset = z.infer<typeof insertItemPresetSchema>;
+
+export type CompletedJob = typeof completedJobs.$inferSelect;
+export type InsertCompletedJob = z.infer<typeof insertCompletedJobSchema>;

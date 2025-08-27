@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { MapPin, AlertTriangle, Trash, MessageSquare } from "lucide-react";
+import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 
 export default function JobView() {
@@ -33,6 +33,11 @@ export default function JobView() {
   const [smsPreview, setSmsPreview] = useState<string>("");
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  
+  // Complete job dialog state
+  const [confirmComplete, setConfirmComplete] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [errComplete, setErrComplete] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -113,6 +118,31 @@ export default function JobView() {
       setTimeout(() => setToast(null), 5000);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function completeJob() {
+    setCompleting(true);
+    setErrComplete(null);
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to complete job');
+      }
+      
+      // Success - refresh the page or redirect
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/schedule'] });
+      navigate('/schedule');
+    } catch (e: any) {
+      setErrComplete(e.message || 'Failed to complete job');
+    } finally {
+      setCompleting(false);
     }
   }
 
@@ -214,10 +244,17 @@ export default function JobView() {
             <Button className="w-full">Edit Job</Button>
           </Link>
           <Button 
+            onClick={() => setConfirmComplete(true)}
+            data-testid="button-complete-job"
+            className="w-full bg-green-600 hover:bg-green-700 text-white"
+          >
+            <CheckCircle className="h-4 w-4 mr-1" /> Complete
+          </Button>
+          <Button 
             variant="destructive" 
             onClick={() => setConfirmDelete(true)}
             data-testid="button-delete-job"
-            className="w-full col-span-2"
+            className="w-full"
           >
             <Trash className="h-4 w-4 mr-1" /> Delete
           </Button>
@@ -350,6 +387,31 @@ export default function JobView() {
               data-testid="button-confirm-delete"
             >
               {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Job Confirmation Dialog */}
+      <Dialog open={confirmComplete} onOpenChange={setConfirmComplete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="h-5 w-5" />
+              Complete Job
+            </DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to mark <strong>{job.title}</strong> as completed? This will move the job to your completed jobs list.</p>
+          {errComplete && <div className="text-red-600 text-sm">{errComplete}</div>}
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmComplete(false)}>Cancel</Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={completing}
+              onClick={completeJob}
+              data-testid="button-confirm-complete"
+            >
+              {completing ? "Completing…" : "Complete Job"}
             </Button>
           </DialogFooter>
         </DialogContent>

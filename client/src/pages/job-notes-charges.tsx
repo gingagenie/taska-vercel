@@ -1,93 +1,57 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useRoute, Link } from "wouter";
-import { notesApi, chargesApi, photosApi, api } from "@/lib/api";
+import { notesApi, photosApi, api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Plus, Trash2, Clock, Wrench } from "lucide-react";
 
 export default function JobNotesCharges() {
   const [match, params] = useRoute("/jobs/:id/notes");
   const jobId = params?.id as string;
 
   const [notes, setNotes] = useState<any[]>([]);
-  const [charges, setCharges] = useState<any[]>([]);
+  const [hours, setHours] = useState<any[]>([]);
+  const [parts, setParts] = useState<any[]>([]);
   const [photos, setPhotos] = useState<any[]>([]);
   
   const [newNote, setNewNote] = useState("");
-  const [chargeDesc, setChargeDesc] = useState("");
-  const [chargeQty, setChargeQty] = useState(1);
-  const [chargeUnit, setChargeUnit] = useState(0);
+  const [selectedHours, setSelectedHours] = useState("0.5");
+  const [hoursDescription, setHoursDescription] = useState("");
+  const [newPartName, setNewPartName] = useState("");
+  const [newPartQuantity, setNewPartQuantity] = useState("1");
   
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [addingHours, setAddingHours] = useState(false);
+  const [addingPart, setAddingPart] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  // org-scoped templates in localStorage
-  const orgId = useMemo(() => localStorage.getItem("x-org-id") || "default-org", []);
-  type ChargeTemplate = { description: string; unitPrice: number };
-  const TEMPLATES_KEY = `chargeTemplates:${orgId}`;
-
-  const [templates, setTemplates] = useState<ChargeTemplate[]>([]);
-  const [autoSaveTemplate, setAutoSaveTemplate] = useState(true);
-  const [suggestions, setSuggestions] = useState<ChargeTemplate[]>([]);
-
-  // load templates on mount
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(TEMPLATES_KEY);
-      if (raw) setTemplates(JSON.parse(raw));
-    } catch { /* ignore */ }
-  }, [TEMPLATES_KEY]);
-
-  function persistTemplates(next: ChargeTemplate[]) {
-    setTemplates(next);
-    try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(next)); } catch {}
+  // Hours options (0.5 to 8 hours in 0.5 increments)
+  const hoursOptions = [];
+  for (let i = 0.5; i <= 8; i += 0.5) {
+    hoursOptions.push(i);
   }
 
-  // update suggestions and auto-fill unit price on exact match
-  useEffect(() => {
-    const q = (chargeDesc || "").trim().toLowerCase();
-    if (!q) { setSuggestions([]); return; }
-    const matches = templates
-      .filter(t => t.description.toLowerCase().includes(q))
-      .slice(0, 6);
-    setSuggestions(matches);
-
-    const exact = templates.find(t => t.description.toLowerCase() === q);
-    if (exact) setChargeUnit(exact.unitPrice);
-  }, [chargeDesc, templates]);
-
-  function applyTemplate(t: ChargeTemplate) {
-    setChargeDesc(t.description);
-    setChargeUnit(t.unitPrice);
-    setSuggestions([]);
-  }
-
-  function rememberTemplate(desc: string, price: number) {
-    const d = desc.trim();
-    if (!d) return;
-    const exists = templates.find(t => t.description.toLowerCase() === d.toLowerCase());
-    const next = exists
-      ? templates.map(t => t.description.toLowerCase() === d.toLowerCase() ? { description: d, unitPrice: price } : t)
-      : [{ description: d, unitPrice: price }, ...templates].slice(0, 50); // cap list
-    persistTemplates(next);
-  }
+  // Parts quantity options (1 to 10)
+  const partQuantityOptions = Array.from({ length: 10 }, (_, i) => i + 1);
 
   const loadAll = async () => {
     try {
-      const [notesData, chargesData, photosData] = await Promise.all([
+      const [notesData, hoursData, partsData, photosData] = await Promise.all([
         notesApi.list(jobId),
-        chargesApi.list(jobId),
+        api(`/api/jobs/${jobId}/hours`),
+        api(`/api/jobs/${jobId}/parts`),
         photosApi.list(jobId),
       ]);
       setNotes(notesData || []);
-      setCharges(chargesData || []);
+      setHours(hoursData || []);
+      setParts(partsData || []);
       setPhotos(photosData || []);
     } catch (e: any) {
       setErr(e?.message || "Failed to load data");
@@ -112,6 +76,53 @@ export default function JobNotesCharges() {
       setErr(e?.message || "Failed to add note");
     } finally {
       setSavingNote(false);
+    }
+  };
+
+  const addHours = async () => {
+    setAddingHours(true);
+    setErr(null);
+    try {
+      await api(`/api/jobs/${jobId}/hours`, {
+        method: "POST",
+        body: JSON.stringify({
+          hours: parseFloat(selectedHours),
+          description: hoursDescription.trim() || undefined,
+        }),
+      });
+      // Refresh hours list
+      const hoursData = await api(`/api/jobs/${jobId}/hours`);
+      setHours(hoursData);
+      setSelectedHours("0.5");
+      setHoursDescription("");
+    } catch (e: any) {
+      setErr(e?.message || "Failed to add hours");
+    } finally {
+      setAddingHours(false);
+    }
+  };
+
+  const addPart = async () => {
+    if (!newPartName.trim()) return;
+    setAddingPart(true);
+    setErr(null);
+    try {
+      await api(`/api/jobs/${jobId}/parts`, {
+        method: "POST",
+        body: JSON.stringify({
+          partName: newPartName.trim(),
+          quantity: parseInt(newPartQuantity),
+        }),
+      });
+      // Refresh parts list
+      const partsData = await api(`/api/jobs/${jobId}/parts`);
+      setParts(partsData);
+      setNewPartName("");
+      setNewPartQuantity("1");
+    } catch (e: any) {
+      setErr(e?.message || "Failed to add part");
+    } finally {
+      setAddingPart(false);
     }
   };
 
@@ -157,7 +168,7 @@ export default function JobNotesCharges() {
         <Link href={`/jobs/${jobId}`}>
           <a><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button></a>
         </Link>
-        <h1 className="text-2xl font-bold">Notes & Charges</h1>
+        <h1 className="text-2xl font-bold">Notes & Hours + Parts</h1>
       </div>
 
       {err && (
@@ -200,132 +211,132 @@ export default function JobNotesCharges() {
         </CardContent>
       </Card>
 
-      {/* Charges section */}
+      {/* Hours section */}
       <Card>
-        <CardHeader><CardTitle>Charges</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <Label>Description</Label>
-            <div className="relative">
-              <Input
-                placeholder="e.g., Labour"
-                value={chargeDesc}
-                onChange={(e) => setChargeDesc(e.target.value)}
-              />
-              {suggestions.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full rounded border bg-white shadow">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s.description}
-                      type="button"
-                      className="w-full px-3 py-2 text-left hover:bg-gray-50"
-                      onClick={() => applyTemplate(s)}
-                    >
-                      <div className="font-medium">{s.description}</div>
-                      <div className="text-xs text-gray-500">${Number(s.unitPrice).toFixed(2)}</div>
-                    </button>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Hours Worked
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Hours</Label>
+              <Select value={selectedHours} onValueChange={setSelectedHours}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select hours" />
+                </SelectTrigger>
+                <SelectContent>
+                  {hoursOptions.map((hours) => (
+                    <SelectItem key={hours} value={hours.toString()}>
+                      {hours} {hours === 1 ? 'hour' : 'hours'}
+                    </SelectItem>
                   ))}
-                </div>
-              )}
-            </div>
-
-            {/* Quick-pick chips */}
-            {templates.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {templates.slice(0, 6).map((t) => (
-                  <button key={t.description} type="button" onClick={() => applyTemplate(t)}>
-                    <Badge variant="secondary">
-                      {t.description} — ${Number(t.unitPrice).toFixed(2)}
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>Quantity</Label>
-              <Input
-                type="number"
-                step="0.25"
-                placeholder="Qty"
-                value={String(chargeQty)}
-                onChange={(e) => setChargeQty(Number(e.target.value))}
-              />
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <Label>Unit price</Label>
+              <Label>Description (optional)</Label>
               <Input
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={String(chargeUnit)}
-                onChange={(e) => setChargeUnit(Number(e.target.value))}
+                value={hoursDescription}
+                onChange={(e) => setHoursDescription(e.target.value)}
+                placeholder="e.g., Installation, repair..."
               />
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              id="autosave-template"
-              type="checkbox"
-              className="h-4 w-4"
-              checked={autoSaveTemplate}
-              onChange={(e) => setAutoSaveTemplate(e.target.checked)}
-            />
-            <label htmlFor="autosave-template" className="text-sm text-gray-700">
-              Remember this description & price for next time
-            </label>
-          </div>
-
-          <Button
-            onClick={async () => {
-              if (!chargeDesc.trim()) { setErr("Charge description is required"); return; }
-              setSaving(true);
-              try {
-                await api(`/api/jobs/${jobId}/charges`, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    description: chargeDesc.trim(),
-                    quantity: Number(chargeQty) || 0,
-                    unitPrice: Number(chargeUnit) || 0,
-                  }),
-                });
-                if (autoSaveTemplate) {
-                  rememberTemplate(chargeDesc.trim(), Number(chargeUnit) || 0);
-                }
-                setChargeDesc(""); setChargeQty(1); setChargeUnit(0);
-                await loadAll();
-              } catch (e: any) {
-                setErr(e?.message || "Failed to add charge");
-              } finally {
-                setSaving(false);
-              }
-            }}
-            disabled={saving}
-          >
-            {saving ? "Saving…" : "Add charge"}
+          
+          <Button onClick={addHours} disabled={addingHours} className="w-full">
+            {addingHours ? "Adding..." : "Add Hours"}
           </Button>
 
-          {/* Existing charges list + total */}
-          <div className="pt-2 space-y-2">
-            {charges.length === 0 && <div className="text-gray-500">No charges yet</div>}
-            {charges.map((c) => (
-              <div key={c.id} className="flex items-center justify-between border rounded p-2">
-                <div>
-                  <div className="font-medium">{c.description}</div>
-                  <div className="text-xs text-gray-500">
-                    {c.quantity} × ${Number(c.unit_price).toFixed(2)}
+          <div className="space-y-2">
+            {hours.length === 0 ? (
+              <p className="text-gray-500 text-sm">No hours logged yet</p>
+            ) : (
+              <>
+                {hours.map((hour) => (
+                  <div key={hour.id} className="flex items-center justify-between border rounded p-3">
+                    <div>
+                      <div className="font-medium">{hour.hours} {hour.hours === 1 ? 'hour' : 'hours'}</div>
+                      {hour.description && (
+                        <div className="text-sm text-gray-600">{hour.description}</div>
+                      )}
+                      <div className="text-xs text-gray-500">
+                        {new Date(hour.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between border-t pt-2 mt-2">
+                  <div className="font-semibold">Total Hours</div>
+                  <div className="font-bold">{hours.reduce((sum, h) => sum + h.hours, 0)} hours</div>
+                </div>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Parts section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wrench className="h-5 w-5" />
+            Parts Used
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Part Name</Label>
+              <Input
+                value={newPartName}
+                onChange={(e) => setNewPartName(e.target.value)}
+                placeholder="e.g., Air Filter, Exhaust"
+              />
+            </div>
+            <div>
+              <Label>Quantity</Label>
+              <Select value={newPartQuantity} onValueChange={setNewPartQuantity}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Qty" />
+                </SelectTrigger>
+                <SelectContent>
+                  {partQuantityOptions.map((qty) => (
+                    <SelectItem key={qty} value={qty.toString()}>
+                      {qty}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <Button 
+            onClick={addPart} 
+            disabled={addingPart || !newPartName.trim()} 
+            className="w-full"
+          >
+            {addingPart ? "Adding..." : "Add Part"}
+          </Button>
+
+          <div className="space-y-2">
+            {parts.length === 0 ? (
+              <p className="text-gray-500 text-sm">No parts used yet</p>
+            ) : (
+              parts.map((part) => (
+                <div key={part.id} className="flex items-center justify-between border rounded p-3">
+                  <div>
+                    <div className="font-medium">{part.part_name}</div>
+                    <div className="text-sm text-gray-600">Quantity: {part.quantity}</div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(part.created_at).toLocaleDateString()}
+                    </div>
                   </div>
                 </div>
-                <div className="font-semibold">${Number(c.total).toFixed(2)}</div>
-              </div>
-            ))}
-            <div className="flex items-center justify-between border-t pt-2 mt-2">
-              <div className="font-semibold">Total</div>
-              <div className="font-bold">${charges.reduce((s, c) => s + Number(c.total || 0), 0).toFixed(2)}</div>
-            </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

@@ -120,7 +120,7 @@ export default function InvoiceEdit() {
         <body>
           <div class="header">
             <div class="company-info">
-              ${org.logo_url ? `<img src="${org.logo_url}" alt="Company Logo" style="height: 60px; margin-bottom: 10px;">` : ''}
+              ${org.logo_url ? `<img src="${org.logo_url.startsWith('/objects/') ? `/api${org.logo_url}` : org.logo_url}" alt="Company Logo" style="height: 60px; margin-bottom: 10px;">` : ''}
               <h1>${org.name || 'Your Company'}</h1>
               <p>${[org.street, org.suburb, org.state, org.postcode].filter(Boolean).join(', ') || 'Field Service Management'}</p>
               ${org.abn ? `<p>ABN: ${org.abn}</p>` : ''}

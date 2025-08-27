@@ -131,8 +131,14 @@ export default function SettingsPage() {
         throw new Error('Failed to upload file');
       }
 
-      // Set logo URL in org state
-      setOrg(o => ({...o, logo_url: uploadData.uploadURL}));
+      // Convert the upload URL to object path and update logo
+      const updateResponse = await apiRequest("PUT", "/api/objects/logo", {
+        logoURL: uploadData.uploadURL
+      });
+      const updateData = await updateResponse.json();
+      
+      // Set the object path in org state
+      setOrg(o => ({...o, logo_url: updateData.objectPath}));
       
       toast({
         title: "Logo uploaded",
@@ -478,7 +484,7 @@ export default function SettingsPage() {
                   {org.logo_url ? (
                     <div className="flex items-center gap-4">
                       <img 
-                        src={org.logo_url} 
+                        src={org.logo_url.startsWith('/objects/') ? `/api${org.logo_url}` : org.logo_url} 
                         alt="Company logo" 
                         className="h-16 w-16 object-cover rounded border"
                       />

@@ -49,4 +49,29 @@ router.post("/upload", requireAuth, async (req, res) => {
   res.json({ uploadURL });
 });
 
+// This endpoint converts a logo upload URL to object path and sets ACL
+router.put("/logo", requireAuth, requireOrg, async (req, res) => {
+  const { logoURL } = req.body;
+  
+  if (!logoURL) {
+    return res.status(400).json({ error: "logoURL is required" });
+  }
+
+  try {
+    const objectStorageService = new ObjectStorageService();
+    const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+      logoURL,
+      {
+        owner: req.userId!,
+        visibility: "public", // Logo should be publicly accessible
+      },
+    );
+
+    res.json({ objectPath });
+  } catch (error) {
+    console.error("Error setting logo ACL:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;

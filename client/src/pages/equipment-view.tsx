@@ -5,10 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit, MapPin, Calendar, User, Settings, FileText } from "lucide-react";
+import { EquipmentModal } from "@/components/modals/equipment-modal";
+import { useState } from "react";
 
 export default function EquipmentView() {
   const { id } = useParams();
   const [, navigate] = useLocation();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const { data: equipment, isLoading, error } = useQuery({
     queryKey: ["/api/equipment", id],
@@ -63,7 +66,7 @@ export default function EquipmentView() {
           <p className="text-gray-600">Equipment Details</p>
         </div>
         <Button 
-          onClick={() => navigate(`/equipment/${id}/edit`)}
+          onClick={() => setIsEditModalOpen(true)}
           data-testid="button-edit-equipment"
         >
           <Edit className="h-4 w-4 mr-1" />
@@ -205,6 +208,17 @@ export default function EquipmentView() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Edit Modal */}
+      <EquipmentModal 
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        equipment={equipment}
+        onSaved={() => {
+          setIsEditModalOpen(false);
+          // The modal will invalidate queries automatically
+        }}
+      />
     </div>
   );
 }

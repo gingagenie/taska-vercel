@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db";
-import { jobs as jobsSchema, customers, equipment, jobPhotos, users } from "../../shared/schema";
+import { jobs as jobsSchema, customers, equipment, jobPhotos, users, jobAssignments } from "../../shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -182,28 +182,47 @@ jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
   if (!start || !end) return res.status(400).json({ error: "start and end are required (ISO strings)" });
 
   try {
-    // For now, ignore techId filter since job_assignments table doesn't exist
-    // When techId is provided, we'll return empty results to simulate filtered view
-    if (techId && techId !== "" && techId !== "none") {
-      // Return empty array for now when filtering by specific technician
-      // TODO: Implement proper job assignments when users table is available
-      res.json([]);
-      return;
-    }
-
-    // Get all jobs in date range without technician filtering
-    const r: any = await db.execute(sql`
+    // Build the query with optional technician filtering
+    let query = sql`
       select j.id, j.title, j.status, 
              to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
              j.customer_id, coalesce(c.name,'—') as customer_name
       from jobs j
       left join customers c on c.id = j.customer_id
-      where j.org_id=${orgId}::uuid
-        and j.scheduled_at is not null
-        and j.scheduled_at >= ${start}::timestamptz
-        and j.scheduled_at <  ${end}::timestamptz
-      order by j.scheduled_at asc
-    `);
+    `;
+    
+    // Add technician filter if specified
+    if (techId && techId !== "" && techId !== "none") {
+      query = sql`
+        select j.id, j.title, j.status, 
+               to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
+               j.customer_id, coalesce(c.name,'—') as customer_name
+        from jobs j
+        left join customers c on c.id = j.customer_id
+        inner join job_assignments ja on ja.job_id = j.id
+        where j.org_id=${orgId}::uuid
+          and ja.user_id = ${techId}::uuid
+          and j.scheduled_at is not null
+          and j.scheduled_at >= ${start}::timestamptz
+          and j.scheduled_at <  ${end}::timestamptz
+        order by j.scheduled_at asc
+      `;
+    } else {
+      query = sql`
+        select j.id, j.title, j.status, 
+               to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
+               j.customer_id, coalesce(c.name,'—') as customer_name
+        from jobs j
+        left join customers c on c.id = j.customer_id
+        where j.org_id=${orgId}::uuid
+          and j.scheduled_at is not null
+          and j.scheduled_at >= ${start}::timestamptz
+          and j.scheduled_at <  ${end}::timestamptz
+        order by j.scheduled_at asc
+      `;
+    }
+
+    const r: any = await db.execute(query);
     res.json(r.rows);
   } catch (error: any) {
     console.error("GET /api/jobs/range error:", error);

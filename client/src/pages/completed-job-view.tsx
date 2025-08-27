@@ -22,11 +22,22 @@ interface CompletedJob {
   original_created_at: string | null;
 }
 
+interface JobCharge {
+  id: string;
+  kind: 'labour' | 'material' | 'equipment' | 'other';
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  created_at: string;
+}
+
 export default function CompletedJobView() {
   const { id } = useParams();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [job, setJob] = useState<CompletedJob | null>(null);
+  const [charges, setCharges] = useState<JobCharge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [convertingToInvoice, setConvertingToInvoice] = useState(false);
@@ -44,6 +55,20 @@ export default function CompletedJobView() {
       }
       const jobData = await response.json();
       setJob(jobData);
+      
+      // Load charges for the original job
+      if (jobData.original_job_id) {
+        try {
+          const chargesResponse = await fetch(`/api/jobs/${jobData.original_job_id}/charges`);
+          if (chargesResponse.ok) {
+            const chargesData = await chargesResponse.json();
+            setCharges(chargesData);
+          }
+        } catch (e) {
+          console.error('Failed to load charges:', e);
+          // Don't fail the whole page if charges fail to load
+        }
+      }
     } catch (e: any) {
       setError(e.message || 'Failed to load completed job');
     } finally {
@@ -185,6 +210,32 @@ export default function CompletedJobView() {
               <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
                 {job.notes}
               </p>
+            </div>
+          )}
+
+          {/* Job Charges */}
+          {charges.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Job Charges</h3>
+              <div className="bg-gray-50 p-3 rounded-lg space-y-3">
+                {charges.map((charge) => (
+                  <div key={charge.id} className="flex justify-between items-center bg-white p-3 rounded border">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{charge.description}</div>
+                      <div className="text-sm text-gray-500 capitalize">
+                        {charge.kind} • Qty: {charge.quantity} @ ${charge.unit_price.toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-gray-900">${charge.total.toFixed(2)}</div>
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t pt-3 flex justify-between items-center font-semibold text-lg">
+                  <span>Total:</span>
+                  <span>${charges.reduce((sum, charge) => sum + charge.total, 0).toFixed(2)}</span>
+                </div>
+              </div>
             </div>
           )}
 

@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Calendar, User, Clock } from "lucide-react";
+import { CheckCircle, Calendar, User, Clock, ArrowRight } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 
 interface CompletedJob {
@@ -25,6 +25,7 @@ export default function CompletedJobsPage() {
   const [completedJobs, setCompletedJobs] = useState<CompletedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     loadCompletedJobs();
@@ -95,81 +96,61 @@ export default function CompletedJobsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3">
           {completedJobs.map((job) => (
-            <Card key={job.id} className="bg-white border-l-4 border-l-green-500">
-              <CardHeader className="pb-3">
+            <Card 
+              key={job.id} 
+              className="bg-white border-l-4 border-l-green-500 hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
+              onClick={() => navigate(`/completed-jobs/${job.id}`)}
+              data-testid={`card-completed-job-${job.id}`}
+            >
+              <CardContent className="p-4">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg font-semibold text-gray-900">
-                      {job.title}
-                    </CardTitle>
-                    {job.customer_name && (
-                      <p className="text-sm text-gray-600 mt-1">
-                        Customer: {job.customer_name}
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-start gap-3">
+                      <div className="font-semibold text-lg group-hover:text-green-600 transition-colors">
+                        {job.title || "Untitled Job"}
+                      </div>
+                      <Badge className="bg-green-100 text-green-800 border-green-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Completed
+                      </Badge>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      {job.customer_name && (
+                        <div className="flex items-center gap-1">
+                          <User className="h-4 w-4" />
+                          <span>{job.customer_name}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        <span>
+                          Completed {utcIsoToLocalString(job.completed_at, { 
+                            dateStyle: "short", 
+                            timeStyle: "short" 
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {job.description && (
+                      <p className="text-gray-600 text-sm line-clamp-2">
+                        {job.description}
                       </p>
                     )}
                   </div>
-                  <Badge className="bg-green-100 text-green-800 border-green-200">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Completed
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {job.description && (
-                  <p className="text-gray-700 mb-4 whitespace-pre-wrap">
-                    {job.description}
-                  </p>
-                )}
-                
-                {job.notes && (
-                  <div className="mb-4">
-                    <p className="text-sm font-medium text-gray-700 mb-1">Work Notes:</p>
-                    <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                      {job.notes}
-                    </p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                  {job.scheduled_at && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      <div>
-                        <p className="text-gray-500">Originally Scheduled</p>
-                        <p className="font-medium">
-                          {utcIsoToLocalString(job.scheduled_at, { 
-                            dateStyle: "medium", 
-                            timeStyle: "short" 
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  )}
                   
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-gray-500">Completed</p>
-                      <p className="font-medium">
-                        {utcIsoToLocalString(job.completed_at, { 
-                          dateStyle: "medium", 
-                          timeStyle: "short" 
-                        })}
-                      </p>
-                    </div>
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity text-green-600 ml-4">
+                    <ArrowRight className="h-5 w-5" />
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-gray-500">Job ID</p>
-                      <p className="font-medium text-xs">
-                        {job.original_job_id.slice(0, 8)}...
-                      </p>
-                    </div>
-                  </div>
+                </div>
+                
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <span className="text-xs text-gray-500 group-hover:text-green-600 transition-colors">
+                    Click for details →
+                  </span>
                 </div>
               </CardContent>
             </Card>

@@ -29,6 +29,7 @@ import JobView from "./pages/job-view";
 import JobEdit from "./pages/job-edit";
 import JobNotesCharges from "./pages/job-notes-charges";
 import CompletedJobs from "./pages/completed-jobs";
+import CompletedJobView from "./pages/completed-job-view";
 import CustomerView from "./pages/customer-view";
 import CustomerNew from "./pages/customers-new";
 import EquipmentView from "./pages/equipment-view";
@@ -140,6 +141,7 @@ function AuthenticatedApp() {
 
           <Route path="/schedule" component={ScheduleResponsive} />
           <Route path="/completed-jobs" component={CompletedJobs} />
+          <Route path="/completed-jobs/:id">{() => <CompletedJobView />}</Route>
           <Route path="/quotes" component={Quotes} />
           <Route path="/quotes/new" component={QuoteEdit} />
           <Route path="/quotes/:id" component={QuoteView} />

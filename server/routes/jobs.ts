@@ -87,6 +87,46 @@ jobs.get("/completed", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+/* GET INDIVIDUAL COMPLETED JOB */
+jobs.get("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  console.log("[TRACE] GET /api/jobs/completed/%s org=%s", jobId, orgId);
+  
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
+      return res.status(400).json({ error: "Invalid jobId" });
+    }
+
+    const r: any = await db.execute(sql`
+      SELECT 
+        id,
+        original_job_id,
+        customer_id,
+        customer_name,
+        title,
+        description,
+        notes,
+        scheduled_at,
+        completed_at,
+        completed_by,
+        original_created_by,
+        original_created_at
+      FROM completed_jobs
+      WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+    
+    if (r.rows.length === 0) {
+      return res.status(404).json({ error: "Completed job not found" });
+    }
+    
+    res.json(r.rows[0]);
+  } catch (e: any) {
+    console.error("GET /api/jobs/completed/%s error:", jobId, e);
+    res.status(500).json({ error: e?.message || "Failed to fetch completed job" });
+  }
+});
+
 /* LIST (now includes description) */
 jobs.get("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;

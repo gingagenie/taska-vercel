@@ -140,10 +140,7 @@ export default function SettingsPage() {
       // Set the object path in org state
       setOrg(o => ({...o, logo_url: updateData.objectPath}));
       
-      // Manually save the organization with the new logo
-      setTimeout(() => {
-        saveOrg();
-      }, 100);
+      // Logo upload is complete, user can manually save if needed
       
       toast({
         title: "Logo uploaded",
@@ -192,28 +189,7 @@ export default function SettingsPage() {
     return () => clearTimeout(timer);
   }, [profile, data?.user, saving]);
 
-  // Auto-save org changes after a delay
-  useEffect(() => {
-    if (!data?.org || uploading) return; // Don't auto-save until initial data is loaded or during upload
-    
-    const timer = setTimeout(() => {
-      const originalOrg = data.org || {};
-      const hasChanges = org.name !== (originalOrg.name || "") || 
-                        org.abn !== (originalOrg.abn || "") || 
-                        org.street !== (originalOrg.street || "") || 
-                        org.suburb !== (originalOrg.suburb || "") || 
-                        org.state !== (originalOrg.state || "") || 
-                        org.postcode !== (originalOrg.postcode || "") ||
-                        org.logo_url !== (originalOrg.logo_url || "") ||
-                        org.default_labour_rate_cents !== (originalOrg.default_labour_rate_cents || 0);
-      
-      if (hasChanges && !saving && !uploading) {
-        saveOrg();
-      }
-    }, 1000); // Auto-save 1 second after changes
-
-    return () => clearTimeout(timer);
-  }, [org, data?.org, saving, uploading]);
+  // Removed auto-save for organization to prevent infinite loops
 
   async function saveProfile() {
     setSaving(true);

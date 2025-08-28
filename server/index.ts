@@ -138,7 +138,27 @@ app.use((req, _res, next) => {
 
 /** Quick health checks (sanity) */
 app.get("/health", (_req, res) => res.json({ ok: true }));
-app.get("/health/db", (_req, res) => res.json({ ok: true })); // replace with real db check later
+app.get("/health/db", async (_req, res) => {
+  try {
+    // Check database connection and show basic info
+    const result = await db.execute(sql`SELECT COUNT(*) as user_count FROM users`);
+    const orgResult = await db.execute(sql`SELECT COUNT(*) as org_count FROM orgs`);
+    const dbUrl = process.env.DATABASE_URL;
+    const dbHost = dbUrl ? new URL(dbUrl).hostname : 'NOT_SET';
+    
+    res.json({ 
+      ok: true, 
+      user_count: result[0]?.user_count,
+      org_count: orgResult[0]?.org_count,
+      db_host: dbHost
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      ok: false, 
+      error: error instanceof Error ? error.message : 'Database connection failed'
+    });
+  }
+}); // replace with real db check later
 
 
 // Temporarily disable tenant guard to test clean setup

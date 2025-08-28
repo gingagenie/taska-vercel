@@ -231,7 +231,7 @@ jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
       `;
     }
 
-    const r: any = await db.execute(query);
+    const r: any = await (req as any).db.execute(query);
     res.json(r.rows);
   } catch (error: any) {
     console.error("GET /api/jobs/range error:", error);
@@ -245,7 +245,7 @@ jobs.get("/customers", requireAuth, requireOrg, async (req, res) => {
     const orgId = (req as any).orgId;
     console.log("[TRACE] GET /api/jobs/customers org=%s", orgId);
     
-    const result = await db
+    const result = await (req as any).db
       .select({
         id: customers.id,
         name: customers.name,
@@ -266,7 +266,7 @@ jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
     const orgId = (req as any).orgId;
     console.log("[TRACE] GET /api/jobs/equipment org=%s", orgId);
     
-    const result = await db
+    const result = await (req as any).db
       .select({
         id: equipment.id,
         name: equipment.name,
@@ -292,7 +292,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
       return res.status(400).json({ error: "Invalid jobId" });
     }
 
-    const jr: any = await db.execute(sql`
+    const jr: any = await (req as any).db.execute(sql`
       select
         j.id, j.title, j.description, j.status, j.notes,
         to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
@@ -314,7 +314,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
     const job = result[0];
 
     // Fetch assigned technicians
-    const techniciansResult: any = await db.execute(sql`
+    const techniciansResult: any = await (req as any).db.execute(sql`
       select u.id, u.name, u.email
       from job_assignments ja
       join users u on u.id = ja.user_id
@@ -322,7 +322,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
     `);
 
     // Fetch assigned equipment
-    const equipmentResult: any = await db.execute(sql`
+    const equipmentResult: any = await (req as any).db.execute(sql`
       select e.id, e.name, e.make, e.model
       from job_equipment je
       join equipment e on e.id = je.equipment_id
@@ -366,7 +366,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
       createdBy: userId || null,
     });
     
-    const result = await db.execute(sql`
+    const result = await (req as any).db.execute(sql`
       INSERT INTO jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
       VALUES (
         ${orgId},
@@ -383,7 +383,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
     const jobId = (result as any).rows[0].id;
 
     if (equipmentId) {
-      await db.execute(sql`
+      await (req as any).db.execute(sql`
         insert into job_equipment (job_id, equipment_id)
         values (${jobId}::uuid, ${equipmentId}::uuid)
         on conflict do nothing
@@ -394,7 +394,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
     if (Array.isArray(assignedTechIds) && assignedTechIds.length > 0) {
       for (const uid of assignedTechIds) {
         if (!uid) continue;
-        await db.execute(sql`
+        await (req as any).db.execute(sql`
           insert into job_assignments (job_id, user_id)
           values (${jobId}::uuid, ${uid}::uuid)
           on conflict do nothing
@@ -417,7 +417,7 @@ jobs.patch("/:jobId/schedule", requireAuth, requireOrg, async (req, res) => {
   if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) return res.status(400).json({ error: "invalid jobId" });
   if (!scheduledAt) return res.status(400).json({ error: "scheduledAt required (ISO)" });
 
-  await db.execute(sql`
+  await (req as any).db.execute(sql`
     update jobs set scheduled_at = ${scheduledAt}::timestamptz
     where id=${jobId}::uuid and org_id=${orgId}::uuid
   `);
@@ -448,7 +448,7 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
 
   try {
     // Use SQL for update with timezone-aware scheduled_at
-    const result = await db.execute(sql`
+    const result = await (req as any).db.execute(sql`
       UPDATE jobs SET 
         title = coalesce(${title}, title),
         description = coalesce(${description}, description),
@@ -482,7 +482,7 @@ jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
     
     console.log("[TRACE] GET /api/jobs/%s/photos org=%s", jobId, orgId);
     
-    const result = await db.execute(sql`
+    const result = await (req as any).db.execute(sql`
       SELECT id, url, created_at
       FROM job_photos
       WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
@@ -519,7 +519,7 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, upload.single("photo"), asy
     console.log("[TRACE] POST /api/jobs/%s/photos org=%s file=%s", jobId, orgId, filename);
     
     // Insert into database
-    const result = await db.execute(sql`
+    const result = await (req as any).db.execute(sql`
       INSERT INTO job_photos (job_id, org_id, url)
       VALUES (${jobId}::uuid, ${orgId}::uuid, ${url})
       RETURNING id, url, created_at
@@ -542,7 +542,7 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
     console.log("[TRACE] DELETE /api/jobs/%s/photos/%s org=%s", jobId, photoId, orgId);
     
     // Get photo info before deleting to remove file
-    const photoResult = await db.execute(sql`
+    const photoResult = await (req as any).db.execute(sql`
       SELECT url FROM job_photos 
       WHERE id = ${photoId}::uuid AND job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
@@ -558,7 +558,7 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
     }
     
     // Delete from database
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       DELETE FROM job_photos 
       WHERE id = ${photoId}::uuid AND job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
@@ -611,7 +611,7 @@ jobs.put("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   const { notes } = req.body || {};
   try {
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       update jobs 
       set notes = ${notes || ''}, updated_at = now()
       where id = ${jobId}::uuid and org_id = ${orgId}::uuid
@@ -674,7 +674,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
 
   try {
     // First, get the job details from the jobs table
-    const jobResult: any = await db.execute(sql`
+    const jobResult: any = await (req as any).db.execute(sql`
       SELECT j.*, c.name as customer_name
       FROM jobs j
       LEFT JOIN customers c ON j.customer_id = c.id
@@ -688,7 +688,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     const job = jobResult.rows[0];
 
     // Insert into completed_jobs table
-    const completedResult: any = await db.execute(sql`
+    const completedResult: any = await (req as any).db.execute(sql`
       INSERT INTO completed_jobs (
         org_id, original_job_id, customer_id, customer_name, title, description, notes,
         scheduled_at, completed_by, original_created_by, original_created_at
@@ -703,7 +703,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
 
     // Copy job charges to preserve them (since they'll be deleted by CASCADE when job is deleted)
     // Create the table if it doesn't exist first
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       CREATE TABLE IF NOT EXISTS completed_job_charges (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         completed_job_id uuid NOT NULL,
@@ -719,7 +719,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     `);
 
     // Copy existing charges to the completed job charges table (if any)
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       INSERT INTO completed_job_charges (
         completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at
       )
@@ -738,7 +738,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     `);
 
     // Copy hours to completed job hours table
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       INSERT INTO completed_job_hours (
         completed_job_id, original_job_id, org_id, hours, description, created_at
       )
@@ -754,7 +754,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     `);
 
     // Copy parts to completed job parts table
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       INSERT INTO completed_job_parts (
         completed_job_id, original_job_id, org_id, part_name, quantity, created_at
       )
@@ -770,29 +770,29 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     `);
 
     // Delete related records first, but preserve job_charges for the completed job
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       DELETE FROM job_notifications
       WHERE job_id = ${jobId}::uuid
     `);
     
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       DELETE FROM job_assignments
       WHERE job_id = ${jobId}::uuid
     `);
     
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       DELETE FROM job_equipment
       WHERE job_id = ${jobId}::uuid
     `);
     
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       DELETE FROM job_photos
       WHERE job_id = ${jobId}::uuid
     `);
 
     // NOTE: We don't delete job_charges here so they remain accessible via original_job_id
     // Finally delete the job from the jobs table
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       DELETE FROM jobs
       WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
@@ -963,7 +963,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 
   try {
     // Get the completed job details
-    const completedJobResult: any = await db.execute(sql`
+    const completedJobResult: any = await (req as any).db.execute(sql`
       SELECT * FROM completed_jobs
       WHERE id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
     `);
@@ -980,7 +980,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     }
 
     // Create invoice from completed job
-    const invoiceResult: any = await db.execute(sql`
+    const invoiceResult: any = await (req as any).db.execute(sql`
       INSERT INTO invoices (org_id, customer_id, title, notes, status, sub_total, tax_total, grand_total)
       VALUES (
         ${orgId}::uuid, 
@@ -998,7 +998,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     const invoiceId = invoiceResult.rows[0].id;
 
     // Add a default line item for the completed work
-    await db.execute(sql`
+    await (req as any).db.execute(sql`
       INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
       VALUES (
         ${orgId}::uuid,
@@ -1029,7 +1029,7 @@ jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
-  await db.execute(sql`
+  await (req as any).db.execute(sql`
     delete from jobs
     where id=${jobId}::uuid and org_id=${orgId}::uuid
   `);

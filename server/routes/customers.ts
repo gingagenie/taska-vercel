@@ -22,10 +22,11 @@ customers.get("/", requireAuth, requireOrg, async (req, res) => {
   console.log("[TRACE] GET /api/customers org=%s", orgId);
   
   try {
-    const r: any = await db.execute(sql`
+    // @ts-ignore
+    const client = req.db;
+    const r: any = await client.query(`
       select id, name, contact_name, email, phone, street, suburb, state, postcode
       from customers
-      where org_id=${orgId}::uuid
       order by name asc
     `);
     res.json(r.rows);
@@ -44,11 +45,14 @@ customers.get("/:id", requireAuth, requireOrg, async (req, res) => {
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
   
   try {
-    const r: any = await db.execute(sql`
-      select id, name, contact_name, email, phone, street, suburb, state, postcode
-      from customers
-      where id=${id}::uuid and org_id=${orgId}::uuid
-    `);
+    // @ts-ignore
+    const client = req.db;
+    const r: any = await client.query(
+      `select id, name, contact_name, email, phone, street, suburb, state, postcode
+       from customers
+       where id=$1 and org_id = current_setting('app.current_org')::uuid`,
+      [id]
+    );
     const row = r.rows?.[0];
     if (!row) return res.status(404).json({ error: "not found" });
     res.json(row);
@@ -63,31 +67,27 @@ customers.post("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId; // guaranteed after requireOrg
   console.log("[TRACE] POST /api/customers org=%s", orgId);
   
-  // Double-check org existence right before insert
-  const ok: any = await db.execute(sql`select 1 from orgs where id=${orgId}::uuid`);
-  if (!ok.rows?.length) {
-    console.log(`[AUTH] 400 - Invalid org at insert: orgId=${orgId}`);
-    return res.status(400).json({ error: "Invalid org" });
-  }
+  // Org validation handled by tenant guard
   
   const { name, contact_name, email, phone, street, suburb, state, postcode, notes } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: "name required" });
 
   try {
-    const ins: any = await db.execute(sql`
+    // @ts-ignore
+    const client = req.db;
+    const ins: any = await client.query(`
       insert into customers (
         org_id, name, contact_name, email, phone, street, suburb, state, postcode, notes
       ) values (
-        ${orgId}::uuid, ${name}, ${contact_name||null}, ${email||null}, ${phone||null},
-        ${street||null}, ${suburb||null}, ${state||null}, ${postcode||null}, ${notes||null}
+        current_setting('app.current_org')::uuid, $1, $2, $3, $4, $5, $6, $7, $8, $9
       )
       returning id
-    `);
+    `, [name, contact_name||null, email||null, phone||null, street||null, suburb||null, state||null, postcode||null, notes||null]);
 
-    const row: any = await db.execute(sql`
+    const row: any = await client.query(`
       select id, name, contact_name, email, phone, street, suburb, state, postcode, notes, created_at
-      from customers where id=${ins.rows[0].id}::uuid
-    `);
+      from customers where id=$1
+    `, [ins.rows[0].id]);
 
     res.json({ ok: true, customer: row.rows[0] });
   } catch (error: any) {
@@ -107,18 +107,20 @@ customers.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const { name, contact_name, email, phone, street, suburb, state, postcode } = req.body || {};
   
   try {
-    await db.execute(sql`
+    // @ts-ignore
+    const client = req.db;
+    await client.query(`
       update customers set
-        name         = coalesce(${name}, name),
-        contact_name = coalesce(${contact_name}, contact_name),
-        email        = coalesce(${email}, email),
-        phone        = coalesce(${phone}, phone),
-        street       = coalesce(${street}, street),
-        suburb       = coalesce(${suburb}, suburb),
-        state        = coalesce(${state}, state),
-        postcode     = coalesce(${postcode}, postcode)
-      where id=${id}::uuid and org_id=${orgId}::uuid
-    `);
+        name         = coalesce($2, name),
+        contact_name = coalesce($3, contact_name),
+        email        = coalesce($4, email),
+        phone        = coalesce($5, phone),
+        street       = coalesce($6, street),
+        suburb       = coalesce($7, suburb),
+        state        = coalesce($8, state),
+        postcode     = coalesce($9, postcode)
+      where id=$1 and org_id = current_setting('app.current_org')::uuid
+    `, [id, name, contact_name, email, phone, street, suburb, state, postcode]);
     res.json({ ok: true });
   } catch (error: any) {
     console.error("PUT /api/customers/:id error:", error);
@@ -136,11 +138,13 @@ customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
 
   try {
     // Check if customer has any associated jobs
-    const jobCheck = await db.execute(sql`
+    // @ts-ignore
+    const client = req.db;
+    const jobCheck = await client.query(`
       select count(*) as job_count 
       from jobs 
-      where customer_id=${id}::uuid and org_id=${orgId}::uuid
-    `);
+      where customer_id=$1 and org_id = current_setting('app.current_org')::uuid
+    `, [id]);
     
     const jobCount = parseInt(String(jobCheck.rows[0]?.job_count || "0"));
     
@@ -151,10 +155,10 @@ customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
     }
 
     // Safe to delete - no associated jobs
-    await db.execute(sql`
+    await client.query(`
       delete from customers
-      where id=${id}::uuid and org_id=${orgId}::uuid
-    `);
+      where id=$1 and org_id = current_setting('app.current_org')::uuid
+    `, [id]);
 
     res.json({ ok: true });
   } catch (error: any) {
@@ -173,8 +177,7 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
   }
 
   try {
-    // Double-check org existence
-    const ok: any = await db.execute(sql`select 1 from orgs where id=${orgId}::uuid`);
+    // Org validation handled by tenant guard
     if (!ok.rows?.length) {
       console.log(`[AUTH] 400 - Invalid org at CSV import: orgId=${orgId}`);
       return res.status(400).json({ error: "Invalid org" });
@@ -218,14 +221,15 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
         }
 
         // Insert customer
-        await db.execute(sql`
+        // @ts-ignore
+        const client = req.db;
+        await client.query(`
           insert into customers (
             org_id, name, contact_name, email, phone, address, street, suburb, state, postcode, notes
           ) values (
-            ${orgId}::uuid, ${name}, ${contact_name||null}, ${email||null}, ${phone||null},
-            ${address||null}, ${street||null}, ${suburb||null}, ${state||null}, ${postcode||null}, ${notes||null}
+            current_setting('app.current_org')::uuid, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
           )
-        `);
+        `, [name, contact_name||null, email||null, phone||null, address||null, street||null, suburb||null, state||null, postcode||null, notes||null]);
 
         imported++;
       } catch (error: any) {

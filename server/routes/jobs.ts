@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../db";
+// import { db } from "../db"; // replaced with req.db for tenant isolation
 import { jobs as jobsSchema, customers, equipment, jobPhotos, users, jobAssignments } from "../../shared/schema";
 import multer from "multer";
 import path from "path";
@@ -46,13 +46,22 @@ jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   const customerId = (req.query.customerId as string | undefined) || undefined;
 
-  const r: any = await db.execute(sql`
+  // @ts-ignore
+  const client = req.db;
+  let query = `
     select id, name
     from equipment
-    where org_id=${orgId}::uuid
-      ${customerId ? sql`and customer_id=${customerId}::uuid` : sql``}
-    order by name asc
-  `);
+    where org_id = current_setting('app.current_org')::uuid
+  `;
+  let params: any[] = [];
+  
+  if (customerId) {
+    query += ` and customer_id = $1`;
+    params.push(customerId);
+  }
+  
+  query += ` order by name asc`;
+  const r: any = await client.query(query, params);
   res.json(r.rows);
 });
 

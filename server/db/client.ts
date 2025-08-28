@@ -8,7 +8,7 @@ for (const k of ["PGHOST","PGPORT","PGUSER","PGPASSWORD","PGDATABASE"]) {
 
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
 
-// Show which database we're connecting to for debugging
+// Show which database we're connecting to for debugging (can remove this later)
 console.log("🔍 Database host:", process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : 'NOT_SET');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });

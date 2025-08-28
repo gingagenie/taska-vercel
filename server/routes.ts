@@ -49,6 +49,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/objects", objectsRouter);
   console.log("[mount] /api/objects");
   
+  // Data export tool
+  app.get("/export-local-data.html", (_req, res) => {
+    res.sendFile("export-local-data.html", { root: process.cwd() });
+  });
+  
   app.get("/api", (_req, res) => res.json({ ok: true, name: "Taska 2.0 API" }));
 
   const httpServer = createServer(app);

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../db/client";
+// import { db } from "../db/client"; // replaced with req.db
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
@@ -16,18 +16,21 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
     const userId = (req as any).user?.id;
     const orgId = (req as any).orgId;
 
+    // @ts-ignore
+    const client = req.db;
+    
     // Fetch user data from database
-    const userResult = await db.execute(sql`
+    const userResult = await client.query(`
       SELECT id, email, name, role, phone 
       FROM users 
-      WHERE id = ${userId}
-    `);
+      WHERE id = $1
+    `, [userId]);
     
     // Fetch organization data from database
-    const orgResult = await db.execute(sql`
+    const orgResult = await client.query(`
       SELECT id, name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents
       FROM orgs 
-      WHERE id = ${orgId}
+      WHERE id = current_setting('app.current_org')::uuid
     `);
 
     const user = userResult.rows[0] || {

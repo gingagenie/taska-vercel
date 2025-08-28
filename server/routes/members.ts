@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../db/client";
+// import { db } from "../db/client"; // replaced with req.db
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
@@ -12,10 +12,12 @@ const isUuid = (v: string | undefined) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 members.get("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   try {
-    const r: any = await db.execute(sql`
+    // @ts-ignore
+    const client = req.db;
+    const r: any = await client.query(`
       select id, name, email, role
       from users
-      where org_id = ${orgId}::uuid
+      where org_id = current_setting('app.current_org')::uuid
       order by name asc
     `);
     res.json(r.rows);

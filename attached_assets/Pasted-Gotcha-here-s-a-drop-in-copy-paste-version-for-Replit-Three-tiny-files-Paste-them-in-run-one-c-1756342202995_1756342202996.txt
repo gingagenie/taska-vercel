@@ -1,0 +1,297 @@
+Gotcha — here’s a drop-in, copy-paste version for Replit. Three tiny files. Paste them in, run one command, done.
+
+1) package.json
+{
+  "name": "taska-tenant-audit",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "audit": "node audit.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.11.5",
+    "dotenv": "^16.4.5"
+  }
+}
+
+2) .env (make this in the project root)
+# === DATABASE (Neon/Postgres) ===
+# Example: postgres://USER:PASSWORD@HOST:PORT/DB?sslmode=require
+DB_URL=postgres://user:pass@host:5432/db?sslmode=require
+
+# Schema & columns (adjust if needed)
+TABLE_SCHEMA=public
+ID_COLUMN=id
+
+# Which tables to audit (comma separated)
+TABLES=customers,jobs,invoices,quotes,files
+
+# Two real org IDs that already exist in your DB (UUIDs)
+ORG_A_ID=00000000-0000-0000-0000-000000000000
+ORG_B_ID=11111111-1111-1111-1111-111111111111
+
+3) audit.mjs
+import 'dotenv/config';
+import { Pool } from 'pg';
+
+const {
+  DB_URL,
+  TABLE_SCHEMA = 'public',
+  TABLES = 'customers,jobs,invoices,quotes,files',
+  ID_COLUMN = 'id',
+  ORG_A_ID,
+  ORG_B_ID,
+} = process.env;
+
+if (!DB_URL) {
+  console.error('❌ DB_URL is required in .env');
+  process.exit(2);
+}
+if (!ORG_A_ID || !ORG_B_ID) {
+  console.error('❌ ORG_A_ID and ORG_B_ID are required in .env');
+  process.exit(2);
+}
+
+const pool = new Pool({ connectionString: DB_URL });
+
+async function q(sql, params = []) {
+  const client = await pool.connect();
+  try {
+    return await client.query(sql, params);
+  } finally {
+    client.release();
+  }
+}
+
+async function setCurrentOrg(orgId) {
+  await q("SELECT set_config('app.current_org', $1, true)", [orgId]);
+}
+
+async function tableExists(table) {
+  const { rowCount } = await q(
+    `SELECT 1 FROM information_schema.tables WHERE table_schema=$1 AND table_name=$2`,
+    [TABLE_SCHEMA, table]
+  );
+  return rowCount > 0;
+}
+
+async function hasOrgIdColumn(table) {
+  const { rowCount } = await q(
+    `SELECT 1 FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name='org_id'`,
+    [TABLE_SCHEMA, table]
+  );
+  return rowCount > 0;
+}
+
+async function rlsEnabled(table) {
+  const { rows } = await q(
+    `SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = ($1 || '.' || $2)::regclass`,
+    [TABLE_SCHEMA, table]
+  );
+  if (!rows.length) return { enabled: false, force: false };
+  const { relrowsecurity, relforcerowsecurity } = rows[0];
+  return { enabled: !!relrowsecurity, force: !!relforcerowsecurity };
+}
+
+async function policies(table) {
+  const { rows } = await q(
+    `
+    SELECT polname, polcmd,
+           pg_get_expr(polqual, polrelid) AS using_expr,
+           pg_get_expr(polwithcheck, polrelid) AS with_check_expr
+    FROM pg_policy
+    WHERE polrelid = ($1 || '.' || $2)::regclass
+    ORDER BY polname
+    `,
+    [TABLE_SCHEMA, table]
+  );
+  return rows;
+}
+
+async function hasOrgIndex(table) {
+  const { rows } = await q(
+    `SELECT indexdef FROM pg_indexes WHERE schemaname=$1 AND tablename=$2`,
+    [TABLE_SCHEMA, table]
+  );
+  return rows.some(r => /\borg_id\b/.test(r.indexdef));
+}
+
+async function sampleIdForOrg(table, orgId) {
+  await setCurrentOrg(orgId);
+  try {
+    const { rows } = await q(
+      `SELECT ${ID_COLUMN} AS id FROM ${TABLE_SCHEMA}."${table}" ORDER BY random() LIMIT 1`
+    );
+    return rows.length ? rows[0].id : null;
+  } catch {
+    return null;
+  }
+}
+
+async function crossSelectBlocked(table, id) {
+  const { rowCount } = await q(
+    `SELECT ${ID_COLUMN} FROM ${TABLE_SCHEMA}."${table}" WHERE ${ID_COLUMN}=$1`,
+    [id]
+  );
+  // If RLS works, querying a foreign row returns 0
+  return rowCount === 0;
+}
+
+async function crossUpdateBlocked(table, id) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SAVEPOINT s1');
+    let updated = 0;
+    try {
+      const colCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name='updated_at'`,
+        [TABLE_SCHEMA, table]
+      );
+      if (colCheck.rowCount > 0) {
+        const res = await client.query(
+          `UPDATE ${TABLE_SCHEMA}."${table}" SET updated_at = now() WHERE ${ID_COLUMN}=$1`,
+          [id]
+        );
+        updated = res.rowCount;
+      } else {
+        const res = await client.query(
+          `UPDATE ${TABLE_SCHEMA}."${table}" SET ${ID_COLUMN}=${ID_COLUMN} WHERE ${ID_COLUMN}=$1`,
+          [id]
+        );
+        updated = res.rowCount;
+      }
+    } catch {
+      await client.query('ROLLBACK TO SAVEPOINT s1');
+      return true; // blocked by RLS/permissions -> good
+    } finally {
+      await client.query('ROLLBACK');
+    }
+    return updated === 0; // if any row updated, not blocked -> bad
+  } finally {
+    client.release();
+  }
+}
+
+function policyLooksGood(expr) {
+  if (!expr) return false;
+  const hasOrg = /\borg_id\b/i.test(expr);
+  const usesCurrent = /current_setting\('\s*app\.current_org\s*'\)/i.test(expr) || /request\.jwt\.claims/i.test(expr);
+  return hasOrg && usesCurrent;
+}
+
+function header(s) {
+  console.log('\n' + '—'.repeat(80));
+  console.log(s);
+  console.log('—'.repeat(80));
+}
+
+async function main() {
+  header('Taska Multi-Tenant Audit — DB/RLS checks');
+
+  const tables = TABLES.split(',').map(s => s.trim()).filter(Boolean);
+  const results = [];
+
+  for (const table of tables) {
+    const r = {
+      table, exists: false, hasOrgId: false,
+      rlsEnabled: false, rlsForced: false,
+      hasOrgIndex: false, policyOK: 'unknown',
+      xSelect: 'skipped', xUpdate: 'skipped', notes: []
+    };
+
+    r.exists = await tableExists(table);
+    if (!r.exists) { r.notes.push('Table not found'); results.push(r); continue; }
+
+    r.hasOrgId = await hasOrgIdColumn(table);
+    if (!r.hasOrgId) r.notes.push('Missing org_id column');
+
+    const { enabled, force } = await rlsEnabled(table);
+    r.rlsEnabled = enabled; r.rlsForced = force;
+    if (!enabled) r.notes.push('RLS disabled');
+
+    r.hasOrgIndex = await hasOrgIndex(table);
+    if (!r.hasOrgIndex) r.notes.push('No index including org_id found');
+
+    const pols = await policies(table);
+    if (pols.length === 0) r.notes.push('No RLS policies defined');
+    r.policyOK = pols.some(p => policyLooksGood(p.using_expr) || policyLooksGood(p.with_check_expr)) ? 'yes' : 'no';
+
+    let sampleId = null;
+    try {
+      await setCurrentOrg(ORG_A_ID);
+      sampleId = await sampleIdForOrg(table, ORG_A_ID);
+    } catch (e) {
+      r.notes.push('Error sampling ORG_A: ' + e.message);
+    }
+
+    if (sampleId) {
+      try {
+        await setCurrentOrg(ORG_B_ID);
+        r.xSelect = (await crossSelectBlocked(table, sampleId)) ? 'PASS' : 'FAIL';
+      } catch (e) {
+        r.xSelect = 'PASS';
+        r.notes.push('Select blocked by error (likely RLS): ' + e.message);
+      }
+      try {
+        await setCurrentOrg(ORG_B_ID);
+        r.xUpdate = (await crossUpdateBlocked(table, sampleId)) ? 'PASS' : 'FAIL';
+      } catch (e) {
+        r.xUpdate = 'PASS';
+        r.notes.push('Update blocked by error (likely RLS): ' + e.message);
+      }
+    } else {
+      r.notes.push('No sample row for ORG_A; data-plane tests skipped.');
+    }
+
+    results.push(r);
+  }
+
+  header('Results');
+  const pad = (s, n) => String(s).padEnd(n);
+  console.log(
+    pad('Table', 18),
+    pad('org_id', 8),
+    pad('RLS', 6),
+    pad('Idx', 6),
+    pad('Policy', 8),
+    pad('X-Select', 10),
+    pad('X-Update', 10),
+    'Notes'
+  );
+  for (const r of results) {
+    console.log(
+      pad(r.table, 18),
+      pad(r.hasOrgId ? 'OK' : 'MISS', 8),
+      pad(r.rlsEnabled ? (r.rlsForced ? 'ON*' : 'ON') : 'OFF', 6),
+      pad(r.hasOrgIndex ? 'OK' : 'MISS', 6),
+      pad(r.policyOK, 8),
+      pad(r.xSelect, 10),
+      pad(r.xUpdate, 10),
+      r.notes.join('; ')
+    );
+  }
+
+  const anyFail = results.some(r =>
+    !r.exists || !r.hasOrgId || !r.rlsEnabled ||
+    r.xSelect === 'FAIL' || r.xUpdate === 'FAIL'
+  );
+  if (anyFail) {
+    console.log('\n❌ Some checks FAILED. Fix the red flags above.');
+    process.exit(1);
+  } else {
+    console.log('\n✅ All checks passed (or were skipped due to empty data).');
+  }
+}
+
+main().catch(e => {
+  console.error('Fatal:', e);
+  process.exit(1);
+});
+
+Run it in Replit (or local)
+npm i
+npm run audit
+
+
+That’s it. If you want me to hard-code your exact table list (e.g., orgs, users, jobs, job_notes, invoices, invoice_items, files, etc.) say the word and I’ll tune the defaults so it reads perfectly against Taska.

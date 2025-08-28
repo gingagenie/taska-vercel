@@ -141,15 +141,19 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/health/db", async (_req, res) => {
   try {
     // Check database connection and show basic info
-    const result = await db.execute(sql`SELECT COUNT(*) as user_count FROM users`);
-    const orgResult = await db.execute(sql`SELECT COUNT(*) as org_count FROM orgs`);
     const dbUrl = process.env.DATABASE_URL;
     const dbHost = dbUrl ? new URL(dbUrl).hostname : 'NOT_SET';
     
+    // Try simple connection test
+    const client = await pool.connect();
+    const result = await client.query('SELECT COUNT(*) as user_count FROM users');
+    const orgResult = await client.query('SELECT COUNT(*) as org_count FROM orgs');
+    client.release();
+    
     res.json({ 
       ok: true, 
-      user_count: result[0]?.user_count,
-      org_count: orgResult[0]?.org_count,
+      user_count: result.rows[0]?.user_count,
+      org_count: orgResult.rows[0]?.org_count,
       db_host: dbHost
     });
   } catch (error) {

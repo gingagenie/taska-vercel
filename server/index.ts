@@ -96,24 +96,29 @@ async function tenantGuard(req: Request, res: Response, next: NextFunction) {
     // @ts-ignore
     req.db = client;
 
-    await client.query("BEGIN");
-    await client.query("SET LOCAL app.current_org = $1", [orgId]);
+    // Set the tenant context without a transaction to prevent timeouts
+    await client.query("SET app.current_org = $1", [orgId]);
 
-    // auto-commit/rollback and release when the response ends
+    // auto-release when the response ends
     res.on("finish", async () => {
-      try { await client.query("COMMIT"); } catch { await client.query("ROLLBACK"); }
-      client.release();
+      try { 
+        client.release();
+      } catch (e) {
+        console.error("Error releasing client on finish:", e);
+      }
     });
     res.on("close", async () => {
-      try { await client.query("ROLLBACK"); } catch {}
-      client.release();
+      try { 
+        client.release();
+      } catch (e) {
+        console.error("Error releasing client on close:", e);
+      }
     });
 
     return next();
   } catch (e) {
-    // best-effort rollback if something blew up early
-    try { /* noop */ } catch {}
-    return next(e);
+    console.error("Tenant guard error:", e);
+    return res.status(500).json({ error: "Database connection failed" });
   }
 }
 // --- END tenant guard ---

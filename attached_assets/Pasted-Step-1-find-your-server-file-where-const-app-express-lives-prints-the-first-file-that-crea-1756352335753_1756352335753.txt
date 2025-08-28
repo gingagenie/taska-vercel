@@ -1,0 +1,70 @@
+Step 1 — find your server file (where const app = express() lives)
+# prints the first file that creates the Express app
+grep -RIl "const app = express" --exclude-dir=node_modules
+
+
+You’ll see a path like server/index.ts or src/server.ts.
+Open that file in Replit’s editor.
+
+Step 2 — paste this EXACT middleware right after you create app
+
+(Place it below const app = express() and after your auth middleware if you have one.)
+
+If your project already has a pg Pool, use that; otherwise paste the Pool bit too.
+
+// --- BEGIN tenant guard (paste this block) ---
+import type { Request, Response, NextFunction } from "express";
+import { Pool } from "pg";
+
+// reuse your existing pool if you already have one; otherwise this creates it:
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+/**
+ * Sets the current tenant for this HTTP request so RLS can do its job.
+ * Requires that your auth has already put { org_id: '...' } on req.user
+ * (or on req.session.user.org_id). If that's different, adjust the line marked 👇.
+ */
+async function tenantGuard(req: Request, res: Response, next: NextFunction) {
+  try {
+    // 👇 get the org from the authenticated user on the server (NOT from headers/localStorage)
+    const orgId =
+      // prefer whatever your auth sets
+      // @ts-ignore
+      req.user?.org_id ||
+      // fallback if you use sessions
+      // @ts-ignore
+      req.session?.user?.org_id;
+
+    if (!orgId) {
+      return res.status(401).json({ error: "No org on session" });
+    }
+
+    // one PG client per request, with a transaction + tenant set
+    const client = await pool.connect();
+    // @ts-ignore
+    req.db = client;
+
+    await client.query("BEGIN");
+    await client.query("SET LOCAL app.current_org = $1", [orgId]);
+
+    // auto-commit/rollback and release when the response ends
+    res.on("finish", async () => {
+      try { await client.query("COMMIT"); } catch { await client.query("ROLLBACK"); }
+      client.release();
+    });
+    res.on("close", async () => {
+      try { await client.query("ROLLBACK"); } catch {}
+      client.release();
+    });
+
+    return next();
+  } catch (e) {
+    // best-effort rollback if something blew up early
+    try { /* noop */ } catch {}
+    return next(e);
+  }
+}
+
+// mount it for all API routes (after auth)
+app.use("/api", tenantGuard);
+// --- END tenant guard ---

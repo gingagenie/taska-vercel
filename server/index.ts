@@ -67,6 +67,57 @@ const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use("/uploads", express.static(uploadsDir, { maxAge: "1y", immutable: true }));
 
+// --- BEGIN tenant guard ---
+/**
+ * Sets the current tenant for this HTTP request so RLS can do its job.
+ * Requires that your auth has already put { org_id: '...' } on req.user
+ * (or on req.session.user.org_id). If that's different, adjust the line marked 👇.
+ */
+async function tenantGuard(req: Request, res: Response, next: NextFunction) {
+  try {
+    // 👇 get the org from the authenticated user on the server (NOT from headers/localStorage)
+    const orgId =
+      // prefer whatever your auth sets
+      // @ts-ignore
+      req.user?.org_id ||
+      // fallback if you use sessions
+      // @ts-ignore
+      req.session?.user?.org_id ||
+      // additional fallback for session-based auth
+      // @ts-ignore
+      req.session?.orgId;
+
+    if (!orgId) {
+      return res.status(401).json({ error: "No org on session" });
+    }
+
+    // one PG client per request, with a transaction + tenant set
+    const client = await pool.connect();
+    // @ts-ignore
+    req.db = client;
+
+    await client.query("BEGIN");
+    await client.query("SET LOCAL app.current_org = $1", [orgId]);
+
+    // auto-commit/rollback and release when the response ends
+    res.on("finish", async () => {
+      try { await client.query("COMMIT"); } catch { await client.query("ROLLBACK"); }
+      client.release();
+    });
+    res.on("close", async () => {
+      try { await client.query("ROLLBACK"); } catch {}
+      client.release();
+    });
+
+    return next();
+  } catch (e) {
+    // best-effort rollback if something blew up early
+    try { /* noop */ } catch {}
+    return next(e);
+  }
+}
+// --- END tenant guard ---
+
 // Log every API request reaching Express
 app.use((req, _res, next) => {
   if (req.path.startsWith("/api")) {
@@ -81,6 +132,9 @@ app.use((req, _res, next) => {
 /** Quick health checks (sanity) */
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/health/db", (_req, res) => res.json({ ok: true })); // replace with real db check later
+
+// mount tenant guard for all API routes (after auth)
+app.use("/api", tenantGuard);
 
 /** Mount API routes that aren't part of registerRoutes */
 import { members } from "./routes/members";

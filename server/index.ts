@@ -138,6 +138,16 @@ app.use((req, _res, next) => {
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/health/db", (_req, res) => res.json({ ok: true })); // replace with real db check later
 
+// DEBUG: Show which database we're actually connected to (no auth required)
+app.get("/debug/database-info", async (_req, res) => {
+  const dbUrl = process.env.DATABASE_URL;
+  const maskedUrl = dbUrl ? dbUrl.replace(/:\/\/[^@]*@/, '://***:***@') : 'NOT_SET';
+  res.json({ 
+    database_url_masked: maskedUrl,
+    database_host: dbUrl ? new URL(dbUrl).hostname : 'NOT_SET'
+  });
+});
+
 // Temporarily disable tenant guard to test clean setup
 // TODO: Re-enable after converting all routes to use req.db
 // mount tenant guard for all API routes (after auth, but exclude auth endpoints)

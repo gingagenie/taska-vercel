@@ -1,0 +1,325 @@
+1) Make the audit auto-point at production
+
+Create audit.mjs (this version will:
+
+fall back to process.env.DATABASE_URL if .env DB_URL isn’t set
+
+auto-pick ORG_A_ID/ORG_B_ID from real org names if you don’t provide them
+
+handle orgs or organisations table names)
+
+import 'dotenv/config';
+import { Pool } from 'pg';
+
+function env(name, fallback) {
+  return process.env[name] ?? fallback ?? null;
+}
+
+// Prefer DB_URL from .env; else fall back to Replit/production vars
+const DB_URL = env('DB_URL') || env('DATABASE_URL') ||
+               (env('PGUSER') && env('PGPASSWORD') && env('PGHOST') && env('PGDATABASE')
+                 ? `postgres://${env('PGUSER')}:${env('PGPASSWORD')}@${env('PGHOST')}:${env('PGPORT')||5432}/${env('PGDATABASE')}?sslmode=require`
+                 : null);
+
+const TABLE_SCHEMA = env('TABLE_SCHEMA', 'public');
+const TABLES = (env('TABLES', 'customers,jobs,invoices,quotes,files'))
+  .split(',').map(s => s.trim()).filter(Boolean);
+const ID_COLUMN = env('ID_COLUMN', 'id');
+
+let ORG_A_ID = env('ORG_A_ID');
+let ORG_B_ID = env('ORG_B_ID');
+
+// Known production org name hints:
+const ORG_HINTS = [
+  'Fix my Forklift',
+  'Fix My Forklift',
+  'Be Chill',
+  'Be Chill Automotive'
+];
+
+if (!DB_URL) {
+  console.error('❌ No DB URL found. Set DB_URL in .env OR ensure DATABASE_URL/PG* envs exist.');
+  process.exit(2);
+}
+
+const pool = new Pool({ connectionString: DB_URL });
+
+async function q(sql, params = []) {
+  const c = await pool.connect();
+  try {
+    return await c.query(sql, params);
+  } finally {
+    c.release();
+  }
+}
+
+async function detectOrgTable() {
+  const checks = [
+    `${TABLE_SCHEMA}.orgs`,
+    `${TABLE_SCHEMA}.organisations`
+  ];
+  for (const fq of checks) {
+    const { rows } = await q(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.tables
+         WHERE table_schema=$1 AND table_name=$2
+       ) AS ex`,
+      [fq.split('.')[0], fq.split('.')[1]]
+    );
+    if (rows[0]?.ex) return fq;
+  }
+  throw new Error('No org table found (looked for "orgs" or "organisations").');
+}
+
+async function findRealOrgIds() {
+  if (ORG_A_ID && ORG_B_ID) return { a: ORG_A_ID, b: ORG_B_ID };
+
+  const orgTable = await detectOrgTable();
+  // Try exact-ish name hits first
+  for (const hint of ORG_HINTS) {
+    const { rows } = await q(
+      `SELECT id, name FROM ${orgTable} WHERE LOWER(name) LIKE LOWER($1) LIMIT 1`,
+      [`%${hint}%`]
+    );
+    if (rows.length && !ORG_A_ID) ORG_A_ID = rows[0].id;
+    else if (rows.length && !ORG_B_ID && rows[0].id !== ORG_A_ID) ORG_B_ID = rows[0].id;
+    if (ORG_A_ID && ORG_B_ID) break;
+  }
+
+  // If still missing, pick two biggest/oldest orgs as a fallback
+  if (!ORG_A_ID || !ORG_B_ID) {
+    const { rows } = await q(
+      `SELECT id, name, created_at FROM ${orgTable} ORDER BY created_at NULLS LAST, id LIMIT 10`
+    );
+    for (const r of rows) {
+      if (!ORG_A_ID) ORG_A_ID = r.id;
+      else if (!ORG_B_ID && r.id !== ORG_A_ID) { ORG_B_ID = r.id; break; }
+    }
+  }
+
+  if (!ORG_A_ID || !ORG_B_ID) {
+    throw new Error('Could not auto-detect two org IDs. Set ORG_A_ID and ORG_B_ID in .env.');
+  }
+  return { a: ORG_A_ID, b: ORG_B_ID };
+}
+
+async function setCurrentOrg(orgId) {
+  await q("SELECT set_config('app.current_org', $1, true)", [orgId]);
+}
+async function tableExists(table) {
+  const { rowCount } = await q(
+    `SELECT 1 FROM information_schema.tables WHERE table_schema=$1 AND table_name=$2`,
+    [TABLE_SCHEMA, table]
+  );
+  return rowCount > 0;
+}
+async function hasOrgIdColumn(table) {
+  const { rowCount } = await q(
+    `SELECT 1 FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name='org_id'`,
+    [TABLE_SCHEMA, table]
+  );
+  return rowCount > 0;
+}
+async function rlsEnabled(table) {
+  const { rows } = await q(
+    `SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = ($1 || '.' || $2)::regclass`,
+    [TABLE_SCHEMA, table]
+  );
+  if (!rows.length) return { enabled: false, force: false };
+  return { enabled: !!rows[0].relrowsecurity, force: !!rows[0].relforcerowsecurity };
+}
+async function policies(table) {
+  const { rows } = await q(
+    `SELECT pg_get_expr(polqual, polrelid) AS using_expr,
+            pg_get_expr(polwithcheck, polrelid) AS with_check_expr
+     FROM pg_policy WHERE polrelid = ($1 || '.' || $2)::regclass`,
+    [TABLE_SCHEMA, table]
+  );
+  return rows;
+}
+async function hasOrgIndex(table) {
+  const { rows } = await q(
+    `SELECT indexdef FROM pg_indexes WHERE schemaname=$1 AND tablename=$2`,
+    [TABLE_SCHEMA, table]
+  );
+  return rows.some(r => /\borg_id\b/.test(r.indexdef));
+}
+async function sampleIdForOrg(table, orgId) {
+  await setCurrentOrg(orgId);
+  try {
+    const { rows } = await q(
+      `SELECT ${ID_COLUMN} AS id FROM ${TABLE_SCHEMA}."${table}" ORDER BY random() LIMIT 1`
+    );
+    return rows.length ? rows[0].id : null;
+  } catch { return null; }
+}
+async function crossSelectBlocked(table, id) {
+  const { rowCount } = await q(
+    `SELECT ${ID_COLUMN} FROM ${TABLE_SCHEMA}."${table}" WHERE ${ID_COLUMN}=$1`,
+    [id]
+  );
+  return rowCount === 0;
+}
+async function crossUpdateBlocked(table, id) {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    await c.query('SAVEPOINT s1');
+    let updated = 0;
+    try {
+      const chk = await c.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name='updated_at'`,
+        [TABLE_SCHEMA, table]
+      );
+      if (chk.rowCount > 0) {
+        const res = await c.query(
+          `UPDATE ${TABLE_SCHEMA}."${table}" SET updated_at=now() WHERE ${ID_COLUMN}=$1`,
+          [id]
+        );
+        updated = res.rowCount;
+      } else {
+        const res = await c.query(
+          `UPDATE ${TABLE_SCHEMA}."${table}" SET ${ID_COLUMN}=${ID_COLUMN} WHERE ${ID_COLUMN}=$1`,
+          [id]
+        );
+        updated = res.rowCount;
+      }
+    } catch {
+      await c.query('ROLLBACK TO SAVEPOINT s1');
+      return true; // blocked by RLS/permissions (good)
+    } finally {
+      await c.query('ROLLBACK');
+    }
+    return updated === 0; // if any row updated -> NOT blocked (bad)
+  } finally { c.release(); }
+}
+function policyLooksGood(expr) {
+  if (!expr) return false;
+  const hasOrg = /\borg_id\b/i.test(expr);
+  const usesCurrent = /current_setting\('\s*app\.current_org\s*'\)/i.test(expr) || /request\.jwt\.claims/i.test(expr);
+  return hasOrg && usesCurrent;
+}
+function header(s) { console.log('\n' + '—'.repeat(80) + '\n' + s + '\n' + '—'.repeat(80)); }
+
+async function main() {
+  header('Taska Multi-Tenant Audit — using Neon production (forced via env)');
+  const { a, b } = await findRealOrgIds();
+  console.log(`Using ORG_A_ID=${a}`);
+  console.log(`Using ORG_B_ID=${b}`);
+
+  const results = [];
+  for (const table of TABLES) {
+    const r = { table, hasOrgId:false, rls:false, rlsForced:false, hasIdx:false, policy:'unknown', xSel:'skipped', xUpd:'skipped', notes:[] };
+    if (!(await tableExists(table))) { r.notes.push('Table not found'); results.push(r); continue; }
+
+    r.hasOrgId = await hasOrgIdColumn(table);
+    if (!r.hasOrgId) r.notes.push('Missing org_id');
+
+    const { enabled, force } = await rlsEnabled(table);
+    r.rls = enabled; r.rlsForced = force;
+    if (!enabled) r.notes.push('RLS OFF');
+
+    r.hasIdx = await hasOrgIndex(table);
+    if (!r.hasIdx) r.notes.push('No index incl. org_id');
+
+    const pols = await policies(table);
+    if (pols.length === 0) r.notes.push('No policies');
+    r.policy = pols.some(p => policyLooksGood(p.using_expr) || policyLooksGood(p.with_check_expr)) ? 'yes' : 'no';
+
+    let sampleId = await sampleIdForOrg(table, a);
+    if (!sampleId) { r.notes.push('No sample row for ORG_A'); results.push(r); continue; }
+
+    await setCurrentOrg(b);
+    r.xSel = (await crossSelectBlocked(table, sampleId)) ? 'PASS' : 'FAIL';
+    await setCurrentOrg(b);
+    r.xUpd = (await crossUpdateBlocked(table, sampleId)) ? 'PASS' : 'FAIL';
+
+    results.push(r);
+  }
+
+  header('Results');
+  const pad = (s,n)=>String(s).padEnd(n);
+  console.log(
+    pad('Table',18), pad('org_id',8), pad('RLS',6), pad('Idx',6),
+    pad('Policy',8), pad('X-Select',10), pad('X-Update',10), 'Notes'
+  );
+  for (const r of results) {
+    console.log(
+      pad(r.table,18),
+      pad(r.hasOrgId?'OK':'MISS',8),
+      pad(r.rls?(r.rlsForced?'ON*':'ON'):'OFF',6),
+      pad(r.hasIdx?'OK':'MISS',6),
+      pad(r.policy,8),
+      pad(r.xSel,10),
+      pad(r.xUpd,10),
+      r.notes.join('; ')
+    );
+  }
+
+  const bad = results.some(r => !r.hasOrgId || !r.rls || r.xSel==='FAIL' || r.xUpd==='FAIL');
+  if (bad) { console.log('\n❌ FAIL — fix the red flags above.'); process.exit(1); }
+  console.log('\n✅ PASS — isolation looks good (or tables had no sample rows).');
+}
+main().catch(e => { console.error('Fatal:', e); process.exit(1); });
+
+2) Quick “am I on prod?” sanity checker
+
+Create detect_db.mjs (lists org table + a few orgs so you can eyeball “Fix my Forklift” and “Be Chill”):
+
+import 'dotenv/config';
+import { Pool } from 'pg';
+
+const DB_URL = process.env.DB_URL || process.env.DATABASE_URL;
+if (!DB_URL) { console.error('No DB_URL or DATABASE_URL found'); process.exit(2); }
+
+const pool = new Pool({ connectionString: DB_URL });
+
+async function q(sql, params=[]) {
+  const c = await pool.connect();
+  try { return await c.query(sql, params); } finally { c.release(); }
+}
+
+async function main() {
+  console.log('Connecting to:', DB_URL.replace(/:\/\/[^@]+@/,'://***:***@')); // mask creds
+
+  const candidates = ['public.orgs','public.organisations'];
+  let table = null;
+  for (const fq of candidates) {
+    const [schema, name] = fq.split('.');
+    const { rows } = await q(
+      `SELECT EXISTS(
+         SELECT 1 FROM information_schema.tables
+         WHERE table_schema=$1 AND table_name=$2
+       ) AS ex`, [schema, name]
+    );
+    if (rows[0]?.ex) { table = fq; break; }
+  }
+  if (!table) throw new Error('No orgs/organisations table found.');
+
+  console.log('Org table:', table);
+
+  const { rows } = await q(
+    `SELECT id, name, created_at
+     FROM ${table}
+     ORDER BY created_at NULLS LAST, name
+     LIMIT 20`
+  );
+  console.table(rows);
+}
+main().catch(e => { console.error(e); process.exit(1); });
+
+3) Run these commands
+
+If you keep secrets in Replit env (good), you don’t need a .env. The scripts will pick up DATABASE_URL.
+
+# Install once
+npm i pg dotenv
+
+# Sanity check we’re on production (should list Fix My Forklift / Be Chill)
+node detect_db.mjs
+
+# Run the real audit against that same DB
+node audit.mjs
+
+
+You’ll get a compact table with PASS/FAIL for each table. If anything FAILs, I’ll give you the exact SQL to fix RLS/policies right away.

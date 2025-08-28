@@ -3,6 +3,8 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { me } from "./routes/me";
 import { ensureUsersTableShape } from "./db/ensure";
+import { db } from "./db/client";
+import { sql } from "drizzle-orm";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -140,12 +142,82 @@ app.get("/health/db", (_req, res) => res.json({ ok: true })); // replace with re
 
 // DEBUG: Show which database we're actually connected to (no auth required)
 app.get("/debug/database-info", async (_req, res) => {
-  const dbUrl = process.env.DATABASE_URL;
-  const maskedUrl = dbUrl ? dbUrl.replace(/:\/\/[^@]*@/, '://***:***@') : 'NOT_SET';
-  res.json({ 
-    database_url_masked: maskedUrl,
-    database_host: dbUrl ? new URL(dbUrl).hostname : 'NOT_SET'
-  });
+  try {
+    const dbUrl = process.env.DATABASE_URL;
+    const maskedUrl = dbUrl ? dbUrl.replace(/:\/\/[^@]*@/, '://***:***@') : 'NOT_SET';
+    
+    // Query actual data from the connected database
+    const result = await db.execute(sql`SELECT COUNT(*) as user_count FROM users`);
+    const orgResult = await db.execute(sql`SELECT COUNT(*) as org_count FROM orgs`);
+    
+    res.json({ 
+      database_url_masked: maskedUrl,
+      database_host: dbUrl ? new URL(dbUrl).hostname : 'NOT_SET',
+      user_count: result[0]?.user_count,
+      org_count: orgResult[0]?.org_count,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// DEBUG: Clean the ACTUAL database that the app uses (dangerous!)
+app.post("/debug/clean-database", async (_req, res) => {
+  try {
+    await db.execute(sql`TRUNCATE TABLE users CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE orgs CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE customers CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE jobs CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE equipment CASCADE`);
+    
+    res.json({ 
+      success: true, 
+      message: "Database cleaned successfully",
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// DEBUG: Create Fix My Forklift org in the ACTUAL database
+app.post("/debug/create-clean-setup", async (_req, res) => {
+  try {
+    // Create org
+    const orgResult = await db.execute(sql`
+      INSERT INTO orgs (id, name) 
+      VALUES (gen_random_uuid(), 'Fix My Forklift') 
+      RETURNING id, name
+    `);
+    
+    const orgId = orgResult[0]?.id;
+    
+    // Create user
+    const userResult = await db.execute(sql`
+      INSERT INTO users (id, org_id, name, email, password_hash, role, created_at, last_login_at) 
+      VALUES (
+        gen_random_uuid(), 
+        ${orgId}, 
+        'Keith Richmond', 
+        'keith.richmond@live.com', 
+        '$2b$10$yoFnlxfT3AjK/14cabRGvuGxPf7fsqMz4Ej03U2wx4t.Ugt6lZUFi', 
+        'admin',
+        now(),
+        null
+      ) 
+      RETURNING id, name, email, role
+    `);
+    
+    res.json({ 
+      success: true,
+      org: orgResult[0],
+      user: userResult[0],
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
 });
 
 // Temporarily disable tenant guard to test clean setup

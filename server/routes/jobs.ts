@@ -71,7 +71,7 @@ jobs.get("/completed", requireAuth, requireOrg, async (req, res) => {
   console.log("[TRACE] GET /api/jobs/completed org=%s", orgId);
   
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       SELECT 
         id,
         original_job_id,
@@ -107,7 +107,7 @@ jobs.get("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
       return res.status(400).json({ error: "Invalid jobId" });
     }
 
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       SELECT 
         id,
         original_job_id,
@@ -142,7 +142,7 @@ jobs.get("/", requireAuth, requireOrg, async (req, res) => {
   console.log("[TRACE] GET /api/jobs org=%s", orgId);
   
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       select
         j.id,
         j.title,
@@ -170,7 +170,7 @@ jobs.get("/technicians", requireAuth, requireOrg, async (req, res) => {
   console.log("[TRACE] GET /api/jobs/technicians org=%s", orgId);
   
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       select id, name, email, role
       from users
       where org_id = ${orgId}::uuid
@@ -575,7 +575,7 @@ jobs.get("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params; 
   const orgId = (req as any).orgId;
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       select id, text, created_at
       from job_notes
       where job_id=${jobId}::uuid and org_id=${orgId}::uuid
@@ -594,7 +594,7 @@ jobs.post("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
   const { text } = req.body || {};
   if (!text?.trim()) return res.status(400).json({ error: "text required" });
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       insert into job_notes (job_id, org_id, text)
       values (${jobId}::uuid, ${orgId}::uuid, ${text})
       returning id, text, created_at
@@ -628,7 +628,7 @@ jobs.get("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params; 
   const orgId = (req as any).orgId;
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       select id, kind, description, quantity, unit_price, total, created_at
       from job_charges
       where job_id=${jobId}::uuid and org_id=${orgId}::uuid
@@ -652,7 +652,7 @@ jobs.post("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
   const total = quantity * unitPrice;
 
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       insert into job_charges (job_id, org_id, kind, description, quantity, unit_price, total)
       values (${jobId}::uuid, ${orgId}::uuid, ${kind}, ${description}, ${quantity}, ${unitPrice}, ${total})
       returning id, kind, description, quantity, unit_price, total, created_at
@@ -820,7 +820,7 @@ jobs.post("/:jobId/hours", requireAuth, requireOrg, async (req, res) => {
   }
 
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       INSERT INTO job_hours (job_id, org_id, hours, description)
       VALUES (${jobId}::uuid, ${orgId}::uuid, ${hours}, ${description || ''})
       RETURNING id, hours, description, created_at
@@ -847,7 +847,7 @@ jobs.post("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
   }
 
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       INSERT INTO job_parts (job_id, org_id, part_name, quantity)
       VALUES (${jobId}::uuid, ${orgId}::uuid, ${partName}, ${quantity})
       RETURNING id, part_name, quantity, created_at
@@ -865,7 +865,7 @@ jobs.get("/:jobId/hours", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       SELECT id, hours, description, created_at
       FROM job_hours
       WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
@@ -884,7 +884,7 @@ jobs.get("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       SELECT id, part_name, quantity, created_at
       FROM job_parts
       WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
@@ -903,7 +903,7 @@ jobs.get("/completed/:completedJobId/charges", requireAuth, requireOrg, async (r
   const orgId = (req as any).orgId;
   
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       SELECT id, kind, description, quantity, unit_price, total, created_at
       FROM completed_job_charges
       WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
@@ -922,7 +922,7 @@ jobs.get("/completed/:completedJobId/hours", requireAuth, requireOrg, async (req
   const orgId = (req as any).orgId;
   
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       SELECT id, hours, description, created_at
       FROM completed_job_hours
       WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
@@ -941,7 +941,7 @@ jobs.get("/completed/:completedJobId/parts", requireAuth, requireOrg, async (req
   const orgId = (req as any).orgId;
   
   try {
-    const r: any = await db.execute(sql`
+    const r: any = await (req as any).db.execute(sql`
       SELECT id, part_name, quantity, created_at
       FROM completed_job_parts
       WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid

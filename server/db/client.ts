@@ -10,7 +10,6 @@ if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
 
 // Show which database we're connecting to for debugging (can remove this later)
 console.log("🔍 Database host:", process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : 'NOT_SET');
-console.log("🔍 Full DATABASE_URL (masked):", process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:\/\/[^@]*@/, '://***:***@') : 'NOT_SET');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const db = drizzle(pool);

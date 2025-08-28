@@ -181,6 +181,22 @@ app.post("/debug/clean-database", async (_req, res) => {
   }
 });
 
+// DEBUG: Show what users actually exist in the app's database
+app.get("/debug/list-users", async (_req, res) => {
+  try {
+    const users = await db.execute(sql`SELECT id, name, email, org_id FROM users LIMIT 10`);
+    const orgs = await db.execute(sql`SELECT id, name FROM orgs LIMIT 10`);
+    
+    res.json({ 
+      users: users,
+      orgs: orgs,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
 // DEBUG: Create Fix My Forklift org in the ACTUAL database
 app.post("/debug/create-clean-setup", async (_req, res) => {
   try {

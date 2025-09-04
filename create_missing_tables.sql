@@ -22,7 +22,7 @@ DROP TABLE IF EXISTS job_notes CASCADE;
 CREATE TABLE job_photos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES organizations(id),
+    org_id UUID NOT NULL REFERENCES orgs(id),
     url TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

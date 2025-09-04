@@ -65,9 +65,9 @@ export default function CustomerNew() {
   }
 
   return (
-    <div className="min-h-[100svh] flex flex-col bg-gray-50">
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+    <div className="min-h-screen bg-gray-50">
+      {/* Content - let it flow naturally */}
+      <div className="px-4 py-4 sm:px-6 sm:py-6">
         <div className="max-w-2xl mx-auto space-y-4">
           <Card>
             <CardHeader>

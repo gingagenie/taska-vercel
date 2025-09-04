@@ -120,17 +120,17 @@ function AuthenticatedApp() {
   const pageConfig = getPageConfig();
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Desktop sidebar */}
       <Sidebar />
       
       {/* Main content */}
-      <div className="sm:ml-64">
+      <div className="flex-1 sm:ml-64 flex flex-col min-h-0">
         {/* Mobile header */}
         <MobileHeader />
         
-        {/* Page container */}
-        <main className="page">
+        {/* Page container - scrollable content */}
+        <main className="flex-1 overflow-y-auto page">
         
         <Switch>
           <Route path="/" component={Dashboard} />

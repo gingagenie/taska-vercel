@@ -277,8 +277,8 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
             <div className="text-lg font-semibold">Add Member</div>
           </div>
 
-          {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* Content - let it flow naturally */}
+          <div className="px-5 py-4">
             <div className="space-y-3">
               <div>
                 <Label>Name *</Label>

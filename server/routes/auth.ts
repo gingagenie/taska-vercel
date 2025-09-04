@@ -21,9 +21,9 @@ router.post("/register", async (req, res) => {
   try {
     // Create organization
     const orgIns: any = await db.execute(sql`
-      insert into organisations (name) values (${orgName}) returning id
+      insert into orgs (name) values (${orgName}) returning id
     `);
-    const orgId = orgIns.rows[0].id;
+    const orgId = orgIns[0].id;
 
     // Hash password and create user
     const hash = await bcrypt.hash(password, 10);
@@ -32,7 +32,7 @@ router.post("/register", async (req, res) => {
       values (${orgId}, ${name || 'Owner'}, ${email}, ${hash}, 'admin')
       returning id, name, email, role
     `);
-    const user = userIns.rows[0];
+    const user = userIns[0];
 
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ error: "session error" });
@@ -70,7 +70,7 @@ router.post("/login", async (req, res) => {
       order by created_at asc
       limit 1
     `);
-    const user = r.rows?.[0];
+    const user = r[0];
     console.log("[DEBUG] User found:", !!user, user ? { id: user.id, email: user.email, hasPassword: !!user.password_hash } : null);
     
     if (!user) {
@@ -126,7 +126,7 @@ router.get("/me", async (req, res) => {
       from users 
       where id = ${userId}
     `);
-    const user = r.rows?.[0];
+    const user = r[0];
     
     if (!user) {
       return res.status(401).json({ error: "User not found" });

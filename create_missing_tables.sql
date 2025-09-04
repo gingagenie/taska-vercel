@@ -1,16 +1,25 @@
 -- Create missing database tables for Taska
 -- Run this SQL in your Supabase SQL editor
 
+-- First, drop the table if it exists but is incomplete
+DROP TABLE IF EXISTS job_assignments CASCADE;
+
 -- 1. Job assignments table (for technician assignments)
-CREATE TABLE IF NOT EXISTS job_assignments (
+CREATE TABLE job_assignments (
     job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     assigned_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (job_id, user_id)
 );
 
+-- Drop and recreate other tables that might be incomplete
+DROP TABLE IF EXISTS job_photos CASCADE;
+DROP TABLE IF EXISTS job_hours CASCADE;
+DROP TABLE IF EXISTS job_parts CASCADE;
+DROP TABLE IF EXISTS job_notes CASCADE;
+
 -- 2. Job photos table (for photo uploads)
-CREATE TABLE IF NOT EXISTS job_photos (
+CREATE TABLE job_photos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
     org_id UUID NOT NULL REFERENCES organizations(id),
@@ -19,7 +28,7 @@ CREATE TABLE IF NOT EXISTS job_photos (
 );
 
 -- 3. Job hours tracking table (for time tracking)
-CREATE TABLE IF NOT EXISTS job_hours (
+CREATE TABLE job_hours (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
     org_id UUID NOT NULL,
@@ -29,7 +38,7 @@ CREATE TABLE IF NOT EXISTS job_hours (
 );
 
 -- 4. Job parts table (for parts tracking)
-CREATE TABLE IF NOT EXISTS job_parts (
+CREATE TABLE job_parts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
     org_id UUID NOT NULL,
@@ -39,7 +48,7 @@ CREATE TABLE IF NOT EXISTS job_parts (
 );
 
 -- 5. Job notes table (for additional job notes)
-CREATE TABLE IF NOT EXISTS job_notes (
+CREATE TABLE job_notes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
     org_id UUID NOT NULL,

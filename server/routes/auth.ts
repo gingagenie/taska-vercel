@@ -85,7 +85,10 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Update last login
+    // Update last login (add column if needed)
+    await db.execute(sql`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamp
+    `);
     await db.execute(sql`update users set last_login_at = now() where id = ${user.id}`);
 
     req.session.regenerate((err) => {

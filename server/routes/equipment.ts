@@ -38,7 +38,7 @@ equipment.get("/", requireAuth, requireOrg, async (req, res) => {
     where e.org_id = ${orgId}::uuid
     order by e.name nulls last, e.created_at desc
   `);
-  res.json(r.rows);
+  res.json(r);
 });
 
 /* GET ONE */
@@ -63,7 +63,7 @@ equipment.get("/:id", requireAuth, requireOrg, async (req, res) => {
     left join customers c on c.id = e.customer_id
     where e.id=${id}::uuid and e.org_id=${orgId}::uuid
   `);
-  const row = r.rows?.[0];
+  const row = r[0];
   if (!row) return res.status(404).json({ error: "not found" });
   res.json(row);
 });
@@ -96,7 +96,7 @@ equipment.post("/", requireAuth, requireOrg, async (req, res) => {
       )
       returning id
     `);
-    res.json({ ok: true, id: r.rows[0].id });
+    res.json({ ok: true, id: r[0].id });
   } catch (error: any) {
     console.error("Equipment creation error:", error);
     res.status(500).json({ error: error?.message || "Failed to create equipment" });

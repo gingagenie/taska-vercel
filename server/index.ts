@@ -174,16 +174,14 @@ app.get("/health/db", async (_req, res) => {
 }); // replace with real db check later
 
 
-// Temporarily disable tenant guard to test clean setup
-// TODO: Re-enable after converting all routes to use req.db
 // mount tenant guard for all API routes (after auth, but exclude auth endpoints)
-// app.use("/api", (req, res, next) => {
-//   // Skip tenant guard for auth endpoints that work before authentication
-//   if (req.path.startsWith("/auth/") || req.path === "/auth") {
-//     return next();
-//   }
-//   return tenantGuard(req, res, next);
-// });
+app.use("/api", (req, res, next) => {
+  // Skip tenant guard for auth endpoints that work before authentication
+  if (req.path.startsWith("/auth/") || req.path === "/auth") {
+    return next();
+  }
+  return tenantGuard(req, res, next);
+});
 
 /** Mount API routes that aren't part of registerRoutes */
 import { members } from "./routes/members";

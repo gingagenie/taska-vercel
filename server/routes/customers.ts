@@ -69,23 +69,16 @@ customers.post("/", requireAuth, requireOrg, async (req, res) => {
   if (!name?.trim()) return res.status(400).json({ error: "name required" });
 
   try {
-    // @ts-ignore
-    const client = req.db;
-    const ins: any = await client.query(`
+    const result: any = await db.execute(sql`
       insert into customers (
         org_id, name, contact_name, email, phone, street, suburb, state, postcode, notes
       ) values (
-        current_setting('app.current_org')::uuid, $1, $2, $3, $4, $5, $6, $7, $8, $9
+        ${orgId}::uuid, ${name}, ${contact_name||null}, ${email||null}, ${phone||null}, ${street||null}, ${suburb||null}, ${state||null}, ${postcode||null}, ${notes||null}
       )
-      returning id
-    `, [name, contact_name||null, email||null, phone||null, street||null, suburb||null, state||null, postcode||null, notes||null]);
+      returning id, name, contact_name, email, phone, street, suburb, state, postcode, notes, created_at
+    `);
 
-    const row: any = await client.query(`
-      select id, name, contact_name, email, phone, street, suburb, state, postcode, notes, created_at
-      from customers where id=$1 and org_id = current_setting('app.current_org')::uuid
-    `, [ins.rows[0].id]);
-
-    res.json({ ok: true, customer: row.rows[0] });
+    res.json({ ok: true, customer: result[0] });
   } catch (error: any) {
     console.error("POST /api/customers error:", error);
     res.status(500).json({ error: error?.message || "Failed to create customer" });
@@ -103,20 +96,18 @@ customers.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const { name, contact_name, email, phone, street, suburb, state, postcode } = req.body || {};
   
   try {
-    // @ts-ignore
-    const client = req.db;
-    await client.query(`
+    await db.execute(sql`
       update customers set
-        name         = coalesce($2, name),
-        contact_name = coalesce($3, contact_name),
-        email        = coalesce($4, email),
-        phone        = coalesce($5, phone),
-        street       = coalesce($6, street),
-        suburb       = coalesce($7, suburb),
-        state        = coalesce($8, state),
-        postcode     = coalesce($9, postcode)
-      where id=$1 and org_id = current_setting('app.current_org')::uuid
-    `, [id, name, contact_name, email, phone, street, suburb, state, postcode]);
+        name         = coalesce(${name}, name),
+        contact_name = coalesce(${contact_name}, contact_name),
+        email        = coalesce(${email}, email),
+        phone        = coalesce(${phone}, phone),
+        street       = coalesce(${street}, street),
+        suburb       = coalesce(${suburb}, suburb),
+        state        = coalesce(${state}, state),
+        postcode     = coalesce(${postcode}, postcode)
+      where id=${id}::uuid and org_id = ${orgId}::uuid
+    `);
     res.json({ ok: true });
   } catch (error: any) {
     console.error("PUT /api/customers/:id error:", error);
@@ -134,15 +125,13 @@ customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
 
   try {
     // Check if customer has any associated jobs
-    // @ts-ignore
-    const client = req.db;
-    const jobCheck = await client.query(`
+    const jobCheck: any = await db.execute(sql`
       select count(*) as job_count 
       from jobs 
-      where customer_id=$1 and org_id = current_setting('app.current_org')::uuid
-    `, [id]);
+      where customer_id=${id}::uuid and org_id = ${orgId}::uuid
+    `);
     
-    const jobCount = parseInt(String(jobCheck.rows[0]?.job_count || "0"));
+    const jobCount = parseInt(String(jobCheck[0]?.job_count || "0"));
     
     if (jobCount > 0) {
       return res.status(400).json({ 
@@ -151,10 +140,10 @@ customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
     }
 
     // Safe to delete - no associated jobs
-    await client.query(`
+    await db.execute(sql`
       delete from customers
-      where id=$1 and org_id = current_setting('app.current_org')::uuid
-    `, [id]);
+      where id=${id}::uuid and org_id = ${orgId}::uuid
+    `);
 
     res.json({ ok: true });
   } catch (error: any) {

@@ -85,7 +85,7 @@ jobs.get("/completed", requireAuth, requireOrg, async (req, res) => {
       WHERE org_id = ${orgId}::uuid
       ORDER BY completed_at DESC
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/completed error:", e);
     res.status(500).json({ error: e?.message || "Failed to fetch completed jobs" });
@@ -121,11 +121,11 @@ jobs.get("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
       WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
     
-    if (r.rows.length === 0) {
+    if (r.length === 0) {
       return res.status(404).json({ error: "Completed job not found" });
     }
     
-    res.json(r.rows[0]);
+    res.json(r[0]);
   } catch (e: any) {
     console.error("GET /api/jobs/completed/%s error:", jobId, e);
     res.status(500).json({ error: e?.message || "Failed to fetch completed job" });
@@ -172,7 +172,7 @@ jobs.get("/technicians", requireAuth, requireOrg, async (req, res) => {
       where org_id = ${orgId}::uuid
       order by name asc
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (error: any) {
     console.error("GET /api/jobs/technicians error:", error);
     res.status(500).json({ error: error?.message || "Failed to fetch technicians" });
@@ -228,7 +228,7 @@ jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
     }
 
     const r: any = await db.execute(query);
-    res.json(r.rows);
+    res.json(r);
   } catch (error: any) {
     console.error("GET /api/jobs/range error:", error);
     res.status(500).json({ error: error?.message || "Failed to fetch jobs" });
@@ -299,13 +299,11 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
       where j.id=${jobId}::uuid and j.org_id=${orgId}::uuid
     `);
     
-    const result = jr.rows;
-
-    if (!result.length) {
+    if (!jr || jr.length === 0) {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    const job = result[0];
+    const job = jr[0];
 
     // Fetch assigned technicians
     const techniciansResult: any = await db.execute(sql`
@@ -324,8 +322,8 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
     `);
 
     // Add the arrays to the job object
-    job.technicians = techniciansResult.rows || [];
-    job.equipment = equipmentResult.rows || [];
+    job.technicians = techniciansResult || [];
+    job.equipment = equipmentResult || [];
 
     res.json(job);
   } catch (error: any) {
@@ -453,7 +451,7 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
       RETURNING id
     `);
 
-    if (!(result as any).rows.length) {
+    if (!result.length) {
       console.warn("PUT /api/jobs/%s -> no match for org=%s", jobId, orgId);
       return res.status(404).json({ error: "Job not found" });
     }
@@ -483,7 +481,7 @@ jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
       ORDER BY created_at DESC
     `);
     
-    res.json((result as any).rows || []);
+    res.json(result || []);
   } catch (error: any) {
     console.error("GET /api/jobs/%s/photos error:", req.params.jobId, error);
     res.status(500).json({ error: error?.message || "Failed to fetch photos" });
@@ -519,7 +517,7 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, upload.single("photo"), asy
       RETURNING id, url, created_at
     `);
     
-    const photo = (result as any).rows[0];
+    const photo = result[0];
     res.json(photo);
   } catch (error: any) {
     console.error("POST /api/jobs/%s/photos error:", req.params.jobId, error);
@@ -575,7 +573,7 @@ jobs.get("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
       where job_id=${jobId}::uuid and org_id=${orgId}::uuid
       order by created_at desc
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/:jobId/notes error:", e);
     res.status(500).json({ error: e?.message || "Failed to fetch notes" });
@@ -593,7 +591,7 @@ jobs.post("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
       values (${jobId}::uuid, ${orgId}::uuid, ${text})
       returning id, text, created_at
     `);
-    res.json(r.rows[0]);
+    res.json(r[0]);
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/notes error:", e);
     res.status(500).json({ error: e?.message || "Failed to add note" });
@@ -628,7 +626,7 @@ jobs.get("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
       where job_id=${jobId}::uuid and org_id=${orgId}::uuid
       order by created_at desc
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/:jobId/charges error:", e);
     res.status(500).json({ error: e?.message || "Failed to fetch charges" });
@@ -651,7 +649,7 @@ jobs.post("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
       values (${jobId}::uuid, ${orgId}::uuid, ${kind}, ${description}, ${quantity}, ${unitPrice}, ${total})
       returning id, kind, description, quantity, unit_price, total, created_at
     `);
-    res.json(r.rows[0]);
+    res.json(r[0]);
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/charges error:", e);
     res.status(500).json({ error: e?.message || "Failed to add charge" });
@@ -675,11 +673,11 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE j.id = ${jobId}::uuid AND j.org_id = ${orgId}::uuid
     `);
 
-    if (jobResult.rows.length === 0) {
+    if (jobResult.length === 0) {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    const job = jobResult.rows[0];
+    const job = jobResult[0];
 
     // Insert into completed_jobs table
     const completedResult: any = await db.execute(sql`
@@ -718,7 +716,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at
       )
       SELECT 
-        ${completedResult.rows[0].id}::uuid,
+        ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
         org_id,
         kind,
@@ -737,7 +735,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         completed_job_id, original_job_id, org_id, hours, description, created_at
       )
       SELECT 
-        ${completedResult.rows[0].id}::uuid,
+        ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
         org_id,
         hours,
@@ -753,7 +751,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         completed_job_id, original_job_id, org_id, part_name, quantity, created_at
       )
       SELECT 
-        ${completedResult.rows[0].id}::uuid,
+        ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
         org_id,
         part_name,
@@ -793,8 +791,8 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
 
     res.json({ 
       ok: true, 
-      completed_job_id: completedResult.rows[0].id,
-      completed_at: completedResult.rows[0].completed_at
+      completed_job_id: completedResult[0].id,
+      completed_at: completedResult[0].completed_at
     });
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/complete error:", e);
@@ -819,7 +817,7 @@ jobs.post("/:jobId/hours", requireAuth, requireOrg, async (req, res) => {
       VALUES (${jobId}::uuid, ${orgId}::uuid, ${hours}, ${description || ''})
       RETURNING id, hours, description, created_at
     `);
-    res.json(r.rows[0]);
+    res.json(r[0]);
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/hours error:", e);
     res.status(500).json({ error: e?.message || "Failed to add hours" });
@@ -846,7 +844,7 @@ jobs.post("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
       VALUES (${jobId}::uuid, ${orgId}::uuid, ${partName}, ${quantity})
       RETURNING id, part_name, quantity, created_at
     `);
-    res.json(r.rows[0]);
+    res.json(r[0]);
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/parts error:", e);
     res.status(500).json({ error: e?.message || "Failed to add part" });
@@ -865,7 +863,7 @@ jobs.get("/:jobId/hours", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/:jobId/hours error:", e);
     res.status(500).json({ error: e?.message || "Failed to fetch hours" });
@@ -884,7 +882,7 @@ jobs.get("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/:jobId/parts error:", e);
     res.status(500).json({ error: e?.message || "Failed to fetch parts" });
@@ -903,7 +901,7 @@ jobs.get("/completed/:completedJobId/charges", requireAuth, requireOrg, async (r
       WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/completed/:completedJobId/charges error:", e);
     res.status(500).json({ error: e?.message || "Failed to fetch completed job charges" });
@@ -922,7 +920,7 @@ jobs.get("/completed/:completedJobId/hours", requireAuth, requireOrg, async (req
       WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/completed/:completedJobId/hours error:", e);
     res.status(500).json({ error: e?.message || "Failed to fetch completed job hours" });
@@ -941,7 +939,7 @@ jobs.get("/completed/:completedJobId/parts", requireAuth, requireOrg, async (req
       WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/completed/:completedJobId/parts error:", e);
     res.status(500).json({ error: e?.message || "Failed to fetch completed job parts" });
@@ -962,11 +960,11 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       WHERE id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
     `);
 
-    if (completedJobResult.rows.length === 0) {
+    if (completedJobResult.length === 0) {
       return res.status(404).json({ error: "Completed job not found" });
     }
 
-    const completedJob = completedJobResult.rows[0];
+    const completedJob = completedJobResult[0];
 
     // Check if customer exists
     if (!completedJob.customer_id) {
@@ -989,7 +987,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       RETURNING id
     `);
 
-    const invoiceId = invoiceResult.rows[0].id;
+    const invoiceId = invoiceResult[0].id;
 
     // Add a default line item for the completed work
     await db.execute(sql`

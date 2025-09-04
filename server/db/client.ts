@@ -1,13 +1,16 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import 'dotenv/config'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
+import * as schema from '../../shared/schema'
 
-// ignore stray PG* envs that Replit might inject
-for (const k of ["PGHOST","PGPORT","PGUSER","PGPASSWORD","PGDATABASE"]) {
-  delete (process.env as any)[k];
+// Use Supabase database connection
+const supabaseDatabaseUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL
+
+if (!supabaseDatabaseUrl) {
+  console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('DATABASE')))
+  throw new Error('SUPABASE_DATABASE_URL not set')
 }
 
-if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
-
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool);
+console.log('🚀 Connecting to Supabase database...')
+const sql = postgres(supabaseDatabaseUrl)
+export const db = drizzle(sql, { schema })

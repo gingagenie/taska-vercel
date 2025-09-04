@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { db } from "./client";
 import { sql } from "drizzle-orm";
 
 export async function ensureUsersTableShape() {

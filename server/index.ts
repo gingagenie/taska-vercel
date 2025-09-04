@@ -36,7 +36,9 @@ import pgSession from "connect-pg-simple";
 import { Pool } from "pg";
 
 const PgStore = pgSession(session as any);
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ 
+  connectionString: process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL 
+});
 
 app.use(
   session({

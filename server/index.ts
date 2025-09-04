@@ -5,6 +5,8 @@ import { me } from "./routes/me";
 import { ensureUsersTableShape } from "./db/ensure";
 import { db } from "./db/client";
 import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "../shared/schema";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -97,8 +99,13 @@ async function tenantGuard(req: Request, res: Response, next: NextFunction) {
 
     // one PG client per request, with a transaction + tenant set
     const client = await pool.connect();
+    // Wrap the client with Drizzle for ORM functionality
+    const drizzleClient = drizzle(client, { schema });
     // @ts-ignore
-    req.db = client;
+    req.db = drizzleClient;
+    // Store the raw client too for setting tenant context
+    // @ts-ignore
+    req.pgClient = client;
 
     // Set the tenant context without a transaction to prevent timeouts
     await client.query("SET app.current_org = $1", [orgId]);

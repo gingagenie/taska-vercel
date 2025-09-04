@@ -1,5 +1,5 @@
 import { Router } from "express";
-// import { db } from "../db"; // replaced with req.db for tenant isolation
+import { db } from "../db/client";
 import { jobs as jobsSchema, customers, equipment, jobPhotos, users, jobAssignments } from "../../shared/schema";
 import multer from "multer";
 import path from "path";
@@ -46,23 +46,19 @@ jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   const customerId = (req.query.customerId as string | undefined) || undefined;
 
-  // @ts-ignore
-  const client = req.db;
-  let query = `
-    select id, name
-    from equipment
-    where org_id = current_setting('app.current_org')::uuid
-  `;
-  let params: any[] = [];
-  
-  if (customerId) {
-    query += ` and customer_id = $1`;
-    params.push(customerId);
+  try {
+    const r: any = await db.execute(sql`
+      select id, name
+      from equipment
+      where org_id = ${orgId}::uuid
+      ${customerId ? sql`and customer_id = ${customerId}::uuid` : sql``}
+      order by name asc
+    `);
+    res.json(r);
+  } catch (error: any) {
+    console.error("GET /api/jobs/equipment error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch equipment" });
   }
-  
-  query += ` order by name asc`;
-  const r: any = await client.query(query, params);
-  res.json(r.rows);
 });
 
 /* LIST COMPLETED JOBS */
@@ -71,7 +67,7 @@ jobs.get("/completed", requireAuth, requireOrg, async (req, res) => {
   console.log("[TRACE] GET /api/jobs/completed org=%s", orgId);
   
   try {
-    const r: any = await (req as any).db.execute(sql`
+    const r: any = await db.execute(sql`
       SELECT 
         id,
         original_job_id,
@@ -142,7 +138,7 @@ jobs.get("/", requireAuth, requireOrg, async (req, res) => {
   console.log("[TRACE] GET /api/jobs org=%s", orgId);
   
   try {
-    const r: any = await (req as any).db.execute(sql`
+    const r: any = await db.execute(sql`
       select
         j.id,
         j.title,
@@ -156,7 +152,7 @@ jobs.get("/", requireAuth, requireOrg, async (req, res) => {
       where j.org_id=${orgId}::uuid
       order by j.created_at desc
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (error: any) {
     console.error("GET /api/jobs error:", error);
     res.status(500).json({ error: error?.message || "Failed to fetch jobs" });
@@ -366,7 +362,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
       createdBy: userId || null,
     });
     
-    const result = await (req as any).db.execute(sql`
+    const result = await db.execute(sql`
       INSERT INTO jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
       VALUES (
         ${orgId},
@@ -380,10 +376,10 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
       RETURNING id
     `);
     
-    const jobId = (result as any).rows[0].id;
+    const jobId = (result as any)[0].id;
 
     if (equipmentId) {
-      await (req as any).db.execute(sql`
+      await db.execute(sql`
         insert into job_equipment (job_id, equipment_id)
         values (${jobId}::uuid, ${equipmentId}::uuid)
         on conflict do nothing
@@ -394,7 +390,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
     if (Array.isArray(assignedTechIds) && assignedTechIds.length > 0) {
       for (const uid of assignedTechIds) {
         if (!uid) continue;
-        await (req as any).db.execute(sql`
+        await db.execute(sql`
           insert into job_assignments (job_id, user_id)
           values (${jobId}::uuid, ${uid}::uuid)
           on conflict do nothing

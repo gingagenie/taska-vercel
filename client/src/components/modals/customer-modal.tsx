@@ -139,7 +139,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSaved }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl h-[90vh] p-0 grid grid-rows-[auto_1fr_auto]">
+      <DialogContent className="max-w-xl max-h-[90vh] p-0 grid grid-rows-[auto_1fr_auto] overflow-y-auto">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>{isEdit ? "Edit Customer" : "New Customer"}</DialogTitle>
         </DialogHeader>

@@ -92,7 +92,7 @@ export function EquipmentModal({ open, onOpenChange, equipment, onSaved }: Props
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{isEdit ? "Edit Equipment" : "New Equipment"}</DialogTitle></DialogHeader>
 
         {err && <div className="text-red-600 text-sm">{err}</div>}

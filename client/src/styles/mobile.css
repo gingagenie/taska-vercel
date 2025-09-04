@@ -28,9 +28,15 @@ html, body {
   }
   
   /* Fix modal scrolling on mobile */
-  .modal-content {
+  .modal-content,
+  [role="dialog"] {
     max-height: 90vh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Ensure all dialog content scrolls smoothly */
+  [data-radix-dialog-content] {
     -webkit-overflow-scrolling: touch;
   }
   

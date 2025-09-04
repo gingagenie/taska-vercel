@@ -22,15 +22,13 @@ customers.get("/", requireAuth, requireOrg, async (req, res) => {
   console.log("[TRACE] GET /api/customers org=%s", orgId);
   
   try {
-    // @ts-ignore
-    const client = req.db;
-    const r: any = await client.query(`
+    const r: any = await db.execute(sql`
       select id, name, contact_name, email, phone, street, suburb, state, postcode
       from customers
-      where org_id = current_setting('app.current_org')::uuid
+      where org_id = ${orgId}::uuid
       order by name asc
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (error: any) {
     console.error("GET /api/customers error:", error);
     res.status(500).json({ error: error?.message || "Failed to fetch customers" });
@@ -46,15 +44,12 @@ customers.get("/:id", requireAuth, requireOrg, async (req, res) => {
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
   
   try {
-    // @ts-ignore
-    const client = req.db;
-    const r: any = await client.query(
-      `select id, name, contact_name, email, phone, street, suburb, state, postcode
-       from customers
-       where id=$1 and org_id = current_setting('app.current_org')::uuid`,
-      [id]
-    );
-    const row = r.rows?.[0];
+    const r: any = await db.execute(sql`
+      select id, name, contact_name, email, phone, street, suburb, state, postcode
+      from customers
+      where id = ${id}::uuid and org_id = ${orgId}::uuid
+    `);
+    const row = r?.[0];
     if (!row) return res.status(404).json({ error: "not found" });
     res.json(row);
   } catch (error: any) {

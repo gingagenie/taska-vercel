@@ -241,13 +241,12 @@ jobs.get("/customers", requireAuth, requireOrg, async (req, res) => {
     const orgId = (req as any).orgId;
     console.log("[TRACE] GET /api/jobs/customers org=%s", orgId);
     
-    const result = await (req as any).db
-      .select({
-        id: customers.id,
-        name: customers.name,
-      })
-      .from(customers)
-      .where(eq(customers.orgId, orgId));
+    const result = await db.execute(sql`
+      select id, name
+      from customers
+      where org_id = ${orgId}::uuid
+      order by name asc
+    `);
 
     res.json(result);
   } catch (error: any) {
@@ -256,19 +255,18 @@ jobs.get("/customers", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
-// GET /equipment - Return dropdown data by org
+// GET /equipment - Return dropdown data by org  
 jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
     console.log("[TRACE] GET /api/jobs/equipment org=%s", orgId);
     
-    const result = await (req as any).db
-      .select({
-        id: equipment.id,
-        name: equipment.name,
-      })
-      .from(equipment)
-      .where(eq(equipment.orgId, orgId));
+    const result = await db.execute(sql`
+      select id, name
+      from equipment
+      where org_id = ${orgId}::uuid
+      order by name asc
+    `);
 
     res.json(result);
   } catch (error: any) {

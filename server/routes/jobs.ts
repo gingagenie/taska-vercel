@@ -305,25 +305,9 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
 
     const job = jr[0];
 
-    // Fetch assigned technicians
-    const techniciansResult: any = await db.execute(sql`
-      select u.id, u.name, u.email
-      from job_assignments ja
-      join users u on u.id = ja.user_id
-      where ja.job_id = ${jobId}::uuid
-    `);
-
-    // Fetch assigned equipment
-    const equipmentResult: any = await db.execute(sql`
-      select e.id, e.name, e.make, e.model
-      from job_equipment je
-      join equipment e on e.id = je.equipment_id
-      where je.job_id = ${jobId}::uuid
-    `);
-
-    // Add the arrays to the job object
-    job.technicians = techniciansResult || [];
-    job.equipment = equipmentResult || [];
+    // Add empty arrays for now (these features will be added later)
+    job.technicians = [];
+    job.equipment = [];
 
     res.json(job);
   } catch (error: any) {
@@ -474,14 +458,8 @@ jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
     
     console.log("[TRACE] GET /api/jobs/%s/photos org=%s", jobId, orgId);
     
-    const result = await db.execute(sql`
-      SELECT id, url, created_at
-      FROM job_photos
-      WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
-      ORDER BY created_at DESC
-    `);
-    
-    res.json(result || []);
+    // Return empty array for now (photo feature will be added later)
+    res.json([]);
   } catch (error: any) {
     console.error("GET /api/jobs/%s/photos error:", req.params.jobId, error);
     res.status(500).json({ error: error?.message || "Failed to fetch photos" });

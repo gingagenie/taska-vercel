@@ -1,5 +1,5 @@
 import { Router } from "express";
-// import { db } from "../db/client"; // replaced with req.db
+import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
@@ -12,15 +12,13 @@ const isUuid = (v: string | undefined) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 members.get("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   try {
-    // @ts-ignore
-    const client = req.db;
-    const r: any = await client.query(`
+    const r: any = await db.execute(sql`
       select id, name, email, role
       from users
-      where org_id = current_setting('app.current_org')::uuid
+      where org_id = ${orgId}::uuid
       order by name asc
     `);
-    res.json(r.rows);
+    res.json(r);
   } catch (error: any) {
     console.error("GET /api/members error:", error);
     res.status(500).json({ error: error?.message || "Failed to fetch members" });
@@ -39,7 +37,7 @@ members.post("/", requireAuth, requireOrg, async (req, res) => {
       select 1 from users
       where org_id=${orgId}::uuid and lower(email)=lower(${email})
     `);
-    if (existing.rows?.length) return res.status(409).json({ error: "email already exists in this org" });
+    if (existing?.length) return res.status(409).json({ error: "email already exists in this org" });
 
     const hash = await bcrypt.hash(password, 10);
 
@@ -49,7 +47,7 @@ members.post("/", requireAuth, requireOrg, async (req, res) => {
       returning id, name, email, role
     `);
 
-    res.json({ ok: true, user: ins.rows[0] });
+    res.json({ ok: true, user: ins[0] });
   } catch (error: any) {
     console.error("POST /api/members error:", error);
     res.status(500).json({ error: error?.message || "Failed to create member" });

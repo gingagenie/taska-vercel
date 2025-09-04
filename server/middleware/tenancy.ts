@@ -15,7 +15,7 @@ export async function requireOrg(req: Request, res: Response, next: NextFunction
     const r: any = await db.execute(sql`
       select org_id from users where id=${(req.session as any).userId}::uuid
     `);
-    chosen = r.rows?.[0]?.org_id;
+    chosen = r[0]?.org_id;
   }
 
   if (!chosen) {

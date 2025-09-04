@@ -27,6 +27,7 @@ customers.get("/", requireAuth, requireOrg, async (req, res) => {
     const r: any = await client.query(`
       select id, name, contact_name, email, phone, street, suburb, state, postcode
       from customers
+      where org_id = current_setting('app.current_org')::uuid
       order by name asc
     `);
     res.json(r.rows);
@@ -86,7 +87,7 @@ customers.post("/", requireAuth, requireOrg, async (req, res) => {
 
     const row: any = await client.query(`
       select id, name, contact_name, email, phone, street, suburb, state, postcode, notes, created_at
-      from customers where id=$1
+      from customers where id=$1 and org_id = current_setting('app.current_org')::uuid
     `, [ins.rows[0].id]);
 
     res.json({ ok: true, customer: row.rows[0] });

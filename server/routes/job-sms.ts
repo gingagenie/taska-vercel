@@ -63,15 +63,15 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
     .select({
       id: jobsSchema.id,
       title: jobsSchema.title,
-      scheduled_at: jobsSchema.scheduled_at,
+      scheduled_at: jobsSchema.scheduledAt,
       description: jobsSchema.description,
       customer_id: customers.id,
       customer_name: customers.name,
       customer_phone: customers.phone,
     })
     .from(jobsSchema)
-    .leftJoin(customers, eq(customers.id, jobsSchema.customer_id))
-    .where(and(eq(jobsSchema.id, jobId), eq(jobsSchema.org_id, orgId)))
+    .leftJoin(customers, eq(customers.id, jobsSchema.customerId))
+    .where(and(eq(jobsSchema.id, jobId), eq(jobsSchema.orgId, orgId)))
     .limit(1);
 
   const row = jobRows[0];

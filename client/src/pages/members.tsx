@@ -223,6 +223,7 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState<string>("technician");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -230,10 +231,10 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
   async function save() {
     setSaving(true);
     try {
-      const result = await membersApi.create({ email, name, role, password });
+      const result = await membersApi.create({ email, name, phone, role, password });
       
       // Clear form
-      setEmail(""); setName(""); setRole("technician"); setPassword("");
+      setEmail(""); setName(""); setPhone(""); setRole("technician"); setPassword("");
       onOpenChange(false);
       onSaved();
       
@@ -297,6 +298,16 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
                   onChange={(e)=>setEmail(e.target.value)} 
                   placeholder="brad@company.com"
                   data-testid="input-member-email"
+                />
+              </div>
+              <div>
+                <Label>Phone</Label>
+                <Input 
+                  type="tel"
+                  value={phone} 
+                  onChange={(e)=>setPhone(e.target.value)} 
+                  placeholder="+61 123 456 789"
+                  data-testid="input-member-phone"
                 />
               </div>
               <div>

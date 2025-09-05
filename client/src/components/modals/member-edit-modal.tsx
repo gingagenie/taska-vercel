@@ -11,6 +11,7 @@ export default function MemberEditModal({
   const qc = useQueryClient();
   const [name, setName] = useState(""); 
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState("technician");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string|null>(null);
@@ -19,6 +20,7 @@ export default function MemberEditModal({
     if (member) {
       setName(member.name || "");
       setEmail(member.email || "");
+      setPhone(member.phone || "");
       setRole(member.role || "technician");
     }
   }, [member]);
@@ -29,7 +31,7 @@ export default function MemberEditModal({
     try {
       await api(`/api/members/${member.id}`, {
         method: "PUT",
-        body: JSON.stringify({ name, email, role }),
+        body: JSON.stringify({ name, email, phone, role }),
       });
       qc.invalidateQueries({ queryKey: ["/api/members"] });
       onOpenChange(false);
@@ -77,6 +79,10 @@ export default function MemberEditModal({
               <div>
                 <label className="text-sm">Email</label>
                 <Input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} data-testid="input-member-email" />
+              </div>
+              <div>
+                <label className="text-sm">Phone</label>
+                <Input type="tel" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="+61 123 456 789" data-testid="input-member-phone" />
               </div>
               <div>
                 <label className="text-sm">Role</label>

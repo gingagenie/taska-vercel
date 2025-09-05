@@ -54,6 +54,9 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
   const orgId = (req as any).orgId;
   const { phone: phoneOverride, messageOverride } = (req.body || {}) as { phone?: string; messageOverride?: string };
 
+  // Debug logging
+  console.log(`[SMS] Looking for job: ${jobId}, org: ${orgId}`);
+
   // Pull job + customer info
   const qr: any = await db.execute(sql`
     select
@@ -65,6 +68,7 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
     limit 1
   `);
   const row = qr.rows?.[0];
+  console.log(`[SMS] Query result:`, row);
   if (!row) return res.status(404).json({ error: "Job not found" });
 
   // Normalize phone number for consistent formatting and matching

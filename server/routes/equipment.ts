@@ -19,26 +19,31 @@ const upload = multer({
 /* LIST: equipment + customer name + address */
 equipment.get("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
-  const r: any = await db.execute(sql`
-    select
-      e.id, e.name, e.make, e.model, 
-      coalesce(e.serial, e.serial_number) as serial, 
-      e.notes,
-      e.customer_id,
-      coalesce(c.name,'—') as customer_name,
-      -- one-line address from customer
-      nullif(trim(concat_ws(', ',
-        nullif(c.street,''),
-        nullif(c.suburb,''),
-        nullif(c.state,''),
-        nullif(c.postcode,'')
-      )), '') as customer_address
-    from equipment e
-    left join customers c on c.id = e.customer_id
-    where e.org_id = ${orgId}::uuid
-    order by e.name nulls last, e.created_at desc
-  `);
-  res.json(r);
+  try {
+    const r: any = await db.execute(sql`
+      select
+        e.id, e.name, e.make, e.model, 
+        coalesce(e.serial, e.serial_number) as serial, 
+        e.notes,
+        e.customer_id,
+        coalesce(c.name,'—') as customer_name,
+        -- one-line address from customer
+        nullif(trim(concat_ws(', ',
+          nullif(c.street,''),
+          nullif(c.suburb,''),
+          nullif(c.state,''),
+          nullif(c.postcode,'')
+        )), '') as customer_address
+      from equipment e
+      left join customers c on c.id = e.customer_id
+      where e.org_id = ${orgId}::uuid
+      order by e.name nulls last, e.created_at desc
+    `);
+    res.json(r);
+  } catch (error: any) {
+    console.error("GET /api/equipment error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch equipment" });
+  }
 });
 
 /* GET ONE */
@@ -47,25 +52,30 @@ equipment.get("/:id", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
 
-  const r: any = await db.execute(sql`
-    select
-      e.id, e.name, e.make, e.model, 
-      coalesce(e.serial, e.serial_number) as serial, 
-      e.notes, e.customer_id,
-      coalesce(c.name,'—') as customer_name,
-      nullif(trim(concat_ws(', ',
-        nullif(c.street,''),
-        nullif(c.suburb,''),
-        nullif(c.state,''),
-        nullif(c.postcode,'')
-      )), '') as customer_address
-    from equipment e
-    left join customers c on c.id = e.customer_id
-    where e.id=${id}::uuid and e.org_id=${orgId}::uuid
-  `);
-  const row = r[0];
-  if (!row) return res.status(404).json({ error: "not found" });
-  res.json(row);
+  try {
+    const r: any = await db.execute(sql`
+      select
+        e.id, e.name, e.make, e.model, 
+        coalesce(e.serial, e.serial_number) as serial, 
+        e.notes, e.customer_id,
+        coalesce(c.name,'—') as customer_name,
+        nullif(trim(concat_ws(', ',
+          nullif(c.street,''),
+          nullif(c.suburb,''),
+          nullif(c.state,''),
+          nullif(c.postcode,'')
+        )), '') as customer_address
+      from equipment e
+      left join customers c on c.id = e.customer_id
+      where e.id=${id}::uuid and e.org_id=${orgId}::uuid
+    `);
+    const row = r[0];
+    if (!row) return res.status(404).json({ error: "not found" });
+    res.json(row);
+  } catch (error: any) {
+    console.error("GET /api/equipment/:id error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch equipment details" });
+  }
 });
 
 /* CREATE */
@@ -73,10 +83,15 @@ equipment.post("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   
   // Double-check org existence right before insert
-  const ok: any = await db.execute(sql`select 1 from orgs where id=${orgId}::uuid`);
-  if (!ok.rows?.length) {
-    console.log(`[AUTH] 400 - Invalid org at equipment insert: orgId=${orgId}`);
-    return res.status(400).json({ error: "Invalid org" });
+  try {
+    const ok: any = await db.execute(sql`select 1 from orgs where id=${orgId}::uuid`);
+    if (!ok || ok.length === 0) {
+      console.log(`[AUTH] 400 - Invalid org at equipment insert: orgId=${orgId}`);
+      return res.status(400).json({ error: "Invalid org" });
+    }
+  } catch (error: any) {
+    console.error("Org validation error:", error);
+    return res.status(500).json({ error: "Database connection error" });
   }
   
   let { name, make, model, serial, notes, customerId } = req.body || {};

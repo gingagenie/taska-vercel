@@ -159,8 +159,8 @@ export default function ScheduleWeekMobile() {
           return (
             <div key={dayKey} className="mb-6">
               {/* Day Header */}
-              <div className={`sticky top-[80px] bg-white border rounded-lg p-3 mb-3 z-[5] ${
-                isToday ? "bg-blue-50 border-blue-200" : "border-gray-200"
+              <div className={`sticky top-[80px] border rounded-lg p-3 mb-3 z-[5] ${
+                isToday ? "bg-green-100 border-green-300" : "bg-green-50 border-green-200"
               }`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">

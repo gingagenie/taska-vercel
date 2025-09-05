@@ -134,10 +134,7 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
 
       {/* User Profile - Clickable */}
       <button 
-        onClick={() => {
-          console.log("Profile button clicked!");
-          setIsProfileModalOpen(true);
-        }}
+        onClick={() => setIsProfileModalOpen(true)}
         className="mt-6 w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
         data-testid="button-user-profile"
       >
@@ -195,7 +192,6 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
       </div>
 
       {/* Profile Modal */}
-      {console.log("SidebarContent - isProfileModalOpen:", isProfileModalOpen)}
       <ProfileModal open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen} />
     </div>
   );

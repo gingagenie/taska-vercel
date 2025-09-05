@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/auth-context";
 import { apiRequest } from "@/lib/queryClient";
+import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Camera } from "lucide-react";
 import Avatar from "boring-avatars";
@@ -15,7 +16,6 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
-  console.log("ProfileModal rendered, open:", open);
   const { user, reload } = useAuth();
   const { toast } = useToast();
   const [currentPassword, setCurrentPassword] = useState("");
@@ -87,7 +87,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
       const formData = new FormData();
       formData.append("avatar", file);
 
-      await apiRequest("PUT", "/api/auth/avatar", formData);
+      await api("/api/auth/avatar", { method: "PUT", body: formData });
       
       toast({
         title: "Success",

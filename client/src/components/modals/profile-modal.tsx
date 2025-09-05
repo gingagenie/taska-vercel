@@ -1,14 +1,11 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/auth-context";
 import { apiRequest } from "@/lib/queryClient";
-import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Camera } from "lucide-react";
-import Avatar from "boring-avatars";
 
 interface ProfileModalProps {
   open: boolean;
@@ -16,13 +13,30 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
-  const { user, reload } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Generate a consistent pastel color based on user name/email
+  const getAvatarColor = () => {
+    const colors = [
+      'bg-red-200', 'bg-pink-200', 'bg-purple-200', 'bg-blue-200', 
+      'bg-green-200', 'bg-yellow-200', 'bg-orange-200', 'bg-teal-200',
+      'bg-indigo-200', 'bg-rose-200', 'bg-lime-200', 'bg-emerald-200'
+    ];
+    const textColors = [
+      'text-red-700', 'text-pink-700', 'text-purple-700', 'text-blue-700',
+      'text-green-700', 'text-yellow-700', 'text-orange-700', 'text-teal-700',
+      'text-indigo-700', 'text-rose-700', 'text-lime-700', 'text-emerald-700'
+    ];
+    
+    const seed = user?.name || user?.email || 'user';
+    const index = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+    return { bg: colors[index], text: textColors[index] };
+  };
 
   const handlePasswordChange = async () => {
     if (newPassword !== confirmPassword) {
@@ -69,42 +83,6 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
     }
   };
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      toast({
-        title: "Error",
-        description: "Image must be smaller than 5MB",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const formData = new FormData();
-      formData.append("avatar", file);
-
-      await api("/api/auth/avatar", { method: "PUT", body: formData });
-      
-      toast({
-        title: "Success",
-        description: "Avatar updated successfully",
-      });
-      
-      await reload(); // Reload user data to show new avatar
-    } catch (error: any) {
-      toast({
-        title: "Error", 
-        description: error.message || "Failed to upload avatar",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -116,38 +94,11 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
         <div className="space-y-6">
           {/* Avatar Section */}
           <div className="flex flex-col items-center space-y-4">
-            <div className="relative">
-              <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
-                {user?.avatar_seed && user?.avatar_variant ? (
-                  <Avatar 
-                    size={80} 
-                    name={user.avatar_seed} 
-                    variant={user.avatar_variant as any} 
-                    colors={["#92A1C6", "#146A7C", "#F0AB3D", "#C271B4", "#C20D90"]}
-                  />
-                ) : user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="avatar" className="h-20 w-20 object-cover" />
-                ) : (
-                  <span className="text-white text-2xl font-medium">{user?.name?.[0] || "U"}</span>
-                )}
-              </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute -bottom-2 -right-2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors"
-                data-testid="button-change-avatar"
-              >
-                <Camera className="h-4 w-4" />
-              </button>
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center ${getAvatarColor().bg}`}>
+              <span className={`text-2xl font-medium ${getAvatarColor().text}`}>
+                {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
+              </span>
             </div>
-            
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleAvatarUpload}
-              className="hidden"
-              data-testid="input-avatar-upload"
-            />
             
             <div className="text-center">
               <p className="text-sm font-medium text-gray-900">{user?.name || "User"}</p>

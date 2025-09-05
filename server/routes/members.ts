@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../db";
+import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";

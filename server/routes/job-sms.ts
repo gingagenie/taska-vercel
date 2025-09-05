@@ -2,7 +2,8 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { db } from "../db/client";
-import { sql } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
+import { jobs as jobsSchema, customers } from "../../shared/schema";
 import twilio from "twilio";
 
 export const jobSms = Router();
@@ -57,17 +58,23 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
   // Debug logging
   console.log(`[SMS] Looking for job: ${jobId}, org: ${orgId}`);
 
-  // Pull job + customer info
-  const qr: any = await db.execute(sql`
-    select
-      j.id, j.title, j.scheduled_at, j.description,
-      c.id as customer_id, c.name as customer_name, c.phone as customer_phone
-    from jobs j
-    left join customers c on c.id = j.customer_id
-    where j.id=${jobId}::uuid and j.org_id=${orgId}::uuid
-    limit 1
-  `);
-  const row = qr.rows?.[0];
+  // Pull job + customer info using proper Drizzle ORM
+  const jobRows = await db
+    .select({
+      id: jobsSchema.id,
+      title: jobsSchema.title,
+      scheduled_at: jobsSchema.scheduled_at,
+      description: jobsSchema.description,
+      customer_id: customers.id,
+      customer_name: customers.name,
+      customer_phone: customers.phone,
+    })
+    .from(jobsSchema)
+    .leftJoin(customers, eq(customers.id, jobsSchema.customer_id))
+    .where(and(eq(jobsSchema.id, jobId), eq(jobsSchema.org_id, orgId)))
+    .limit(1);
+
+  const row = jobRows[0];
   console.log(`[SMS] Query result:`, row);
   if (!row) return res.status(404).json({ error: "Job not found" });
 

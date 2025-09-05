@@ -458,8 +458,15 @@ jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
     
     console.log("[TRACE] GET /api/jobs/%s/photos org=%s", jobId, orgId);
     
-    // Return empty array for now (photo feature will be added later)
-    res.json([]);
+    // Query photos from database
+    const result = await db.execute(sql`
+      SELECT id, url, created_at 
+      FROM job_photos 
+      WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at DESC
+    `);
+    
+    res.json(result);
   } catch (error: any) {
     console.error("GET /api/jobs/%s/photos error:", req.params.jobId, error);
     res.status(500).json({ error: error?.message || "Failed to fetch photos" });

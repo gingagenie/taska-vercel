@@ -1,9 +1,25 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { handleSubscriptionError } from "./subscription-error-handler";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const error = new Error(`${res.status}: ${text}`);
+    
+    // Handle subscription-related errors globally
+    if (res.status === 402) {
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData.code === 'TRIAL_EXPIRED' || errorData.code === 'SUBSCRIPTION_REQUIRED') {
+          handleSubscriptionError(error);
+          return; // Don't throw, as we're redirecting
+        }
+      } catch {
+        // If JSON parsing fails, continue with regular error handling
+      }
+    }
+    
+    throw error;
   }
 }
 

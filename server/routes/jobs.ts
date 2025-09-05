@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
 import { sql, eq, and } from "drizzle-orm";
 
 export const jobs = Router();
@@ -42,7 +43,7 @@ jobs.get("/ping", (_req, res) => {
 });
 
 // GET /api/jobs/equipment?customerId=uuid - Filter equipment by customer for job creation
-jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
+jobs.get("/equipment", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const customerId = (req.query.customerId as string | undefined) || undefined;
 
@@ -62,7 +63,7 @@ jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
 });
 
 /* LIST COMPLETED JOBS */
-jobs.get("/completed", requireAuth, requireOrg, async (req, res) => {
+jobs.get("/completed", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs/completed org=%s", orgId);
   
@@ -183,7 +184,7 @@ jobs.get("/completed/:jobId/photos", requireAuth, requireOrg, async (req, res) =
 });
 
 /* LIST (now includes description) */
-jobs.get("/", requireAuth, requireOrg, async (req, res) => {
+jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs org=%s", orgId);
   

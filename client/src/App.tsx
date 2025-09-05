@@ -38,6 +38,7 @@ import MembersPage from "@/pages/members";
 import Landing from "@/pages/landing";
 import Register from "@/pages/auth-register";
 import Login from "@/pages/auth-login";
+import TrialExpired from "@/pages/trial-expired";
 
 // Import modals
 import { JobModal } from "@/components/modals/job-modal";
@@ -176,6 +177,7 @@ function AuthenticatedApp() {
           <Route path="/jobs/:id/notes">{() => <JobNotesCharges />}</Route>
           <Route path="/customers/:id">{() => <CustomerView />}</Route>
           <Route path="/equipment/:id">{() => <EquipmentView />}</Route>
+          <Route path="/trial-expired" component={TrialExpired} />
           <Route component={NotFound} />
         </Switch>
         </main>

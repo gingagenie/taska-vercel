@@ -21,21 +21,21 @@ export async function checkSubscription(req: Request, res: Response, next: NextF
       .where(eq(orgSubscriptions.orgId, orgId))
     
     if (!result) {
-      // No subscription found, create a trial
+      // No subscription found, create a 14-day Pro trial
       const [newSub] = await db
         .insert(orgSubscriptions)
         .values({
           orgId,
-          planId: 'free',
+          planId: 'pro',
           status: 'trial',
-          trialEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+          trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
         })
         .returning()
       
-      const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, 'free'))
+      const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, 'pro'))
       
       req.subscription = {
-        planId: 'free',
+        planId: 'pro',
         status: 'trial',
         isActive: true, // Trial is active
         features: plan?.features as any[] || []
@@ -61,11 +61,18 @@ export async function checkSubscription(req: Request, res: Response, next: NextF
   }
 }
 
-// Middleware to require active subscription
+// Middleware to require active subscription (blocks access when trial expires)
 export function requireActiveSubscription(req: Request, res: Response, next: NextFunction) {
   if (!req.subscription?.isActive) {
+    const isExpiredTrial = req.subscription?.status === 'trial' && 
+                          req.subscription?.trialEnd && 
+                          new Date() >= new Date(req.subscription.trialEnd);
+    
     return res.status(402).json({ 
-      error: 'Active subscription required',
+      error: isExpiredTrial 
+        ? 'Your 14-day trial has expired. Please upgrade to continue using Taska.'
+        : 'Active subscription required',
+      code: isExpiredTrial ? 'TRIAL_EXPIRED' : 'SUBSCRIPTION_REQUIRED',
       subscription: req.subscription 
     })
   }

@@ -65,6 +65,15 @@ router.post("/register", async (req, res) => {
     `);
     const user = userIns[0];
 
+    // Create 14-day Pro trial subscription for new org
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + 14);
+    
+    await db.execute(sql`
+      insert into subscriptions (id, org_id, plan_id, status, trial_start, trial_end, current_period_end, created_at)
+      values (gen_random_uuid(), ${orgId}, 'pro', 'trial', now(), ${trialEndDate.toISOString()}, ${trialEndDate.toISOString()}, now())
+    `);
+
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ error: "session error" });
       req.session.userId = user.id;

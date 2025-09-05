@@ -132,6 +132,56 @@ jobs.get("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+// GET /completed/:jobId/notes - Get notes for completed job
+jobs.get("/completed/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  console.log("[TRACE] GET /api/jobs/completed/%s/notes org=%s", jobId, orgId);
+  
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
+      return res.status(400).json({ error: "Invalid jobId" });
+    }
+
+    const r: any = await db.execute(sql`
+      SELECT id, text, created_at
+      FROM completed_job_notes
+      WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at DESC
+    `);
+    
+    res.json(r);
+  } catch (e: any) {
+    console.error("GET /api/jobs/completed/%s/notes error:", jobId, e);
+    res.status(500).json({ error: e?.message || "Failed to fetch completed job notes" });
+  }
+});
+
+// GET /completed/:jobId/photos - Get photos for completed job
+jobs.get("/completed/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  console.log("[TRACE] GET /api/jobs/completed/%s/photos org=%s", jobId, orgId);
+  
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
+      return res.status(400).json({ error: "Invalid jobId" });
+    }
+
+    const r: any = await db.execute(sql`
+      SELECT id, url, created_at
+      FROM completed_job_photos
+      WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at DESC
+    `);
+    
+    res.json(r);
+  } catch (e: any) {
+    console.error("GET /api/jobs/completed/%s/photos error:", jobId, e);
+    res.status(500).json({ error: e?.message || "Failed to fetch completed job photos" });
+  }
+});
+
 /* LIST (now includes description) */
 jobs.get("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;

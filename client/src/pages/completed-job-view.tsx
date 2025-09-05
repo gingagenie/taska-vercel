@@ -3,7 +3,7 @@ import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText } from "lucide-react";
+import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText, MessageSquare, Camera } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { useToast } from "@/hooks/use-toast";
 
@@ -40,6 +40,8 @@ export default function CompletedJobView() {
   const [charges, setCharges] = useState<JobCharge[]>([]);
   const [hours, setHours] = useState<any[]>([]);
   const [parts, setParts] = useState<any[]>([]);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [convertingToInvoice, setConvertingToInvoice] = useState(false);
@@ -58,12 +60,14 @@ export default function CompletedJobView() {
       const jobData = await response.json();
       setJob(jobData);
       
-      // Load charges, hours, and parts for the completed job
+      // Load charges, hours, parts, notes, and photos for the completed job
       try {
-        const [chargesResponse, hoursResponse, partsResponse] = await Promise.all([
+        const [chargesResponse, hoursResponse, partsResponse, notesResponse, photosResponse] = await Promise.all([
           fetch(`/api/jobs/completed/${jobData.id}/charges`),
           fetch(`/api/jobs/completed/${jobData.id}/hours`),
-          fetch(`/api/jobs/completed/${jobData.id}/parts`)
+          fetch(`/api/jobs/completed/${jobData.id}/parts`),
+          fetch(`/api/jobs/completed/${jobData.id}/notes`),
+          fetch(`/api/jobs/completed/${jobData.id}/photos`)
         ]);
         
         if (chargesResponse.ok) {
@@ -79,6 +83,16 @@ export default function CompletedJobView() {
         if (partsResponse.ok) {
           const partsData = await partsResponse.json();
           setParts(partsData);
+        }
+        
+        if (notesResponse.ok) {
+          const notesData = await notesResponse.json();
+          setNotes(notesData);
+        }
+        
+        if (photosResponse.ok) {
+          const photosData = await photosResponse.json();
+          setPhotos(photosData);
         }
       } catch (e) {
         console.error('Failed to load completed job data:', e);
@@ -334,6 +348,54 @@ export default function CompletedJobView() {
               </div>
             </div>
           </div>
+
+          {/* Detailed Notes */}
+          {notes.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Detailed Notes
+              </h3>
+              <div className="bg-gray-50 p-3 rounded-lg space-y-3">
+                {notes.map((note: any) => (
+                  <div key={note.id} className="bg-white p-3 rounded border">
+                    <div className="text-gray-700 whitespace-pre-wrap mb-2">
+                      {note.text}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(note.created_at).toLocaleDateString()} at {new Date(note.created_at).toLocaleTimeString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Photos */}
+          {photos.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <Camera className="h-4 w-4" />
+                Photos ({photos.length})
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {photos.map((photo: any) => (
+                  <div key={photo.id} className="relative group">
+                    <img
+                      src={photo.url}
+                      alt="Job photo"
+                      className="w-full h-32 object-cover rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => window.open(photo.url, '_blank')}
+                      data-testid={`img-photo-${photo.id}`}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2 rounded-b-lg">
+                      {new Date(photo.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Job ID Reference */}
           <div>

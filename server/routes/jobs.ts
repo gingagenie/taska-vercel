@@ -355,9 +355,25 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
 
     const job = jr[0];
 
-    // Add empty arrays for now (these features will be added later)
-    job.technicians = [];
-    job.equipment = [];
+    // Fetch assigned technicians
+    const techniciansResult: any = await db.execute(sql`
+      select u.id, u.name, u.email
+      from job_assignments ja
+      join users u on u.id = ja.user_id
+      where ja.job_id = ${jobId}::uuid
+      order by u.name
+    `);
+    job.technicians = techniciansResult || [];
+
+    // Fetch assigned equipment
+    const equipmentResult: any = await db.execute(sql`
+      select e.id, e.name, e.make, e.model
+      from job_equipment je
+      join equipment e on e.id = je.equipment_id
+      where je.job_id = ${jobId}::uuid
+      order by e.name
+    `);
+    job.equipment = equipmentResult || [];
 
     res.json(job);
   } catch (error: any) {

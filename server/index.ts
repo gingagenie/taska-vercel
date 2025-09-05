@@ -70,7 +70,9 @@ app.use(
 
 // Ensure uploads dir exists and serve statically
 const uploadsDir = path.join(process.cwd(), "uploads");
+const avatarsDir = path.join(uploadsDir, "avatars");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+if (!fs.existsSync(avatarsDir)) fs.mkdirSync(avatarsDir, { recursive: true });
 app.use("/uploads", express.static(uploadsDir, { maxAge: "1y", immutable: true }));
 
 // --- BEGIN tenant guard ---

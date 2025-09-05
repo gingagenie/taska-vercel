@@ -2,6 +2,9 @@ import { Router } from "express";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 declare module 'express-session' {
   interface SessionData {
@@ -11,6 +14,34 @@ declare module 'express-session' {
 }
 
 const router = Router();
+
+// Configure multer for avatar uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadsDir = path.join(process.cwd(), "uploads", "avatars");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const userId = (req.session as any).userId;
+    const ext = path.extname(file.originalname);
+    cb(null, `${userId}-${Date.now()}${ext}`);
+  }
+});
+
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 router.post("/register", async (req, res) => {
   const { orgName, name, email, password } = req.body || {};
@@ -148,6 +179,77 @@ router.get("/me", async (req, res) => {
   } catch (error) {
     console.error("Error fetching user:", error);
     res.status(500).json({ error: "Failed to fetch user" });
+  }
+});
+
+// Password change endpoint
+router.put("/password", async (req, res) => {
+  const userId = req.session?.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "Current password and new password required" });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: "New password must be at least 6 characters" });
+  }
+
+  try {
+    // Get current password hash
+    const r: any = await db.execute(sql`
+      select password_hash from users where id = ${userId}
+    `);
+    const user = r[0];
+    
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    // Verify current password
+    const isValid = await bcrypt.compare(currentPassword, user.password_hash || "");
+    if (!isValid) {
+      return res.status(400).json({ error: "Current password is incorrect" });
+    }
+
+    // Hash new password and update
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await db.execute(sql`
+      update users set password_hash = ${newHash} where id = ${userId}
+    `);
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Password change error:", error);
+    res.status(500).json({ error: "Failed to change password" });
+  }
+});
+
+// Avatar upload endpoint
+router.put("/avatar", upload.single("avatar"), async (req, res) => {
+  const userId = req.session?.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ error: "No avatar file provided" });
+  }
+
+  try {
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    
+    await db.execute(sql`
+      update users set avatar_url = ${avatarUrl} where id = ${userId}
+    `);
+
+    res.json({ ok: true, avatar_url: avatarUrl });
+  } catch (error) {
+    console.error("Avatar upload error:", error);
+    res.status(500).json({ error: "Failed to upload avatar" });
   }
 });
 

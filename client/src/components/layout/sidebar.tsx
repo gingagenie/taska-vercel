@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/auth-context";
 import { apiRequest } from "@/lib/queryClient";
 import Avatar from "boring-avatars";
+import { useState } from "react";
 import { 
   Briefcase, 
   Users, 
@@ -34,6 +35,8 @@ interface SidebarContentProps {
   onClose?: () => void;
 }
 
+import { ProfileModal } from "@/components/modals/profile-modal";
+
 // Filter navigation items based on user role
 function getFilteredNavigationItems(userRole: string | undefined) {
   // Technicians can only access these sections
@@ -50,6 +53,7 @@ function getFilteredNavigationItems(userRole: string | undefined) {
 export function SidebarContent({ onClose }: SidebarContentProps) {
   const [location] = useLocation();
   const { user, isProUser } = useAuth();
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   
   const filteredNavigationItems = getFilteredNavigationItems(user?.role);
 
@@ -129,8 +133,12 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
         })}
       </nav>
 
-      {/* User Profile */}
-      <div className="mt-6 p-3 bg-gray-50 rounded-lg">
+      {/* User Profile - Clickable */}
+      <button 
+        onClick={() => setIsProfileModalOpen(true)}
+        className="mt-6 w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+        data-testid="button-user-profile"
+      >
         <div className="flex items-center gap-3 mb-3">
           <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
             {user?.avatar_seed && user?.avatar_variant ? (
@@ -150,10 +158,10 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
             <p className="text-sm font-medium text-gray-900 truncate">
               {user?.name || "User"}
             </p>
-            <p className="text-xs text-gray-500 truncate">Field Service Pro</p>
+            <p className="text-xs text-gray-500 truncate">Click to edit profile</p>
           </div>
         </div>
-      </div>
+      </button>
       
       {/* Logout Button */}
       <button

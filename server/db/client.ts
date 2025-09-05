@@ -13,10 +13,13 @@ if (!supabaseDatabaseUrl) {
 
 console.log('🚀 Connecting to Supabase database...')
 const sql = postgres(supabaseDatabaseUrl, {
-  max: 10,                    // Maximum number of connections in the pool
-  idle_timeout: 20,           // Close idle connections after 20 seconds
-  connect_timeout: 10,        // Connection timeout in seconds
-  prepare: false,             // Disable prepared statements for better pooler compatibility
-  ssl: 'require'              // Require SSL for Supabase
+  max: 20,                    // Increase connection pool size
+  idle_timeout: 30,           // Keep connections alive longer
+  connect_timeout: 5,         // Reduce connection timeout for faster failures
+  prepare: true,              // Enable prepared statements for better performance
+  ssl: 'require',             // Require SSL for Supabase
+  connection: {
+    application_name: 'taska-v2'
+  }
 })
 export const db = drizzle(sql, { schema })

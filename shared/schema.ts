@@ -204,13 +204,17 @@ export const quotes = pgTable("quotes", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   orgId: uuid("org_id").references(() => organizations.id).notNull(),
   customerId: uuid("customer_id").references(() => customers.id),
+  jobId: uuid("job_id").references(() => jobs.id),
   title: varchar("title", { length: 255 }).notNull(),
   notes: text("notes"),
   items: jsonb("items").default([]),
   currency: varchar("currency", { length: 3 }).default("USD"),
-  total: decimal("total", { precision: 10, scale: 2 }).default("0"),
+  subTotal: decimal("sub_total", { precision: 10, scale: 2 }).default("0"),
+  taxTotal: decimal("tax_total", { precision: 10, scale: 2 }).default("0"),
+  grandTotal: decimal("grand_total", { precision: 10, scale: 2 }).default("0"),
   status: varchar("status", { length: 50 }).default("draft"),
   xeroId: varchar("xero_id", { length: 255 }), // Xero Quote ID
+  createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -220,13 +224,44 @@ export const invoices = pgTable("invoices", {
   orgId: uuid("org_id").references(() => organizations.id).notNull(),
   jobId: uuid("job_id").references(() => jobs.id),
   customerId: uuid("customer_id").references(() => customers.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  notes: text("notes"),
   items: jsonb("items").default([]),
   currency: varchar("currency", { length: 3 }).default("USD"),
-  total: decimal("total", { precision: 10, scale: 2 }).default("0"),
+  subTotal: decimal("sub_total", { precision: 10, scale: 2 }).default("0"),
+  taxTotal: decimal("tax_total", { precision: 10, scale: 2 }).default("0"),
+  grandTotal: decimal("grand_total", { precision: 10, scale: 2 }).default("0"),
   status: varchar("status", { length: 50 }).default("draft"),
   issuedAt: timestamp("issued_at"),
   dueAt: timestamp("due_at"),
   xeroId: varchar("xero_id", { length: 255 }), // Xero Invoice ID
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Quote line items
+export const quoteLines = pgTable("quote_lines", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").notNull(),
+  quoteId: uuid("quote_id").references(() => quotes.id, { onDelete: "cascade" }).notNull(),
+  position: integer("position").notNull(),
+  description: text("description").notNull(),
+  quantity: decimal("quantity", { precision: 10, scale: 2 }).notNull(),
+  unitAmount: decimal("unit_amount", { precision: 10, scale: 2 }).notNull(),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Invoice line items
+export const invoiceLines = pgTable("invoice_lines", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").notNull(),
+  invoiceId: uuid("invoice_id").references(() => invoices.id, { onDelete: "cascade" }).notNull(),
+  position: integer("position").notNull(),
+  description: text("description").notNull(),
+  quantity: decimal("quantity", { precision: 10, scale: 2 }).notNull(),
+  unitAmount: decimal("unit_amount", { precision: 10, scale: 2 }).notNull(),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

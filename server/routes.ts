@@ -39,7 +39,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/members", members);
   console.log("[mount] /api/members");
   app.use("/api/quotes", quotes);
+  console.log("[mount] /api/quotes");
   app.use("/api/invoices", invoices);
+  console.log("[mount] /api/invoices");
   app.use("/api/xero", xero);
   app.use("/api/item-presets", itemPresets);
   console.log("[mount] /api/xero");

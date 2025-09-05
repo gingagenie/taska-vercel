@@ -5,7 +5,7 @@ import {
   Briefcase, 
   Users, 
   Settings, 
-  UsersRound, 
+ 
   FileText, 
   Receipt,
   BarChart3,
@@ -21,7 +21,7 @@ const navigationItems = [
   { path: "/jobs", label: "Jobs", icon: Briefcase },
   { path: "/customers", label: "Customers", icon: Users },
   { path: "/equipment", label: "Equipment", icon: Settings },
-  { path: "/teams", label: "Teams", icon: UsersRound },
+  { path: "/members", label: "Members", icon: Users },
   { path: "/schedule", label: "Schedule", icon: Calendar },
   { path: "/quotes", label: "Quotes", icon: FileText, isPro: true },
   { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true },
@@ -32,9 +32,24 @@ interface MobileDrawerProps {
   onClose: () => void;
 }
 
+// Filter navigation items based on user role
+function getFilteredNavigationItems(userRole: string | undefined) {
+  // Technicians can only access these sections
+  const technicianAllowedPaths = ["/", "/jobs", "/customers", "/equipment", "/schedule"];
+  
+  if (userRole === "technician") {
+    return navigationItems.filter(item => technicianAllowedPaths.includes(item.path));
+  }
+  
+  // Managers and admins can see everything
+  return navigationItems;
+}
+
 export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
   const [location] = useLocation();
   const { user, isProUser } = useAuth();
+  
+  const filteredNavigationItems = getFilteredNavigationItems(user?.role);
 
   // Close on ESC key
   useEffect(() => {
@@ -90,7 +105,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
 
           {/* Navigation Menu */}
           <nav className="space-y-1 flex-1">
-            {navigationItems.map((item) => {
+            {filteredNavigationItems.map((item) => {
               const Icon = item.icon;
               const isActive = location === item.path;
               const isLocked = item.isPro && !isProUser;

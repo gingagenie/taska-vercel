@@ -44,6 +44,25 @@ import { JobModal } from "@/components/modals/job-modal";
 import { CustomerModal } from "@/components/modals/customer-modal";
 import { UpgradeModal } from "@/components/modals/upgrade-modal";
 
+// Role-based route protection
+function ProtectedRoute({ 
+  component: Component, 
+  allowedRoles = ["admin", "manager", "technician"],
+  ...props 
+}: { 
+  component: React.ComponentType<any>; 
+  allowedRoles?: string[];
+  [key: string]: any;
+}) {
+  const { user } = useAuth();
+  
+  if (!user?.role || !allowedRoles.includes(user.role)) {
+    return <NotFound />;
+  }
+  
+  return <Component {...props} />;
+}
+
 function AuthenticatedApp() {
   const [location] = useLocation();
   const { isProUser } = useAuth();
@@ -142,16 +161,16 @@ function AuthenticatedApp() {
           <Route path="/schedule" component={ScheduleResponsive} />
           <Route path="/completed-jobs" component={CompletedJobs} />
           <Route path="/completed-jobs/:id">{() => <CompletedJobView />}</Route>
-          <Route path="/quotes" component={Quotes} />
-          <Route path="/quotes/new" component={QuoteEdit} />
-          <Route path="/quotes/:id" component={QuoteView} />
-          <Route path="/quotes/:id/edit" component={QuoteEdit} />
-          <Route path="/invoices" component={Invoices} />
-          <Route path="/invoices/new" component={InvoiceEdit} />
-          <Route path="/invoices/:id" component={InvoiceView} />
-          <Route path="/invoices/:id/edit" component={InvoiceEdit} />
-          <Route path="/settings" component={SettingsPage} />
-          <Route path="/members" component={MembersPage} />
+          <Route path="/quotes">{() => <ProtectedRoute component={Quotes} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/quotes/new">{() => <ProtectedRoute component={QuoteEdit} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/quotes/:id">{() => <ProtectedRoute component={QuoteView} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/quotes/:id/edit">{() => <ProtectedRoute component={QuoteEdit} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/invoices">{() => <ProtectedRoute component={Invoices} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/invoices/new">{() => <ProtectedRoute component={InvoiceEdit} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/invoices/:id">{() => <ProtectedRoute component={InvoiceView} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/invoices/:id/edit">{() => <ProtectedRoute component={InvoiceEdit} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/settings">{() => <ProtectedRoute component={SettingsPage} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/members">{() => <ProtectedRoute component={MembersPage} allowedRoles={["admin", "manager"]} />}</Route>
           <Route path="/jobs/:id">{() => <JobView />}</Route>
           <Route path="/jobs/:id/edit">{() => <JobEdit />}</Route>
           <Route path="/jobs/:id/notes">{() => <JobNotesCharges />}</Route>

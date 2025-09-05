@@ -34,9 +34,24 @@ interface SidebarContentProps {
   onClose?: () => void;
 }
 
+// Filter navigation items based on user role
+function getFilteredNavigationItems(userRole: string | undefined) {
+  // Technicians can only access these sections
+  const technicianAllowedPaths = ["/", "/jobs", "/customers", "/equipment", "/schedule"];
+  
+  if (userRole === "technician") {
+    return navigationItems.filter(item => technicianAllowedPaths.includes(item.path));
+  }
+  
+  // Managers and admins can see everything
+  return navigationItems;
+}
+
 export function SidebarContent({ onClose }: SidebarContentProps) {
   const [location] = useLocation();
   const { user, isProUser } = useAuth();
+  
+  const filteredNavigationItems = getFilteredNavigationItems(user?.role);
 
   return (
     <div className="p-6 h-full flex flex-col">
@@ -52,7 +67,7 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
 
       {/* Navigation Menu */}
       <nav className="space-y-1 flex-1">
-        {navigationItems.map((item) => {
+        {filteredNavigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.path;
           const isLocked = item.isPro && !isProUser;

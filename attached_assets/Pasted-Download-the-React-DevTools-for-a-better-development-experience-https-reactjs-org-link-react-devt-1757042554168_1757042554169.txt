@@ -1,0 +1,67 @@
+Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+chunk-RPCDYKBN.js?v=3335f065:521 Warning: validateDOMNesting(...): <a> cannot appear as a descendant of <a>.
+    at a
+    at a
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=3335f065:337:18
+    at div
+    at div
+    at Dashboard (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/pages/dashboard.tsx:48:47)
+    at Route (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=3335f065:323:16)
+    at Switch (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=3335f065:379:17)
+    at main
+    at div
+    at div
+    at AuthenticatedApp (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/App.tsx?v=0r2We36CM6jiqJPa9ClKC:81:22)
+    at AppContent (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/App.tsx?v=0r2We36CM6jiqJPa9ClKC:395:42)
+    at Provider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-M3NVYRND.js?v=3335f065:48:15)
+    at TooltipProvider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=3335f065:58:5)
+    at AuthProvider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/context/auth-context.tsx:22:32)
+    at QueryClientProvider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=3335f065:2805:3)
+    at App
+printWarning @ chunk-RPCDYKBN.js?v=3335f065:521
+error @ chunk-RPCDYKBN.js?v=3335f065:505
+validateDOMNesting @ chunk-RPCDYKBN.js?v=3335f065:8256
+createInstance @ chunk-RPCDYKBN.js?v=3335f065:8328
+completeWork @ chunk-RPCDYKBN.js?v=3335f065:16290
+completeUnitOfWork @ chunk-RPCDYKBN.js?v=3335f065:19224
+performUnitOfWork @ chunk-RPCDYKBN.js?v=3335f065:19206
+workLoopSync @ chunk-RPCDYKBN.js?v=3335f065:19137
+renderRootSync @ chunk-RPCDYKBN.js?v=3335f065:19116
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=3335f065:18874
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=3335f065:9119
+(anonymous) @ chunk-RPCDYKBN.js?v=3335f065:18627
+setTimeout
+scheduleFn @ @tanstack_react-query.js?v=3335f065:555
+flush @ @tanstack_react-query.js?v=3335f065:569
+batch @ @tanstack_react-query.js?v=3335f065:587
+dispatch_fn @ @tanstack_react-query.js?v=3335f065:996
+setData @ @tanstack_react-query.js?v=3335f065:696
+onSuccess @ @tanstack_react-query.js?v=3335f065:897
+resolve @ @tanstack_react-query.js?v=3335f065:456
+Promise.then
+run @ @tanstack_react-query.js?v=3335f065:498
+start @ @tanstack_react-query.js?v=3335f065:536
+fetch @ @tanstack_react-query.js?v=3335f065:926
+executeFetch_fn @ @tanstack_react-query.js?v=3335f065:2211
+onSubscribe @ @tanstack_react-query.js?v=3335f065:1898
+subscribe @ @tanstack_react-query.js?v=3335f065:24
+(anonymous) @ @tanstack_react-query.js?v=3335f065:3022
+subscribeToStore @ chunk-RPCDYKBN.js?v=3335f065:11984
+commitHookEffectListMount @ chunk-RPCDYKBN.js?v=3335f065:16915
+commitPassiveMountOnFiber @ chunk-RPCDYKBN.js?v=3335f065:18156
+commitPassiveMountEffects_complete @ chunk-RPCDYKBN.js?v=3335f065:18129
+commitPassiveMountEffects_begin @ chunk-RPCDYKBN.js?v=3335f065:18119
+commitPassiveMountEffects @ chunk-RPCDYKBN.js?v=3335f065:18109
+flushPassiveEffectsImpl @ chunk-RPCDYKBN.js?v=3335f065:19490
+flushPassiveEffects @ chunk-RPCDYKBN.js?v=3335f065:19447
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=3335f065:18868
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=3335f065:9119
+commitRootImpl @ chunk-RPCDYKBN.js?v=3335f065:19432
+commitRoot @ chunk-RPCDYKBN.js?v=3335f065:19277
+finishConcurrentRender @ chunk-RPCDYKBN.js?v=3335f065:18805
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=3335f065:18718
+workLoop @ chunk-RPCDYKBN.js?v=3335f065:197
+flushWork @ chunk-RPCDYKBN.js?v=3335f065:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=3335f065:384Understand this error
+api.ts:30 [api] -> /api/members GET
+api.ts:30 [api] -> /api/jobs GET

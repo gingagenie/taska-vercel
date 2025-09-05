@@ -134,7 +134,10 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
 
       {/* User Profile - Clickable */}
       <button 
-        onClick={() => setIsProfileModalOpen(true)}
+        onClick={() => {
+          console.log("Profile button clicked!");
+          setIsProfileModalOpen(true);
+        }}
         className="mt-6 w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
         data-testid="button-user-profile"
       >

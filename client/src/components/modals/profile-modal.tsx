@@ -15,6 +15,7 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
+  console.log("ProfileModal rendered, open:", open);
   const { user, reload } = useAuth();
   const { toast } = useToast();
   const [currentPassword, setCurrentPassword] = useState("");

@@ -56,13 +56,8 @@ CREATE TABLE job_notes (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. Job equipment table (for equipment assignments) - if not exists
-CREATE TABLE IF NOT EXISTS job_equipment (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-    equipment_id UUID NOT NULL REFERENCES equipment(id),
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- 6. Job equipment table (for equipment assignments) - SKIPPED
+-- Note: equipment table does not exist in database, skipping job_equipment table
 
 -- Add RLS (Row Level Security) policies for multi-tenancy
 
@@ -95,14 +90,7 @@ ALTER TABLE job_notes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can access job notes for their org" ON job_notes
     FOR ALL USING (org_id = current_setting('app.current_org')::UUID);
 
--- Job equipment RLS (if table was created)
-ALTER TABLE job_equipment ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can access job equipment for their org" ON job_equipment
-    FOR ALL USING (
-        job_id IN (
-            SELECT id FROM jobs WHERE org_id = current_setting('app.current_org')::UUID
-        )
-    );
+-- Job equipment RLS - SKIPPED (table does not exist)
 
 -- Grant necessary permissions
 GRANT ALL ON job_assignments TO authenticated;
@@ -110,7 +98,7 @@ GRANT ALL ON job_photos TO authenticated;
 GRANT ALL ON job_hours TO authenticated;
 GRANT ALL ON job_parts TO authenticated;
 GRANT ALL ON job_notes TO authenticated;
-GRANT ALL ON job_equipment TO authenticated;
+-- GRANT ALL ON job_equipment TO authenticated; -- SKIPPED
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_job_assignments_job_id ON job_assignments(job_id);
@@ -123,12 +111,12 @@ CREATE INDEX IF NOT EXISTS idx_job_parts_job_id ON job_parts(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_parts_org_id ON job_parts(org_id);
 CREATE INDEX IF NOT EXISTS idx_job_notes_job_id ON job_notes(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_notes_org_id ON job_notes(org_id);
-CREATE INDEX IF NOT EXISTS idx_job_equipment_job_id ON job_equipment(job_id);
-CREATE INDEX IF NOT EXISTS idx_job_equipment_equipment_id ON job_equipment(equipment_id);
+-- CREATE INDEX IF NOT EXISTS idx_job_equipment_job_id ON job_equipment(job_id); -- SKIPPED
+-- CREATE INDEX IF NOT EXISTS idx_job_equipment_equipment_id ON job_equipment(equipment_id); -- SKIPPED
 
 -- Verify the tables were created
 SELECT table_name 
 FROM information_schema.tables 
 WHERE table_schema = 'public' 
-AND table_name IN ('job_assignments', 'job_photos', 'job_hours', 'job_parts', 'job_notes', 'job_equipment')
+AND table_name IN ('job_assignments', 'job_photos', 'job_hours', 'job_parts', 'job_notes')
 ORDER BY table_name;

@@ -55,9 +55,6 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
   const orgId = (req as any).orgId;
   const { phone: phoneOverride, messageOverride } = (req.body || {}) as { phone?: string; messageOverride?: string };
 
-  // Debug logging
-  console.log(`[SMS] Looking for job: ${jobId}, org: ${orgId}`);
-
   // Pull job + customer info using proper Drizzle ORM
   const jobRows = await db
     .select({
@@ -75,7 +72,6 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
     .limit(1);
 
   const row = jobRows[0];
-  console.log(`[SMS] Query result:`, row);
   if (!row) return res.status(404).json({ error: "Job not found" });
 
   // Normalize phone number for consistent formatting and matching
@@ -109,8 +105,8 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
 
     // Log outbound SMS for inbound matching
     await db.execute(sql`
-      insert into job_notifications (org_id, job_id, channel, to_addr, body, provider_id, direction, status)
-      values (${orgId}::uuid, ${row.id}::uuid, 'sms', ${toPhone}, ${body}, ${msg.sid}, 'out', ${msg.status})
+      insert into job_notifications (org_id, job_id, notification_type, recipient, message, status)
+      values (${orgId}::uuid, ${row.id}::uuid, 'sms', ${toPhone}, ${body}, ${msg.status})
     `);
 
     return res.json({ ok: true, sid: msg.sid, status: msg.status });

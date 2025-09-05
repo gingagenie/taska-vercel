@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { jobsApi } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock } from "lucide-react";
+import { Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, parseISO } from "date-fns";
 import { utcRangeForLocalWeek, groupJobsByLocalDay, parseUtcIso } from "@/lib/mobileDates";
 import { utcIsoToLocalString } from "@/lib/time";
@@ -22,7 +22,20 @@ const statusColors: Record<string, string> = {
 
 export default function ScheduleWeekMobile() {
   const [, navigate] = useLocation();
-  const [currentWeek] = useState(() => new Date());
+  const [currentWeek, setCurrentWeek] = useState(() => new Date());
+  
+  // Navigation functions
+  const goToPreviousWeek = () => {
+    setCurrentWeek(prev => addDays(prev, -7));
+  };
+  
+  const goToNextWeek = () => {
+    setCurrentWeek(prev => addDays(prev, 7));
+  };
+  
+  const goToCurrentWeek = () => {
+    setCurrentWeek(new Date());
+  };
   
   // Get Melbourne week range (Monday to Sunday)
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -96,13 +109,37 @@ export default function ScheduleWeekMobile() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Header with Navigation */}
       <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 z-10">
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-xl font-bold">This Week</h1>
-          <div className="text-sm text-gray-600">
-            {format(weekStart, "MMM d")} - {format(weekEnd, "MMM d")}
+          <button
+            onClick={goToPreviousWeek}
+            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+            data-testid="button-previous-week"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          
+          <div className="text-center">
+            <button
+              onClick={goToCurrentWeek}
+              className="text-xl font-bold hover:text-blue-600 transition-colors"
+              data-testid="button-current-week"
+            >
+              Week Schedule
+            </button>
+            <div className="text-sm text-gray-600">
+              {format(weekStart, "MMM d")} - {format(weekEnd, "MMM d, yyyy")}
+            </div>
           </div>
+          
+          <button
+            onClick={goToNextWeek}
+            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+            data-testid="button-next-week"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
         </div>
       </div>
 

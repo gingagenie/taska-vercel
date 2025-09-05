@@ -361,7 +361,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
         select u.id, u.name, u.email
         from job_assignments ja
         join users u on u.id = ja.user_id
-        where ja.job_id = ${jobId}::uuid
+        where ja.job_id = ${jobId}
         order by u.name
       `);
       job.technicians = techniciansResult || [];

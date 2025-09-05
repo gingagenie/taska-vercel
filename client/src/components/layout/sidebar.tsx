@@ -193,6 +193,10 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
           </div>
         )}
       </div>
+
+      {/* Profile Modal */}
+      {console.log("SidebarContent - isProfileModalOpen:", isProfileModalOpen)}
+      <ProfileModal open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen} />
     </div>
   );
 }

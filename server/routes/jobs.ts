@@ -376,7 +376,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
         select e.id, e.name, e.make, e.model
         from job_equipment je
         join equipment e on e.id = je.equipment_id
-        where je.job_id = ${jobId}::uuid
+        where je.job_id = ${jobId}
         order by e.name
       `);
       job.equipment = equipmentResult || [];

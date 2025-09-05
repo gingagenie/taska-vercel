@@ -17,8 +17,10 @@ export default function JobEdit() {
   const [status, setStatus] = useState("new");
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
+  const [equipmentId, setEquipmentId] = useState<string>("");
 
   const [customers, setCustomers] = useState<any[]>([]);
+  const [equipment, setEquipment] = useState<any[]>([]);
   const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,13 +38,17 @@ export default function JobEdit() {
         setStatus(j.status || "new");
         setScheduledAt(localInputFromISO(j.scheduled_at));
         setCustomerId(j.customer_id || "");
+        // Set equipment from job (take first one if multiple)
+        setEquipmentId(j.equipment?.[0]?.id || "");
 
-        const [cs, photosData] = await Promise.all([
+        const [cs, eq, photosData] = await Promise.all([
           api(`/api/jobs/customers`),
+          api(`/api/equipment`),
           photosApi.list(jobId),
         ]);
         if (!alive) return;
         setCustomers(cs || []);
+        setEquipment(eq || []);
         setPhotos(photosData || []);
       } catch (e: any) {
         if (!alive) return;
@@ -80,6 +86,7 @@ export default function JobEdit() {
           status,
           scheduledAt: isoFromLocalInput(scheduledAt),
           customerId: customerId || null,
+          equipmentId: equipmentId || null,
         }),
       });
       navigate(`/jobs/${jobId}`);
@@ -155,6 +162,22 @@ export default function JobEdit() {
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Equipment</label>
+            <select
+              className="w-full border rounded p-2"
+              value={equipmentId}
+              onChange={(e) => setEquipmentId(e.target.value)}
+            >
+              <option value="">— None —</option>
+              {equipment.map((eq) => (
+                <option key={eq.id} value={eq.id}>
+                  {eq.name} {eq.make && `(${eq.make})`}
                 </option>
               ))}
             </select>

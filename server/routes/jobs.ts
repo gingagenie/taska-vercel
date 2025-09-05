@@ -356,24 +356,34 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
     const job = jr[0];
 
     // Fetch assigned technicians
-    const techniciansResult: any = await db.execute(sql`
-      select u.id, u.name, u.email
-      from job_assignments ja
-      join users u on u.id = ja.user_id
-      where ja.job_id = ${jobId}::uuid
-      order by u.name
-    `);
-    job.technicians = techniciansResult || [];
+    try {
+      const techniciansResult: any = await db.execute(sql`
+        select u.id, u.name, u.email
+        from job_assignments ja
+        join users u on u.id = ja.user_id
+        where ja.job_id = ${jobId}::uuid
+        order by u.name
+      `);
+      job.technicians = techniciansResult || [];
+    } catch (e) {
+      console.log("Technicians query error:", e);
+      job.technicians = [];
+    }
 
-    // Fetch assigned equipment
-    const equipmentResult: any = await db.execute(sql`
-      select e.id, e.name, e.make, e.model
-      from job_equipment je
-      join equipment e on e.id = je.equipment_id
-      where je.job_id = ${jobId}::uuid
-      order by e.name
-    `);
-    job.equipment = equipmentResult || [];
+    // Fetch assigned equipment  
+    try {
+      const equipmentResult: any = await db.execute(sql`
+        select e.id, e.name, e.make, e.model
+        from job_equipment je
+        join equipment e on e.id = je.equipment_id
+        where je.job_id = ${jobId}::uuid
+        order by e.name
+      `);
+      job.equipment = equipmentResult || [];
+    } catch (e) {
+      console.log("Equipment query error:", e);
+      job.equipment = [];
+    }
 
     res.json(job);
   } catch (error: any) {

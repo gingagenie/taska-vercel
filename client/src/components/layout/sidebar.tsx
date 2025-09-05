@@ -3,6 +3,7 @@ import { useAuth } from "@/context/auth-context";
 import { apiRequest } from "@/lib/queryClient";
 import Avatar from "boring-avatars";
 import { useState } from "react";
+import { ProfileModal } from "@/components/modals/profile-modal";
 import { 
   Briefcase, 
   Users, 
@@ -34,8 +35,6 @@ const navigationItems = [
 interface SidebarContentProps {
   onClose?: () => void;
 }
-
-import { ProfileModal } from "@/components/modals/profile-modal";
 
 // Filter navigation items based on user role
 function getFilteredNavigationItems(userRole: string | undefined) {

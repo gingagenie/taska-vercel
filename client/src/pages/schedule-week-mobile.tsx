@@ -22,7 +22,7 @@ const statusColors: Record<string, string> = {
 
 export default function ScheduleWeekMobile() {
   const [, navigate] = useLocation();
-  const [currentWeek] = useState(() => new Date('2025-08-25'));
+  const [currentWeek] = useState(() => new Date());
   
   // Get Melbourne week range (Monday to Sunday)
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });

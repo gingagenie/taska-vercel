@@ -12,5 +12,11 @@ if (!supabaseDatabaseUrl) {
 }
 
 console.log('🚀 Connecting to Supabase database...')
-const sql = postgres(supabaseDatabaseUrl)
+const sql = postgres(supabaseDatabaseUrl, {
+  max: 10,                    // Maximum number of connections in the pool
+  idle_timeout: 20,           // Close idle connections after 20 seconds
+  connect_timeout: 10,        // Connection timeout in seconds
+  prepare: false,             // Disable prepared statements for better pooler compatibility
+  ssl: 'require'              // Require SSL for Supabase
+})
 export const db = drizzle(sql, { schema })

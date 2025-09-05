@@ -259,6 +259,33 @@ export const orgIntegrations = pgTable("org_integrations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Subscription plans
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: varchar("id", { length: 50 }).primaryKey(), // 'solo', 'pro', 'enterprise'
+  name: varchar("name", { length: 100 }).notNull(),
+  priceMonthly: integer("price_monthly").notNull(), // In cents
+  stripePriceId: varchar("stripe_price_id", { length: 255 }),
+  features: jsonb("features").default([]),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Organization subscriptions
+export const orgSubscriptions = pgTable("org_subscriptions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").references(() => organizations.id).notNull().unique(),
+  planId: varchar("plan_id", { length: 50 }).references(() => subscriptionPlans.id).notNull(),
+  stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
+  stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
+  status: varchar("status", { length: 50 }).default("trial"), // trial, active, past_due, canceled
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  trialEnd: timestamp("trial_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Item presets (for billing line items)
 export const itemPresets = pgTable("item_presets", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -288,6 +315,8 @@ export const insertItemPresetSchema = createInsertSchema(itemPresets).omit({ id:
 export const insertCompletedJobSchema = createInsertSchema(completedJobs).omit({ id: true, completedAt: true });
 export const insertJobHoursSchema = createInsertSchema(jobHours).omit({ id: true, createdAt: true });
 export const insertJobPartsSchema = createInsertSchema(jobParts).omit({ id: true, createdAt: true });
+export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans).omit({ createdAt: true });
+export const insertOrgSubscriptionSchema = createInsertSchema(orgSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -325,3 +354,9 @@ export type InsertJobHours = z.infer<typeof insertJobHoursSchema>;
 
 export type JobParts = typeof jobParts.$inferSelect;
 export type InsertJobParts = z.infer<typeof insertJobPartsSchema>;
+
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
+
+export type OrgSubscription = typeof orgSubscriptions.$inferSelect;
+export type InsertOrgSubscription = z.infer<typeof insertOrgSubscriptionSchema>;

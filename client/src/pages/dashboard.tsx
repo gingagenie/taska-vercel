@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { CalendarDays, Briefcase, Users, Wrench } from "lucide-react";
 import { JobModal } from "@/components/modals/job-modal";
+import { useSubscription } from "@/hooks/useSubscription";
+import { SubscriptionBanner } from "@/components/subscription/subscription-banner";
 
 // --- date helpers ---
 function startOfDay(d = new Date()) {
@@ -28,6 +30,7 @@ function fmtDateTime(s: string | null) {
 
 export default function Dashboard() {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const { data: subscription } = useSubscription();
 
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ["/api/jobs"],
@@ -64,6 +67,16 @@ export default function Dashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Subscription Banner */}
+      {subscription && (
+        <SubscriptionBanner
+          status={subscription.subscription.status as 'trial' | 'active' | 'past_due' | 'canceled'}
+          planId={subscription.subscription.planId}
+          trialEnd={subscription.subscription.trialEnd}
+          currentPeriodEnd={subscription.subscription.currentPeriodEnd}
+        />
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -8,7 +8,173 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { CheckCircle, ExternalLink, AlertCircle, Trash2 } from "lucide-react";
+import { CheckCircle, ExternalLink, AlertCircle, Trash2, Crown, Star, Zap, CreditCard } from "lucide-react";
+import { useSubscription, useCancelSubscription } from "@/hooks/useSubscription";
+import { UpgradeModal } from "@/components/subscription/upgrade-modal";
+import { Badge } from "@/components/ui/badge";
+
+// Subscription Tab Component
+function SubscriptionTab() {
+  const { data: subscription, isLoading: subscriptionLoading } = useSubscription();
+  const cancelMutation = useCancelSubscription();
+
+  const formatPrice = (cents: number) => `$${(cents / 100).toFixed(0)}`;
+  
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
+      case 'trial':
+        return <Badge className="bg-blue-100 text-blue-800">Trial</Badge>;
+      case 'past_due':
+        return <Badge className="bg-red-100 text-red-800">Past Due</Badge>;
+      case 'canceled':
+        return <Badge className="bg-gray-100 text-gray-800">Canceled</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  const getPlanIcon = (planId: string) => {
+    switch (planId) {
+      case 'solo': return <Star className="w-5 h-5 text-blue-500" />;
+      case 'pro': return <Zap className="w-5 h-5 text-purple-500" />;
+      case 'enterprise': return <Crown className="w-5 h-5 text-orange-500" />;
+      default: return <CreditCard className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  if (subscriptionLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!subscription) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center">
+          <p className="text-gray-500">Unable to load subscription information</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Current Plan */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {getPlanIcon(subscription.subscription.planId)}
+            Current Plan
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span>Plan:</span>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold" data-testid="text-subscription-plan">
+                {subscription.plan.name}
+              </span>
+              {getStatusBadge(subscription.subscription.status)}
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <span>Price:</span>
+            <span className="font-semibold" data-testid="text-subscription-price">
+              {formatPrice(subscription.plan.priceMonthly)}/month
+            </span>
+          </div>
+
+          {subscription.subscription.currentPeriodEnd && (
+            <div className="flex items-center justify-between">
+              <span>Next billing:</span>
+              <span data-testid="text-subscription-renewal">
+                {new Date(subscription.subscription.currentPeriodEnd).toLocaleDateString()}
+              </span>
+            </div>
+          )}
+
+          {subscription.subscription.trialEnd && subscription.subscription.status === 'trial' && (
+            <div className="flex items-center justify-between">
+              <span>Trial ends:</span>
+              <span data-testid="text-trial-end">
+                {new Date(subscription.subscription.trialEnd).toLocaleDateString()}
+              </span>
+            </div>
+          )}
+
+          {subscription.subscription.cancelAtPeriodEnd && (
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded">
+              <p className="text-sm text-orange-800">
+                Your subscription will be canceled at the end of the current billing period.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Plan Features */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Plan Features</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {subscription.plan.features.map((feature, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span className="text-sm">{feature}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Manage Subscription</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <UpgradeModal currentPlan={subscription.subscription.planId}>
+              <Button className="flex-1" data-testid="button-upgrade-plan">
+                Upgrade Plan
+              </Button>
+            </UpgradeModal>
+            
+            {subscription.subscription.status === 'active' && !subscription.subscription.cancelAtPeriodEnd && (
+              <Button
+                variant="outline"
+                onClick={() => cancelMutation.mutate()}
+                disabled={cancelMutation.isPending}
+                className="flex-1"
+                data-testid="button-cancel-subscription"
+              >
+                {cancelMutation.isPending ? "Canceling..." : "Cancel Subscription"}
+              </Button>
+            )}
+          </div>
+          
+          <p className="text-xs text-gray-500">
+            Changes to your subscription will be prorated and reflected in your next billing cycle.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const qc = useQueryClient();
@@ -501,34 +667,9 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Subscription (read-only for now) */}
+        {/* Subscription */}
         <TabsContent value="subscription" className="mt-4">
-          <Card>
-            <CardHeader><CardTitle>Subscription</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span>Plan:</span>
-                <span className="font-semibold capitalize" data-testid="text-subscription-plan">
-                  {data?.org?.plan || "free"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Renews:</span>
-                <span data-testid="text-subscription-renewal">
-                  {data?.org?.plan_renews_at ? new Date(data.org.plan_renews_at).toLocaleDateString() : "—"}
-                </span>
-              </div>
-              <div className="pt-4">
-                <Button 
-                  disabled 
-                  title="Coming soon"
-                  data-testid="button-manage-subscription"
-                >
-                  Manage in Stripe
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <SubscriptionTab />
         </TabsContent>
 
         {/* Security */}

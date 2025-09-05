@@ -12,8 +12,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     header(req, "x-user") ||
     (req.query.userId as string | undefined);
 
+  const hOrg = 
+    header(req, "x-org-id") ||
+    header(req, "x-orgid") ||
+    (req.query.orgId as string | undefined);
+
   if (hUser) {
-    (req as any).user = { id: hUser };
+    req.user = { id: hUser };
+    if (hOrg) {
+      req.orgId = hOrg;
+    }
     return next();
   }
 
@@ -23,6 +31,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ error: "Not authenticated" });
   }
   
-  (req as any).user = { id: userId };
+  req.user = { id: userId };
+  if (req.session.orgId) {
+    req.orgId = req.session.orgId;
+  }
+  next();
+}
+
+export function requireOrg(req: Request, res: Response, next: NextFunction) {
+  if (!req.orgId) {
+    return res.status(400).json({ error: "Organization required" });
+  }
   next();
 }

@@ -17,6 +17,7 @@ import xero from "./routes/xero";
 import { itemPresets } from "./routes/item-presets";
 import tzRouter from "./routes/_tz";
 import objectsRouter from "./routes/objects";
+import subscriptions from "./routes/subscriptions";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
@@ -48,6 +49,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/_tz");
   app.use("/api/objects", objectsRouter);
   console.log("[mount] /api/objects");
+  app.use("/api/subscriptions", subscriptions);
+  console.log("[mount] /api/subscriptions");
   
   // Data export tool
   app.get("/export-local-data.html", (_req, res) => {

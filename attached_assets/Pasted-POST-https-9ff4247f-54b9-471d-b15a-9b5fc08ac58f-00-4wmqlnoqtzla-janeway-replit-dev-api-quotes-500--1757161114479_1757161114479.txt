@@ -1,0 +1,42 @@
+POST https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/api/quotes 500 (Internal Server Error)
+api @ api.ts:34
+create @ api.ts:182
+handleSave @ quote-edit.tsx:73
+handleSave @ QuoteInvoicePage.tsx:145
+callCallback2 @ chunk-RPCDYKBN.js?v=e4b91c24:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=e4b91c24:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=e4b91c24:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=e4b91c24:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=e4b91c24:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=e4b91c24:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=e4b91c24:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=e4b91c24:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=e4b91c24:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=e4b91c24:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=e4b91c24:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=e4b91c24:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=e4b91c24:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=e4b91c24:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=e4b91c24:5449Understand this error
+quote-edit.tsx:87 Failed to save quote: Error: {"error":"Failed to create quote"}
+    at api (api.ts:50:13)
+    at async handleSave (quote-edit.tsx:73:19)
+    at async handleSave (QuoteInvoicePage.tsx:145:5)
+handleSave @ quote-edit.tsx:87
+await in handleSave
+handleSave @ QuoteInvoicePage.tsx:145
+callCallback2 @ chunk-RPCDYKBN.js?v=e4b91c24:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=e4b91c24:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=e4b91c24:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=e4b91c24:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=e4b91c24:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=e4b91c24:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=e4b91c24:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=e4b91c24:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=e4b91c24:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=e4b91c24:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=e4b91c24:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=e4b91c24:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=e4b91c24:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=e4b91c24:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=e4b91c24:5449Understand this error

@@ -57,6 +57,9 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   const userId = (req as any).user?.id || null;
   const { title, customerId, jobId, notes, lines = [] } = req.body || {};
+  
+  console.log("Quote creation request:", { orgId, userId, title, customerId, jobId, notes });
+  
   if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
 
   try {

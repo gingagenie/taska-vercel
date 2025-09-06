@@ -35,6 +35,10 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
     returning id
   `);
   
+  if (!ins.rows || ins.rows.length === 0) {
+    return res.status(500).json({ error: "Failed to create quote" });
+  }
+  
   const quoteId = ins.rows[0].id;
   
   // Insert line items if provided

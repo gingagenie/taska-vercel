@@ -143,18 +143,27 @@
             statusDiv.innerHTML = '<p>🔍 Checking database...</p>';
 
             try {
-                // Check table counts
-                const tables = ['orgs', 'users', 'customers', 'equipment', 'jobs', 'quotes', 'invoices', 'subscriptions'];
+                // Check existing API endpoints for data
+                const endpoints = {
+                    'customers': '/api/customers',
+                    'equipment': '/api/equipment', 
+                    'jobs': '/api/jobs',
+                    'quotes': '/api/quotes',
+                    'invoices': '/api/invoices',
+                    'subscriptions': '/api/subscriptions'
+                };
+                
                 let results = '<div class="code">';
                 
-                for (const table of tables) {
+                for (const [table, endpoint] of Object.entries(endpoints)) {
                     try {
-                        const response = await fetch(`/api/debug/count/${table}`);
+                        const response = await fetch(endpoint);
                         if (response.ok) {
                             const data = await response.json();
-                            results += `${table}: ${data.count} records\\n`;
+                            const count = Array.isArray(data) ? data.length : (data.subscription ? 1 : 0);
+                            results += `${table}: ${count} records\\n`;
                         } else {
-                            results += `${table}: Unable to count\\n`;
+                            results += `${table}: Access restricted\\n`;
                         }
                     } catch (e) {
                         results += `${table}: Error checking\\n`;
@@ -180,19 +189,32 @@
             progressContainer.style.display = 'block';
             resultsDiv.innerHTML = '';
 
-            const tables = ['orgs', 'users', 'customers', 'equipment', 'jobs', 'quotes', 'invoices', 'subscriptions', 'item_presets'];
+            const endpoints = {
+                'customers': '/api/customers',
+                'equipment': '/api/equipment', 
+                'jobs': '/api/jobs',
+                'quotes': '/api/quotes',
+                'invoices': '/api/invoices',
+                'subscriptions': '/api/subscriptions/status',
+                'item_presets': '/api/item-presets'
+            };
             let completed = 0;
 
             try {
-                for (const table of tables) {
+                for (const [table, endpoint] of Object.entries(endpoints)) {
                     resultsDiv.innerHTML += `<p>📥 Exporting ${table}...</p>`;
                     
                     try {
-                        const response = await fetch(`/api/${table}`);
+                        const response = await fetch(endpoint);
                         if (response.ok) {
                             const data = await response.json();
-                            exportData[table] = data;
-                            resultsDiv.innerHTML += `<p>✅ ${table}: ${data.length} records exported</p>`;
+                            if (table === 'subscriptions') {
+                                exportData[table] = data.subscription ? [data.subscription] : [];
+                                resultsDiv.innerHTML += `<p>✅ ${table}: ${exportData[table].length} records exported</p>`;
+                            } else {
+                                exportData[table] = Array.isArray(data) ? data : [];
+                                resultsDiv.innerHTML += `<p>✅ ${table}: ${exportData[table].length} records exported</p>`;
+                            }
                         } else {
                             exportData[table] = [];
                             resultsDiv.innerHTML += `<p>⚠️ ${table}: No data or access denied</p>`;
@@ -203,7 +225,7 @@
                     }
 
                     completed++;
-                    progressBar.style.width = `${(completed / tables.length) * 100}%`;
+                    progressBar.style.width = `${(completed / Object.keys(endpoints).length) * 100}%`;
                 }
 
                 // Create downloadable backup file

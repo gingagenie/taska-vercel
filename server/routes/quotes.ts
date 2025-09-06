@@ -61,13 +61,13 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
 
   // Simple direct database call - no complex logic
-  const result = await db.execute(sql`
+  const result: any = await db.execute(sql`
     insert into quotes (org_id, customer_id, title, notes, created_by)
     values (${orgId}::uuid, ${customerId}::uuid, ${title}, ${notes||''}, ${userId}::uuid)
     returning id
   `);
   
-  const quoteId = result[0].id;  // The result is an array, not an object with rows
+  const quoteId = result.rows[0].id;  // Match the pattern used in other working queries
   res.json({ ok: true, id: quoteId });
 });
 

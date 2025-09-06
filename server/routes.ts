@@ -18,6 +18,7 @@ import { itemPresets } from "./routes/item-presets";
 import tzRouter from "./routes/_tz";
 import objectsRouter from "./routes/objects";
 import subscriptions from "./routes/subscriptions";
+import { debug } from "./routes/debug";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
@@ -53,6 +54,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/objects");
   app.use("/api/subscriptions", subscriptions);
   console.log("[mount] /api/subscriptions");
+  app.use("/api/debug", debug);
+  console.log("[mount] /api/debug");
+  
+  // Migration export tool
+  app.get("/migration-export.html", (_req, res) => {
+    res.sendFile("migration-export.html", { root: process.cwd() });
+  });
   
   // Data export tool
   app.get("/export-local-data.html", (_req, res) => {

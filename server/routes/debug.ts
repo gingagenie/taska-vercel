@@ -1,8 +1,33 @@
 import { Router } from "express";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
+import type { Request, Response } from "express";
 
-export const debugRouter = Router();
+export const debug = Router();
+
+// Count records in any table (for migration tool)
+debug.get("/count/:table", async (req: Request, res: Response) => {
+  try {
+    const { table } = req.params;
+    const allowedTables = ['orgs', 'users', 'customers', 'equipment', 'jobs', 'quotes', 'invoices', 'subscriptions', 'item_presets'];
+    
+    if (!allowedTables.includes(table)) {
+      return res.status(400).json({ error: "Table not allowed" });
+    }
+
+    // @ts-ignore
+    const db = req.db;
+    const result = await db.execute(`SELECT COUNT(*) as count FROM ${table}`);
+    const count = parseInt(result.rows[0].count);
+    
+    res.json({ table, count });
+  } catch (error) {
+    console.error(`Error counting ${req.params.table}:`, error);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+export const debugRouter = debug;
 
 debugRouter.get("/env", async (_req, res) => {
   try {

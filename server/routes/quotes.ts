@@ -67,7 +67,7 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
     returning id
   `);
   
-  const quoteId = result.rows[0].id;
+  const quoteId = result[0].id;  // The result is an array, not an object with rows
   res.json({ ok: true, id: quoteId });
 });
 

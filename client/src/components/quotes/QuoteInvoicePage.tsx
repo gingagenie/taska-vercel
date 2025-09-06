@@ -276,42 +276,70 @@ export function QuoteInvoicePage({
           </div>
         </div>
 
-        {/* Items + Totals */}
-        <div className="mt-6 grid grid-cols-12 gap-6">
-          <div className="col-span-12 lg:col-span-7">
-            <LineItemsTable
-              items={items}
-              onChange={setItems}
-              onSetItem={setItem}
-              onAddRow={addRow}
-              onRemoveRow={removeRow}
-              onApplyPreset={applyPreset}
-              presets={presets}
-              taxMode={taxMode}
-            />
-            <div className="bg-white rounded-2xl border shadow-sm p-4 mt-4">
-              <div className="text-sm font-medium text-neutral-700">Notes / Terms</div>
-              <textarea 
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                className="mt-2 w-full border rounded-xl px-3 py-2 min-h-[96px]" 
-                placeholder="e.g. Payment due within 7 days. Parts remain property of company until paid in full."
-              />
+        {/* Line Items Table */}
+        <div className="mt-6">
+          <LineItemsTable
+            items={items}
+            onChange={setItems}
+            onSetItem={setItem}
+            onAddRow={addRow}
+            onRemoveRow={removeRow}
+            onApplyPreset={applyPreset}
+            presets={presets}
+            taxMode={taxMode}
+          />
+        </div>
+
+        {/* Totals Section */}
+        <div className="mt-6 flex justify-end">
+          <div className="w-full max-w-sm">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span className="font-medium">{currency(totals.subtotal)}</span>
+                </div>
+                {totals.gst > 0 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">Total GST</span>
+                    <span className="font-medium">{currency(totals.gst)}</span>
+                  </div>
+                )}
+                <div className="border-t border-gray-200 pt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-semibold text-gray-900">Total</span>
+                    <span className="text-lg font-bold text-gray-900">{currency(totals.total)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="col-span-12 lg:col-span-5">
-            <TotalsCard 
-              totals={totals} 
-              onSend={handleSend} 
-              canSend={!!customerId && !saving} 
-              mode={mode} 
+        {/* Terms Section */}
+        <div className="mt-6">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">Terms</label>
+            <textarea 
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
+              rows={4}
+              placeholder="Terms and Conditions for On-Site Forklift Repairs
+
+1. Scope of Work
+Fix My Forklift agrees to provide repair and maintenance services for forklift trucks on-site at the customer's location. The services will be performed based on the assessment of the forklift's condition."
             />
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function currency(n: number): string {
+  const v = isFinite(n) ? n : 0;
+  return v.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
 }
 
 function calcTotals(items: LineItem[], taxMode: string): Totals {

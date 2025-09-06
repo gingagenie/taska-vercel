@@ -41,99 +41,148 @@ export function LineItemsTable({
   taxMode 
 }: LineItemsTableProps) {
   return (
-    <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b text-sm font-medium text-neutral-600 grid grid-cols-12 gap-3">
-        <div className="col-span-4">Item</div>
-        <div className="col-span-2 text-right">Qty.</div>
-        <div className="col-span-2 text-right">Price</div>
-        <div className="col-span-1 text-right">Disc. %</div>
-        <div className="col-span-1">Tax</div>
-        <div className="col-span-2 text-right">Amount</div>
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      {/* Table Header */}
+      <div className="bg-gray-50 border-b border-gray-200">
+        <div className="grid grid-cols-12 gap-4 px-6 py-3">
+          <div className="col-span-3 text-sm font-medium text-gray-700">Item</div>
+          <div className="col-span-3 text-sm font-medium text-gray-700">Description</div>
+          <div className="col-span-1 text-sm font-medium text-gray-700 text-center">Qty</div>
+          <div className="col-span-2 text-sm font-medium text-gray-700 text-right">Price</div>
+          <div className="col-span-1 text-sm font-medium text-gray-700 text-center">Disc. %</div>
+          <div className="col-span-1 text-sm font-medium text-gray-700 text-center">Tax rate</div>
+          <div className="col-span-1 text-sm font-medium text-gray-700 text-right">Amount</div>
+        </div>
       </div>
 
-      {items.map((it) => {
+      {/* Table Rows */}
+      {items.map((it, index) => {
         const GST = 0.10;
         const base = Number(it.qty || 0) * Number(it.price || 0) * (1 - Number(it.discount || 0) / 100);
         const gst = it.tax === 'GST' ? (taxMode === 'inclusive' ? (base / (1 + GST)) * GST : base * GST) : 0;
         const total = taxMode === 'inclusive' ? base : base + gst;
         
         return (
-          <div key={it.id} className="px-4 py-3 grid grid-cols-12 gap-3 items-start border-b last:border-b-0">
-            <div className="col-span-4">
-              <div className="flex gap-2 items-start">
+          <div key={it.id} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
+            <div className="grid grid-cols-12 gap-4 px-6 py-4">
+              {/* Item Name */}
+              <div className="col-span-3">
+                <div className="flex gap-2 items-start">
+                  <input 
+                    value={it.itemName} 
+                    onChange={(e) => onSetItem(it.id, 'itemName', e.target.value)} 
+                    placeholder="Enter item name" 
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
+                  />
+                  <div className="relative z-10 flex-shrink-0">
+                    <PresetSelect presets={presets} onSelect={(pid: string) => onApplyPreset(it.id, pid)} />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Description */}
+              <div className="col-span-3">
                 <input 
-                  value={it.itemName} 
-                  onChange={(e) => onSetItem(it.id, 'itemName', e.target.value)} 
-                  placeholder="Item name" 
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm min-w-0" 
+                  value={it.description} 
+                  onChange={(e) => onSetItem(it.id, 'description', e.target.value)} 
+                  placeholder="Enter description" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
                 />
-                <div className="relative z-10 flex-shrink-0">
-                  <PresetSelect presets={presets} onSelect={(pid: string) => onApplyPreset(it.id, pid)} />
+              </div>
+              
+              {/* Quantity */}
+              <div className="col-span-1">
+                <input 
+                  type="number" 
+                  step="1" 
+                  min="1"
+                  value={it.qty} 
+                  onChange={(e) => onSetItem(it.id, 'qty', Math.max(1, parseInt(e.target.value) || 1))} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center" 
+                  placeholder="1"
+                />
+              </div>
+              
+              {/* Price */}
+              <div className="col-span-2">
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  min="0"
+                  value={it.price} 
+                  onChange={(e) => onSetItem(it.id, 'price', Math.max(0, parseFloat(e.target.value) || 0))} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-right" 
+                  placeholder="0.00"
+                />
+              </div>
+              
+              {/* Discount */}
+              <div className="col-span-1">
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  min="0"
+                  max="100"
+                  value={it.discount} 
+                  onChange={(e) => onSetItem(it.id, 'discount', Math.min(100, Math.max(0, Number(e.target.value))))} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center" 
+                  placeholder="0"
+                />
+              </div>
+              
+              {/* Tax Rate */}
+              <div className="col-span-1">
+                <select 
+                  value={it.tax} 
+                  onChange={(e) => onSetItem(it.id, 'tax', e.target.value)} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                >
+                  <option value="GST">GST (10%)</option>
+                  <option value="None">Tax Exempt</option>
+                </select>
+              </div>
+              
+              {/* Amount */}
+              <div className="col-span-1">
+                <div className="px-3 py-2 text-sm font-medium text-gray-900 text-right">
+                  {currency(total)}
                 </div>
               </div>
             </div>
-            <div className="col-span-2 text-right">
-              <input 
-                type="number" 
-                step="1" 
-                min="1"
-                value={it.qty} 
-                onChange={(e) => onSetItem(it.id, 'qty', Math.max(1, parseInt(e.target.value) || 1))} 
-                className="w-full border rounded-lg px-3 py-2 text-right text-sm" 
-                placeholder="1"
-              />
-            </div>
-            <div className="col-span-2 text-right">
-              <input 
-                type="number" 
-                step="1" 
-                min="0"
-                value={it.price} 
-                onChange={(e) => onSetItem(it.id, 'price', Math.max(0, parseInt(e.target.value) || 0))} 
-                className="w-full border rounded-lg px-3 py-2 text-right text-sm" 
-                placeholder="0"
-              />
-            </div>
-            <div className="col-span-1 text-right">
-              <input 
-                type="number" 
-                step="0.01" 
-                value={it.discount} 
-                onChange={(e) => onSetItem(it.id, 'discount', Number(e.target.value))} 
-                className="w-full border rounded-lg px-3 py-2 text-right text-sm" 
-                placeholder="0"
-              />
-            </div>
-            <div className="col-span-1">
-              <select 
-                value={it.tax} 
-                onChange={(e) => onSetItem(it.id, 'tax', e.target.value)} 
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="GST">GST</option>
-                <option value="None">None</option>
-              </select>
-            </div>
-            <div className="col-span-2 text-right font-medium pt-2 text-sm">{currency(total)}</div>
-            <div className="col-span-12 flex items-center justify-between pt-2">
+            
+            {/* Row Actions */}
+            <div className="px-6 pb-3 flex items-center justify-between">
               <button 
-                className="text-sm text-neutral-600 hover:text-neutral-900" 
+                type="button"
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium" 
                 onClick={onAddRow}
               >
-                + Add row
+                Add row
               </button>
               {items.length > 1 && (
                 <button 
-                  className="text-sm text-red-600 hover:text-red-800" 
+                  type="button"
+                  className="text-sm text-red-600 hover:text-red-800 font-medium" 
                   onClick={() => onRemoveRow(it.id)}
                 >
-                  Remove
+                  Delete
                 </button>
               )}
             </div>
           </div>
         );
       })}
+      
+      {/* Add Row Button */}
+      <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <button 
+          type="button"
+          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          onClick={onAddRow}
+        >
+          + Add a line
+        </button>
+      </div>
     </div>
   );
 }

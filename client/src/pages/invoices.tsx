@@ -16,7 +16,7 @@ export default function InvoicesPage() {
   const [q, setQ] = useState("");
   const [, navigate] = useLocation();
 
-  const filtered = (list as any[]).filter(x => [x.title,x.customer_name,x.status].join(" ").toLowerCase().includes(q.toLowerCase()));
+  const filtered = (list || []).filter(x => [x.title,x.customer_name,x.status].join(" ").toLowerCase().includes(q.toLowerCase()));
 
   function getStatusBadgeClass(status: string) {
     switch (status) {

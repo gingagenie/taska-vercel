@@ -15,9 +15,8 @@ debug.get("/count/:table", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Table not allowed" });
     }
 
-    // @ts-ignore
-    const db = req.db;
-    const result = await db.execute(`SELECT COUNT(*) as count FROM ${table}`);
+    // Use the global db connection instead of req.db
+    const result = await db.execute(sql.raw(`SELECT COUNT(*) as count FROM ${table}`));
     const count = parseInt(result.rows[0].count);
     
     res.json({ table, count });

@@ -105,6 +105,9 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   } catch (error: any) {
     console.error("Error creating quote:", error);
     console.error("Full error details:", JSON.stringify(error, null, 2));
+    console.error("Error name:", error.name);
+    console.error("Error code:", error.code);
+    console.error("Error stack:", error.stack);
     return res.status(500).json({ error: `Database error: ${error.message || error.toString() || 'Unknown error'}` });
   }
 });

@@ -44,7 +44,7 @@ const pool = new Pool({
 
 app.use(
   session({
-    store: new PgStore({ pool, tableName: "session" }),
+    // store: new PgStore({ pool, tableName: "session" }), // Temporarily disabled
     secret: process.env.SESSION_SECRET || "dev-secret-change-me",
     resave: false,
     saveUninitialized: false,

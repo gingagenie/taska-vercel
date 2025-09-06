@@ -65,17 +65,13 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   try {
     console.log("About to execute database insert...");
     
-    // Handle nullable created_by field
-    const insertSql = userId 
-      ? sql`insert into quotes (org_id, customer_id, job_id, title, notes, created_by)
-            values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId}::uuid)
-            returning id`
-      : sql`insert into quotes (org_id, customer_id, job_id, title, notes)
-            values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null})
-            returning id`;
+    // Simple direct insert without conditional logic
+    const ins: any = await db.execute(sql`
+      insert into quotes (org_id, customer_id, title, notes, created_by)
+      values (${orgId}::uuid, ${customerId}::uuid, ${title}, ${notes||null}, ${userId}::uuid)
+      returning id
+    `);
     
-    console.log("Executing SQL query...");
-    const ins: any = await db.execute(insertSql);
     console.log("Query executed, result:", ins);
     
     if (!ins.rows || ins.rows.length === 0) {

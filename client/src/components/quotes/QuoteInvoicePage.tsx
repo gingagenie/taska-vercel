@@ -152,76 +152,127 @@ export function QuoteInvoicePage({
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
       <div className="sticky top-0 z-20 bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-yellow-400 grid place-items-center font-black text-neutral-900">T</div>
+            <div className="w-10 h-10 rounded-lg bg-blue-600 grid place-items-center font-bold text-white text-lg">T</div>
             <div className="leading-tight">
-              <div className="font-semibold text-neutral-800">Taska</div>
-              <div className="text-xs text-neutral-500">{mode === 'quote' ? 'Quote' : 'Invoice'} composer</div>
+              <div className="font-semibold text-gray-900">New {mode === 'quote' ? 'quote' : 'invoice'}</div>
+              <div className="text-sm text-gray-500">Draft</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button 
-              className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50" 
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               onClick={() => onPreview?.(payload)}
             >
               Preview
             </button>
             <button 
-              className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50" 
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? 'Saving...' : 'Save & close'}
             </button>
             <button 
-              className="px-3 py-2 rounded-xl bg-neutral-900 text-white text-sm disabled:opacity-50 hover:bg-neutral-800" 
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" 
               disabled={!customerId || saving} 
               onClick={handleSend}
             >
-              {mode === 'quote' ? 'Send quote' : 'Send invoice'}
+              {mode === 'quote' ? 'Approve & email' : 'Approve & email'}
             </button>
           </div>
         </div>
       </div>
 
       {/* Header form */}
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-12 gap-4 bg-white p-4 rounded-2xl shadow-sm border">
-          <div className="col-span-12 sm:col-span-6">
-            <label className="text-xs font-medium text-neutral-600">Title</label>
-            <input 
-              value={title} 
-              onChange={e => setTitle(e.target.value)} 
-              placeholder={`${mode === 'quote' ? 'Quote' : 'Invoice'} title`}
-              className="mt-1 w-full border rounded-lg px-3 py-2" 
-            />
-          </div>
-          <div className="col-span-12 sm:col-span-6">
-            <label className="text-xs font-medium text-neutral-600">Customer</label>
-            <select className="mt-1 w-full border rounded-lg px-3 py-2" value={customerId} onChange={e => setCustomerId(e.target.value)}>
-              <option value="">Select customer…</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div className="col-span-6 sm:col-span-3">
-            <label className="text-xs font-medium text-neutral-600">Issue date</label>
-            <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2" />
-          </div>
-          <div className="col-span-6 sm:col-span-3">
-            <label className="text-xs font-medium text-neutral-600">{mode === 'quote' ? 'Valid until' : 'Due date'}</label>
-            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2" />
-          </div>
-          <div className="col-span-6 sm:col-span-3">
-            <label className="text-xs font-medium text-neutral-600">{mode === 'quote' ? 'Quote' : 'Invoice'} #</label>
-            <input value={docNo} onChange={e => setDocNo(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Auto-generated" />
-          </div>
-          <div className="col-span-6 sm:col-span-3">
-            <label className="text-xs font-medium text-neutral-600">Reference</label>
-            <input value={reference} onChange={e => setReference(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Job reference" />
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="px-6 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+              {/* Contact */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Contact</label>
+                <select 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                  value={customerId} 
+                  onChange={e => setCustomerId(e.target.value)}
+                >
+                  <option value="">Choose a contact</option>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              {/* Issue Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{mode === 'quote' ? 'Issue date' : 'Issue date'}</label>
+                <input 
+                  type="date" 
+                  value={issueDate} 
+                  onChange={e => setIssueDate(e.target.value)} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                />
+              </div>
+
+              {/* Expiry/Due Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{mode === 'quote' ? 'Expiry date' : 'Due date'}</label>
+                <input 
+                  type="date" 
+                  value={dueDate} 
+                  onChange={e => setDueDate(e.target.value)} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                />
+              </div>
+
+              {/* Quote/Invoice Number */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{mode === 'quote' ? 'Quote number' : 'Invoice number'}</label>
+                <input 
+                  value={docNo} 
+                  onChange={e => setDocNo(e.target.value)} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                  placeholder={`${mode === 'quote' ? 'QU' : 'INV'}-0001`}
+                />
+              </div>
+
+              {/* Reference */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reference</label>
+                <input 
+                  value={reference} 
+                  onChange={e => setReference(e.target.value)} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                  placeholder="Job reference"
+                />
+              </div>
+            </div>
+
+            {/* Title Field - Full Width Below */}
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+              <input 
+                value={title} 
+                onChange={e => setTitle(e.target.value)} 
+                placeholder={`${mode === 'quote' ? 'Quote' : 'Invoice'} title`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+              />
+            </div>
+
+            {/* Summary Field */}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Summary</label>
+              <textarea 
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                rows={3}
+                placeholder="Brief description of this quote/invoice..."
+              />
+            </div>
           </div>
         </div>
 

@@ -63,6 +63,8 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
 
   try {
+    console.log("About to execute database insert...");
+    
     // Handle nullable created_by field
     const insertSql = userId 
       ? sql`insert into quotes (org_id, customer_id, job_id, title, notes, created_by)
@@ -72,7 +74,9 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
             values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null})
             returning id`;
     
+    console.log("Executing SQL query...");
     const ins: any = await db.execute(insertSql);
+    console.log("Query executed, result:", ins);
     
     if (!ins.rows || ins.rows.length === 0) {
       return res.status(500).json({ error: "Failed to create quote" });

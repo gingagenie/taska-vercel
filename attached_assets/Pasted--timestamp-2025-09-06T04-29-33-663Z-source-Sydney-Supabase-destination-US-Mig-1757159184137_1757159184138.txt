@@ -1,0 +1,94 @@
+{
+  "timestamp": "2025-09-06T04:29:33.663Z",
+  "source": "Sydney Supabase",
+  "destination": "US Migration",
+  "data": {
+    "customers": [
+      {
+        "id": "8242416a-a0a7-4ad0-b436-8e7c8f0851cc",
+        "name": "ABC Manufacturing",
+        "contact_name": "John Smith",
+        "email": "john@abcmfg.com",
+        "phone": "+61400987654",
+        "street": "456 Factory Rd",
+        "suburb": "Richmond",
+        "state": "VIC",
+        "postcode": "3121"
+      },
+      {
+        "id": "7277e486-8045-408f-baec-300bc3957fe1",
+        "name": "Southern Advanced Plants",
+        "contact_name": "Emma Wilson",
+        "email": "emma@southernplants.com.au",
+        "phone": "0401296502",
+        "street": "163 Nepean Highway",
+        "suburb": "Dromana",
+        "state": "Vic",
+        "postcode": "3936"
+      }
+    ],
+    "equipment": [
+      {
+        "id": "0a4fa2d1-6fbc-4a72-89a1-07de3cfff374",
+        "name": "Prin 2",
+        "make": "Prins ",
+        "model": "Boxer 3",
+        "serial": null,
+        "notes": null,
+        "customer_id": "7277e486-8045-408f-baec-300bc3957fe1",
+        "customer_name": "Southern Advanced Plants",
+        "customer_address": "163 Nepean Highway, Dromana, Vic, 3936"
+      },
+      {
+        "id": "8a4873fb-82e1-4917-a1d0-822ae28bc36c",
+        "name": "sfvdfabdfbadf",
+        "make": "dbfadfbdafbadbdg",
+        "model": "badgbadbdgbadbdgb",
+        "serial": null,
+        "notes": null,
+        "customer_id": "8242416a-a0a7-4ad0-b436-8e7c8f0851cc",
+        "customer_name": "ABC Manufacturing",
+        "customer_address": "456 Factory Rd, Richmond, VIC, 3121"
+      }
+    ],
+    "jobs": [
+      {
+        "id": "a1b19653-1773-4981-a634-7a219685c787",
+        "title": "ardjblk`dfnb",
+        "description": "dfklnbldfknbmlsdfm b",
+        "status": "new",
+        "scheduled_at": "2025-09-13T01:56:00.000Z",
+        "customer_id": "7277e486-8045-408f-baec-300bc3957fe1",
+        "customer_name": "Southern Advanced Plants"
+      },
+      {
+        "id": "e5212f43-10b3-443c-aa9a-dcbdd229a5f8",
+        "title": "Prin 2",
+        "description": "Hydraulic faulty ",
+        "status": "new",
+        "scheduled_at": "2025-09-10T01:34:00.000Z",
+        "customer_id": "7277e486-8045-408f-baec-300bc3957fe1",
+        "customer_name": "Southern Advanced Plants"
+      }
+    ],
+    "quotes": [],
+    "invoices": [],
+    "subscriptions": [
+      {
+        "id": "a765dbf6-3795-459d-94d1-88751a45518f",
+        "orgId": "a5309a76-ee4a-4c2f-b12b-6b79bae4ae77",
+        "planId": "free",
+        "stripeCustomerId": "cus_SzsREF2tROzdP3",
+        "stripeSubscriptionId": null,
+        "status": "trial",
+        "currentPeriodStart": null,
+        "currentPeriodEnd": null,
+        "trialEnd": "2025-10-05T05:51:39.656Z",
+        "cancelAtPeriodEnd": false,
+        "createdAt": "2025-09-05T05:51:39.656Z",
+        "updatedAt": "2025-09-05T05:51:39.656Z"
+      }
+    ],
+    "item_presets": []
+  }
+}

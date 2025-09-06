@@ -60,11 +60,16 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
 
   try {
-    const ins: any = await db.execute(sql`
-      insert into quotes (org_id, customer_id, job_id, title, notes, created_by)
-      values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId}::uuid)
-      returning id
-    `);
+    // Handle nullable created_by field
+    const insertSql = userId 
+      ? sql`insert into quotes (org_id, customer_id, job_id, title, notes, created_by)
+            values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId}::uuid)
+            returning id`
+      : sql`insert into quotes (org_id, customer_id, job_id, title, notes)
+            values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null})
+            returning id`;
+    
+    const ins: any = await db.execute(insertSql);
     
     if (!ins.rows || ins.rows.length === 0) {
       return res.status(500).json({ error: "Failed to create quote" });
@@ -94,9 +99,10 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   }
   
     res.json({ ok: true, id: quoteId });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating quote:", error);
-    return res.status(500).json({ error: `Database error: ${error.message || 'Unknown error'}` });
+    console.error("Full error details:", JSON.stringify(error, null, 2));
+    return res.status(500).json({ error: `Database error: ${error.message || error.toString() || 'Unknown error'}` });
   }
 });
 

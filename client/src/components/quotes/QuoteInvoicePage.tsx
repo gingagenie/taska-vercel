@@ -161,57 +161,96 @@ export function QuoteInvoicePage({
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
       <div className="sticky top-0 z-20 bg-white border-b">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-600 grid place-items-center font-bold text-white text-lg">T</div>
-            <div className="leading-tight">
-              <div className="font-semibold text-gray-900">New {mode === 'quote' ? 'quote' : 'invoice'}</div>
-              <div className="text-sm text-gray-500">Draft</div>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-4">
+          {/* Mobile: Stack vertically */}
+          <div className="flex flex-col gap-4 md:hidden">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-600 grid place-items-center font-bold text-white text-lg">T</div>
+              <div className="leading-tight">
+                <div className="font-semibold text-gray-900">New {mode === 'quote' ? 'quote' : 'invoice'}</div>
+                <div className="text-sm text-gray-500">Draft</div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button 
+                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                onClick={() => onPreview?.(payload)}
+              >
+                Preview
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button 
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving...' : 'Save & close'}
+                </button>
+                <button 
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" 
+                  disabled={!customerId || saving} 
+                  onClick={handleSend}
+                >
+                  {mode === 'quote' ? 'Approve & email' : 'Approve & email'}
+                </button>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button 
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              onClick={() => onPreview?.(payload)}
-            >
-              Preview
-            </button>
-            <button 
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : 'Save & close'}
-            </button>
-            <button 
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" 
-              disabled={!customerId || saving} 
-              onClick={handleSend}
-            >
-              {mode === 'quote' ? 'Approve & email' : 'Approve & email'}
-            </button>
+
+          {/* Desktop: Horizontal layout */}
+          <div className="hidden md:flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-600 grid place-items-center font-bold text-white text-lg">T</div>
+              <div className="leading-tight">
+                <div className="font-semibold text-gray-900">New {mode === 'quote' ? 'quote' : 'invoice'}</div>
+                <div className="text-sm text-gray-500">Draft</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                onClick={() => onPreview?.(payload)}
+              >
+                Preview
+              </button>
+              <button 
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? 'Saving...' : 'Save & close'}
+              </button>
+              <button 
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" 
+                disabled={!customerId || saving} 
+                onClick={handleSend}
+              >
+                {mode === 'quote' ? 'Approve & email' : 'Approve & email'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Header form */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6">
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-          <div className="px-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
-              {/* Contact */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Contact</label>
-                <select 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                  value={customerId} 
-                  onChange={e => setCustomerId(e.target.value)}
-                >
-                  <option value="">Choose a contact</option>
-                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
+          <div className="px-4 md:px-6 py-4">
+            {/* Contact - Full width on mobile */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Contact</label>
+              <select 
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                value={customerId} 
+                onChange={e => setCustomerId(e.target.value)}
+              >
+                <option value="">Choose a contact</option>
+                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
 
+            {/* Date fields - 2 columns on mobile, responsive */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               {/* Issue Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{mode === 'quote' ? 'Issue date' : 'Issue date'}</label>
@@ -233,7 +272,10 @@ export function QuoteInvoicePage({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                 />
               </div>
+            </div>
 
+            {/* Document details - 2 columns on mobile */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Quote/Invoice Number */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{mode === 'quote' ? 'Quote number' : 'Invoice number'}</label>
@@ -298,9 +340,9 @@ export function QuoteInvoicePage({
         </div>
 
         {/* Totals Section */}
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex justify-center md:justify-end">
           <div className="w-full max-w-sm">
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
               <div className="space-y-3">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Subtotal</span>
@@ -314,8 +356,8 @@ export function QuoteInvoicePage({
                 )}
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold text-gray-900">Total</span>
-                    <span className="text-lg font-bold text-gray-900">{currency(totals.total)}</span>
+                    <span className="text-base md:text-lg font-semibold text-gray-900">Total</span>
+                    <span className="text-base md:text-lg font-bold text-gray-900">{currency(totals.total)}</span>
                   </div>
                 </div>
               </div>
@@ -325,7 +367,7 @@ export function QuoteInvoicePage({
 
         {/* Terms Section */}
         <div className="mt-6">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
             <label className="block text-sm font-medium text-gray-700 mb-3">Terms</label>
             <textarea 
               value={notes}

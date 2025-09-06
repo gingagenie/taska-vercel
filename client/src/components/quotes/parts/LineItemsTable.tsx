@@ -103,8 +103,8 @@ export function LineItemsTable({
 }: LineItemsTableProps) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-      {/* Table Header */}
-      <div className="bg-gray-50 border-b border-gray-200">
+      {/* Desktop Table Header - Hidden on Mobile */}
+      <div className="bg-gray-50 border-b border-gray-200 hidden md:block">
         <div className="grid grid-cols-12 gap-4 px-6 py-3">
           <div className="col-span-3 text-sm font-medium text-gray-700">Item</div>
           <div className="col-span-3 text-sm font-medium text-gray-700">Description</div>
@@ -114,6 +114,11 @@ export function LineItemsTable({
           <div className="col-span-1 text-sm font-medium text-gray-700 text-center">Tax rate</div>
           <div className="col-span-1 text-sm font-medium text-gray-700 text-right">Amount</div>
         </div>
+      </div>
+      
+      {/* Mobile Header */}
+      <div className="bg-gray-50 border-b border-gray-200 md:hidden px-4 py-3">
+        <div className="text-sm font-medium text-gray-700">Line Items</div>
       </div>
 
       {/* Table Rows */}
@@ -125,7 +130,8 @@ export function LineItemsTable({
         
         return (
           <div key={it.id} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
-            <div className="grid grid-cols-12 gap-4 px-6 py-4">
+            {/* Desktop Layout */}
+            <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4">
               {/* Item Name */}
               <div className="col-span-3">
                 <ItemAutocomplete 
@@ -211,9 +217,101 @@ export function LineItemsTable({
               </div>
             </div>
             
+            {/* Mobile Layout */}
+            <div className="md:hidden px-4 py-4 space-y-4">
+              {/* Item Name */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Item</label>
+                <ItemAutocomplete 
+                  value={it.itemName}
+                  onChange={(value) => onSetItem(it.id, 'itemName', value)}
+                  onSelectPrevious={(item) => {
+                    onSetItem(it.id, 'itemName', item.itemName);
+                    onSetItem(it.id, 'description', item.description);
+                    onSetItem(it.id, 'price', item.price);
+                    onSetItem(it.id, 'tax', item.tax);
+                  }}
+                  previousItems={previousItems}
+                />
+              </div>
+              
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                <input 
+                  value={it.description} 
+                  onChange={(e) => onSetItem(it.id, 'description', e.target.value)} 
+                  placeholder="Enter description" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
+                />
+              </div>
+              
+              {/* Quantity and Price Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Qty</label>
+                  <input 
+                    type="number" 
+                    step="1" 
+                    min="1"
+                    value={it.qty} 
+                    onChange={(e) => onSetItem(it.id, 'qty', Math.max(1, parseInt(e.target.value) || 1))} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center" 
+                    placeholder="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Price</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    min="0"
+                    value={it.price} 
+                    onChange={(e) => onSetItem(it.id, 'price', Math.max(0, parseFloat(e.target.value) || 0))} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-right" 
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              {/* Discount and Tax Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Discount %</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    min="0"
+                    max="100"
+                    value={it.discount} 
+                    onChange={(e) => onSetItem(it.id, 'discount', Math.min(100, Math.max(0, Number(e.target.value))))} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center" 
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Tax Rate</label>
+                  <select 
+                    value={it.tax} 
+                    onChange={(e) => onSetItem(it.id, 'tax', e.target.value)} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    <option value="GST">GST (10%)</option>
+                    <option value="None">Tax Exempt</option>
+                  </select>
+                </div>
+              </div>
+              
+              {/* Amount Display */}
+              <div className="bg-gray-50 px-3 py-2 rounded-md flex justify-between items-center">
+                <span className="text-xs font-medium text-gray-700">Amount:</span>
+                <span className="text-sm font-bold text-gray-900">{currency(total)}</span>
+              </div>
+            </div>
+            
             {/* Row Actions */}
             {items.length > 1 && (
-              <div className="px-6 pb-3 flex items-center justify-end">
+              <div className="px-4 md:px-6 pb-3 flex items-center justify-end">
                 <button 
                   type="button"
                   className="text-sm text-red-600 hover:text-red-800 font-medium" 
@@ -228,7 +326,7 @@ export function LineItemsTable({
       })}
       
       {/* Add Row Button */}
-      <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+      <div className="px-4 md:px-6 py-4 border-t border-gray-200 bg-gray-50">
         <button 
           type="button"
           className="text-sm text-blue-600 hover:text-blue-800 font-medium"

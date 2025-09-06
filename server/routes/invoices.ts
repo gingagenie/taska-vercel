@@ -3,6 +3,7 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
 import { xeroService } from "../services/xero";
 import { sumLines } from "../lib/totals";
 
@@ -40,7 +41,7 @@ router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
 });
 
 /** List */
-router.get("/", requireAuth, requireOrg, async (req, res) => {
+router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const r: any = await db.execute(sql`
     select i.id, i.title, i.status, i.created_at, i.customer_id, c.name as customer_name
@@ -52,7 +53,7 @@ router.get("/", requireAuth, requireOrg, async (req, res) => {
 });
 
 /** Create */
-router.post("/", requireAuth, requireOrg, async (req, res) => {
+router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const userId = (req as any).user?.id || null;
   const { title, customerId, jobId, notes, lines = [] } = req.body || {};

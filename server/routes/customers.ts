@@ -3,6 +3,7 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
 import multer from "multer";
 import { parse } from "csv-parse";
 import { Readable } from "stream";
@@ -17,7 +18,7 @@ const upload = multer({
 });
 
 /* LIST */
-customers.get("/", requireAuth, requireOrg, async (req, res) => {
+customers.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/customers org=%s", orgId);
   

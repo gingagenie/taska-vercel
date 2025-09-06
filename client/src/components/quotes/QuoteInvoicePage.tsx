@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LineItemsTable } from './parts/LineItemsTable';
 import { TotalsCard } from './parts/TotalsCard';
 
@@ -83,6 +84,11 @@ export function QuoteInvoicePage({
   loading = false,
   saving = false,
 }: QuoteInvoicePageProps) {
+  // Fetch previous items for autocomplete
+  const { data: previousItems = [] } = useQuery({
+    queryKey: [`/api/${mode}s/previous-items`],
+    retry: false,
+  });
   const [customerId, setCustomerId] = useState(initial?.customer?.id || '');
   const [issueDate, setIssueDate] = useState(initial?.issueDate || new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(initial?.dueDate || '');
@@ -287,6 +293,7 @@ export function QuoteInvoicePage({
             onApplyPreset={applyPreset}
             presets={presets}
             taxMode={taxMode}
+            previousItems={previousItems}
           />
         </div>
 

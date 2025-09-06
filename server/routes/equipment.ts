@@ -3,6 +3,7 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
 import multer from "multer";
 import { parse } from "csv-parse";
 import { Readable } from "stream";
@@ -17,7 +18,7 @@ const upload = multer({
 });
 
 /* LIST: equipment + customer name + address */
-equipment.get("/", requireAuth, requireOrg, async (req, res) => {
+equipment.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   try {
     const r: any = await db.execute(sql`
@@ -47,7 +48,7 @@ equipment.get("/", requireAuth, requireOrg, async (req, res) => {
 });
 
 /* GET ONE */
-equipment.get("/:id", requireAuth, requireOrg, async (req, res) => {
+equipment.get("/:id", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const { id } = req.params;
   const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });

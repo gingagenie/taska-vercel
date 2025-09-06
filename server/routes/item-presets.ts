@@ -3,11 +3,12 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
 
 export const itemPresets = Router();
 
 /** GET /api/item-presets?search=lab */
-itemPresets.get("/", requireAuth, requireOrg, async (req, res) => {
+itemPresets.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const q = String(req.query.search || "").trim();
   const r: any = await db.execute(sql`
@@ -22,7 +23,7 @@ itemPresets.get("/", requireAuth, requireOrg, async (req, res) => {
 });
 
 /** POST /api/item-presets  { name, unit_amount, tax_rate }  (manual add in Settings) */
-itemPresets.post("/", requireAuth, requireOrg, async (req, res) => {
+itemPresets.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const { name, unit_amount, tax_rate } = req.body || {};
   if (!name || String(name).trim() === "") {

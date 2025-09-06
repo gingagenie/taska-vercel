@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { requireOrg } from '../middleware/tenancy';
+import { checkSubscription, requireActiveSubscription } from '../middleware/subscription';
 import { xeroService } from '../services/xero';
 
 interface AuthenticatedRequest extends Request {
@@ -14,7 +15,7 @@ interface XeroSession {
 const router = Router();
 
 // Start OAuth2 flow
-router.get('/connect', requireAuth, requireOrg, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/connect', requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const authUrl = await xeroService.getAuthUrl(req.orgId);
     

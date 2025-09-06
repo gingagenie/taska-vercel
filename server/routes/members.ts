@@ -3,13 +3,14 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
 import bcrypt from "bcryptjs";
 
 export const members = Router();
 const isUuid = (v: string | undefined) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 
 /* LIST MEMBERS */
-members.get("/", requireAuth, requireOrg, async (req, res) => {
+members.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   try {
     const r: any = await db.execute(sql`
@@ -26,7 +27,7 @@ members.get("/", requireAuth, requireOrg, async (req, res) => {
 });
 
 /* ADD MEMBER (creates login too) */
-members.post("/", requireAuth, requireOrg, async (req, res) => {
+members.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const { name, email, phone, role = "technician", password } = req.body || {};
   if (!email || !name) return res.status(400).json({ error: "name and email required" });

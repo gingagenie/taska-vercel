@@ -3,6 +3,7 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
+import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
 
 export const schedule = Router();
 
@@ -10,7 +11,7 @@ export const schedule = Router();
  * GET /api/schedule/range?start=YYYY-MM-DD&end=YYYY-MM-DD&techId=uuid&tz=Area/City
  * start inclusive, end exclusive, dates interpreted in provided tz (defaults to Australia/Melbourne)
  */
-schedule.get("/range", requireAuth, requireOrg, async (req, res) => {
+schedule.get("/range", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const { start, end, techId, tz } = req.query as Record<string, string | undefined>;
   

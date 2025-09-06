@@ -9,6 +9,36 @@ import { sumLines } from "../lib/totals";
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
 
+/** Get previous items for autocomplete */
+router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
+  const orgId = (req as any).orgId;
+  try {
+    const r: any = await db.execute(sql`
+      SELECT DISTINCT 
+        description as itemName,
+        description,
+        COALESCE(unit_amount, 0) as price,
+        CASE WHEN tax_rate > 0 THEN 'GST' ELSE 'None' END as tax
+      FROM invoice_lines 
+      WHERE org_id = ${orgId}::uuid AND description IS NOT NULL AND description != ''
+      UNION
+      SELECT DISTINCT 
+        description as itemName,
+        description,
+        COALESCE(unit_amount, 0) as price,
+        CASE WHEN tax_rate > 0 THEN 'GST' ELSE 'None' END as tax
+      FROM quote_lines 
+      WHERE org_id = ${orgId}::uuid AND description IS NOT NULL AND description != ''
+      ORDER BY itemName
+      LIMIT 50
+    `);
+    res.json(r.rows || []);
+  } catch (error) {
+    console.error("Error fetching previous items:", error);
+    res.json([]);
+  }
+});
+
 /** List */
 router.get("/", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
@@ -33,6 +63,10 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
     values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId})
     returning id
   `);
+  
+  if (!ins.rows || ins.rows.length === 0) {
+    return res.status(500).json({ error: "Failed to create invoice" });
+  }
   
   const invoiceId = ins.rows[0].id;
   

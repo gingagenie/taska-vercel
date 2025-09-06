@@ -151,15 +151,8 @@ export function LineItemsTable({
             </div>
             
             {/* Row Actions */}
-            <div className="px-6 pb-3 flex items-center justify-between">
-              <button 
-                type="button"
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium" 
-                onClick={onAddRow}
-              >
-                Add row
-              </button>
-              {items.length > 1 && (
+            {items.length > 1 && (
+              <div className="px-6 pb-3 flex items-center justify-end">
                 <button 
                   type="button"
                   className="text-sm text-red-600 hover:text-red-800 font-medium" 
@@ -167,8 +160,8 @@ export function LineItemsTable({
                 >
                   Delete
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         );
       })}

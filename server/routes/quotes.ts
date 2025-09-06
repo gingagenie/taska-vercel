@@ -58,58 +58,17 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   const userId = (req as any).user?.id || null;
   const { title, customerId, jobId, notes, lines = [] } = req.body || {};
   
-  console.log("Quote creation request:", { orgId, userId, title, customerId, jobId, notes });
-  
   if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
 
-  try {
-    console.log("About to execute database insert...");
-    
-    // Simple direct insert without conditional logic
-    const ins: any = await db.execute(sql`
-      insert into quotes (org_id, customer_id, title, notes, created_by)
-      values (${orgId}::uuid, ${customerId}::uuid, ${title}, ${notes||null}, ${userId}::uuid)
-      returning id
-    `);
-    
-    console.log("Query executed, result:", ins);
-    
-    if (!ins.rows || ins.rows.length === 0) {
-      return res.status(500).json({ error: "Failed to create quote" });
-    }
-    
-    const quoteId = ins.rows[0].id;
+  // Simple direct database call - no complex logic
+  const result = await db.execute(sql`
+    insert into quotes (org_id, customer_id, title, notes, created_by)
+    values (${orgId}::uuid, ${customerId}::uuid, ${title}, ${notes||''}, ${userId}::uuid)
+    returning id
+  `);
   
-  // Insert line items if provided
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    await db.execute(sql`
-      insert into quote_lines (org_id, quote_id, position, description, quantity, unit_amount, tax_rate)
-      values (${orgId}::uuid, ${quoteId}::uuid, ${i}, ${l.description||""}, ${l.quantity||0}, ${l.unit_amount||0}, ${l.tax_rate||0})
-    `);
-  }
-  
-  // Compute and store totals if there are lines
-  if (lines.length > 0) {
-    const sums = sumLines(lines);
-    await db.execute(sql`
-      update quotes set
-        sub_total=${sums.sub_total},
-        tax_total=${sums.tax_total},
-        grand_total=${sums.grand_total}
-      where id=${quoteId}::uuid and org_id=${orgId}::uuid
-    `);
-  }
-  
-    res.json({ ok: true, id: quoteId });
-  } catch (error: any) {
-    console.error("Error creating quote:", error);
-    console.error("Full error details:", JSON.stringify(error, null, 2));
-    console.error("Error name:", error.name);
-    console.error("Error code:", error.code);
-    console.error("Error stack:", error.stack);
-    return res.status(500).json({ error: `Database error: ${error.message || error.toString() || 'Unknown error'}` });
-  }
+  const quoteId = result.rows[0].id;
+  res.json({ ok: true, id: quoteId });
 });
 
 /** Get (with lines + computed totals) */

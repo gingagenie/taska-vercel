@@ -1,5 +1,59 @@
-import React from 'react';
-import { PresetSelect } from './PresetSelect';
+import React, { useState } from 'react';
+
+// ItemAutocomplete component for smart item selection
+function ItemAutocomplete({ 
+  value, 
+  onChange, 
+  onSelectPrevious, 
+  previousItems 
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSelectPrevious: (item: any) => void;
+  previousItems: Array<{
+    itemName: string;
+    description: string;
+    price: number;
+    tax: string;
+  }>;
+}) {
+  const [showDropdown, setShowDropdown] = useState(false);
+  
+  const filteredItems = previousItems
+    .filter(item => item.itemName.toLowerCase().includes(value.toLowerCase()))
+    .slice(0, 5); // Show max 5 suggestions
+
+  return (
+    <div className="relative">
+      <input 
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setShowDropdown(true)}
+        onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+        placeholder="Enter item name"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+      />
+      
+      {showDropdown && filteredItems.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto">
+          {filteredItems.map((item, index) => (
+            <div
+              key={index}
+              className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
+              onClick={() => {
+                onSelectPrevious(item);
+                setShowDropdown(false);
+              }}
+            >
+              <div className="font-medium">{item.itemName}</div>
+              <div className="text-gray-500 text-xs">{item.description} • ${item.price}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface LineItem {
   id: string;
@@ -28,6 +82,12 @@ interface LineItemsTableProps {
   onApplyPreset: (id: string, presetId: string) => void;
   presets: Preset[];
   taxMode: string;
+  previousItems?: Array<{
+    itemName: string;
+    description: string;
+    price: number;
+    tax: string;
+  }>;
 }
 
 export function LineItemsTable({ 
@@ -38,7 +98,8 @@ export function LineItemsTable({
   onRemoveRow, 
   onApplyPreset, 
   presets, 
-  taxMode 
+  taxMode,
+  previousItems = []
 }: LineItemsTableProps) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
@@ -67,17 +128,17 @@ export function LineItemsTable({
             <div className="grid grid-cols-12 gap-4 px-6 py-4">
               {/* Item Name */}
               <div className="col-span-3">
-                <div className="flex gap-2 items-start">
-                  <input 
-                    value={it.itemName} 
-                    onChange={(e) => onSetItem(it.id, 'itemName', e.target.value)} 
-                    placeholder="Enter item name" 
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
-                  />
-                  <div className="relative z-10 flex-shrink-0">
-                    <PresetSelect presets={presets} onSelect={(pid: string) => onApplyPreset(it.id, pid)} />
-                  </div>
-                </div>
+                <ItemAutocomplete 
+                  value={it.itemName}
+                  onChange={(value) => onSetItem(it.id, 'itemName', value)}
+                  onSelectPrevious={(item) => {
+                    onSetItem(it.id, 'itemName', item.itemName);
+                    onSetItem(it.id, 'description', item.description);
+                    onSetItem(it.id, 'price', item.price);
+                    onSetItem(it.id, 'tax', item.tax);
+                  }}
+                  previousItems={previousItems}
+                />
               </div>
               
               {/* Description */}

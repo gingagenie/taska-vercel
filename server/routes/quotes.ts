@@ -59,17 +59,18 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
   const { title, customerId, jobId, notes, lines = [] } = req.body || {};
   if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
 
-  const ins: any = await db.execute(sql`
-    insert into quotes (org_id, customer_id, job_id, title, notes, created_by)
-    values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId})
-    returning id
-  `);
-  
-  if (!ins.rows || ins.rows.length === 0) {
-    return res.status(500).json({ error: "Failed to create quote" });
-  }
-  
-  const quoteId = ins.rows[0].id;
+  try {
+    const ins: any = await db.execute(sql`
+      insert into quotes (org_id, customer_id, job_id, title, notes, created_by)
+      values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId}::uuid)
+      returning id
+    `);
+    
+    if (!ins.rows || ins.rows.length === 0) {
+      return res.status(500).json({ error: "Failed to create quote" });
+    }
+    
+    const quoteId = ins.rows[0].id;
   
   // Insert line items if provided
   for (let i = 0; i < lines.length; i++) {
@@ -92,7 +93,11 @@ router.post("/", requireAuth, requireOrg, async (req, res) => {
     `);
   }
   
-  res.json({ ok: true, id: quoteId });
+    res.json({ ok: true, id: quoteId });
+  } catch (error) {
+    console.error("Error creating quote:", error);
+    return res.status(500).json({ error: `Database error: ${error.message || 'Unknown error'}` });
+  }
 });
 
 /** Get (with lines + computed totals) */

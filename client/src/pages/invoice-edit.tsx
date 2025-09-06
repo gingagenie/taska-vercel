@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { invoicesApi, customersApi, meApi } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { QuoteInvoicePage } from "@/components/quotes/QuoteInvoicePage";
 
 export default function InvoiceEdit() {
@@ -11,6 +12,8 @@ export default function InvoiceEdit() {
   const id = params?.id;
 
   const [saving, setSaving] = useState(false);
+  const qc = useQueryClient();
+  const { toast } = useToast();
 
   // Fetch customers and item presets
   const { data: customers = [] } = useQuery({
@@ -73,10 +76,20 @@ export default function InvoiceEdit() {
           notes: payload.notes,
           lines,
         });
+        qc.invalidateQueries({ queryKey: ["/api/invoices"] });
         nav(`/invoices/${r.id}`);
       }
+      toast({
+        title: "Invoice saved",
+        description: "Your invoice has been saved successfully.",
+      });
     } catch (e: any) {
       console.error("Failed to save invoice:", e);
+      toast({
+        title: "Save failed",
+        description: e.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }

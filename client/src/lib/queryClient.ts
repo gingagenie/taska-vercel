@@ -53,6 +53,23 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
+    // Handle subscription errors in queries too
+    if (res.status === 402) {
+      const text = (await res.text()) || res.statusText;
+      const error = new Error(`${res.status}: ${text}`);
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData.code === 'TRIAL_EXPIRED' || errorData.code === 'SUBSCRIPTION_REQUIRED') {
+          console.log('[DEBUG] Query function handling subscription error');
+          handleSubscriptionError(error);
+          throw error; // Still throw so React Query knows it failed
+        }
+      } catch (parseError) {
+        // If JSON parsing fails, continue with regular error handling
+        console.log('[DEBUG] Failed to parse subscription error:', parseError);
+      }
+    }
+
     await throwIfResNotOk(res);
     return await res.json();
   };

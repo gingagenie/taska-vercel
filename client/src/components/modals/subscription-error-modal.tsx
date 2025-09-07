@@ -82,8 +82,16 @@ export function SubscriptionErrorModalProvider({ children }: { children: React.R
   
   useEffect(() => {
     setGlobalModalState = setModalState
+    console.log('[DEBUG] SubscriptionErrorModalProvider mounted, setGlobalModalState set');
+    
+    // Test the modal after a short delay
+    setTimeout(() => {
+      console.log('[DEBUG] Testing modal functionality...');
+    }, 2000);
+    
     return () => {
       setGlobalModalState = null
+      console.log('[DEBUG] SubscriptionErrorModalProvider unmounted');
     }
   }, [])
 
@@ -111,6 +119,9 @@ export function showSubscriptionErrorModal(options: {
   message: string
   action?: { label: string; url: string }
 }) {
+  console.log('[DEBUG] showSubscriptionErrorModal called with:', options);
+  console.log('[DEBUG] setGlobalModalState available:', !!setGlobalModalState);
+  
   if (setGlobalModalState) {
     setGlobalModalState({
       isOpen: true,
@@ -119,5 +130,12 @@ export function showSubscriptionErrorModal(options: {
       action: options.action,
       onClose: () => {}
     })
+  } else {
+    console.warn('[DEBUG] setGlobalModalState not available, modal provider not initialized');
+    // Fallback to alert if modal provider isn't ready
+    const upgrade = confirm(`${options.title}\n\n${options.message}\n\nUpgrade now?`);
+    if (upgrade && options.action?.url) {
+      window.location.href = options.action.url;
+    }
   }
 }

@@ -15,9 +15,32 @@ export function SubscriptionBanner({ status, planId, trialEnd, currentPeriodEnd 
   const isPastDue = status === 'past_due'
   const isCanceled = status === 'canceled'
   const isFree = planId === 'free'
+  
+  // Check if trial has actually expired (past the trial end date)
+  const isTrialExpired = status === 'trial' && trialEnd && new Date(trialEnd) < new Date()
 
   if (status === 'active' && !isFree) {
     return null // No banner for active paid subscriptions
+  }
+
+  // Show TRIAL EXPIRED banner for expired trials
+  if (isTrialExpired) {
+    return (
+      <Alert className="mb-4 border-red-200 bg-red-50">
+        <AlertTriangle className="h-4 w-4 text-red-600" />
+        <AlertDescription className="flex items-center justify-between">
+          <span className="text-red-800">
+            <strong>Trial Expired.</strong> Your trial ended on {new Date(trialEnd!).toLocaleDateString()}. 
+            {' '}Upgrade now to continue using Taska.
+          </span>
+          <UpgradeModal currentPlan={planId}>
+            <Button size="sm" variant="destructive" data-testid="upgrade-banner-button">
+              Upgrade Now
+            </Button>
+          </UpgradeModal>
+        </AlertDescription>
+      </Alert>
+    )
   }
 
   if (isFree || status === 'trial') {

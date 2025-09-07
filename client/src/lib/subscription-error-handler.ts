@@ -50,17 +50,15 @@ export function handleSubscriptionError(error: Error) {
   return false; // Not handled
 }
 
-// Show a beautiful upgrade modal (we'll implement this)
+import { showSubscriptionErrorModal } from '@/components/modals/subscription-error-modal';
+
+// Show a beautiful upgrade modal
 function showUpgradeModal(options: {
   title: string;
   message: string;
   action?: { label: string; url: string };
 }) {
-  // For now, use a nice alert - later we can make this a proper modal
-  const upgrade = confirm(`${options.title}\n\n${options.message}\n\nUpgrade now?`);
-  if (upgrade && options.action?.url) {
-    window.location.href = options.action.url;
-  }
+  showSubscriptionErrorModal(options);
 }
 
 // Enhanced error message for subscription issues

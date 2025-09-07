@@ -6,6 +6,7 @@ declare namespace Express {
       planId: string
       status: string
       isActive: boolean
+      trialEnd?: Date
       features: any[]
     }
   }

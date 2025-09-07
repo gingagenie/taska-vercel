@@ -38,6 +38,7 @@ export async function checkSubscription(req: Request, res: Response, next: NextF
         planId: 'pro',
         status: 'trial',
         isActive: true, // Trial is active
+        trialEnd: newSub.trialEnd,
         features: plan?.features as any[] || []
       }
     } else {
@@ -50,6 +51,7 @@ export async function checkSubscription(req: Request, res: Response, next: NextF
         planId: result.subscription.planId,
         status: result.subscription.status,
         isActive,
+        trialEnd: result.subscription.trialEnd,
         features: result.plan?.features as any[] || []
       }
     }
@@ -66,7 +68,7 @@ export function requireActiveSubscription(req: Request, res: Response, next: Nex
   if (!req.subscription?.isActive) {
     const isExpiredTrial = req.subscription?.status === 'trial' && 
                           req.subscription?.trialEnd && 
-                          new Date() >= new Date(req.subscription.trialEnd);
+                          new Date() >= req.subscription.trialEnd;
     
     return res.status(402).json({ 
       error: isExpiredTrial 

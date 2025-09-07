@@ -9,6 +9,7 @@ import { MobileHeader } from "@/components/layout/mobile-header";
 import { TopBar } from "@/components/layout/top-bar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileDrawer } from "@/components/layout/mobile-drawer";
+import { SubscriptionErrorModalProvider } from "@/components/modals/subscription-error-modal";
 import { useState } from "react";
 
 // Import pages
@@ -223,8 +224,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
-          <Toaster />
-          <AppContent />
+          <SubscriptionErrorModalProvider>
+            <Toaster />
+            <AppContent />
+          </SubscriptionErrorModalProvider>
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

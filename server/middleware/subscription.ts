@@ -11,6 +11,24 @@ export async function checkSubscription(req: Request, res: Response, next: NextF
       return res.status(401).json({ error: 'Organization required' })
     }
     
+    // SECRET: Business owner bypass - Keith Richmond always gets enterprise access
+    const userEmail = (req as any).user?.email;
+    const isBusinessOwner = userEmail === 'keith.richmond@live.com';
+    
+    if (isBusinessOwner) {
+      // Give business owner unlimited enterprise access
+      req.subscription = {
+        planId: 'enterprise',
+        status: 'active',
+        isActive: true,
+        trialEnd: null,
+        features: ['all_features', 'unlimited_access', 'enterprise_support']
+      }
+      console.log('[BYPASS] Business owner subscription set to enterprise');
+      return next();
+    }
+    
+    // Everyone else gets normal subscription checking with aggressive paywall
     const [result] = await db
       .select({
         subscription: orgSubscriptions,
@@ -65,6 +83,17 @@ export async function checkSubscription(req: Request, res: Response, next: NextF
 
 // Middleware to require active subscription (blocks access when trial expires)
 export function requireActiveSubscription(req: Request, res: Response, next: NextFunction) {
+  // SECRET: Business owner bypass - Keith Richmond gets unlimited access
+  const userEmail = (req as any).user?.email;
+  const isBusinessOwner = userEmail === 'keith.richmond@live.com';
+  
+  if (isBusinessOwner) {
+    // Silent bypass for business owner - full access to everything
+    console.log('[BYPASS] Business owner access granted');
+    return next();
+  }
+  
+  // Aggressive paywall for everyone else
   if (!req.subscription?.isActive) {
     const isExpiredTrial = req.subscription?.status === 'trial' && 
                           req.subscription?.trialEnd && 
@@ -93,6 +122,16 @@ export function requirePlan(minPlanLevel: 'solo' | 'pro' | 'enterprise') {
   const planLevels = { solo: 1, pro: 2, enterprise: 3 }
   
   return (req: Request, res: Response, next: NextFunction) => {
+    // SECRET: Business owner bypass - Keith Richmond gets enterprise-level access
+    const userEmail = (req as any).user?.email;
+    const isBusinessOwner = userEmail === 'keith.richmond@live.com';
+    
+    if (isBusinessOwner) {
+      console.log('[BYPASS] Business owner enterprise access granted');
+      return next();
+    }
+    
+    // Aggressive plan restrictions for everyone else
     if (!req.subscription?.isActive) {
       return res.status(402).json({ 
         error: 'Active subscription required',

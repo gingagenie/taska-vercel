@@ -14,7 +14,8 @@ export function SubscriptionBanner({ status, planId, trialEnd, currentPeriodEnd 
   const isTrialExpiring = status === 'trial' && trialEnd && new Date(trialEnd) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   const isPastDue = status === 'past_due'
   const isCanceled = status === 'canceled'
-  const isFree = planId === 'free'
+  // No free plan exists - only 14-day trial that expires
+  const isFree = false
   
   // Check if trial has actually expired (past the trial end date)
   const isTrialExpired = status === 'trial' && trialEnd && new Date(trialEnd) < new Date()
@@ -43,13 +44,13 @@ export function SubscriptionBanner({ status, planId, trialEnd, currentPeriodEnd 
     )
   }
 
-  if (isFree || status === 'trial') {
+  if (status === 'trial') {
     return (
       <Alert className="mb-4 border-blue-200 bg-blue-50">
         <Crown className="h-4 w-4 text-blue-600" />
         <AlertDescription className="flex items-center justify-between">
           <span className="text-blue-800">
-            {isFree ? 'You are on the free plan.' : `Your trial expires ${trialEnd ? new Date(trialEnd).toLocaleDateString() : 'soon'}.`} 
+            Your trial expires {trialEnd ? new Date(trialEnd).toLocaleDateString() : 'soon'}. 
             {' '}Upgrade to unlock all features and unlimited access.
           </span>
           <UpgradeModal currentPlan={planId}>

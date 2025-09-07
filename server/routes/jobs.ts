@@ -212,7 +212,7 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
 
 // --- TECH FILTER SOURCE ---
 // Return technicians in this org (id + name). Query from actual users/memberships.
-jobs.get("/technicians", requireAuth, requireOrg, async (req, res) => {
+jobs.get("/technicians", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs/technicians org=%s", orgId);
   
@@ -231,7 +231,7 @@ jobs.get("/technicians", requireAuth, requireOrg, async (req, res) => {
 });
 
 // --- RANGE with optional techId filter ---
-jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
+jobs.get("/range", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const { start, end, techId } = req.query as { start?: string; end?: string; techId?: string };
 
@@ -287,7 +287,7 @@ jobs.get("/range", requireAuth, requireOrg, async (req, res) => {
 });
 
 // GET /customers - Return dropdown data by org
-jobs.get("/customers", requireAuth, requireOrg, async (req, res) => {
+jobs.get("/customers", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
     console.log("[TRACE] GET /api/jobs/customers org=%s", orgId);
@@ -307,7 +307,7 @@ jobs.get("/customers", requireAuth, requireOrg, async (req, res) => {
 });
 
 // GET /equipment - Return dropdown data by org  
-jobs.get("/equipment", requireAuth, requireOrg, async (req, res) => {
+jobs.get("/equipment", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
     console.log("[TRACE] GET /api/jobs/equipment org=%s", orgId);

@@ -70,9 +70,16 @@ export function requireActiveSubscription(req: Request, res: Response, next: Nex
     
     return res.status(402).json({ 
       error: isExpiredTrial 
-        ? 'Your 14-day trial has expired. Please upgrade to continue using Taska.'
-        : 'Active subscription required',
+        ? '🔒 Your 14-day trial has expired! Upgrade now to restore full access to Taska.'
+        : '💎 Premium Feature - Upgrade your subscription to unlock this functionality.',
+      message: isExpiredTrial 
+        ? 'Don\'t lose your momentum! Your trial ended, but all your data is safely stored. Upgrade to continue managing your field service operations.'
+        : 'This feature requires an active subscription. Upgrade now to access all of Taska\'s powerful tools.',
       code: isExpiredTrial ? 'TRIAL_EXPIRED' : 'SUBSCRIPTION_REQUIRED',
+      action: {
+        label: 'Upgrade Now',
+        url: '/subscription'
+      },
       subscription: req.subscription 
     })
   }

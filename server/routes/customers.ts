@@ -163,7 +163,8 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
   }
 
   try {
-    // Org validation handled by tenant guard
+    // Double-check org existence
+    const ok: any = await db.execute(sql`select 1 from orgs where id=${orgId}::uuid`);
     if (!ok.rows?.length) {
       console.log(`[AUTH] 400 - Invalid org at CSV import: orgId=${orgId}`);
       return res.status(400).json({ error: "Invalid org" });

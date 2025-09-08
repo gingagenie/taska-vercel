@@ -193,7 +193,7 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
       select
         j.id,
         j.title,
-        j.description,             -- added
+        j.description,
         j.status,
         to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
         j.customer_id,
@@ -203,6 +203,22 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
       where j.org_id=${orgId}::uuid
       order by j.created_at desc
     `);
+
+    // Add technician data with colors for each job
+    for (const job of r) {
+      try {
+        const techniciansResult: any = await db.execute(sql`
+          select u.id, u.name, u.color
+          from job_assignments ja
+          join users u on u.id = ja.user_id
+          where ja.job_id = ${job.id}
+          order by u.name
+        `);
+        job.technicians = techniciansResult || [];
+      } catch (e) {
+        job.technicians = [];
+      }
+    }
     res.json(r);
   } catch (error: any) {
     console.error("GET /api/jobs error:", error);
@@ -218,7 +234,7 @@ jobs.get("/technicians", requireAuth, requireOrg, checkSubscription, requireActi
   
   try {
     const r: any = await db.execute(sql`
-      select id, name, email, role
+      select id, name, email, role, color
       from users
       where org_id = ${orgId}::uuid
       order by name asc
@@ -359,7 +375,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
     // Fetch assigned technicians
     try {
       const techniciansResult: any = await db.execute(sql`
-        select u.id, u.name, u.email
+        select u.id, u.name, u.email, u.color
         from job_assignments ja
         join users u on u.id = ja.user_id
         where ja.job_id = ${jobId}

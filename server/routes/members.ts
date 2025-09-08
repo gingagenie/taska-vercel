@@ -14,7 +14,7 @@ members.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   const orgId = (req as any).orgId;
   try {
     const r: any = await db.execute(sql`
-      select id, name, email, phone, role
+      select id, name, email, phone, role, color
       from users
       where org_id = ${orgId}::uuid
       order by name asc
@@ -29,7 +29,7 @@ members.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
 /* ADD MEMBER (creates login too) */
 members.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
-  const { name, email, phone, role = "technician", password } = req.body || {};
+  const { name, email, phone, role = "technician", color = "#3b82f6", password } = req.body || {};
   if (!email || !name) return res.status(400).json({ error: "name and email required" });
   if (!password || password.length < 6) return res.status(400).json({ error: "password must be at least 6 chars" });
 
@@ -43,9 +43,9 @@ members.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubsc
     const hash = await bcrypt.hash(password, 10);
 
     const ins: any = await db.execute(sql`
-      insert into users (org_id, name, email, phone, role, password_hash)
-      values (${orgId}::uuid, ${name}, ${email}, ${phone}, ${role}, ${hash})
-      returning id, name, email, role
+      insert into users (org_id, name, email, phone, role, color, password_hash)
+      values (${orgId}::uuid, ${name}, ${email}, ${phone}, ${role}, ${color}, ${hash})
+      returning id, name, email, role, color
     `);
 
     res.json({ ok: true, user: ins[0] });
@@ -59,7 +59,7 @@ members.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubsc
 members.put("/:memberId", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   const { memberId } = req.params;
-  const { name, email, phone, role } = req.body || {};
+  const { name, email, phone, role, color } = req.body || {};
   if (!isUuid(memberId)) return res.status(400).json({ error: "Invalid memberId" });
 
   try {
@@ -68,7 +68,8 @@ members.put("/:memberId", requireAuth, requireOrg, async (req, res) => {
       set name  = coalesce(${name}, name),
           email = coalesce(${email}, email),
           phone = coalesce(${phone}, phone),
-          role  = coalesce(${role}, role)
+          role  = coalesce(${role}, role),
+          color = coalesce(${color}, color)
       where id=${memberId} and org_id=${orgId}::uuid
     `);
 

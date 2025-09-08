@@ -140,6 +140,22 @@ export default function Jobs() {
                       <Badge className={getStatusBadgeClass(job.status)}>
                         {(job.status || "new").replace("_", " ")}
                       </Badge>
+                      {/* Member color dots */}
+                      {job.technicians?.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          {job.technicians.slice(0, 3).map((tech: any) => (
+                            <div
+                              key={tech.id}
+                              className="w-3 h-3 rounded-full border border-white shadow-sm"
+                              style={{ backgroundColor: tech.color || '#3b82f6' }}
+                              title={tech.name}
+                            />
+                          ))}
+                          {job.technicians.length > 3 && (
+                            <span className="text-xs text-gray-500 ml-1">+{job.technicians.length - 3}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     
                     {job.description && (

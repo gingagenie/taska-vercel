@@ -225,16 +225,17 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<string>("technician");
+  const [color, setColor] = useState("#3b82f6"); // Default blue
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function save() {
     setSaving(true);
     try {
-      const result = await membersApi.create({ email, name, phone, role, password });
+      const result = await membersApi.create({ email, name, phone, role, color, password });
       
       // Clear form
-      setEmail(""); setName(""); setPhone(""); setRole("technician"); setPassword("");
+      setEmail(""); setName(""); setPhone(""); setRole("technician"); setColor("#3b82f6"); setPassword("");
       onOpenChange(false);
       onSaved();
       
@@ -332,6 +333,20 @@ function AddMemberModal({ open, onOpenChange, onSaved }: { open:boolean; onOpenC
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              
+              <div>
+                <Label>Color</Label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="color" 
+                    value={color} 
+                    onChange={(e) => setColor(e.target.value)}
+                    className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
+                    data-testid="input-member-color"
+                  />
+                  <span className="text-sm text-gray-600">Used to identify this member's jobs at a glance</span>
+                </div>
               </div>
             </div>
 

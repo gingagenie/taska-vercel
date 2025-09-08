@@ -295,6 +295,23 @@ jobs.get("/range", requireAuth, requireOrg, checkSubscription, requireActiveSubs
     }
 
     const r: any = await db.execute(query);
+    
+    // Add technician data with colors for each job
+    for (const job of r) {
+      try {
+        const techniciansResult: any = await db.execute(sql`
+          select u.id, u.name, u.color
+          from job_assignments ja
+          join users u on u.id = ja.user_id
+          where ja.job_id = ${job.id}
+          order by u.name
+        `);
+        job.technicians = techniciansResult || [];
+      } catch (e) {
+        job.technicians = [];
+      }
+    }
+    
     res.json(r);
   } catch (error: any) {
     console.error("GET /api/jobs/range error:", error);

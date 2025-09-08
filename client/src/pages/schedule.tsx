@@ -264,13 +264,29 @@ export default function SchedulePage() {
                           draggable
                           onDragStart={(e)=>onDragStart(e, j)}
                           className={[
-                            "text-[11px] px-1.5 py-0.5 rounded line-clamp-1 cursor-move",
+                            "text-[11px] px-1.5 py-0.5 rounded line-clamp-1 cursor-move relative",
                             statusTone(j.status)
                           ].join(" ")}
                           onClick={(e) => { e.stopPropagation(); navigate(`/jobs/${j.id}`); }}
-                          title={`${j.title}${j.customer_name ? " — " + j.customer_name : ""}`}
+                          title={`${j.title}${j.customer_name ? " — " + j.customer_name : ""}${(j as any).technicians?.length ? " • Assigned to: " + (j as any).technicians.map((t:any) => t.name).join(", ") : ""}`}
                           data-testid={`job-pill-${j.id}`}
                         >
+                          {/* Member color indicators */}
+                          {(j as any).technicians?.length > 0 && (
+                            <div className="absolute -right-1 -top-1 flex">
+                              {(j as any).technicians.slice(0, 2).map((tech: any, idx: number) => (
+                                <div
+                                  key={tech.id}
+                                  className="w-2 h-2 rounded-full border border-white"
+                                  style={{ 
+                                    backgroundColor: tech.color || '#3b82f6',
+                                    marginLeft: idx > 0 ? '-2px' : '0'
+                                  }}
+                                  title={tech.name}
+                                />
+                              ))}
+                            </div>
+                          )}
                           {j.title}{j.customer_name ? ` — ${j.customer_name}` : ""}
                         </div>
                       ))}

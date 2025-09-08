@@ -170,15 +170,25 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
       return res.status(400).json({ error: "Invalid org" });
     }
 
-    const csvContent = req.file.buffer.toString('utf-8');
+    // Handle different encodings and remove BOM
+    let csvContent = req.file.buffer.toString('utf-8');
+    if (csvContent.charCodeAt(0) === 0xFEFF) {
+      csvContent = csvContent.slice(1); // Remove BOM
+    }
+    
+    console.log("[DEBUG] CSV first 200 chars:", JSON.stringify(csvContent.slice(0, 200)));
+    
     const records: any[] = [];
     
-    // Parse CSV
+    // Parse CSV with flexible separators
     const readable = Readable.from([csvContent]);
     const parser = parse({
       columns: true,
       skip_empty_lines: true,
-      trim: true
+      trim: true,
+      delimiter: [',', ';', '\t'], // Try multiple separators
+      relax_quotes: true,
+      escape: '"'
     });
 
     readable.pipe(parser);
@@ -188,6 +198,9 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
     }
 
     console.log("[DEBUG] Parsed CSV records:", JSON.stringify(records.slice(0, 3), null, 2));
+    if (records.length > 0) {
+      console.log("[DEBUG] Available columns:", Object.keys(records[0]));
+    }
 
     if (records.length === 0) {
       return res.status(400).json({ error: "No valid records found in CSV" });

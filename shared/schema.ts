@@ -33,6 +33,7 @@ export const users = pgTable("users", {
   role: varchar("role", { length: 100 }),
   phone: varchar("phone", { length: 50 }),
   avatarUrl: varchar("avatar_url", { length: 500 }),
+  color: varchar("color", { length: 7 }).default("#3b82f6"), // Default blue
   createdAt: timestamp("created_at").defaultNow(),
 });
 

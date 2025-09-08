@@ -1,5 +1,5 @@
-// Taska Service Worker - iOS Optimized
-const CACHE_NAME = 'taska-v1';
+// Taska Service Worker - iOS Optimized  
+const CACHE_NAME = 'taska-v2-sept2025';
 const urlsToCache = [
   '/',
   '/static/js/bundle.js',

@@ -157,6 +157,7 @@ customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
 customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'), async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] POST /api/customers/import-csv org=%s", orgId);
+  console.log("[DEBUG] File received:", !!req.file, req.file?.originalname, req.file?.size);
   
   if (!req.file) {
     return res.status(400).json({ error: "No CSV file uploaded" });

@@ -208,15 +208,13 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
         }
 
         // Insert customer
-        // @ts-ignore
-        const client = req.db;
-        await client.query(`
+        await db.execute(sql`
           insert into customers (
             org_id, name, contact_name, email, phone, address, street, suburb, state, postcode, notes
           ) values (
-            current_setting('app.current_org')::uuid, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+            ${orgId}::uuid, ${name}, ${contact_name||null}, ${email||null}, ${phone||null}, ${address||null}, ${street||null}, ${suburb||null}, ${state||null}, ${postcode||null}, ${notes||null}
           )
-        `, [name, contact_name||null, email||null, phone||null, address||null, street||null, suburb||null, state||null, postcode||null, notes||null]);
+        `);
 
         imported++;
       } catch (error: any) {

@@ -12,10 +12,13 @@ export async function requireOrg(req: Request, res: Response, next: NextFunction
 
   // Fallback from user row if we have a session user
   if (!chosen && (req.session as any)?.userId) {
+    console.log(`[DEBUG] Looking up org for user: ${(req.session as any).userId}`);
     const r: any = await db.execute(sql`
       select org_id from users where id=${(req.session as any).userId}::uuid
     `);
+    console.log(`[DEBUG] User org lookup result:`, r);
     chosen = r[0]?.org_id;
+    console.log(`[DEBUG] Chosen org:`, chosen);
   }
 
   if (!chosen) {

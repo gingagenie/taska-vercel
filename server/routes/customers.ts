@@ -218,6 +218,12 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
       try {
         const { name, email, phone, address, contact_name, street, suburb, state, postcode, notes } = record;
         
+        // Debug: show what we actually got for this record
+        if (rowNum === 2) { // Just log the first data row
+          console.log(`[DEBUG] Row ${rowNum} data:`, JSON.stringify(record, null, 2));
+          console.log(`[DEBUG] Name field value: "${name}" (type: ${typeof name}, length: ${name?.length})`);
+        }
+        
         if (!name?.trim()) {
           errors.push(`Row ${rowNum}: Missing required field 'name'`);
           continue;

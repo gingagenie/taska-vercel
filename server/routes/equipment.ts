@@ -237,8 +237,8 @@ equipment.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
             where name = ${customer_name} and org_id = ${orgId}::uuid
           `);
           
-          if (customerResult.rows.length > 0) {
-            customerId = customerResult.rows[0].id;
+          if (customerResult && customerResult.length > 0) {
+            customerId = customerResult[0].id;
           } else {
             errors.push(`Row ${rowNum}: Customer '${customer_name}' not found`);
             continue;

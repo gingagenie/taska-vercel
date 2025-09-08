@@ -187,6 +187,8 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
       records.push(record);
     }
 
+    console.log("[DEBUG] Parsed CSV records:", JSON.stringify(records.slice(0, 3), null, 2));
+
     if (records.length === 0) {
       return res.status(400).json({ error: "No valid records found in CSV" });
     }

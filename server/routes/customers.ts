@@ -157,8 +157,6 @@ customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
 customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'), async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] POST /api/customers/import-csv org=%s", orgId);
-  console.log("[DEBUG] File received:", !!req.file, req.file?.originalname, req.file?.size);
-  
   if (!req.file) {
     return res.status(400).json({ error: "No CSV file uploaded" });
   }
@@ -177,7 +175,6 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
       csvContent = csvContent.slice(1); // Remove BOM
     }
     
-    console.log("[DEBUG] CSV first 200 chars:", JSON.stringify(csvContent.slice(0, 200)));
     
     const records: any[] = [];
     
@@ -198,10 +195,6 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
       records.push(record);
     }
 
-    console.log("[DEBUG] Parsed CSV records:", JSON.stringify(records.slice(0, 3), null, 2));
-    if (records.length > 0) {
-      console.log("[DEBUG] Available columns:", Object.keys(records[0]));
-    }
 
     if (records.length === 0) {
       return res.status(400).json({ error: "No valid records found in CSV" });
@@ -218,11 +211,6 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
       try {
         const { name, email, phone, address, contact_name, street, suburb, state, postcode, notes } = record;
         
-        // Debug: show what we actually got for this record
-        if (rowNum === 2) { // Just log the first data row
-          console.log(`[DEBUG] Row ${rowNum} data:`, JSON.stringify(record, null, 2));
-          console.log(`[DEBUG] Name field value: "${name}" (type: ${typeof name}, length: ${name?.length})`);
-        }
         
         if (!name?.trim()) {
           errors.push(`Row ${rowNum}: Missing required field 'name'`);

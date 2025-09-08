@@ -173,12 +173,20 @@ export default function JobView() {
         ? `${lat},${lng}`
         : (address || destinationLabel);
       const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
-      window.open(gmaps, '_blank');
+      
+      // Try to open in new tab, fallback to current tab if blocked
+      const newWindow = window.open(gmaps, '_blank');
+      if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+        // Popup blocked - use current tab instead
+        window.location.href = gmaps;
+      }
     } catch (error) {
       console.error("Failed to open maps:", error);
-      // Fallback: try a simple Google search
+      // Fallback: try a simple Google search in current tab
       const searchQuery = address || destinationLabel;
-      window.open(`https://www.google.com/search?q=${encodeURIComponent(searchQuery + " directions")}`, '_blank');
+      const fallbackUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery + " directions")}`;
+      console.log("Using fallback search:", fallbackUrl);
+      window.location.href = fallbackUrl;
     }
   }
 

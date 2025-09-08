@@ -16,19 +16,41 @@ function buildAddress(c: any) {
 
 // platform-aware maps opener
 function openMaps(destinationLabel: string, address?: string, lat?: number, lng?: number) {
+  console.log("Opening maps with:", { destinationLabel, address, lat, lng });
+  
+  // If no address or coordinates, fallback to searching by customer name
+  if (!address && !destinationLabel && !lat && !lng) {
+    console.warn("No navigation destination available");
+    return;
+  }
+
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
   const hasCoords = typeof lat === "number" && typeof lng === "number";
 
-  if (isIOS) {
-    const url = hasCoords
-      ? `maps://?q=${encodeURIComponent(destinationLabel)}&daddr=${lat},${lng}`
-      : `maps://?q=${encodeURIComponent(address || destinationLabel)}`;
-    window.location.href = url;
-    return;
+  try {
+    if (isIOS) {
+      // Apple Maps (native)
+      const url = hasCoords
+        ? `maps://?q=${encodeURIComponent(destinationLabel)}&daddr=${lat},${lng}`
+        : `maps://?q=${encodeURIComponent(address || destinationLabel)}`;
+      console.log("Opening Apple Maps:", url);
+      window.location.href = url;
+      return;
+    }
+
+    // Android / Desktop → Google Maps universal URL
+    const destination = hasCoords ? `${lat},${lng}` : (address || destinationLabel);
+    const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination!)}`;
+    console.log("Opening Google Maps:", gmaps);
+    window.location.href = gmaps;
+  } catch (error) {
+    console.error("Failed to open maps:", error);
+    // Fallback: try a simple Google search
+    const searchQuery = address || destinationLabel;
+    const fallbackUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery + " directions")}`;
+    console.log("Using fallback search:", fallbackUrl);
+    window.location.href = fallbackUrl;
   }
-  const destination = hasCoords ? `${lat},${lng}` : (address || destinationLabel);
-  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination!)}`;
-  window.location.href = gmaps;
 }
 
 export default function CustomerView() {

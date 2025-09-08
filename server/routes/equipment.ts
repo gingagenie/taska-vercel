@@ -183,15 +183,23 @@ equipment.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
       return res.status(400).json({ error: "Invalid org" });
     }
 
-    const csvContent = req.file.buffer.toString('utf-8');
+    // Handle different encodings and remove BOM
+    let csvContent = req.file.buffer.toString('utf-8');
+    if (csvContent.charCodeAt(0) === 0xFEFF) {
+      csvContent = csvContent.slice(1); // Remove BOM
+    }
+    
     const records: any[] = [];
     
-    // Parse CSV
+    // Parse CSV with flexible separators
     const readable = Readable.from([csvContent]);
     const parser = parse({
       columns: true,
       skip_empty_lines: true,
-      trim: true
+      trim: true,
+      delimiter: [',', ';', '\t'], // Try multiple separators
+      relax_quotes: true,
+      escape: '"'
     });
 
     readable.pipe(parser);

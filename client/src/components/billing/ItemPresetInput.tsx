@@ -63,16 +63,23 @@ export default function ItemPresetInput({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  // Debounced search
+  // Debounced search - only show dropdown if user has typed something
   useEffect(() => {
     const t = setTimeout(async () => {
+      // Only search and show dropdown if there's actual input
+      if (!q.trim()) {
+        setOpts([]);
+        setOpen(false);
+        return;
+      }
+      
       setLoading(true);
       try {
         const res = await itemPresetsApi.search(q.trim());
         setOpts(res || []);
       } catch {/* ignore */}
       setLoading(false);
-      if (document.activeElement === inputRef.current) {
+      if (document.activeElement === inputRef.current && q.trim()) {
         setOpen(true);
         recompute();
       }
@@ -163,7 +170,13 @@ export default function ItemPresetInput({
         ref={inputRef}
         value={q}
         onChange={(e) => { setQ(e.target.value); setDescription(e.target.value); }}
-        onFocus={() => { setOpen(true); recompute(); }}
+        onFocus={() => {
+          // Only open if there's text and results to show
+          if (q.trim() && opts.length > 0) {
+            setOpen(true);
+            recompute();
+          }
+        }}
         onKeyDown={onKeyDown}
         onBlur={() => {
           // give clicks on menu a chance to register

@@ -53,7 +53,7 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
 });
 
 /** Create */
-router.post("/", requireAuth, requireOrg, async (req, res) => {
+router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   console.log("🎯 Invoice POST endpoint hit!");
   const orgId = (req as any).orgId;
   const userId = (req as any).user?.id || null;

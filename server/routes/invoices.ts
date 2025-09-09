@@ -72,6 +72,7 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   }
 
   try {
+    console.log("🚀 Entering try block!");
     console.log("🔍 Pre-check values:", { 
       orgId: orgId, 
       orgIdType: typeof orgId,
@@ -130,8 +131,10 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   
     res.json({ ok: true, id: invoiceId });
   } catch (error: any) {
-    console.error("Error creating invoice:", error);
-    console.error("Request body was:", { title, customerId, jobId, notes, lines });
+    console.error("💥 ERROR in invoice creation:", error);
+    console.error("💥 Error message:", error.message);
+    console.error("💥 Error stack:", error.stack);
+    console.error("💥 Request body was:", { title, customerId, jobId, notes, lines });
     return res.status(500).json({ error: `Database error: ${error.message || 'Unknown error'}` });
   }
 });

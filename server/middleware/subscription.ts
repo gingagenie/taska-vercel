@@ -26,7 +26,7 @@ export async function checkSubscription(req: Request, res: Response, next: NextF
           trialEnd: undefined,
           features: ['all_features', 'unlimited_access', 'enterprise_support']
         }
-        console.log('[BYPASS] Business owner subscription set to enterprise');
+        // Business owner enterprise access enabled
         return next();
       }
     }
@@ -94,7 +94,7 @@ export async function requireActiveSubscription(req: Request, res: Response, nex
     
     if (isBusinessOwner) {
       // Silent bypass for business owner - full access to everything
-      console.log('[BYPASS] Business owner access granted');
+      // Business owner access enabled
       return next();
     }
   }

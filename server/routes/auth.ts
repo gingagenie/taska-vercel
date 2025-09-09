@@ -99,7 +99,7 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    console.log("[DEBUG] Login attempt for email:", email);
+    // Login attempt - email logging removed for security
     
     // Find user by email (optionally scoped to org)
     const r: any = await db.execute(sql`
@@ -111,7 +111,7 @@ router.post("/login", async (req, res) => {
       limit 1
     `);
     const user = r[0];
-    console.log("[DEBUG] User found:", !!user, user ? { id: user.id, email: user.email, hasPassword: !!user.password_hash } : null);
+    // User lookup completed
     
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
@@ -119,7 +119,7 @@ router.post("/login", async (req, res) => {
 
     // Verify password
     const ok = await bcrypt.compare(password, user.password_hash || "");
-    console.log("[DEBUG] Password verification:", ok);
+    // Password verification completed
     
     if (!ok) {
       return res.status(401).json({ error: "Invalid credentials" });

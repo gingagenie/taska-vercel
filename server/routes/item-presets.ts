@@ -19,7 +19,7 @@ itemPresets.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSu
     order by name asc
     limit 20
   `);
-  res.json(r.rows);
+  res.json(r);
 });
 
 /** POST /api/item-presets  { name, unit_amount, tax_rate }  (manual add in Settings) */
@@ -37,7 +37,7 @@ itemPresets.post("/", requireAuth, requireOrg, checkSubscription, requireActiveS
       values (${orgId}::uuid, ${name.trim()}, ${Number(unit_amount) || 0}, ${Number(tax_rate) ?? 0})
       returning id, name, unit_amount, tax_rate
     `);
-    res.json(r.rows[0]);
+    res.json(r[0]);
   } catch (error: any) {
     // If conflict (duplicate), update existing record
     if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
@@ -47,7 +47,7 @@ itemPresets.post("/", requireAuth, requireOrg, checkSubscription, requireActiveS
         where org_id = ${orgId}::uuid and lower(name) = ${name.trim().toLowerCase()}
         returning id, name, unit_amount, tax_rate
       `);
-      res.json(r.rows[0]);
+      res.json(r[0]);
     } else {
       console.error("Error creating item preset:", error);
       res.status(500).json({ error: "Failed to create preset" });
@@ -70,7 +70,7 @@ itemPresets.post("/ensure", requireAuth, requireOrg, async (req, res) => {
     on conflict (org_id, lower(name)) do nothing
     returning id, name, unit_amount, tax_rate
   `);
-  if (r.rows?.[0]) return res.json(r.rows[0]);
+  if (r?.[0]) return res.json(r[0]);
 
   // existed — return existing
   const e: any = await db.execute(sql`
@@ -79,7 +79,7 @@ itemPresets.post("/ensure", requireAuth, requireOrg, async (req, res) => {
     where org_id=${orgId}::uuid and lower(name)=${name.trim().toLowerCase()}
     limit 1
   `);
-  res.json(e.rows?.[0]);
+  res.json(e?.[0]);
 });
 
 /** DELETE /api/item-presets/:id */

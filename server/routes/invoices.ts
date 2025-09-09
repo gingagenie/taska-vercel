@@ -71,7 +71,7 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     `);
     
     console.log("DB result structure:", result);
-    const invoiceId = result[0]?.id;
+    const invoiceId = result.rows?.[0]?.id;
     if (!invoiceId) {
       return res.status(500).json({ error: "Failed to create invoice" });
     }

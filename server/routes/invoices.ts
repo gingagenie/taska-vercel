@@ -72,13 +72,18 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   }
 
   try {
+    console.log("💾 About to insert invoice with:", { orgId, customerId, jobId, title, notes, userId });
+    
     const ins: any = await db.execute(sql`
       insert into invoices (org_id, customer_id, job_id, title, notes, created_by)
       values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId}::uuid)
       returning id
     `);
     
+    console.log("📊 Insert result:", ins);
+    
     if (!ins.rows || ins.rows.length === 0) {
+      console.log("❌ No rows returned from insert");
       return res.status(500).json({ error: "Failed to create invoice" });
     }
     

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ItemPresetInput from '@/components/billing/ItemPresetInput';
 
 // ItemAutocomplete component for smart item selection
 function ItemAutocomplete({ 
@@ -134,16 +135,14 @@ export function LineItemsTable({
             <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4">
               {/* Item Name */}
               <div className="col-span-3">
-                <ItemAutocomplete 
-                  value={it.itemName}
-                  onChange={(value) => onSetItem(it.id, 'itemName', value)}
-                  onSelectPrevious={(item) => {
-                    onSetItem(it.id, 'itemName', item.itemName);
-                    onSetItem(it.id, 'description', item.description);
-                    onSetItem(it.id, 'price', item.price);
-                    onSetItem(it.id, 'tax', item.tax);
-                  }}
-                  previousItems={previousItems}
+                <ItemPresetInput 
+                  description={it.itemName}
+                  setDescription={(value: string) => onSetItem(it.id, 'itemName', value)}
+                  unitAmount={it.price}
+                  setUnitAmount={(value: number) => onSetItem(it.id, 'price', value)}
+                  taxRate={it.tax === 'GST' ? 10 : 0}
+                  setTaxRate={(value: number) => onSetItem(it.id, 'tax', value === 10 ? 'GST' : 'None')}
+                  autoSave={true}
                 />
               </div>
               
@@ -222,16 +221,14 @@ export function LineItemsTable({
               {/* Item Name */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Item</label>
-                <ItemAutocomplete 
-                  value={it.itemName}
-                  onChange={(value) => onSetItem(it.id, 'itemName', value)}
-                  onSelectPrevious={(item) => {
-                    onSetItem(it.id, 'itemName', item.itemName);
-                    onSetItem(it.id, 'description', item.description);
-                    onSetItem(it.id, 'price', item.price);
-                    onSetItem(it.id, 'tax', item.tax);
-                  }}
-                  previousItems={previousItems}
+                <ItemPresetInput 
+                  description={it.itemName}
+                  setDescription={(value: string) => onSetItem(it.id, 'itemName', value)}
+                  unitAmount={it.price}
+                  setUnitAmount={(value: number) => onSetItem(it.id, 'price', value)}
+                  taxRate={it.tax === 'GST' ? 10 : 0}
+                  setTaxRate={(value: number) => onSetItem(it.id, 'tax', value === 10 ? 'GST' : 'None')}
+                  autoSave={true}
                 />
               </div>
               

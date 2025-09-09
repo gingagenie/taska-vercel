@@ -56,8 +56,19 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
 router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const userId = (req as any).user?.id || null;
+  
+  console.log("=== INVOICE CREATE DEBUG ===");
+  console.log("Raw req.body:", req.body);
+  console.log("req.body type:", typeof req.body);
+  
   const { title, customerId, jobId, notes, lines = [] } = req.body || {};
-  if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
+  
+  console.log("Extracted fields:", { title, customerId, jobId, notes, linesLength: lines.length });
+  
+  if (!title || !customerId) {
+    console.log("❌ Missing required fields - title:", !!title, "customerId:", !!customerId);
+    return res.status(400).json({ error: "title & customerId required" });
+  }
 
   try {
     const ins: any = await db.execute(sql`

@@ -126,7 +126,7 @@ export default function InvoiceEdit() {
             .totals { margin-top: 30px; text-align: right; }
             .totals table { width: 300px; margin-left: auto; }
             .total-row { font-weight: bold; font-size: 1.1em; }
-            .summary-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #0ea5e9; }
+            .summary-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; }
             .terms { margin-top: 40px; padding: 20px; border-top: 2px solid #ddd; }
             @media print { body { margin: 0; } }
           </style>

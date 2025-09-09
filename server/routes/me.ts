@@ -1,5 +1,5 @@
 import { Router } from "express";
-// import { db } from "../db/client"; // replaced with req.db
+import { db } from "../db/client"; 
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
@@ -16,24 +16,21 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
     const userId = (req as any).user?.id;
     const orgId = (req as any).orgId;
 
-    // @ts-ignore
-    const client = req.db;
-    
     // Fetch user data from database
-    const userResult = await client.query(`
+    const userResult = await db.execute(sql`
       SELECT id, email, name, role, phone 
       FROM users 
-      WHERE id = $1
-    `, [userId]);
+      WHERE id = ${userId}::uuid
+    `);
     
     // Fetch organization data from database
-    const orgResult = await client.query(`
+    const orgResult = await db.execute(sql`
       SELECT id, name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents
       FROM orgs 
-      WHERE id = current_setting('app.current_org')::uuid
+      WHERE id = ${orgId}::uuid
     `);
 
-    const user = userResult.rows[0] || {
+    const user = userResult[0] || {
       id: userId,
       email: "user@taska.com",
       name: "John Smith",
@@ -41,7 +38,7 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
       phone: "+61 400 123 456",
     };
 
-    const org = orgResult.rows[0] || {
+    const org = orgResult[0] || {
       id: orgId,
       name: "Taska Field Services",
       abn: "12 345 678 901",
@@ -77,7 +74,7 @@ me.put("/profile", requireAuth, async (req, res) => {
         name = COALESCE(${name}, name),
         role = COALESCE(${role}, role),
         phone = COALESCE(${phone}, phone)
-      WHERE id = ${userId}
+      WHERE id = ${userId}::uuid
     `);
     
     res.json({ ok: true });
@@ -100,7 +97,7 @@ me.put("/", requireAuth, requireOrg, async (req, res) => {
       UPDATE users SET
         name = COALESCE(${name}, name),
         phone = COALESCE(${phone}, phone)
-      WHERE id = ${userId}
+      WHERE id = ${userId}::uuid
     `);
     
     res.json({ ok: true });
@@ -149,7 +146,7 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
         postcode = COALESCE(${postcode}, postcode),
         logo_url = COALESCE(${logo_url}, logo_url),
         default_labour_rate_cents = COALESCE(${default_labour_rate_cents}, default_labour_rate_cents)
-      WHERE id = ${orgId}
+      WHERE id = ${orgId}::uuid
     `);
     
     res.json({ ok: true });

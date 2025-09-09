@@ -183,7 +183,6 @@ export default function SettingsPage() {
 
   const [profile, setProfile] = useState({ name: "", role: "", phone: "" });
   const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", default_labour_rate_cents: 0 });
-  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   
   // Item presets state
   const [presets, setPresets] = useState<any[]>([]);
@@ -317,33 +316,6 @@ export default function SettingsPage() {
     }
   }
   
-  async function changePassword() {
-    if (!pw.next || pw.next !== pw.confirm) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
-      return;
-    }
-    setSaving(true);
-    try {
-      await meApi.changePassword({ currentPassword: pw.current || null, newPassword: pw.next });
-      setPw({ current: "", next: "", confirm: "" });
-      toast({
-        title: "Password changed",
-        description: "Your password has been updated successfully.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to change password",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
   
   async function saveOrg() {
     setSaving(true);
@@ -443,13 +415,12 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-management">Settings</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>
           <TabsTrigger value="items" data-testid="tab-items" className="text-xs px-2 py-2">Items</TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
           <TabsTrigger value="subscription" data-testid="tab-subscription" className="text-xs px-2 py-2">Sub</TabsTrigger>
-          <TabsTrigger value="security" data-testid="tab-security" className="text-xs px-2 py-2">Security</TabsTrigger>
         </TabsList>
 
         {/* Profile */}
@@ -672,53 +643,6 @@ export default function SettingsPage() {
           <SubscriptionTab />
         </TabsContent>
 
-        {/* Security */}
-        <TabsContent value="security" className="mt-4">
-          <Card>
-            <CardHeader><CardTitle>Change Password</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Current password</Label>
-                <Input 
-                  type="password" 
-                  value={pw.current} 
-                  onChange={(e)=>setPw(p=>({...p, current: e.target.value}))} 
-                  data-testid="input-current-password"
-                />
-              </div>
-              <div>
-                <Label>New password</Label>
-                <Input 
-                  type="password" 
-                  value={pw.next} 
-                  onChange={(e)=>setPw(p=>({...p, next: e.target.value}))} 
-                  data-testid="input-new-password"
-                />
-              </div>
-              <div>
-                <Label>Confirm new password</Label>
-                <Input 
-                  type="password" 
-                  value={pw.confirm} 
-                  onChange={(e)=>setPw(p=>({...p, confirm: e.target.value}))} 
-                  data-testid="input-confirm-password"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <div className="grid grid-cols-1 max-w-md ml-auto">
-                  <Button 
-                    onClick={changePassword} 
-                    disabled={saving}
-                    data-testid="button-change-password"
-                    className="w-full"
-                  >
-                    {saving ? "Changing..." : "Change Password"}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Items */}
         <TabsContent value="items" className="mt-4">

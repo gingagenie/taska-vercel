@@ -75,12 +75,14 @@ export function AIChatWidget() {
       return response as unknown as AIChatResponse;
     },
     onSuccess: (data, userMessage) => {
+      console.log("AI response received:", data);
+      
       // Add AI response
       const aiMessage: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: "assistant",
-        content: data.response,
-        timestamp: data.timestamp
+        content: data.response || "Sorry, I couldn't generate a response.",
+        timestamp: data.timestamp || new Date().toISOString()
       };
       
       setConversation(prev => [...prev, aiMessage]);
@@ -95,6 +97,16 @@ export function AIChatWidget() {
       } else if (error.message?.includes("429")) {
         errorMessage = "Too many requests. Please wait a moment and try again.";
       }
+      
+      // Add error message to conversation
+      const errorMsg: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: "assistant",
+        content: errorMessage,
+        timestamp: new Date().toISOString()
+      };
+      
+      setConversation(prev => [...prev, errorMsg]);
       
       toast({
         title: "AI Assistant Error",

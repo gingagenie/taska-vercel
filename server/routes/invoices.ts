@@ -94,8 +94,9 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   }
   
     res.json({ ok: true, id: invoiceId });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating invoice:", error);
+    console.error("Request body was:", { title, customerId, jobId, notes, lines });
     return res.status(500).json({ error: `Database error: ${error.message || 'Unknown error'}` });
   }
 });

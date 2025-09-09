@@ -133,22 +133,60 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
     const orgId = (req as any).orgId;
     const { name, abn, street, suburb, state, postcode, logo_url, invoice_terms, quote_terms } = req.body || {};
     
-    console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode, logo_url, invoice_terms, quote_terms });
+    console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode });
     
     // Update organization in database
-    await db.execute(sql`
-      UPDATE orgs SET 
-        name = COALESCE(${name}, name),
-        abn = COALESCE(${abn}, abn),
-        street = COALESCE(${street}, street),
-        suburb = COALESCE(${suburb}, suburb),
-        state = COALESCE(${state}, state),
-        postcode = COALESCE(${postcode}, postcode),
-        logo_url = COALESCE(${logo_url}, logo_url),
-        invoice_terms = COALESCE(${invoice_terms}, invoice_terms),
-        quote_terms = COALESCE(${quote_terms}, quote_terms)
-      WHERE id = ${orgId}::uuid
-    `);
+    const params = [];
+    const updates = [];
+    let paramIndex = 1;
+    
+    if (name !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      params.push(name);
+    }
+    if (abn !== undefined) {
+      updates.push(`abn = $${paramIndex++}`);
+      params.push(abn);
+    }
+    if (street !== undefined) {
+      updates.push(`street = $${paramIndex++}`);
+      params.push(street);
+    }
+    if (suburb !== undefined) {
+      updates.push(`suburb = $${paramIndex++}`);
+      params.push(suburb);
+    }
+    if (state !== undefined) {
+      updates.push(`state = $${paramIndex++}`);
+      params.push(state);
+    }
+    if (postcode !== undefined) {
+      updates.push(`postcode = $${paramIndex++}`);
+      params.push(postcode);
+    }
+    if (logo_url !== undefined) {
+      updates.push(`logo_url = $${paramIndex++}`);
+      params.push(logo_url);
+    }
+    if (invoice_terms !== undefined) {
+      updates.push(`invoice_terms = $${paramIndex++}`);
+      params.push(invoice_terms);
+    }
+    if (quote_terms !== undefined) {
+      updates.push(`quote_terms = $${paramIndex++}`);
+      params.push(quote_terms);
+    }
+    
+    if (updates.length > 0) {
+      const query = `UPDATE orgs SET ${updates.join(', ')} WHERE id = $${paramIndex}`;
+      params.push(orgId);
+      
+      // Use postgres client directly for parameterized query
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      await pool.query(query, params);
+      await pool.end();
+    }
     
     res.json({ ok: true });
   } catch (error: any) {

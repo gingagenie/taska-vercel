@@ -145,8 +145,8 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
         state = COALESCE(${state}, state),
         postcode = COALESCE(${postcode}, postcode),
         logo_url = COALESCE(${logo_url}, logo_url),
-        invoice_terms = ${invoice_terms},
-        quote_terms = ${quote_terms}
+        invoice_terms = COALESCE(${invoice_terms}, invoice_terms),
+        quote_terms = COALESCE(${quote_terms}, quote_terms)
       WHERE id = ${orgId}::uuid
     `);
     

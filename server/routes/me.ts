@@ -25,7 +25,7 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
     
     // Fetch organization data from database
     const orgResult = await db.execute(sql`
-      SELECT id, name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents
+      SELECT id, name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents, invoice_terms, quote_terms
       FROM orgs 
       WHERE id = ${orgId}::uuid
     `);
@@ -131,9 +131,9 @@ me.post("/change-password", requireAuth, async (req, res) => {
 me.put("/org", requireAuth, requireOrg, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
-    const { name, abn, street, suburb, state, postcode, logo_url } = req.body || {};
+    const { name, abn, street, suburb, state, postcode, logo_url, invoice_terms, quote_terms } = req.body || {};
     
-    console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode, logo_url });
+    console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode, logo_url, invoice_terms, quote_terms });
     
     // Update organization in database
     await db.execute(sql`
@@ -144,7 +144,9 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
         suburb = COALESCE(${suburb}, suburb),
         state = COALESCE(${state}, state),
         postcode = COALESCE(${postcode}, postcode),
-        logo_url = COALESCE(${logo_url}, logo_url)
+        logo_url = COALESCE(${logo_url}, logo_url),
+        invoice_terms = ${invoice_terms},
+        quote_terms = ${quote_terms}
       WHERE id = ${orgId}::uuid
     `);
     

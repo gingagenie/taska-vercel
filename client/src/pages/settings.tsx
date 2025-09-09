@@ -182,7 +182,7 @@ export default function SettingsPage() {
   const { data, isLoading } = useQuery({ queryKey: ["/api/me"], queryFn: meApi.get });
 
   const [profile, setProfile] = useState({ name: "", role: "", phone: "" });
-  const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "" });
+  const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", invoice_terms: "", quote_terms: "" });
   
   // Item presets state
   const [presets, setPresets] = useState<any[]>([]);
@@ -268,7 +268,7 @@ export default function SettingsPage() {
     setProfile({ name: u.name || "", role: u.role || "", phone: u.phone || "" });
     setOrg({
       name: o.name || "", abn: o.abn || "", street: o.street || "", suburb: o.suburb || "",
-      state: o.state || "", postcode: o.postcode || ""
+      state: o.state || "", postcode: o.postcode || "", invoice_terms: o.invoice_terms || "", quote_terms: o.quote_terms || ""
     });
   }, [data]);
 
@@ -326,7 +326,9 @@ export default function SettingsPage() {
         street: org.street || null,
         suburb: org.suburb || null,
         state: org.state || null,
-        postcode: org.postcode || null
+        postcode: org.postcode || null,
+        invoice_terms: org.invoice_terms || null,
+        quote_terms: org.quote_terms || null
       });
       qc.invalidateQueries({ queryKey: ["/api/me"] });
       toast({
@@ -414,9 +416,10 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-management">Settings</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>
+          <TabsTrigger value="terms" data-testid="tab-terms" className="text-xs px-2 py-2">T&C</TabsTrigger>
           <TabsTrigger value="items" data-testid="tab-items" className="text-xs px-2 py-2">Items</TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
           <TabsTrigger value="subscription" data-testid="tab-subscription" className="text-xs px-2 py-2">Sub</TabsTrigger>
@@ -627,11 +630,51 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* Terms & Conditions */}
+        <TabsContent value="terms" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Default Terms & Conditions</CardTitle>
+              <CardDescription>Set default terms that will automatically appear on new quotes and invoices</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <Label className="text-sm font-medium">Quote Terms</Label>
+                <textarea 
+                  value={org.quote_terms} 
+                  onChange={(e) => setOrg(o => ({ ...o, quote_terms: e.target.value }))}
+                  className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
+                  rows={6}
+                  placeholder="Default terms for quotes - e.g., validity period, payment terms..."
+                  data-testid="textarea-quote-terms"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Invoice Terms</Label>
+                <textarea 
+                  value={org.invoice_terms} 
+                  onChange={(e) => setOrg(o => ({ ...o, invoice_terms: e.target.value }))}
+                  className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
+                  rows={6}
+                  placeholder="Default terms for invoices - e.g., payment due dates, late fees, conditions..."
+                  data-testid="textarea-invoice-terms"
+                />
+              </div>
+              <Button 
+                onClick={saveOrg} 
+                disabled={saving}
+                data-testid="button-save-terms"
+              >
+                {saving ? "Saving..." : "Save Terms"}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Subscription */}
         <TabsContent value="subscription" className="mt-4">
           <SubscriptionTab />
         </TabsContent>
-
 
         {/* Items */}
         <TabsContent value="items" className="mt-4">

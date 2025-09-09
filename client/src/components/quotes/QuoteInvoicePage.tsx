@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LineItemsTable } from './parts/LineItemsTable';
 import { TotalsCard } from './parts/TotalsCard';
@@ -87,10 +87,17 @@ export function QuoteInvoicePage({
   saving = false,
 }: QuoteInvoicePageProps) {
   // Fetch previous items for autocomplete
-  const { data: previousItems = [] } = useQuery({
+  const { data: previousItems = [] } = useQuery<Array<{ itemName: string; description: string; price: number; tax: string }>>({
     queryKey: [`/api/${mode}s/previous-items`],
     retry: false,
   });
+  
+  // Fetch organization data for default terms
+  const { data: orgData } = useQuery<{ org: { invoice_terms?: string; quote_terms?: string; [key: string]: any } }>({ 
+    queryKey: ["/api/me"], 
+    retry: false 
+  });
+  const org = orgData?.org || { invoice_terms: '', quote_terms: '' };
   const [customerId, setCustomerId] = useState(initial?.customer?.id || '');
   const [issueDate, setIssueDate] = useState(initial?.issueDate || new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(initial?.dueDate || '');
@@ -100,6 +107,17 @@ export function QuoteInvoicePage({
   const [title, setTitle] = useState(initial?.title || '');
   const [notes, setNotes] = useState(initial?.notes || '');
   const [terms, setTerms] = useState(initial?.terms || '');
+
+  // Auto-populate terms when org data loads and no terms are set
+  useEffect(() => {
+    if (!terms && org && orgData) {
+      if (mode === 'quote' && org.quote_terms) {
+        setTerms(org.quote_terms);
+      } else if (mode === 'invoice' && org.invoice_terms) {
+        setTerms(org.invoice_terms);
+      }
+    }
+  }, [org, orgData, mode, terms]);
   const [items, setItems] = useState<LineItem[]>(
     initial?.items?.length ? initial.items : [
       { id: crypto.randomUUID(), itemName: '', description: '', qty: 1, price: 0, discount: 0, tax: 'GST' },

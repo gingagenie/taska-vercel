@@ -1,3 +1,5 @@
+import taskaDemo from '@assets/ezgif.com-effects_1757423433414.gif';
+
 export default function Landing() {
   return (
     <main>
@@ -130,8 +132,12 @@ export default function Landing() {
             <div className="bar">
               <span className="dot" /><span className="dot" /><span className="dot" />
             </div>
-            {/* Replace this placeholder with a GIF/video or screenshot of Taska */}
-            <div className="placeholder">Taska Demo Placeholder</div>
+            {/* Taska Demo GIF */}
+            <img 
+              src={taskaDemo} 
+              alt="Taska dashboard showing job scheduling, customer management, and business features"
+              className="demo-gif"
+            />
           </div>
         </div>
       </section>

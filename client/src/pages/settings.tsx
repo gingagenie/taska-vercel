@@ -182,7 +182,7 @@ export default function SettingsPage() {
   const { data, isLoading } = useQuery({ queryKey: ["/api/me"], queryFn: meApi.get });
 
   const [profile, setProfile] = useState({ name: "", role: "", phone: "" });
-  const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", default_labour_rate_cents: 0 });
+  const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "" });
   
   // Item presets state
   const [presets, setPresets] = useState<any[]>([]);
@@ -268,7 +268,7 @@ export default function SettingsPage() {
     setProfile({ name: u.name || "", role: u.role || "", phone: u.phone || "" });
     setOrg({
       name: o.name || "", abn: o.abn || "", street: o.street || "", suburb: o.suburb || "",
-      state: o.state || "", postcode: o.postcode || "", default_labour_rate_cents: o.default_labour_rate_cents || 0
+      state: o.state || "", postcode: o.postcode || ""
     });
   }, [data]);
 
@@ -326,8 +326,7 @@ export default function SettingsPage() {
         street: org.street || null,
         suburb: org.suburb || null,
         state: org.state || null,
-        postcode: org.postcode || null,
-        default_labour_rate_cents: Number(org.default_labour_rate_cents) || 0
+        postcode: org.postcode || null
       });
       qc.invalidateQueries({ queryKey: ["/api/me"] });
       toast({
@@ -519,16 +518,6 @@ export default function SettingsPage() {
                   value={org.postcode} 
                   onChange={(e)=>setOrg(o=>({...o, postcode: e.target.value}))} 
                   data-testid="input-org-postcode"
-                />
-              </div>
-              <div>
-                <Label>Default labour rate (cents)</Label>
-                <Input
-                  type="number"
-                  value={org.default_labour_rate_cents}
-                  onChange={(e)=>setOrg(o=>({...o, default_labour_rate_cents: Number(e.target.value||0)}))}
-                  placeholder="e.g. 12500 = $125.00/hr"
-                  data-testid="input-org-labour-rate"
                 />
               </div>
               <div className="md:col-span-2">

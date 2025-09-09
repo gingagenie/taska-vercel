@@ -131,9 +131,9 @@ me.post("/change-password", requireAuth, async (req, res) => {
 me.put("/org", requireAuth, requireOrg, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
-    const { name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents } = req.body || {};
+    const { name, abn, street, suburb, state, postcode, logo_url } = req.body || {};
     
-    console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents });
+    console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode, logo_url });
     
     // Update organization in database
     await db.execute(sql`
@@ -144,8 +144,7 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
         suburb = COALESCE(${suburb}, suburb),
         state = COALESCE(${state}, state),
         postcode = COALESCE(${postcode}, postcode),
-        logo_url = COALESCE(${logo_url}, logo_url),
-        default_labour_rate_cents = COALESCE(${default_labour_rate_cents}, default_labour_rate_cents)
+        logo_url = COALESCE(${logo_url}, logo_url)
       WHERE id = ${orgId}::uuid
     `);
     

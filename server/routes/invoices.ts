@@ -54,103 +54,39 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
 
 /** Create */
 router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
-  console.log("🎯 Invoice POST endpoint hit!");
-  const orgId = (req as any).orgId;
-  const userId = (req as any).user?.id || null;
-  
-  console.log("=== INVOICE CREATE DEBUG ===");
-  console.log("Raw req.body:", req.body);
-  console.log("req.body type:", typeof req.body);
-  
-  const { title, customerId, jobId, notes, lines = [] } = req.body || {};
-  
-  console.log("Extracted fields:", { title, customerId, jobId, notes, linesLength: lines.length });
-  
-  if (!title || !customerId) {
-    console.log("❌ Missing required fields - title:", !!title, "customerId:", !!customerId);
-    return res.status(400).json({ error: "title & customerId required" });
-  }
-
-  console.log("✅ Validation passed, fields look good!");
-  console.log("🔧 About to enter try block...");
-  
-  // Add explicit error handling around the try block
-  let result;
   try {
-    console.log("🚀 DEFINITELY inside try block now!");
-    result = "about to run database code";
-  } catch (e) {
-    console.log("💥 Error in outer try:", e);
-    return res.status(500).json({ error: "Outer try block failed" });
-  }
-  
-  console.log("✅ Test try block worked, result:", result);
-
-  try {
-    console.log("🚀 Entering try block!");
-    console.log("🔍 Pre-check values:", { 
-      orgId: orgId, 
-      orgIdType: typeof orgId,
-      userId: userId, 
-      userIdType: typeof userId,
-      customerId: customerId,
-      customerIdType: typeof customerId
-    });
+    const orgId = (req as any).orgId;
+    const userId = (req as any).user?.id;
+    const { title, customerId, notes, lines = [] } = req.body;
     
-    if (!orgId) {
-      console.log("❌ orgId is missing!");
-      return res.status(500).json({ error: "Organization ID missing" });
-    }
-    if (!userId) {
-      console.log("❌ userId is missing!");
-      return res.status(500).json({ error: "User ID missing" });
+    if (!title || !customerId) {
+      return res.status(400).json({ error: "title & customerId required" });
     }
     
-    console.log("💾 About to insert invoice with:", { orgId, customerId, jobId, title, notes, userId });
-    
-    const ins: any = await db.execute(sql`
-      insert into invoices (org_id, customer_id, job_id, title, notes, created_by)
-      values (${orgId}::uuid, ${customerId}::uuid, ${jobId||null}, ${title}, ${notes||null}, ${userId}::uuid)
-      returning id
+    // Simple invoice creation
+    const result = await db.execute(sql`
+      INSERT INTO invoices (org_id, customer_id, title, notes, created_by)
+      VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${userId})
+      RETURNING id
     `);
     
-    console.log("📊 Insert result:", ins);
-    
-    if (!ins.rows || ins.rows.length === 0) {
-      console.log("❌ No rows returned from insert");
+    const invoiceId = result.rows[0]?.id;
+    if (!invoiceId) {
       return res.status(500).json({ error: "Failed to create invoice" });
     }
     
-    const invoiceId = ins.rows[0].id;
-  
-  // Insert line items if provided
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    await db.execute(sql`
-      insert into invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
-      values (${orgId}::uuid, ${invoiceId}::uuid, ${i}, ${l.description||""}, ${l.quantity||0}, ${l.unit_amount||0}, ${l.tax_rate||0})
-    `);
-  }
-  
-  // Compute and store totals if there are lines
-  if (lines.length > 0) {
-    const sums = sumLines(lines);
-    await db.execute(sql`
-      update invoices set
-        sub_total=${sums.sub_total},
-        tax_total=${sums.tax_total},
-        grand_total=${sums.grand_total}
-      where id=${invoiceId}::uuid and org_id=${orgId}::uuid
-    `);
-  }
-  
+    // Insert lines
+    for (const [i, line] of lines.entries()) {
+      await db.execute(sql`
+        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
+        VALUES (${orgId}, ${invoiceId}, ${i}, ${line.description || ''}, ${line.quantity || 0}, ${line.unit_amount || 0}, ${line.tax_rate || 0})
+      `);
+    }
+    
     res.json({ ok: true, id: invoiceId });
   } catch (error: any) {
-    console.error("💥 ERROR in invoice creation:", error);
-    console.error("💥 Error message:", error.message);
-    console.error("💥 Error stack:", error.stack);
-    console.error("💥 Request body was:", { title, customerId, jobId, notes, lines });
-    return res.status(500).json({ error: `Database error: ${error.message || 'Unknown error'}` });
+    console.error("Invoice creation error:", error);
+    return res.status(500).json({ error: error.message });
   }
 });
 

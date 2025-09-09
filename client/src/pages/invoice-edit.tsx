@@ -126,7 +126,8 @@ export default function InvoiceEdit() {
             .totals { margin-top: 30px; text-align: right; }
             .totals table { width: 300px; margin-left: auto; }
             .total-row { font-weight: bold; font-size: 1.1em; }
-            .notes { margin-top: 30px; }
+            .summary-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #0ea5e9; }
+            .terms { margin-top: 40px; padding: 20px; border-top: 2px solid #ddd; }
             @media print { body { margin: 0; } }
           </style>
         </head>
@@ -153,6 +154,13 @@ export default function InvoiceEdit() {
             ${customer.address ? `<p>${customer.address}</p>` : ''}
             ${customer.street || customer.suburb || customer.state || customer.postcode ? `<p>${[customer.street, customer.suburb, customer.state, customer.postcode].filter(Boolean).join(', ')}</p>` : ''}
           </div>
+
+          ${payload.notes ? `
+            <div class="summary-section">
+              <h3>Summary:</h3>
+              <p>${payload.notes.replace(/\n/g, '<br>')}</p>
+            </div>
+          ` : ''}
 
           <table>
             <thead>
@@ -190,10 +198,10 @@ export default function InvoiceEdit() {
             </table>
           </div>
 
-          ${payload.notes ? `
-            <div class="notes">
-              <h3>Notes:</h3>
-              <p>${payload.notes}</p>
+          ${payload.terms ? `
+            <div class="terms">
+              <h3>Terms & Conditions:</h3>
+              <p>${payload.terms.replace(/\n/g, '<br>')}</p>
             </div>
           ` : ''}
 

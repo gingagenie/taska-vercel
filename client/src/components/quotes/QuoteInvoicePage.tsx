@@ -110,13 +110,10 @@ export function QuoteInvoicePage({
 
   // Auto-populate terms when org data loads and no terms are set
   useEffect(() => {
-    console.log('Terms auto-populate check:', { mode, orgData, terms, org });
     if (!terms && org && orgData) {
       if (mode === 'quote' && org.quote_terms) {
-        console.log('Setting quote terms:', org.quote_terms);
         setTerms(org.quote_terms);
       } else if (mode === 'invoice' && org.invoice_terms) {
-        console.log('Setting invoice terms:', org.invoice_terms);
         setTerms(org.invoice_terms);
       }
     }

@@ -71,7 +71,20 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     return res.status(400).json({ error: "title & customerId required" });
   }
 
-  console.log("✅ About to enter try block...");
+  console.log("✅ Validation passed, fields look good!");
+  console.log("🔧 About to enter try block...");
+  
+  // Add explicit error handling around the try block
+  let result;
+  try {
+    console.log("🚀 DEFINITELY inside try block now!");
+    result = "about to run database code";
+  } catch (e) {
+    console.log("💥 Error in outer try:", e);
+    return res.status(500).json({ error: "Outer try block failed" });
+  }
+  
+  console.log("✅ Test try block worked, result:", result);
 
   try {
     console.log("🚀 Entering try block!");

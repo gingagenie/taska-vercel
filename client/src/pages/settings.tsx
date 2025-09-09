@@ -329,7 +329,10 @@ export default function SettingsPage() {
         state: org.state || null,
         postcode: org.postcode || null,
         invoice_terms: org.invoice_terms || null,
-        quote_terms: org.quote_terms || null
+        quote_terms: org.quote_terms || null,
+        account_name: org.account_name || null,
+        bsb: org.bsb || null,
+        account_number: org.account_number || null
       });
       qc.invalidateQueries({ queryKey: ["/api/me"] });
       toast({

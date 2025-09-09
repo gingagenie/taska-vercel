@@ -136,6 +136,9 @@ export function AIChatWidget() {
 
   const renderMessageContent = (content: string) => {
     // Simple formatting for better readability
+    if (!content || typeof content !== 'string') {
+      return <div>Loading...</div>;
+    }
     return content.split('\n').map((line, index) => (
       <div key={index}>
         {line}

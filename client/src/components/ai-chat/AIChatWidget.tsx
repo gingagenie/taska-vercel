@@ -40,7 +40,7 @@ export function AIChatWidget() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Hello! I'm TaskaAI, your technical assistant. I can help you with:\n\n🔧 Equipment troubleshooting\n📋 Workflow guidance\n⚠️ Safety procedures\n🛠️ Parts identification\n\nWhat can I help you with today?",
+      content: "Hello! I'm TaskaAI, your Taska app assistant. I can help you with:\n\n📋 Creating and managing jobs\n👥 Customer management\n🔧 Equipment tracking\n💰 Quotes and invoices\n⚙️ App navigation\n\nWhat can I help you with today?",
       timestamp: new Date().toISOString()
     }
   ]);
@@ -185,7 +185,7 @@ export function AIChatWidget() {
               </Button>
             </div>
             <p className="text-sm text-muted-foreground">
-              Technical Assistant for Equipment & Workflows
+              App Assistant for Jobs, Customers & More
             </p>
           </CardHeader>
 
@@ -285,21 +285,21 @@ export function AIChatWidget() {
                   variant="outline"
                   size="sm"
                   className="text-xs px-2 py-1 h-auto"
-                  onClick={() => setMessage("How do I troubleshoot hydraulic issues?")}
+                  onClick={() => setMessage("How do I create a new job?")}
                   disabled={chatMutation.isPending}
                 >
                   <Wrench className="h-3 w-3 mr-1" />
-                  Hydraulics
+                  New Job
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   className="text-xs px-2 py-1 h-auto"
-                  onClick={() => setMessage("What safety checks should I perform?")}
+                  onClick={() => setMessage("How do I create an invoice?")}
                   disabled={chatMutation.isPending}
                 >
                   <AlertTriangle className="h-3 w-3 mr-1" />
-                  Safety
+                  Invoice
                 </Button>
               </div>
             </div>

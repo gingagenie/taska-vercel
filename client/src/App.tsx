@@ -46,6 +46,9 @@ import { JobModal } from "@/components/modals/job-modal";
 import { CustomerModal } from "@/components/modals/customer-modal";
 import { UpgradeModal } from "@/components/modals/upgrade-modal";
 
+// Import AI chat widget
+import { AIChatWidget } from "@/components/ai-chat/AIChatWidget";
+
 // Role-based route protection
 function ProtectedRoute({ 
   component: Component, 
@@ -188,6 +191,9 @@ function AuthenticatedApp() {
       <JobModal open={isJobModalOpen} onOpenChange={setIsJobModalOpen} />
       <CustomerModal open={isCustomerModalOpen} onOpenChange={setIsCustomerModalOpen} />
       <UpgradeModal open={isUpgradeModalOpen} onOpenChange={setIsUpgradeModalOpen} />
+      
+      {/* AI Chat Widget */}
+      <AIChatWidget />
     </div>
   );
 }

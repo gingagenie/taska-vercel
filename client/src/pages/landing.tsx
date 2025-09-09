@@ -1,4 +1,5 @@
 import taskaDemo from '@assets/ezgif.com-effects_1757423433414.gif';
+import taskaLogo from '@assets/Taska_1755842483680.png';
 
 export default function Landing() {
   return (
@@ -22,7 +23,7 @@ export default function Landing() {
         .header { position: sticky; top: 0; z-index: 50; background: linear-gradient(180deg, rgba(15,17,22,.9), rgba(15,17,22,.6) 60%, rgba(15,17,22,0)); backdrop-filter: saturate(150%) blur(8px); border-bottom: 1px solid var(--border); }
         .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
         .brand { display: flex; gap: 10px; align-items: center; font-weight: 800; letter-spacing: .2px; }
-        .logo { width: 28px; height: 28px; border-radius: 8px; background: radial-gradient(60% 80% at 20% 20%, #60a5fa, #2563eb 60%, #1e40af); box-shadow: 0 0 0 4px rgba(37,99,235,.15), 0 8px 24px rgba(37,99,235,.35) inset; }
+        .logo { width: 28px; height: 28px; object-fit: contain; }
         .nav-links { display: none; gap: 18px; color: var(--muted); }
         .cta-row { display: flex; gap: 10px; }
         .btn { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: #111522; color: var(--text); height: 40px; padding: 0 14px; border-radius: 12px; font-weight: 600; transition: all .18s ease; }
@@ -99,7 +100,7 @@ export default function Landing() {
       <header className="header">
         <div className="container nav">
           <a href="/" className="brand" aria-label="Taska home">
-            <span className="logo" /> <span>Taska</span>
+            <img src={taskaLogo} alt="Taska Logo" className="logo" /> <span>Taska</span>
           </a>
           <nav className="nav-links" aria-label="Primary">
             <a href="#features">Features</a>

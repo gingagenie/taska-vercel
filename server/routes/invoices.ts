@@ -72,6 +72,24 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   }
 
   try {
+    console.log("🔍 Pre-check values:", { 
+      orgId: orgId, 
+      orgIdType: typeof orgId,
+      userId: userId, 
+      userIdType: typeof userId,
+      customerId: customerId,
+      customerIdType: typeof customerId
+    });
+    
+    if (!orgId) {
+      console.log("❌ orgId is missing!");
+      return res.status(500).json({ error: "Organization ID missing" });
+    }
+    if (!userId) {
+      console.log("❌ userId is missing!");
+      return res.status(500).json({ error: "User ID missing" });
+    }
+    
     console.log("💾 About to insert invoice with:", { orgId, customerId, jobId, title, notes, userId });
     
     const ins: any = await db.execute(sql`

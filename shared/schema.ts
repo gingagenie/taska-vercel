@@ -14,6 +14,11 @@ export const organizations = pgTable("orgs", {
   postcode: varchar("postcode", { length: 10 }),
   logoUrl: varchar("logo_url", { length: 500 }),
   defaultLabourRateCents: integer("default_labour_rate_cents").default(0),
+  invoiceTerms: text("invoice_terms"),
+  quoteTerms: text("quote_terms"),
+  accountName: varchar("account_name", { length: 255 }),
+  bsb: varchar("bsb", { length: 10 }),
+  accountNumber: varchar("account_number", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

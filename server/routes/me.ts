@@ -25,7 +25,7 @@ me.get("/", requireAuth, requireOrg, async (req, res) => {
     
     // Fetch organization data from database
     const orgResult = await db.execute(sql`
-      SELECT id, name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents, invoice_terms, quote_terms
+      SELECT id, name, abn, street, suburb, state, postcode, logo_url, default_labour_rate_cents, invoice_terms, quote_terms, account_name, bsb, account_number
       FROM orgs 
       WHERE id = ${orgId}::uuid
     `);
@@ -131,7 +131,7 @@ me.post("/change-password", requireAuth, async (req, res) => {
 me.put("/org", requireAuth, requireOrg, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
-    const { name, abn, street, suburb, state, postcode, logo_url, invoice_terms, quote_terms } = req.body || {};
+    const { name, abn, street, suburb, state, postcode, logo_url, invoice_terms, quote_terms, account_name, bsb, account_number } = req.body || {};
     
     console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode });
     
@@ -175,6 +175,18 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
     if (quote_terms !== undefined) {
       updates.push(`quote_terms = $${paramIndex++}`);
       params.push(quote_terms);
+    }
+    if (account_name !== undefined) {
+      updates.push(`account_name = $${paramIndex++}`);
+      params.push(account_name);
+    }
+    if (bsb !== undefined) {
+      updates.push(`bsb = $${paramIndex++}`);
+      params.push(bsb);
+    }
+    if (account_number !== undefined) {
+      updates.push(`account_number = $${paramIndex++}`);
+      params.push(account_number);
     }
     
     if (updates.length > 0) {

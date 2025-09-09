@@ -182,7 +182,7 @@ export default function SettingsPage() {
   const { data, isLoading } = useQuery({ queryKey: ["/api/me"], queryFn: meApi.get });
 
   const [profile, setProfile] = useState({ name: "", role: "", phone: "" });
-  const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", invoice_terms: "", quote_terms: "" });
+  const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", invoice_terms: "", quote_terms: "", account_name: "", bsb: "", account_number: "" });
   
   // Item presets state
   const [presets, setPresets] = useState<any[]>([]);
@@ -268,7 +268,8 @@ export default function SettingsPage() {
     setProfile({ name: u.name || "", role: u.role || "", phone: u.phone || "" });
     setOrg({
       name: o.name || "", abn: o.abn || "", street: o.street || "", suburb: o.suburb || "",
-      state: o.state || "", postcode: o.postcode || "", invoice_terms: o.invoice_terms || "", quote_terms: o.quote_terms || ""
+      state: o.state || "", postcode: o.postcode || "", invoice_terms: o.invoice_terms || "", quote_terms: o.quote_terms || "",
+      account_name: o.account_name || "", bsb: o.bsb || "", account_number: o.account_number || ""
     });
   }, [data]);
 
@@ -521,6 +522,38 @@ export default function SettingsPage() {
                   value={org.postcode} 
                   onChange={(e)=>setOrg(o=>({...o, postcode: e.target.value}))} 
                   data-testid="input-org-postcode"
+                />
+              </div>
+              
+              {/* Payment Details Section */}
+              <div className="md:col-span-2">
+                <h3 className="font-medium text-gray-900 mb-3 border-t pt-4">Payment Details (for Invoices)</h3>
+              </div>
+              <div>
+                <Label>Account Name</Label>
+                <Input 
+                  value={org.account_name} 
+                  onChange={(e)=>setOrg(o=>({...o, account_name: e.target.value}))} 
+                  placeholder="Business Account Name"
+                  data-testid="input-org-account-name"
+                />
+              </div>
+              <div>
+                <Label>BSB</Label>
+                <Input 
+                  value={org.bsb} 
+                  onChange={(e)=>setOrg(o=>({...o, bsb: e.target.value}))} 
+                  placeholder="123-456"
+                  data-testid="input-org-bsb"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Account Number</Label>
+                <Input 
+                  value={org.account_number} 
+                  onChange={(e)=>setOrg(o=>({...o, account_number: e.target.value}))} 
+                  placeholder="123456789"
+                  data-testid="input-org-account-number"
                 />
               </div>
               <div className="md:col-span-2">

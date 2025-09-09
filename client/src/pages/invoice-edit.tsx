@@ -127,6 +127,7 @@ export default function InvoiceEdit() {
             .totals table { width: 300px; margin-left: auto; }
             .total-row { font-weight: bold; font-size: 1.1em; }
             .summary-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; }
+            .payment-details { margin: 30px 0; padding: 15px; border: 1px solid #ddd; background-color: #fafafa; }
             .terms { margin-top: 40px; padding: 20px; border-top: 2px solid #ddd; }
             @media print { body { margin: 0; } }
           </style>
@@ -197,6 +198,15 @@ export default function InvoiceEdit() {
               <tr class="total-row"><td>Total:</td><td class="amount">$${payload.totals.total.toFixed(2)}</td></tr>
             </table>
           </div>
+
+          ${org.account_name || org.bsb || org.account_number ? `
+            <div class="payment-details">
+              <h3>Payment Details:</h3>
+              ${org.account_name ? `<p><strong>Account Name:</strong> ${org.account_name}</p>` : ''}
+              ${org.bsb ? `<p><strong>BSB:</strong> ${org.bsb}</p>` : ''}
+              ${org.account_number ? `<p><strong>Account Number:</strong> ${org.account_number}</p>` : ''}
+            </div>
+          ` : ''}
 
           ${payload.terms ? `
             <div class="terms">

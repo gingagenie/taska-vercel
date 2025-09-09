@@ -37,6 +37,7 @@ interface Initial {
   items?: LineItem[];
   title?: string;
   notes?: string;
+  terms?: string;
 }
 
 interface Totals {
@@ -59,6 +60,7 @@ interface Payload {
   totals: Totals;
   title: string;
   notes: string;
+  terms: string;
 }
 
 interface QuoteInvoicePageProps {
@@ -97,6 +99,7 @@ export function QuoteInvoicePage({
   const [taxMode, setTaxMode] = useState(initial?.taxMode || 'exclusive');
   const [title, setTitle] = useState(initial?.title || '');
   const [notes, setNotes] = useState(initial?.notes || '');
+  const [terms, setTerms] = useState(initial?.terms || '');
   const [items, setItems] = useState<LineItem[]>(
     initial?.items?.length ? initial.items : [
       { id: crypto.randomUUID(), itemName: '', description: '', qty: 1, price: 0, discount: 0, tax: 'GST' },
@@ -139,7 +142,8 @@ export function QuoteInvoicePage({
     totals,
     title,
     notes,
-  }), [mode, customerId, issueDate, dueDate, docNo, reference, taxMode, items, totals, title, notes]);
+    terms,
+  }), [mode, customerId, issueDate, dueDate, docNo, reference, taxMode, items, totals, title, notes, terms]);
 
   async function handleSave() { 
     await onSave?.(payload); 
@@ -370,8 +374,8 @@ export function QuoteInvoicePage({
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
             <label className="block text-sm font-medium text-gray-700 mb-3">Terms</label>
             <textarea 
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
+              value={terms}
+              onChange={e => setTerms(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
               rows={4}
               placeholder="Terms and Conditions for On-Site Forklift Repairs

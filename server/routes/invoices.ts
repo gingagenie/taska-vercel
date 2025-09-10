@@ -111,6 +111,9 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
     order by position asc, created_at asc
   `);
   
+  console.log(`[DEBUG] Query result for invoice ${id}:`, { inv, linesCount: lr.length, lines: lr });
+  console.log(`[DEBUG] Line items query: SELECT * FROM invoice_lines WHERE invoice_id='${id}' AND org_id='${orgId}'`);
+  
   res.json({ ...inv, lines: lr });
 });
 

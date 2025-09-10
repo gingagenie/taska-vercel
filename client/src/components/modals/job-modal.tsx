@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { jobsApi, membersApi } from "@/lib/api";
+import { jobsApi, membersApi, customersApi, equipmentApi } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { isoFromLocalInput } from "@/lib/datetime";
 
 type Props = { 
@@ -160,34 +161,59 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
 
           <div>
             <Label>Customer</Label>
-            <Select value={customerId} onValueChange={setCustomerId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select customer" />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableCombobox
+              items={customers.map(c => ({ id: c.id, name: c.name }))}
+              value={customerId}
+              onValueChange={setCustomerId}
+              onCreateNew={async (name) => {
+                try {
+                  const result = await customersApi.create({ name });
+                  const newCustomer = result.customer;
+                  // Update local customers list
+                  setCustomers(prev => [...prev, newCustomer]);
+                  return { id: newCustomer.id, name: newCustomer.name };
+                } catch (error) {
+                  throw new Error("Failed to create customer");
+                }
+              }}
+              placeholder="Select or create customer"
+              searchPlaceholder="Search customers..."
+              emptyText="No customers found"
+              createNewLabel={(name) => `Create new customer: ${name}`}
+              data-testid="customer-combobox"
+            />
           </div>
 
           <div>
             <Label>Equipment</Label>
-            <Select 
-              value={equipmentId} 
+            <SearchableCombobox
+              items={equipment.map(e => ({ id: e.id, name: e.name }))}
+              value={equipmentId}
               onValueChange={setEquipmentId}
+              onCreateNew={async (name) => {
+                if (!customerId) {
+                  throw new Error("Please select a customer first");
+                }
+                try {
+                  const result = await equipmentApi.create({ 
+                    name, 
+                    customerId 
+                  });
+                  const newEquipment = { id: result.id, name, customerId };
+                  // Update local equipment list
+                  setEquipment(prev => [...prev, newEquipment]);
+                  return { id: result.id, name };
+                } catch (error) {
+                  throw new Error("Failed to create equipment");
+                }
+              }}
+              placeholder={customerId ? "Select or create equipment" : "Select a customer first"}
+              searchPlaceholder="Search equipment..."
+              emptyText="No equipment found"
+              createNewLabel={(name) => `Create new equipment: ${name}`}
               disabled={!customerId}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={customerId ? "Select equipment" : "Select a customer first"} />
-              </SelectTrigger>
-              <SelectContent>
-                {equipment.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              data-testid="equipment-combobox"
+            />
           </div>
 
           <div>

@@ -64,16 +64,13 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     }
     
     // Simple invoice creation
-    const result = await db.execute(sql`
+    const result: any = await db.execute(sql`
       INSERT INTO invoices (org_id, customer_id, title, notes, created_by)
       VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${userId})
       RETURNING id
     `);
     
-    const invoiceId = result.rows?.[0]?.id;
-    if (!invoiceId) {
-      return res.status(500).json({ error: "Failed to create invoice" });
-    }
+    const invoiceId = result.rows[0].id;  // Match the pattern used in quotes.ts
     
     // Insert lines
     for (const [i, line] of lines.entries()) {

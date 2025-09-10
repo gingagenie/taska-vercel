@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { quotesApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -6,15 +6,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Link, useLocation } from "wouter";
-import { FileText, User, ArrowRight, Edit } from "lucide-react";
+import { FileText, User, ArrowRight, Edit, Trash } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function QuotesPage() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const { data: list = [], isLoading } = useQuery({ queryKey:["/api/quotes"], queryFn: quotesApi.getAll });
   const [q, setQ] = useState("");
   const [, navigate] = useLocation();
+
+  const deleteQuoteMutation = useMutation({
+    mutationFn: (quoteId: string) => quotesApi.delete(quoteId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({
+        title: "Quote deleted",
+        description: "The quote has been successfully deleted.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete quote. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteQuote = (quote: any) => {
+    if (window.confirm(`Are you sure you want to delete "${quote.title}"? This action cannot be undone.`)) {
+      deleteQuoteMutation.mutate(quote.id);
+    }
+  };
 
   const filtered = (list || []).filter(x => [x.title,x.customer_name,x.status].join(" ").toLowerCase().includes(q.toLowerCase()));
 
@@ -132,6 +158,14 @@ export default function QuotesPage() {
                         }}>
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteQuote(quote)}
+                          className="text-red-600 focus:text-red-600"
+                          data-testid={`delete-quote-${quote.id}`}
+                        >
+                          <Trash className="h-4 w-4 mr-2" />
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

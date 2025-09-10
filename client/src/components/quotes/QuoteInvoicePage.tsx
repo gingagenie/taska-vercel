@@ -108,6 +108,24 @@ export function QuoteInvoicePage({
   const [notes, setNotes] = useState(initial?.notes || '');
   const [terms, setTerms] = useState(initial?.terms || '');
 
+  // Update form fields when initial data loads
+  useEffect(() => {
+    if (initial) {
+      setCustomerId(initial.customer?.id || '');
+      setIssueDate(initial.issueDate || new Date().toISOString().slice(0, 10));
+      setDueDate(initial.dueDate || '');
+      setDocNo(initial.number || '');
+      setReference(initial.reference || '');
+      setTaxMode(initial.taxMode || 'exclusive');
+      setTitle(initial.title || '');
+      setNotes(initial.notes || '');
+      setTerms(initial.terms || '');
+      if (initial.items?.length) {
+        setItems(initial.items);
+      }
+    }
+  }, [initial]);
+
   // Auto-populate terms when org data loads and no terms are set
   useEffect(() => {
     if (!terms && org && orgData) {

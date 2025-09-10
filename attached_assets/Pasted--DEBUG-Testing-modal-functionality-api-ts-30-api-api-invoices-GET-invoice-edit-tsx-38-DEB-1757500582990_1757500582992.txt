@@ -1,0 +1,16 @@
+[DEBUG] Testing modal functionality...
+api.ts:30 [api] -> /api/invoices GET
+invoice-edit.tsx:38 [DEBUG] Raw invoice data: undefined
+invoice-edit.tsx:56 [DEBUG] Transformed initial data: undefined
+invoice-edit.tsx:38 [DEBUG] Raw invoice data: {id: 'c3ab1078-69df-4ab3-a167-d1904de0edba', org_id: 'a5309a76-ee4a-4c2f-b12b-6b79bae4ae77', job_id: null, customer_id: '22eeedfa-e627-412d-9daf-c8ef2cadef1f', title: 'ljkhkjhgfghcgfjhkkljhgjgfcxfdzxgfh', …}
+invoice-edit.tsx:44 [DEBUG] Processing item: {id: '8d374a33-a1f0-4f40-99a4-4c8481c571f0', description: 'Service', quantity: '1.00', unit_price: '750.00', tax_rate: '10.00'}
+invoice-edit.tsx:56 [DEBUG] Transformed initial data: {customer: {…}, title: 'ljkhkjhgfghcgfjhkkljhgjgfcxfdzxgfh', notes: 'he line items and total disappear when i save and … then if i go back in to edit it, everything goes', items: Array(1)}
+invoice-edit.tsx:38 [DEBUG] Raw invoice data: {id: 'c3ab1078-69df-4ab3-a167-d1904de0edba', org_id: 'a5309a76-ee4a-4c2f-b12b-6b79bae4ae77', job_id: null, customer_id: '22eeedfa-e627-412d-9daf-c8ef2cadef1f', title: 'ljkhkjhgfghcgfjhkkljhgjgfcxfdzxgfh', …}
+invoice-edit.tsx:44 [DEBUG] Processing item: {id: '8d374a33-a1f0-4f40-99a4-4c8481c571f0', description: 'Service', quantity: '1.00', unit_price: '750.00', tax_rate: '10.00'}
+invoice-edit.tsx:56 [DEBUG] Transformed initial data: {customer: {…}, title: 'ljkhkjhgfghcgfjhkkljhgjgfcxfdzxgfh', notes: 'he line items and total disappear when i save and … then if i go back in to edit it, everything goes', items: Array(1)}
+invoice-edit.tsx:38 [DEBUG] Raw invoice data: {id: 'c3ab1078-69df-4ab3-a167-d1904de0edba', org_id: 'a5309a76-ee4a-4c2f-b12b-6b79bae4ae77', job_id: null, customer_id: '22eeedfa-e627-412d-9daf-c8ef2cadef1f', title: 'ljkhkjhgfghcgfjhkkljhgjgfcxfdzxgfh', …}
+invoice-edit.tsx:44 [DEBUG] Processing item: {id: '8d374a33-a1f0-4f40-99a4-4c8481c571f0', description: 'Service', quantity: '1.00', unit_price: '750.00', tax_rate: '10.00'}
+invoice-edit.tsx:56 [DEBUG] Transformed initial data: {customer: {…}, title: 'ljkhkjhgfghcgfjhkkljhgjgfcxfdzxgfh', notes: 'he line items and total disappear when i save and … then if i go back in to edit it, everything goes', items: Array(1)}
+invoice-edit.tsx:38 [DEBUG] Raw invoice data: {id: 'c3ab1078-69df-4ab3-a167-d1904de0edba', org_id: 'a5309a76-ee4a-4c2f-b12b-6b79bae4ae77', job_id: null, customer_id: '22eeedfa-e627-412d-9daf-c8ef2cadef1f', title: 'ljkhkjhgfghcgfjhkkljhgjgfcxfdzxgfh', …}
+invoice-edit.tsx:44 [DEBUG] Processing item: {id: '8d374a33-a1f0-4f40-99a4-4c8481c571f0', description: 'Service', quantity: '1.00', unit_price: '750.00', tax_rate: '10.00'}
+invoice-edit.tsx:56 [DEBUG] Transformed initial data: {customer: {…}, title: 'ljkhkjhgfghcgfjhkkljhgjgfcxfdzxgfh', notes: 'he line items and total disappear when i save and … then if i go back in to edit it, everything goes', items: Array(1)}

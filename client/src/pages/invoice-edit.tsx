@@ -35,25 +35,20 @@ export default function InvoiceEdit() {
   const loading = invoiceLoading;
 
   // Transform invoice data for the new component
-  console.log("[DEBUG] Raw invoice data:", invoice);
   const initial = invoice ? {
     customer: { id: (invoice as any).customer_id },
     title: (invoice as any).title,
     notes: (invoice as any).notes,
-    items: ((invoice as any).items || []).map((l: any) => {
-      console.log("[DEBUG] Processing item:", l);
-      return {
-        id: crypto.randomUUID(),
-        itemName: l.description || '',
-        description: l.description || '',
-        qty: Number(l.quantity || 1),
-        price: Number(l.unit_price || 0), // Changed from unit_amount to unit_price
-        discount: 0,
-        tax: Number(l.tax_rate || 0) > 0 ? 'GST' : 'None',
-      };
-    }),
+    items: ((invoice as any).items || []).map((l: any) => ({
+      id: crypto.randomUUID(),
+      itemName: l.description || '',
+      description: l.description || '',
+      qty: Number(l.quantity || 1),
+      price: Number(l.unit_price || 0),
+      discount: 0,
+      tax: Number(l.tax_rate || 0) > 0 ? 'GST' : 'None',
+    })),
   } : undefined;
-  console.log("[DEBUG] Transformed initial data:", initial);
 
   async function handleSave(payload: any) {
     setSaving(true);

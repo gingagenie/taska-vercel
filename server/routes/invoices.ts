@@ -57,6 +57,7 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
     where i.org_id=${orgId}::uuid
     order by i.created_at desc
   `);
+  console.log(`[DEBUG] Invoice list query result:`, r.map((inv: any) => ({ id: inv.id, title: inv.title, total_amount: inv.total_amount })));
   res.json(r);  // Match the working pattern from jobs.ts
 });
 

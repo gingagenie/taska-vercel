@@ -12,10 +12,14 @@ import { CheckCircle, ExternalLink, AlertCircle, Trash2, Crown, Star, Zap, Credi
 import { useSubscription, useCancelSubscription } from "@/hooks/useSubscription";
 import { UpgradeModal } from "@/components/subscription/upgrade-modal";
 import { Badge } from "@/components/ui/badge";
+import { useSmsUsage } from "@/hooks/useSmsUsage";
+import { Progress } from "@/components/ui/progress";
+import { MessageCircle } from "lucide-react";
 
 // Subscription Tab Component
 function SubscriptionTab() {
   const { data: subscription, isLoading: subscriptionLoading } = useSubscription();
+  const { data: smsUsage, isLoading: smsLoading } = useSmsUsage();
   const cancelMutation = useCancelSubscription();
 
   const formatPrice = (cents: number) => `$${(cents / 100).toFixed(0)}`;
@@ -138,6 +142,90 @@ function SubscriptionTab() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* SMS Usage */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-blue-500" />
+            SMS Usage
+          </CardTitle>
+          <CardDescription>
+            Track your monthly SMS notifications to customers
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {smsLoading ? (
+            <div className="animate-pulse space-y-3">
+              <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+              <div className="h-2 bg-gray-200 rounded"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+            </div>
+          ) : smsUsage ? (
+            <>
+              <div className="flex items-center justify-between">
+                <span>This month ({smsUsage.month}):</span>
+                <span className="font-semibold" data-testid="text-sms-usage">
+                  {smsUsage.usage} / {smsUsage.quota} SMS
+                </span>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Usage</span>
+                  <span>{smsUsage.usagePercentage}%</span>
+                </div>
+                <Progress 
+                  value={smsUsage.usagePercentage} 
+                  className="h-2"
+                  data-testid="progress-sms-usage"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span>Remaining:</span>
+                <span className={`font-semibold ${smsUsage.remaining <= 5 ? 'text-red-600' : 'text-green-600'}`}>
+                  {smsUsage.remaining} SMS
+                </span>
+              </div>
+
+              {smsUsage.quotaExceeded && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-red-800">SMS Quota Exceeded</p>
+                      <p className="text-xs text-red-600">Upgrade your plan to send more SMS notifications</p>
+                    </div>
+                    <UpgradeModal currentPlan={subscription?.subscription.planId}>
+                      <Button size="sm" variant="destructive" data-testid="button-upgrade-sms">
+                        Upgrade Now
+                      </Button>
+                    </UpgradeModal>
+                  </div>
+                </div>
+              )}
+
+              {smsUsage.remaining <= 5 && smsUsage.remaining > 0 && !smsUsage.quotaExceeded && (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-orange-800">Low SMS Remaining</p>
+                      <p className="text-xs text-orange-600">Consider upgrading to avoid interruptions</p>
+                    </div>
+                    <UpgradeModal currentPlan={subscription?.subscription.planId}>
+                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700" data-testid="button-upgrade-sms-low">
+                        Upgrade Plan
+                      </Button>
+                    </UpgradeModal>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-gray-500">Unable to load SMS usage data</p>
+          )}
         </CardContent>
       </Card>
 

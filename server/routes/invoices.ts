@@ -123,8 +123,7 @@ router.put("/:id", requireAuth, requireOrg, async (req, res) => {
     update invoices set
       title=coalesce(${title}, title),
       customer_id=coalesce(${customer_id}::uuid, customer_id),
-      notes=coalesce(${notes}, notes),
-      updated_at=now()
+      notes=coalesce(${notes}, notes)
     where id=${id}::uuid and org_id=${orgId}::uuid
   `);
   

@@ -59,8 +59,6 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     const userId = (req as any).user?.id;
     const { title, customerId, notes, lines = [] } = req.body;
     
-    console.log(`[DEBUG] Invoice creation request:`, { title, customerId, notes, lines });
-    console.log(`[DEBUG] Full request body:`, req.body);
     
     if (!title || !customerId) {
       return res.status(400).json({ error: "title & customerId required" });
@@ -76,9 +74,7 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     const invoiceId = (result as any)[0].id;  // Match the pattern used in jobs.ts
     
     // Insert lines
-    console.log(`[DEBUG] Creating invoice with ${lines.length} lines:`, lines);
     for (const [i, line] of lines.entries()) {
-      console.log(`[DEBUG] Inserting line ${i}:`, line);
       await db.execute(sql`
         INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
         VALUES (${orgId}, ${invoiceId}, ${i}, ${line.description || ''}, ${line.quantity || 0}, ${line.unit_amount || 0}, ${line.tax_rate || 0})
@@ -111,10 +107,16 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
     order by position asc, created_at asc
   `);
   
-  console.log(`[DEBUG] Query result for invoice ${id}:`, { inv, linesCount: lr.length, lines: lr });
-  console.log(`[DEBUG] Line items query: SELECT * FROM invoice_lines WHERE invoice_id='${id}' AND org_id='${orgId}'`);
+  // Transform lines to items format that frontend expects
+  const items = lr.map((line: any) => ({
+    id: line.id,
+    description: line.description,
+    quantity: line.quantity,
+    unit_price: line.unit_amount, // Map unit_amount to unit_price
+    tax_rate: line.tax_rate
+  }));
   
-  res.json({ ...inv, lines: lr });
+  res.json({ ...inv, items });
 });
 
 /** Update header and lines with totals */

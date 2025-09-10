@@ -97,7 +97,7 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
     from invoices i join customers c on c.id=i.customer_id
     where i.id=${id}::uuid and i.org_id=${orgId}::uuid
   `);
-  const inv = r.rows?.[0];
+  const inv = r[0];  // Match the working pattern from jobs.ts
   if (!inv) return res.status(404).json({ error: "not found" });
 
   const lr: any = await db.execute(sql`
@@ -106,7 +106,7 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
     order by position asc, created_at asc
   `);
   
-  res.json({ ...inv, lines: lr.rows });
+  res.json({ ...inv, lines: lr });
 });
 
 /** Update header and lines with totals */

@@ -39,12 +39,12 @@ export default function QuoteEdit() {
     customer: { id: (quote as any).customer_id },
     title: (quote as any).title,
     notes: (quote as any).notes,
-    items: ((quote as any).lines || []).map((l: any) => ({
+    items: ((quote as any).items || []).map((l: any) => ({
       id: crypto.randomUUID(),
       itemName: l.description || '',
       description: l.description || '',
       qty: Number(l.quantity || 1),
-      price: Number(l.unit_amount || 0),
+      price: Number(l.unit_price || 0), // Changed from unit_amount to unit_price
       discount: 0,
       tax: Number(l.tax_rate || 0) > 0 ? 'GST' : 'None',
     })),

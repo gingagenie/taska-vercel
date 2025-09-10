@@ -44,7 +44,7 @@ router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
 router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const r: any = await db.execute(sql`
-    select q.id, q.title, q.status, q.created_at, q.customer_id, c.name as customer_name
+    select q.id, q.title, q.status, q.created_at, q.customer_id, c.name as customer_name, q.grand_total as total_amount
     from quotes q
     join customers c on c.id = q.customer_id
     where q.org_id=${orgId}::uuid
@@ -61,14 +61,27 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   
   if (!title || !customerId) return res.status(400).json({ error: "title & customerId required" });
 
-  // Simple direct database call - no complex logic
+  // Calculate totals from lines
+  const sums = sumLines(lines);
+
+  // Create quote with totals
   const result: any = await db.execute(sql`
-    insert into quotes (org_id, customer_id, title, notes, created_by)
-    values (${orgId}::uuid, ${customerId}::uuid, ${title}, ${notes||''}, ${userId}::uuid)
+    insert into quotes (org_id, customer_id, title, notes, created_by, sub_total, tax_total, grand_total)
+    values (${orgId}::uuid, ${customerId}::uuid, ${title}, ${notes||''}, ${userId}::uuid, ${sums.sub_total}, ${sums.tax_total}, ${sums.grand_total})
     returning id
   `);
   
-  const quoteId = result.rows[0].id;  // Match the pattern used in other working queries
+  const quoteId = result.rows[0].id;
+
+  // Insert line items
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    await db.execute(sql`
+      insert into quote_lines (org_id, quote_id, position, description, quantity, unit_amount, tax_rate)
+      values (${orgId}::uuid, ${quoteId}::uuid, ${i}, ${l.description||""}, ${l.quantity||0}, ${l.unit_amount||0}, ${l.tax_rate||0})
+    `);
+  }
+  
   res.json({ ok: true, id: quoteId });
 });
 
@@ -91,7 +104,13 @@ router.get("/:id", requireAuth, requireOrg, checkSubscription, requireActiveSubs
     order by position asc, created_at asc
   `);
 
-  res.json({ ...quote, lines: lr.rows });
+  // Transform lines to items format that frontend expects
+  const items = lr.rows.map((line: any) => ({
+    ...line,
+    unit_price: line.unit_amount, // Map unit_amount to unit_price for frontend
+  }));
+
+  res.json({ ...quote, items });
 });
 
 /** Update header and lines with totals */

@@ -33,7 +33,7 @@ router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
       ORDER BY itemName
       LIMIT 50
     `);
-    res.json(r.rows || []);
+    res.json(r || []);
   } catch (error) {
     console.error("Error fetching previous items:", error);
     res.json([]);
@@ -185,7 +185,7 @@ router.post("/:id/items", requireAuth, requireOrg, async (req, res) => {
     values (${id}::uuid, ${description}, ${quantity||1}, ${unit_price||0})
     returning id
   `);
-  res.json({ ok: true, id: ins.rows[0].id });
+  res.json({ ok: true, id: (ins as any)[0].id });
 });
 
 router.put("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) => {
@@ -226,7 +226,7 @@ router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
       from invoices i join customers c on c.id=i.customer_id
       where i.id=${id}::uuid and i.org_id=${orgId}::uuid
     `);
-    const invoice = r.rows?.[0];
+    const invoice = r[0];
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
     // Get invoice items
@@ -245,7 +245,7 @@ router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
       customerEmail: invoice.customer_email,
       currency: invoice.currency || 'AUD',
       dueAt: invoice.due_at,
-      items: items.rows.map((item: any) => ({
+      items: items.map((item: any) => ({
         name: item.description,
         description: item.description,
         price: item.unit_price,

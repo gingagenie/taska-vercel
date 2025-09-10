@@ -73,7 +73,9 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     const invoiceId = (result as any)[0].id;  // Match the pattern used in jobs.ts
     
     // Insert lines
+    console.log(`[DEBUG] Creating invoice with ${lines.length} lines:`, lines);
     for (const [i, line] of lines.entries()) {
+      console.log(`[DEBUG] Inserting line ${i}:`, line);
       await db.execute(sql`
         INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
         VALUES (${orgId}, ${invoiceId}, ${i}, ${line.description || ''}, ${line.quantity || 0}, ${line.unit_amount || 0}, ${line.tax_rate || 0})

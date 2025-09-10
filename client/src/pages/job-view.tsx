@@ -1,7 +1,7 @@
 // client/src/pages/job-view.tsx
 import { useEffect, useState } from "react";
 import { useRoute, Link, useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { api, photosApi, jobsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,11 @@ export default function JobView() {
   const [completing, setCompleting] = useState(false);
   const [errComplete, setErrComplete] = useState<string | null>(null);
 
+  // Fetch organization data for SMS
+  const { data: meData } = useQuery({
+    queryKey: ["/api/me"],
+    retry: false,
+  });
 
   useEffect(() => {
     (async () => {
@@ -68,7 +73,8 @@ export default function JobView() {
     const when = job.scheduled_at
       ? new Date(job.scheduled_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })
       : "Not scheduled";
-    return `Hi from Taska! Job "${job.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
+    const orgName = meData?.org?.name || "Taska";
+    return `Hi from ${orgName}! Job "${job.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
   }
 
   function formatAustralianPhone(phone: string): string {

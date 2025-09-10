@@ -129,7 +129,7 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
     });
   }
 
-  // Pull job + customer info using proper Drizzle ORM
+  // Pull job + customer info + organization name using proper Drizzle ORM
   const jobRows = await db
     .select({
       id: jobsSchema.id,
@@ -139,6 +139,7 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
       customer_id: customers.id,
       customer_name: customers.name,
       customer_phone: customers.phone,
+      org_name: sql`(SELECT name FROM orgs WHERE id = ${orgId}::uuid)`.as('org_name'),
     })
     .from(jobsSchema)
     .leftJoin(customers, eq(customers.id, jobsSchema.customerId))
@@ -165,8 +166,9 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
 
   // Build default confirmation message
   const when = formatAEST(row.scheduled_at);
+  const orgName = row.org_name || "Taska";
   const defaultMsg =
-    `Hi from Taska! Job "${row.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
+    `Hi from ${orgName}! Job "${row.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
 
   const body = (messageOverride && messageOverride.trim()) || defaultMsg;
 

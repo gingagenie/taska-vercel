@@ -52,7 +52,10 @@ export function AIChatWidget() {
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
     }
   }, [conversation]);
 
@@ -223,7 +226,7 @@ export function AIChatWidget() {
 
           <CardContent className="flex-1 p-0 flex flex-col">
             {/* Messages Area */}
-            <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+            <ScrollArea className="flex-1 p-4 max-h-[350px] overflow-y-auto" ref={scrollAreaRef}>
               <div className="space-y-4">
                 {conversation.map((msg) => (
                   <div

@@ -40,7 +40,10 @@ export default function JobView() {
   const [errComplete, setErrComplete] = useState<string | null>(null);
 
   // Fetch organization data for SMS
-  const { data: meData } = useQuery({
+  const { data: meData } = useQuery<{
+    user: any;
+    org: { name: string; [key: string]: any };
+  }>({
     queryKey: ["/api/me"],
     retry: false,
   });

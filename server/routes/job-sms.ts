@@ -134,7 +134,7 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
     .select({
       id: jobsSchema.id,
       title: jobsSchema.title,
-      scheduled_at: jobsSchema.scheduledAt,
+      scheduled_at: sql`${jobsSchema.scheduledAt}::text`.as('scheduled_at'),
       description: jobsSchema.description,
       customer_id: customers.id,
       customer_name: customers.name,
@@ -165,7 +165,7 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
   const toPhone = normPhone(rawPhone);
 
   // Build default confirmation message
-  const when = formatAEST(row.scheduled_at);
+  const when = formatAEST(row.scheduled_at as string);
   const orgName = row.org_name || "Taska";
   const defaultMsg =
     `Hi from ${orgName}! Job "${row.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;

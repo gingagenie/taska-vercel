@@ -44,7 +44,7 @@ router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
 router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const r: any = await db.execute(sql`
-    select q.id, q.title, q.status, q.created_at, q.customer_id, c.name as customer_name, q.grand_total as total_amount
+    select q.id, q.title, q.status, q.created_at, q.customer_id, c.name as customer_name, q."grandTotal" as total_amount
     from quotes q
     join customers c on c.id = q.customer_id
     where q.org_id=${orgId}::uuid
@@ -64,9 +64,9 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   // Calculate totals from lines
   const sums = sumLines(lines);
 
-  // Create quote with totals
+  // Create quote with totals  
   const result: any = await db.execute(sql`
-    insert into quotes (org_id, customer_id, title, notes, created_by, sub_total, tax_total, grand_total)
+    insert into quotes (org_id, customer_id, title, notes, created_by, "subTotal", "taxTotal", "grandTotal")
     values (${orgId}::uuid, ${customerId}::uuid, ${title}, ${notes||''}, ${userId}::uuid, ${sums.sub_total}, ${sums.tax_total}, ${sums.grand_total})
     returning id
   `);
@@ -145,9 +145,9 @@ router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const sums = sumLines(lines);
   await db.execute(sql`
     update quotes set
-      sub_total=${sums.sub_total},
-      tax_total=${sums.tax_total},
-      grand_total=${sums.grand_total}
+      "subTotal"=${sums.sub_total},
+      "taxTotal"=${sums.tax_total},
+      "grandTotal"=${sums.grand_total}
     where id=${id}::uuid and org_id=${orgId}::uuid
   `);
   

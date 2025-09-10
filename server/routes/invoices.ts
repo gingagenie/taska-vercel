@@ -59,7 +59,6 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     const userId = (req as any).user?.id;
     const { title, customerId, notes, lines = [] } = req.body;
     
-    
     if (!title || !customerId) {
       return res.status(400).json({ error: "title & customerId required" });
     }

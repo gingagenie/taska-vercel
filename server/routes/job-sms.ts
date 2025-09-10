@@ -3,7 +3,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { db } from "../db/client";
 import { sql, eq, and } from "drizzle-orm";
-import { jobs as jobsSchema, customers } from "../../shared/schema";
+import { jobs as jobsSchema, customers, smsUsage, orgSubscriptions, subscriptionPlans } from "../../shared/schema";
 import twilio from "twilio";
 
 export const jobSms = Router();
@@ -40,6 +40,65 @@ function formatAEST(iso: string | null): string {
   }
 }
 
+// SMS quota checking helper
+async function checkSmsQuota(orgId: string): Promise<{ canSend: boolean; usage: number; quota: number; planId: string }> {
+  const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM' format
+  
+  // Get organization's subscription and plan details
+  const [subResult] = await db
+    .select({
+      planId: orgSubscriptions.planId,
+      smsQuota: subscriptionPlans.smsQuotaMonthly,
+    })
+    .from(orgSubscriptions)
+    .leftJoin(subscriptionPlans, eq(orgSubscriptions.planId, subscriptionPlans.id))
+    .where(eq(orgSubscriptions.orgId, orgId));
+
+  if (!subResult) {
+    // No subscription found, deny SMS
+    return { canSend: false, usage: 0, quota: 0, planId: 'none' };
+  }
+
+  const quota = subResult.smsQuota || 0;
+  const planId = subResult.planId || 'free';
+
+  // Get current month's usage
+  const [usageResult] = await db
+    .select({ smsCount: smsUsage.smsCount })
+    .from(smsUsage)
+    .where(and(eq(smsUsage.orgId, orgId), eq(smsUsage.month, currentMonth)));
+
+  const currentUsage = usageResult?.smsCount || 0;
+  
+  return {
+    canSend: currentUsage < quota,
+    usage: currentUsage,
+    quota: quota,
+    planId: planId
+  };
+}
+
+// SMS usage tracking helper
+async function trackSmsUsage(orgId: string): Promise<void> {
+  const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM' format
+  
+  // Upsert SMS usage record
+  await db
+    .insert(smsUsage)
+    .values({
+      orgId: orgId,
+      month: currentMonth,
+      smsCount: 1,
+    })
+    .onConflictDoUpdate({
+      target: [smsUsage.orgId, smsUsage.month],
+      set: {
+        smsCount: sql`${smsUsage.smsCount} + 1`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
 /**
  * POST /api/jobs/:jobId/sms/confirm
  * body: { phone?: string, messageOverride?: string }
@@ -54,6 +113,21 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
   const { phone: phoneOverride, messageOverride } = (req.body || {}) as { phone?: string; messageOverride?: string };
+
+  // Check SMS quota before proceeding
+  const quotaCheck = await checkSmsQuota(orgId);
+  if (!quotaCheck.canSend) {
+    return res.status(429).json({ 
+      error: "SMS quota exceeded", 
+      usage: quotaCheck.usage,
+      quota: quotaCheck.quota,
+      planId: quotaCheck.planId,
+      upgradeOptions: {
+        pro: { quota: 100, price: "$29/month" },
+        enterprise: { quota: 500, price: "$99/month" }
+      }
+    });
+  }
 
   // Pull job + customer info using proper Drizzle ORM
   const jobRows = await db
@@ -108,6 +182,9 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
       insert into job_notifications (org_id, job_id, notification_type, recipient, message, status)
       values (${orgId}::uuid, ${row.id}::uuid, 'sms', ${toPhone}, ${body}, ${msg.status})
     `);
+
+    // Track SMS usage for quota management
+    await trackSmsUsage(orgId);
 
     return res.json({ ok: true, sid: msg.sid, status: msg.status });
   } catch (e: any) {

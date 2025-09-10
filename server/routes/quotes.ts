@@ -71,7 +71,7 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     returning id
   `);
   
-  const quoteId = result.rows[0].id;
+  const quoteId = result[0].id;
 
   // Insert line items
   for (let i = 0; i < lines.length; i++) {

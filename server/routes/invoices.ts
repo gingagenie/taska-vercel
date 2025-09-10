@@ -150,6 +150,32 @@ router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   res.json({ ok: true, totals: sums });
 });
 
+/** Delete invoice */
+router.delete("/:id", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+
+  try {
+    // Delete invoice lines first (due to foreign key constraints)
+    await db.execute(sql`
+      delete from invoice_lines 
+      where invoice_id=${id}::uuid and org_id=${orgId}::uuid
+    `);
+    
+    // Delete the invoice
+    await db.execute(sql`
+      delete from invoices
+      where id=${id}::uuid and org_id=${orgId}::uuid
+    `);
+
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("DELETE /api/invoices/:id error:", error);
+    res.status(500).json({ error: error?.message || "Failed to delete invoice" });
+  }
+});
+
 /** Items CRUD */
 router.post("/:id/items", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params; const { description, quantity, unit_price } = req.body || {};

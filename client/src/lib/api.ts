@@ -200,6 +200,7 @@ export const invoicesApi = {
     api("/api/invoices", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) =>
     api(`/api/invoices/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  delete: (id: string) => api(`/api/invoices/${id}`, { method: "DELETE" }),
   // Legacy item methods - deprecated, use update() with lines array instead
   addItem: (id: string, item: any) => 
     api(`/api/invoices/${id}/items`, { method: "POST", body: JSON.stringify(item) }),

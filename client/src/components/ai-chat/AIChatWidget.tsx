@@ -65,14 +65,29 @@ export function AIChatWidget() {
 
   const chatMutation = useMutation({
     mutationFn: async (userMessage: string) => {
-      const response = await apiRequest("POST", "/api/ai-support/chat", {
-        message: userMessage,
-        conversationHistory: conversation.slice(-10).map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }))
+      const response = await fetch("/api/ai-support/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          message: userMessage,
+          conversationHistory: conversation.slice(-10).map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }))
+        })
       });
-      return response as unknown as AIChatResponse;
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log("Raw API response:", data);
+      return data as AIChatResponse;
     },
     onSuccess: (data, userMessage) => {
       console.log("AI response received:", data);

@@ -70,7 +70,7 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
       RETURNING id
     `);
     
-    const invoiceId = result.rows[0].id;  // Match the pattern used in quotes.ts
+    const invoiceId = (result as any)[0].id;  // Match the pattern used in jobs.ts
     
     // Insert lines
     for (const [i, line] of lines.entries()) {

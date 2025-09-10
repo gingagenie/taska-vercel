@@ -106,7 +106,6 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
     order by position asc, created_at asc
   `);
   
-  console.log(`[DEBUG] Retrieved invoice ${id} with ${lr.length} lines:`, { inv, lines: lr });
   res.json({ ...inv, lines: lr });
 });
 
@@ -115,8 +114,6 @@ router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params; const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
   const { title, customer_id, notes, lines = [] } = req.body || {};
-  
-  console.log(`[DEBUG] Updating invoice ${id} with ${lines.length} lines:`, { title, customer_id, notes, lines });
   
   // Update header
   await db.execute(sql`
@@ -131,10 +128,8 @@ router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   await db.execute(sql`delete from invoice_lines where invoice_id=${id}::uuid and org_id=${orgId}::uuid`);
   
   // Insert new lines
-  console.log(`[DEBUG] Inserting ${lines.length} lines for invoice ${id}`);
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
-    console.log(`[DEBUG] Inserting line ${i}:`, l);
     await db.execute(sql`
       insert into invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
       values (${orgId}::uuid, ${id}::uuid, ${i}, ${l.description||""}, ${l.quantity||0}, ${l.unit_amount||0}, ${l.tax_rate||0})

@@ -230,14 +230,14 @@ router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
     // Update invoice with Xero ID
     await db.execute(sql`
       update invoices 
-      set xero_id=${xeroInvoice.invoiceID}, updated_at=now() 
+      set xero_id=${xeroInvoice?.invoiceID}, updated_at=now() 
       where id=${id}::uuid and org_id=${orgId}::uuid
     `);
 
     res.json({ 
       ok: true, 
-      xeroId: xeroInvoice.invoiceID,
-      xeroNumber: xeroInvoice.invoiceNumber,
+      xeroId: xeroInvoice?.invoiceID,
+      xeroNumber: xeroInvoice?.invoiceNumber,
       message: "Invoice successfully created in Xero"
     });
 

@@ -191,3 +191,78 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
     return res.status(500).json({ error: e?.message || "Twilio send failed" });
   }
 });
+
+/**
+ * GET /api/jobs/sms/usage
+ * Get current month's SMS usage for the organization
+ */
+jobSms.get("/sms/usage", requireAuth, requireOrg, async (req, res) => {
+  try {
+    const orgId = (req as any).orgId;
+    const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM' format
+    
+    // Get organization's subscription and plan details  
+    const [subResult] = await db
+      .select({
+        planId: orgSubscriptions.planId,
+        planName: subscriptionPlans.name,
+        smsQuota: subscriptionPlans.smsQuotaMonthly,
+      })
+      .from(orgSubscriptions)
+      .leftJoin(subscriptionPlans, eq(orgSubscriptions.planId, subscriptionPlans.id))
+      .where(eq(orgSubscriptions.orgId, orgId));
+
+    if (!subResult) {
+      return res.status(404).json({ error: "No subscription found" });
+    }
+
+    // Get current month's usage
+    const [usageResult] = await db
+      .select({ smsCount: smsUsage.smsCount })
+      .from(smsUsage)
+      .where(and(eq(smsUsage.orgId, orgId), eq(smsUsage.month, currentMonth)));
+
+    const currentUsage = usageResult?.smsCount || 0;
+    const quota = subResult.smsQuota || 0;
+    
+    return res.json({
+      month: currentMonth,
+      usage: currentUsage,
+      quota: quota,
+      remaining: Math.max(0, quota - currentUsage),
+      planId: subResult.planId,
+      planName: subResult.planName,
+      quotaExceeded: currentUsage >= quota,
+      usagePercentage: quota > 0 ? Math.round((currentUsage / quota) * 100) : 0
+    });
+  } catch (error) {
+    console.error("Error fetching SMS usage:", error);
+    return res.status(500).json({ error: "Failed to fetch SMS usage" });
+  }
+});
+
+/**
+ * GET /api/jobs/sms/history
+ * Get SMS usage history for multiple months
+ */
+jobSms.get("/sms/history", requireAuth, requireOrg, async (req, res) => {
+  try {
+    const orgId = (req as any).orgId;
+    const { months = 3 } = req.query; // Default to last 3 months
+    
+    const history = await db
+      .select({
+        month: smsUsage.month,
+        smsCount: smsUsage.smsCount,
+      })
+      .from(smsUsage)
+      .where(eq(smsUsage.orgId, orgId))
+      .orderBy(sql`${smsUsage.month} DESC`)
+      .limit(Number(months));
+
+    return res.json(history);
+  } catch (error) {
+    console.error("Error fetching SMS history:", error);
+    return res.status(500).json({ error: "Failed to fetch SMS history" });
+  }
+});

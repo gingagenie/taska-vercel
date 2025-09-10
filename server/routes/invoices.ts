@@ -88,6 +88,16 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
       `);
     }
     
+    // Calculate and store totals
+    const sums = sumLines(lines);
+    await db.execute(sql`
+      UPDATE invoices SET
+        sub_total=${sums.sub_total},
+        tax_total=${sums.tax_total},
+        grand_total=${sums.grand_total}
+      WHERE id=${invoiceId}::uuid AND org_id=${orgId}::uuid
+    `);
+    
     res.json({ ok: true, id: invoiceId });
   } catch (error: any) {
     console.error("Invoice creation error:", error);
@@ -123,7 +133,15 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
     tax_rate: line.tax_rate
   }));
   
-  res.json({ ...inv, items });
+  // Map backend field names to frontend expected names
+  const response = {
+    ...inv,
+    items,
+    subtotal: inv.sub_total,
+    total: inv.grand_total
+  };
+  
+  res.json(response);
 });
 
 /** Update header and lines with totals */

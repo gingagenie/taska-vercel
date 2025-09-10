@@ -44,8 +44,16 @@ router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
 router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const r: any = await db.execute(sql`
-    select i.id, i.title, i.status, i.created_at, i.customer_id, c.name as customer_name
-    from invoices i join customers c on c.id = i.customer_id
+    select 
+      i.id, 
+      i.title, 
+      i.status, 
+      i.created_at, 
+      i.customer_id, 
+      c.name as customer_name,
+      COALESCE(i.grand_total, 0) as total_amount
+    from invoices i 
+    join customers c on c.id = i.customer_id
     where i.org_id=${orgId}::uuid
     order by i.created_at desc
   `);

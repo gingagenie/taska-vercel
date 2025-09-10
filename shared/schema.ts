@@ -307,6 +307,7 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   priceMonthly: integer("price_monthly").notNull(), // In cents
   stripePriceId: varchar("stripe_price_id", { length: 255 }),
   features: jsonb("features").default([]),
+  smsQuotaMonthly: integer("sms_quota_monthly").default(0), // SMS limit per month
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -326,6 +327,22 @@ export const orgSubscriptions = pgTable("org_subscriptions", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// SMS usage tracking (monthly counts per organization)
+export const smsUsage = pgTable("sms_usage", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").references(() => organizations.id).notNull(),
+  month: varchar("month", { length: 7 }).notNull(), // Format: 'YYYY-MM'
+  smsCount: integer("sms_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // Unique constraint on org + month combination
+  orgMonthUnique: uniqueIndex("sms_usage_org_month_unique").on(
+    t.orgId,
+    t.month
+  ),
+}));
 
 // Item presets (for billing line items)
 export const itemPresets = pgTable("item_presets", {
@@ -358,6 +375,7 @@ export const insertJobHoursSchema = createInsertSchema(jobHours).omit({ id: true
 export const insertJobPartsSchema = createInsertSchema(jobParts).omit({ id: true, createdAt: true });
 export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans).omit({ createdAt: true });
 export const insertOrgSubscriptionSchema = createInsertSchema(orgSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSmsUsageSchema = createInsertSchema(smsUsage).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -401,3 +419,6 @@ export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema
 
 export type OrgSubscription = typeof orgSubscriptions.$inferSelect;
 export type InsertOrgSubscription = z.infer<typeof insertOrgSubscriptionSchema>;
+
+export type SmsUsage = typeof smsUsage.$inferSelect;
+export type InsertSmsUsage = z.infer<typeof insertSmsUsageSchema>;

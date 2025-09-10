@@ -59,6 +59,9 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     const userId = (req as any).user?.id;
     const { title, customerId, notes, lines = [] } = req.body;
     
+    console.log(`[DEBUG] Invoice creation request:`, { title, customerId, notes, lines });
+    console.log(`[DEBUG] Full request body:`, req.body);
+    
     if (!title || !customerId) {
       return res.status(400).json({ error: "title & customerId required" });
     }

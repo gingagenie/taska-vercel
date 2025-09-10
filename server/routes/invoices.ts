@@ -151,9 +151,6 @@ router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
   const { title, customer_id, notes, lines = [] } = req.body || {};
   
-  console.log(`[DEBUG] Edit invoice ${id} request:`, { title, customer_id, notes, lines });
-  console.log(`[DEBUG] Full edit request body:`, req.body);
-  
   // Update header
   await db.execute(sql`
     update invoices set

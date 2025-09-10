@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { clearDevAuth } from "@/lib/api";
 
@@ -29,9 +29,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [selectedOrgId, setSelectedOrgId] = React.useState<string | null>(null);
-  const [organizations] = React.useState<any[]>([]);
-  const [isProUser, setIsProUser] = React.useState(true); // Enable pro features for demo
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [organizations] = useState<any[]>([]);
+  const [isProUser, setIsProUser] = useState(true); // Enable pro features for demo
   const queryClient = useQueryClient();
 
   // Check authentication status from session

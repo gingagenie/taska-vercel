@@ -49,7 +49,7 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
     where i.org_id=${orgId}::uuid
     order by i.created_at desc
   `);
-  res.json(r.rows);
+  res.json(r);  // Match the working pattern from jobs.ts
 });
 
 /** Create */

@@ -42,14 +42,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const user = authData ? {
-    id: authData.id,
-    name: authData.name,
-    email: authData.email,
-    role: authData.role,
-    initials: authData.name ? authData.name.split(' ').map((n: string) => n[0]).join('').toUpperCase() : 'U',
-    avatar_url: authData.avatar_url,
-    avatar_seed: authData.avatar_seed,
-    avatar_variant: authData.avatar_variant
+    id: (authData as any).id,
+    name: (authData as any).name,
+    email: (authData as any).email,
+    role: (authData as any).role,
+    initials: (authData as any).name ? (authData as any).name.split(' ').map((n: string) => n[0]).join('').toUpperCase() : 'U',
+    avatar_url: (authData as any).avatar_url,
+    avatar_seed: (authData as any).avatar_seed,
+    avatar_variant: (authData as any).avatar_variant
   } : null;
 
   const isAuthenticated = !!authData && !error;
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isLoading,
       isAuthenticated,
-      selectedOrgId: selectedOrgId || authData?.orgId,
+      selectedOrgId: selectedOrgId || (authData as any)?.orgId,
       organizations,
       setSelectedOrgId,
       isProUser,

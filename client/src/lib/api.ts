@@ -182,6 +182,7 @@ export const quotesApi = {
     api("/api/quotes", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) =>
     api(`/api/quotes/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  delete: (id: string) => api(`/api/quotes/${id}`, { method: "DELETE" }),
   // Legacy item methods - deprecated, use update() with lines array instead
   addItem: (id: string, item: any) => 
     api(`/api/quotes/${id}/items`, { method: "POST", body: JSON.stringify(item) }),

@@ -16,8 +16,8 @@ debug.get("/count/:table", async (req: Request, res: Response) => {
     }
 
     // Use the global db connection instead of req.db
-    const result = await db.execute(sql.raw(`SELECT COUNT(*) as count FROM ${table}`));
-    const count = parseInt(result.rows[0].count);
+    const result: any = await db.execute(sql`SELECT COUNT(*) as count FROM ${sql.identifier(table)}`);
+    const count = parseInt(result[0]?.count || 0);
     
     res.json({ table, count });
   } catch (error) {

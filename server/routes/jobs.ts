@@ -1127,10 +1127,12 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       const lowerName = preset.name.toLowerCase();
       presetMap.set(lowerName, preset);
       
-      // Find labor preset (prefer exact matches, then partial)
-      if (!laborPreset && (lowerName === 'labor' || lowerName === 'labour')) {
+      // Find labour preset (Australian spelling first, prefer exact matches, then partial)
+      if (!laborPreset && lowerName === 'labour') {
         laborPreset = preset;
-      } else if (!laborPreset && (lowerName.includes('labor') || lowerName.includes('labour') || lowerName.includes('hour'))) {
+      } else if (!laborPreset && lowerName === 'labor') {
+        laborPreset = preset;
+      } else if (!laborPreset && (lowerName.includes('labour') || lowerName.includes('labor') || lowerName.includes('hour'))) {
         laborPreset = preset;
       }
     }

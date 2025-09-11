@@ -1079,6 +1079,9 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
   if (!isUuid(completedJobId)) return res.status(400).json({ error: "Invalid completedJobId" });
 
   try {
+    // Start transaction
+    await db.execute(sql`BEGIN`);
+
     // Get the completed job details
     const completedJobResult: any = await db.execute(sql`
       SELECT * FROM completed_jobs
@@ -1086,6 +1089,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     `);
 
     if (completedJobResult.length === 0) {
+      await db.execute(sql`ROLLBACK`);
       return res.status(404).json({ error: "Completed job not found" });
     }
 
@@ -1093,10 +1097,51 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 
     // Check if customer exists
     if (!completedJob.customer_id) {
+      await db.execute(sql`ROLLBACK`);
       return res.status(400).json({ error: "Cannot create invoice: job has no customer" });
     }
 
-    // Create invoice from completed job
+    // Check if already converted (idempotency guard)
+    const existingInvoice: any = await db.execute(sql`
+      SELECT id FROM invoices 
+      WHERE org_id = ${orgId}::uuid 
+      AND title = ${`Invoice for: ${completedJob.title}`}
+      AND customer_id = ${completedJob.customer_id}::uuid
+      AND notes = ${completedJob.notes || ''}
+    `);
+
+    if (existingInvoice.length > 0) {
+      await db.execute(sql`ROLLBACK`);
+      return res.status(400).json({ 
+        error: "Invoice already exists for this completed job",
+        invoiceId: existingInvoice[0].id 
+      });
+    }
+
+    // Pre-fetch all item presets to avoid N+1 queries
+    const allPresets: any = await db.execute(sql`
+      SELECT name, unit_amount, tax_rate
+      FROM item_presets
+      WHERE org_id = ${orgId}::uuid
+    `);
+
+    // Build preset lookup maps
+    const presetMap = new Map();
+    let laborPreset = null;
+
+    for (const preset of allPresets) {
+      const lowerName = preset.name.toLowerCase();
+      presetMap.set(lowerName, preset);
+      
+      // Find labor preset (prefer exact matches, then partial)
+      if (!laborPreset && (lowerName === 'labor' || lowerName === 'labour')) {
+        laborPreset = preset;
+      } else if (!laborPreset && (lowerName.includes('labor') || lowerName.includes('labour') || lowerName.includes('hour'))) {
+        laborPreset = preset;
+      }
+    }
+
+    // Create invoice from completed job (notes go into invoice notes, not line items)
     const invoiceResult: any = await db.execute(sql`
       INSERT INTO invoices (org_id, customer_id, title, notes, status, sub_total, tax_total, grand_total)
       VALUES (
@@ -1113,28 +1158,142 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     `);
 
     const invoiceId = invoiceResult[0].id;
+    let position = 0;
+    const lineItems = [];
 
-    // Add a default line item for the completed work
-    await db.execute(sql`
-      INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
-      VALUES (
-        ${orgId}::uuid,
-        ${invoiceId}::uuid,
-        0,
-        ${completedJob.description || `Work completed: ${completedJob.title}`},
-        1,
-        0,
-        0.10
-      )
+    // Get job charges and add them as line items
+    const charges: any = await db.execute(sql`
+      SELECT kind, description, quantity, unit_price, total
+      FROM completed_job_charges
+      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at ASC
     `);
+
+    for (const charge of charges) {
+      const quantity = Number(charge.quantity) || 1;
+      const unitAmount = Number(charge.unit_price) || 0;
+      const taxRate = 10; // 10% as percentage
+
+      await db.execute(sql`
+        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
+        VALUES (
+          ${orgId}::uuid,
+          ${invoiceId}::uuid,
+          ${position},
+          ${charge.description},
+          ${quantity},
+          ${unitAmount},
+          ${taxRate}
+        )
+      `);
+
+      lineItems.push({ quantity, unit_amount: unitAmount, tax_rate: taxRate });
+      position++;
+    }
+
+    // Get job hours and add them as line items with preset pricing lookup
+    const hours: any = await db.execute(sql`
+      SELECT hours, description
+      FROM completed_job_hours
+      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at ASC
+    `);
+
+    for (const hour of hours) {
+      const quantity = Number(hour.hours) || 1;
+      const unitAmount = Number(laborPreset?.unit_amount) || 0;
+      const taxRate = Number(laborPreset?.tax_rate) || 10; // Default 10% if no preset
+
+      await db.execute(sql`
+        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
+        VALUES (
+          ${orgId}::uuid,
+          ${invoiceId}::uuid,
+          ${position},
+          ${hour.description || 'Labor Hours'},
+          ${quantity},
+          ${unitAmount},
+          ${taxRate}
+        )
+      `);
+
+      lineItems.push({ quantity, unit_amount: unitAmount, tax_rate: taxRate });
+      position++;
+    }
+
+    // Get job parts and add them as line items with preset pricing lookup
+    const parts: any = await db.execute(sql`
+      SELECT part_name, quantity
+      FROM completed_job_parts
+      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at ASC
+    `);
+
+    for (const part of parts) {
+      const partName = part.part_name?.trim();
+      if (!partName) continue; // Skip null/empty part names
+
+      const quantity = Number(part.quantity) || 1;
+      const preset = presetMap.get(partName.toLowerCase());
+      const unitAmount = Number(preset?.unit_amount) || 0;
+      const taxRate = Number(preset?.tax_rate) || 10; // Default 10% if no preset
+
+      await db.execute(sql`
+        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
+        VALUES (
+          ${orgId}::uuid,
+          ${invoiceId}::uuid,
+          ${position},
+          ${partName},
+          ${quantity},
+          ${unitAmount},
+          ${taxRate}
+        )
+      `);
+
+      lineItems.push({ quantity, unit_amount: unitAmount, tax_rate: taxRate });
+      position++;
+    }
+
+    // If no charges, hours, or parts were found, add a default line item
+    if (charges.length === 0 && hours.length === 0 && parts.length === 0) {
+      await db.execute(sql`
+        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
+        VALUES (
+          ${orgId}::uuid,
+          ${invoiceId}::uuid,
+          0,
+          ${completedJob.description || `Work completed: ${completedJob.title}`},
+          1,
+          0,
+          10
+        )
+      `);
+      lineItems.push({ quantity: 1, unit_amount: 0, tax_rate: 10 });
+    }
+
+    // Calculate totals using the sumLines utility
+    const { sumLines } = await import("../lib/totals.js");
+    const { sub_total, tax_total, grand_total } = sumLines(lineItems);
+
+    // Update invoice with calculated totals
+    await db.execute(sql`
+      UPDATE invoices 
+      SET sub_total = ${sub_total}, tax_total = ${tax_total}, grand_total = ${grand_total}
+      WHERE id = ${invoiceId}::uuid AND org_id = ${orgId}::uuid
+    `);
+
+    // Commit transaction
+    await db.execute(sql`COMMIT`);
 
     res.json({ 
       ok: true, 
       invoiceId: invoiceId,
-      message: "Invoice created successfully. Please edit the invoice to add pricing details."
+      message: `Invoice created successfully with ${position} line items. Total: $${grand_total.toFixed(2)}`
     });
 
   } catch (e: any) {
+    await db.execute(sql`ROLLBACK`);
     console.error("POST /api/jobs/completed/:completedJobId/convert-to-invoice error:", e);
     res.status(500).json({ error: e?.message || "Failed to convert to invoice" });
   }

@@ -1079,9 +1079,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
   if (!isUuid(completedJobId)) return res.status(400).json({ error: "Invalid completedJobId" });
 
   try {
-    // Start transaction
-    await db.execute(sql`BEGIN`);
-
     // Get the completed job details
     const completedJobResult: any = await db.execute(sql`
       SELECT * FROM completed_jobs
@@ -1089,7 +1086,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     `);
 
     if (completedJobResult.length === 0) {
-      await db.execute(sql`ROLLBACK`);
       return res.status(404).json({ error: "Completed job not found" });
     }
 
@@ -1097,7 +1093,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 
     // Check if customer exists
     if (!completedJob.customer_id) {
-      await db.execute(sql`ROLLBACK`);
       return res.status(400).json({ error: "Cannot create invoice: job has no customer" });
     }
 
@@ -1111,7 +1106,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     `);
 
     if (existingInvoice.length > 0) {
-      await db.execute(sql`ROLLBACK`);
       return res.status(400).json({ 
         error: "Invoice already exists for this completed job",
         invoiceId: existingInvoice[0].id 
@@ -1283,9 +1277,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       WHERE id = ${invoiceId}::uuid AND org_id = ${orgId}::uuid
     `);
 
-    // Commit transaction
-    await db.execute(sql`COMMIT`);
-
     res.json({ 
       ok: true, 
       invoiceId: invoiceId,
@@ -1293,7 +1284,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     });
 
   } catch (e: any) {
-    await db.execute(sql`ROLLBACK`);
     console.error("POST /api/jobs/completed/:completedJobId/convert-to-invoice error:", e);
     res.status(500).json({ error: e?.message || "Failed to convert to invoice" });
   }

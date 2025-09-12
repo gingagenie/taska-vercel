@@ -7,9 +7,7 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { ExternalLink, Mail } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useQuery } from "@tanstack/react-query";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
@@ -20,12 +18,14 @@ export default function InvoiceView() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [creatingXero, setCreatingXero] = useState(false);
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [emailAddress, setEmailAddress] = useState("");
-  const [sendingEmail, setSendingEmail] = useState(false);
-  const [emailStep, setEmailStep] = useState<'input' | 'preview'>('input');
-  const [emailPreview, setEmailPreview] = useState<{subject: string; html: string; text: string} | null>(null);
   const { toast } = useToast();
+
+  // Fetch customers and user data for preview
+  const { data: customers = [] } = useQuery({
+    queryKey: ["/api/customers"],
+  });
+
+  const { data: meData } = useQuery({ queryKey: ["/api/me"] });
 
   useEffect(() => {
     if (!id) return;
@@ -33,10 +33,6 @@ export default function InvoiceView() {
       try {
         const i = await invoicesApi.get(id);
         setInvoice(i);
-        // Pre-populate email if customer has one
-        if (i.customer_email) {
-          setEmailAddress(i.customer_email);
-        }
       } catch (e: any) {
         setErr(e.message);
       } finally {
@@ -54,6 +50,23 @@ export default function InvoiceView() {
     } catch (e: any) {
       setErr(e.message);
     }
+  }
+
+  // Calculate totals from invoice items (consistent with quotes)
+  function calculateTotals(items: any[]) {
+    const subtotal = items.reduce((sum, item) => {
+      return sum + (Number(item.quantity || 0) * Number(item.unit_price || 0));
+    }, 0);
+    
+    const gst = items.reduce((sum, item) => {
+      const itemTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
+      const taxRate = Number(item.tax_rate || 0) / 100;
+      return sum + (itemTotal * taxRate);
+    }, 0);
+    
+    const total = subtotal + gst;
+    
+    return { subtotal, gst, total };
   }
 
   async function handleCreateInXero() {
@@ -81,106 +94,181 @@ export default function InvoiceView() {
     }
   }
 
-  function generateEmailPreview() {
-    if (!invoice) return null;
-    
-    const orgName = "Taska"; // Could get from org context
-    const subject = `Invoice ${invoice.title} from ${orgName}`;
-    
-    const itemsHtml = invoice.items?.map((item: any) => `
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.description}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${Number(item.quantity).toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${Number(item.unit_price).toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${(Number(item.quantity) * Number(item.unit_price)).toFixed(2)}</td>
-      </tr>
-    `).join('') || '<tr><td colspan="4" style="padding: 16px; text-align: center; color: #666;">No items</td></tr>';
-
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #333; margin: 0;">${orgName}</h1>
-          <p style="color: #666; margin: 5px 0;">Invoice</p>
-        </div>
-        
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-          <h2 style="margin: 0 0 15px 0; color: #333;">Invoice ${invoice.title}</h2>
-          <p style="margin: 5px 0; color: #666;">Customer: ${invoice.customer_name || 'N/A'}</p>
-          <p style="margin: 5px 0; color: #666;">Date: ${new Date(invoice.date).toLocaleDateString()}</p>
-          <p style="margin: 5px 0; color: #666;">Status: ${invoice.status}</p>
-        </div>
-
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
-          <thead>
-            <tr style="background: #f8f9fa;">
-              <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">Description</th>
-              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Qty</th>
-              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Unit Price</th>
-              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
-
-        <div style="text-align: right; margin-bottom: 30px;">
-          <p style="margin: 5px 0; font-size: 18px; font-weight: bold;">Total: $${Number(invoice.total_amount).toFixed(2)}</p>
-        </div>
-
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; color: #666;">Thank you for your business!</p>
-          <p style="margin: 5px 0 0 0; color: #666;">If you have any questions, please don't hesitate to contact us.</p>
-        </div>
-      </div>
-    `;
-
-    const text = `Invoice ${invoice.title} from ${orgName}\n\nCustomer: ${invoice.customer_name || 'N/A'}\nDate: ${new Date(invoice.date).toLocaleDateString()}\nStatus: ${invoice.status}\n\nTotal: $${Number(invoice.total_amount).toFixed(2)}\n\nThank you for your business!`;
-
-    return { subject, html, text };
+  // Safe HTML escaping function to prevent XSS
+  function escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
-  function handlePreviewEmail() {
-    if (!emailAddress.trim()) return;
-    const preview = generateEmailPreview();
-    if (preview) {
-      setEmailPreview(preview);
-      setEmailStep('preview');
-    }
-  }
-
-  async function handleSendEmail() {
-    if (!id || !emailAddress.trim()) return;
-    setSendingEmail(true);
-    try {
-      await invoicesApi.sendEmail(id, { email: emailAddress.trim() });
+  function handlePreview() {
+    if (!invoice) return;
+    
+    // Open preview window synchronously from user click to avoid popup blocking
+    const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');
+    if (!previewWindow) {
       toast({
-        title: "Invoice sent",
-        description: `Invoice sent successfully to ${emailAddress}`,
-      });
-      setEmailDialogOpen(false);
-      setEmailStep('input');
-      setEmailPreview(null);
-      
-      // Refresh invoice data to reflect status change
-      const updatedInvoice = await invoicesApi.get(id);
-      setInvoice(updatedInvoice);
-    } catch (e: any) {
-      toast({
-        title: "Failed to send email",
-        description: e.message || "Unable to send invoice email",
+        title: "Popup blocked",
+        description: "Please allow popups for this site to preview invoices.",
         variant: "destructive",
       });
-    } finally {
-      setSendingEmail(false);
+      return;
     }
+
+    const customer = (customers as any[]).find((c: any) => c.id === invoice.customer_id) || {};
+    const org = (meData as any)?.org || {};
+    const items = invoice.items || [];
+    const totals = calculateTotals(items);
+    
+    // Safely escape all user data to prevent XSS
+    const safeData = {
+      title: escapeHtml(invoice.title || ''),
+      orgName: escapeHtml(org.name || 'Your Company'),
+      orgStreet: escapeHtml(org.street || ''),
+      orgSuburb: escapeHtml(org.suburb || ''),
+      orgState: escapeHtml(org.state || ''),
+      orgPostcode: escapeHtml(org.postcode || ''),
+      orgAbn: escapeHtml(org.abn || ''),
+      customerName: escapeHtml(customer.name || 'Customer Name'),
+      customerEmail: escapeHtml(customer.email || ''),
+      customerPhone: escapeHtml(customer.phone || ''),
+      customerAddress: escapeHtml(customer.address || ''),
+      customerStreet: escapeHtml(customer.street || ''),
+      customerSuburb: escapeHtml(customer.suburb || ''),
+      customerState: escapeHtml(customer.state || ''),
+      customerPostcode: escapeHtml(customer.postcode || ''),
+      notes: escapeHtml(invoice.notes || '').replace(/\n/g, '<br>'),
+      number: escapeHtml(invoice.number || 'INV-001'),
+    };
+    
+    previewWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice Preview - ${safeData.title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 30px; }
+            .company-info h1 { color: #0ea5e9; margin: 0; }
+            .invoice-info { text-align: right; }
+            .customer-section { margin: 30px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+            th { background-color: #f8f9fa; font-weight: 600; }
+            .amount { text-align: right; }
+            .totals { margin-top: 30px; text-align: right; }
+            .totals table { width: 300px; margin-left: auto; }
+            .total-row { font-weight: bold; font-size: 1.1em; }
+            .summary-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; }
+            .terms { margin-top: 40px; padding: 20px; border-top: 2px solid #ddd; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="company-info">
+              <h1>${safeData.orgName}</h1>
+              <p>${[safeData.orgStreet, safeData.orgSuburb, safeData.orgState, safeData.orgPostcode].filter(Boolean).join(', ') || 'Field Service Management'}</p>
+              ${safeData.orgAbn ? `<p>ABN: ${safeData.orgAbn}</p>` : ''}
+            </div>
+            <div class="invoice-info">
+              <h2>INVOICE</h2>
+              <p><strong>Date:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+              <p><strong>Invoice #:</strong> ${safeData.number}</p>
+              <p><strong>Status:</strong> ${escapeHtml(invoice.status)}</p>
+            </div>
+          </div>
+          
+          <div class="customer-section">
+            <h3>Bill To:</h3>
+            <p><strong>${safeData.customerName}</strong></p>
+            ${safeData.customerEmail ? `<p>${safeData.customerEmail}</p>` : ''}
+            ${safeData.customerPhone ? `<p>${safeData.customerPhone}</p>` : ''}
+            ${safeData.customerAddress ? `<p>${safeData.customerAddress}</p>` : ''}
+            ${[safeData.customerStreet, safeData.customerSuburb, safeData.customerState, safeData.customerPostcode].filter(Boolean).length > 0 ? `<p>${[safeData.customerStreet, safeData.customerSuburb, safeData.customerState, safeData.customerPostcode].filter(Boolean).join(', ')}</p>` : ''}
+          </div>
+
+          ${safeData.notes ? `
+            <div class="summary-section">
+              <h3>Notes:</h3>
+              <p>${safeData.notes}</p>
+            </div>
+          ` : ''}
+
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th class="amount">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map((item: any) => {
+                const qty = Number(item.quantity || 0);
+                const price = Number(item.unit_price || 0);
+                const amount = qty * price;
+                const description = escapeHtml(item.description || '');
+                return `
+                  <tr>
+                    <td>${description}</td>
+                    <td>${qty.toFixed(2)}</td>
+                    <td>$${price.toFixed(2)}</td>
+                    <td class="amount">$${amount.toFixed(2)}</td>
+                  </tr>
+                `;
+              }).join('')}
+              ${items.length === 0 ? '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #666;">No items</td></tr>' : ''}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <table>
+              <tr><td>Subtotal:</td><td class="amount">$${totals.subtotal.toFixed(2)}</td></tr>
+              <tr><td>GST:</td><td class="amount">$${totals.gst.toFixed(2)}</td></tr>
+              <tr class="total-row"><td>Total:</td><td class="amount">$${totals.total.toFixed(2)}</td></tr>
+            </table>
+          </div>
+
+          <div style="position: fixed; top: 10px; right: 10px; z-index: 1000;">
+            <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
+            <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
+            <button 
+              data-invoice-id="${JSON.stringify(id || '')}"
+              onclick="
+                var invoiceId = JSON.parse(this.getAttribute('data-invoice-id'));
+                var email = prompt('Enter email address to send invoice:');
+                if (email && email.trim()) {
+                  fetch('/api/invoices/' + encodeURIComponent(invoiceId) + '/email', {
+                    method: 'POST',
+                    headers: { 
+                      'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ email: email.trim() })
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                    if (data.ok) {
+                      alert('Invoice sent successfully to ' + email);
+                    } else {
+                      alert('Failed to send: ' + (data.error || 'Unknown error'));
+                    }
+                  })
+                  .catch(err => {
+                    alert('Failed to send: ' + err.message);
+                  });
+                }
+              " 
+              style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">📧 Send</button>
+          </div>
+        </body>
+      </html>
+    `);
+    previewWindow.document.close();
   }
 
-  function handleCloseEmailDialog() {
-    setEmailDialogOpen(false);
-    setEmailStep('input');
-    setEmailPreview(null);
-  }
 
   if (loading) return <div className="page">Loading…</div>;
   if (!invoice) return <div className="page">Invoice not found</div>;
@@ -191,6 +279,15 @@ export default function InvoiceView() {
         <h1 className="text-2xl font-bold">{invoice.title}</h1>
         <div className="header-actions">
           <Link href={`/invoices/${id}/edit`}><a><Button variant="outline">Edit</Button></a></Link>
+          <Button 
+            variant="outline"
+            className="flex items-center gap-2"
+            data-testid="button-email-invoice"
+            onClick={handlePreview}
+          >
+            <Mail className="h-4 w-4" />
+            Email
+          </Button>
           {invoice.status !== 'paid' && invoice.status !== 'void' && (
             <Button onClick={handleMarkPaid}>Mark Paid</Button>
           )}
@@ -270,11 +367,15 @@ export default function InvoiceView() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span>${Number(invoice.subtotal || 0).toFixed(2)}</span>
+                  <span>${Number(invoice.subTotal || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>GST:</span>
+                  <span>${Number(invoice.taxTotal || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-medium text-lg">
                   <span>Total:</span>
-                  <span>${Number(invoice.total || 0).toFixed(2)}</span>
+                  <span>${Number(invoice.grandTotal || 0).toFixed(2)}</span>
                 </div>
               </div>
             </CardContent>
@@ -282,106 +383,6 @@ export default function InvoiceView() {
         </div>
       </div>
 
-      {/* Email Dialog */}
-      <Dialog open={emailDialogOpen} onOpenChange={(open) => {
-        if (!open) {
-          setEmailDialogOpen(false);
-          setEmailStep('input');
-          setEmailPreview(null);
-        } else {
-          setEmailDialogOpen(true);
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {emailStep === 'input' ? 'Send Invoice via Email' : 'Email Preview'}
-            </DialogTitle>
-          </DialogHeader>
-          
-          {emailStep === 'input' && (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="email">Customer Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={emailAddress}
-                  onChange={(e) => setEmailAddress(e.target.value)}
-                  placeholder="customer@example.com"
-                  data-testid="input-invoice-email"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={handleCloseEmailDialog}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handlePreviewEmail}
-                  disabled={!emailAddress.trim()}
-                  data-testid="button-preview-invoice-email"
-                >
-                  Preview Email
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {emailStep === 'preview' && emailPreview && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <Label className="font-medium">To:</Label>
-                  <p className="text-muted-foreground">{emailAddress}</p>
-                </div>
-                <div>
-                  <Label className="font-medium">From:</Label>
-                  <p className="text-muted-foreground">Taska &lt;noreply@taska.info&gt;</p>
-                </div>
-                <div>
-                  <Label className="font-medium">Subject:</Label>
-                  <p className="text-muted-foreground">{emailPreview.subject}</p>
-                </div>
-              </div>
-              
-              <div className="border rounded-lg p-4 bg-white">
-                <div 
-                  className="prose max-w-none"
-                  dangerouslySetInnerHTML={{ __html: emailPreview.html }}
-                />
-              </div>
-              
-              <div className="flex justify-between gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setEmailStep('input')}
-                  data-testid="button-back-to-email-input"
-                >
-                  ← Back
-                </Button>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={handleCloseEmailDialog}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleSendEmail}
-                    disabled={sendingEmail}
-                    data-testid="button-send-invoice-email"
-                  >
-                    {sendingEmail ? "Sending..." : "Send Invoice"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

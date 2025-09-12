@@ -317,7 +317,7 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
 
     // Get organization name for branding
     const orgResult: any = await db.execute(sql`
-      select name from organizations where id=${orgId}::uuid
+      select name from orgs where id=${orgId}::uuid
     `);
     const orgName = orgResult[0]?.name || "Your Business";
 
@@ -373,7 +373,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
 
     // Get organization name for branding
     const orgResult: any = await db.execute(sql`
-      select name from organizations where id=${orgId}::uuid
+      select name from orgs where id=${orgId}::uuid
     `);
     const orgName = orgResult[0]?.name || "Your Business";
 

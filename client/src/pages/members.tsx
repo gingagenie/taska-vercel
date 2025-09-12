@@ -18,7 +18,9 @@ export default function MembersPage() {
     queryKey: ["/api/members"],
     queryFn: membersApi.getAll,
     staleTime: 0,
+    gcTime: 0, // Force no caching to get latest data (v5 syntax)
     refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);

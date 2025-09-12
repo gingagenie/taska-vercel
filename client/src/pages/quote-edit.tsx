@@ -101,6 +101,7 @@ export default function QuoteEdit() {
     // TODO: Add send functionality
   }
 
+
   function handlePreview(payload: any) {
     // Create a preview window with the quote data
     const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');

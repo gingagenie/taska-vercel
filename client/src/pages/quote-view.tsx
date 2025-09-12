@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { ExternalLink, Mail } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 export default function QuoteView() {
   const [match, params] = useRoute("/quotes/:id");
@@ -18,6 +19,13 @@ export default function QuoteView() {
   const [err, setErr] = useState<string | null>(null);
   const [creatingXero, setCreatingXero] = useState(false);
   const { toast } = useToast();
+
+  // Fetch customers and user data for preview
+  const { data: customers = [] } = useQuery({
+    queryKey: ["/api/customers"],
+  });
+
+  const { data: meData } = useQuery({ queryKey: ["/api/me"] });
 
   useEffect(() => {
     if (!id) return;
@@ -79,6 +87,206 @@ export default function QuoteView() {
     }
   }
 
+  // Safe HTML escaping function to prevent XSS
+  function escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Calculate totals from quote items
+  function calculateTotals(items: any[]) {
+    const subtotal = items.reduce((sum, item) => {
+      return sum + (Number(item.quantity || 0) * Number(item.unit_price || 0));
+    }, 0);
+    
+    const gst = items.reduce((sum, item) => {
+      const itemTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
+      const taxRate = Number(item.tax_rate || 0) / 100;
+      return sum + (itemTotal * taxRate);
+    }, 0);
+    
+    const total = subtotal + gst;
+    
+    return { subtotal, gst, total };
+  }
+
+  function handlePreview() {
+    if (!quote) return;
+    
+    // Open preview window synchronously from user click to avoid popup blocking
+    const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');
+    if (!previewWindow) {
+      toast({
+        title: "Popup blocked",
+        description: "Please allow popups for this site to preview quotes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const customer = (customers as any[]).find((c: any) => c.id === quote.customer_id) || {};
+    const org = (meData as any)?.org || {};
+    const items = quote.items || [];
+    const totals = calculateTotals(items);
+    
+    // Safely escape all user data to prevent XSS
+    const safeData = {
+      title: escapeHtml(quote.title || ''),
+      orgName: escapeHtml(org.name || 'Your Company'),
+      orgStreet: escapeHtml(org.street || ''),
+      orgSuburb: escapeHtml(org.suburb || ''),
+      orgState: escapeHtml(org.state || ''),
+      orgPostcode: escapeHtml(org.postcode || ''),
+      orgAbn: escapeHtml(org.abn || ''),
+      customerName: escapeHtml(customer.name || 'Customer Name'),
+      customerEmail: escapeHtml(customer.email || ''),
+      customerPhone: escapeHtml(customer.phone || ''),
+      customerAddress: escapeHtml(customer.address || ''),
+      customerStreet: escapeHtml(customer.street || ''),
+      customerSuburb: escapeHtml(customer.suburb || ''),
+      customerState: escapeHtml(customer.state || ''),
+      customerPostcode: escapeHtml(customer.postcode || ''),
+      notes: escapeHtml(quote.notes || '').replace(/\n/g, '<br>'),
+      terms: escapeHtml(quote.terms || '').replace(/\n/g, '<br>'),
+      number: escapeHtml(quote.number || 'QUOTE-001'),
+    };
+    
+    previewWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Quote Preview - ${safeData.title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 30px; }
+            .company-info h1 { color: #0ea5e9; margin: 0; }
+            .quote-info { text-align: right; }
+            .customer-section { margin: 30px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+            th { background-color: #f8f9fa; font-weight: 600; }
+            .amount { text-align: right; }
+            .totals { margin-top: 30px; text-align: right; }
+            .totals table { width: 300px; margin-left: auto; }
+            .total-row { font-weight: bold; font-size: 1.1em; }
+            .summary-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; }
+            .terms { margin-top: 40px; padding: 20px; border-top: 2px solid #ddd; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="company-info">
+              <h1>${safeData.orgName}</h1>
+              <p>${[safeData.orgStreet, safeData.orgSuburb, safeData.orgState, safeData.orgPostcode].filter(Boolean).join(', ') || 'Field Service Management'}</p>
+              ${safeData.orgAbn ? `<p>ABN: ${safeData.orgAbn}</p>` : ''}
+            </div>
+            <div class="quote-info">
+              <h2>QUOTE</h2>
+              <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+              <p><strong>Quote #:</strong> ${safeData.number}</p>
+            </div>
+          </div>
+          
+          <div class="customer-section">
+            <h3>Quote For:</h3>
+            <p><strong>${safeData.customerName}</strong></p>
+            ${safeData.customerEmail ? `<p>${safeData.customerEmail}</p>` : ''}
+            ${safeData.customerPhone ? `<p>${safeData.customerPhone}</p>` : ''}
+            ${safeData.customerAddress ? `<p>${safeData.customerAddress}</p>` : ''}
+            ${[safeData.customerStreet, safeData.customerSuburb, safeData.customerState, safeData.customerPostcode].filter(Boolean).length > 0 ? `<p>${[safeData.customerStreet, safeData.customerSuburb, safeData.customerState, safeData.customerPostcode].filter(Boolean).join(', ')}</p>` : ''}
+          </div>
+
+          ${safeData.notes ? `
+            <div class="summary-section">
+              <h3>Summary:</h3>
+              <p>${safeData.notes}</p>
+            </div>
+          ` : ''}
+
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Tax</th>
+                <th class="amount">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map((item: any) => {
+                const qty = Number(item.quantity || 0);
+                const price = Number(item.unit_price || 0);
+                const taxRate = Number(item.tax_rate || 0) / 100;
+                const amount = qty * price;
+                const taxAmount = amount * taxRate;
+                const total = amount + taxAmount;
+                const description = escapeHtml(item.description || '');
+                return `
+                  <tr>
+                    <td>${description}</td>
+                    <td>${qty.toFixed(2)}</td>
+                    <td>$${price.toFixed(2)}</td>
+                    <td>${taxRate > 0 ? 'GST' : 'None'}</td>
+                    <td class="amount">$${total.toFixed(2)}</td>
+                  </tr>
+                `;
+              }).join('')}
+              ${items.length === 0 ? '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #666;">No items</td></tr>' : ''}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <table>
+              <tr><td>Subtotal:</td><td class="amount">$${totals.subtotal.toFixed(2)}</td></tr>
+              <tr><td>GST:</td><td class="amount">$${totals.gst.toFixed(2)}</td></tr>
+              <tr class="total-row"><td>Total:</td><td class="amount">$${totals.total.toFixed(2)}</td></tr>
+            </table>
+          </div>
+
+          ${safeData.terms ? `
+            <div class="terms">
+              <h3>Terms & Conditions:</h3>
+              <p>${safeData.terms}</p>
+            </div>
+          ` : ''}
+
+          <div style="position: fixed; top: 10px; right: 10px; z-index: 1000;">
+            <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
+            <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
+            <button onclick="
+              var email = prompt('Enter email address to send quote:');
+              if (email && email.trim()) {
+                fetch('/api/quotes/${escapeHtml(id || '')}/email', {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json'
+                  },
+                  credentials: 'include',
+                  body: JSON.stringify({ email: email.trim() })
+                })
+                .then(response => response.json())
+                .then(data => {
+                  if (data.ok) {
+                    alert('Quote sent successfully to ' + email);
+                  } else {
+                    alert('Failed to send: ' + (data.error || 'Unknown error'));
+                  }
+                })
+                .catch(err => {
+                  alert('Failed to send: ' + err.message);
+                });
+              }
+            " style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">📧 Send</button>
+          </div>
+        </body>
+      </html>
+    `);
+    previewWindow.document.close();
+  }
+
 
 
   if (loading) return <div className="page">Loading…</div>;
@@ -90,18 +298,15 @@ export default function QuoteView() {
         <h1 className="text-2xl font-bold">{quote.title}</h1>
         <div className="header-actions">
           <Link href={`/quotes/${id}/edit`}><a><Button variant="outline">Edit</Button></a></Link>
-          <Link href={`/quotes/${id}/edit`}>
-            <a>
-              <Button 
-                variant="outline"
-                className="flex items-center gap-2"
-                data-testid="button-email-quote"
-              >
-                <Mail className="h-4 w-4" />
-                Email
-              </Button>
-            </a>
-          </Link>
+          <Button 
+            variant="outline"
+            className="flex items-center gap-2"
+            data-testid="button-email-quote"
+            onClick={handlePreview}
+          >
+            <Mail className="h-4 w-4" />
+            Email
+          </Button>
           {quote.status === 'sent' && (
             <Button onClick={handleAccept}>Accept</Button>
           )}

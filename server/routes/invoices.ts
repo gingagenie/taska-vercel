@@ -392,14 +392,20 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       select * from invoice_lines where invoice_id=${id}::uuid order by created_at nulls last, id
     `);
 
+    console.log('DEBUG - Invoice items from DB:', JSON.stringify(items, null, 2));
+
     // Prepare invoice data for email template
     const invoiceData = {
       ...invoice,
-      items: items.map((item: any) => ({
-        description: item.description || 'Item',
-        quantity: Number(item.quantity || 1),
-        unit_price: Number(item.unit_amount || item.unit_price || 0)
-      }))
+      items: items.map((item: any) => {
+        const mapped = {
+          description: item.description || 'Item',
+          quantity: Number(item.quantity || 1),
+          unit_price: Number(item.unit_amount || item.unit_price || 0)
+        };
+        console.log('DEBUG - Mapped item:', JSON.stringify(mapped, null, 2));
+        return mapped;
+      })
     };
 
     // Get organization name for branding

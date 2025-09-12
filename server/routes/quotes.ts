@@ -6,6 +6,7 @@ import { requireOrg } from "../middleware/tenancy";
 import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
 import { xeroService } from "../services/xero";
 import { sumLines } from "../lib/totals";
+import { sendEmail, generateQuoteEmailTemplate } from "../services/email";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -277,6 +278,83 @@ router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
       return res.status(401).json({ error: "Xero integration not connected. Please connect Xero in Settings." });
     }
     res.status(500).json({ error: "Failed to create quote in Xero" });
+  }
+});
+
+/** Send quote via email */
+router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  const { email, fromEmail = "noreply@taska.info", fromName = "Taska" } = req.body;
+  
+  if (!isUuid(id)) return res.status(400).json({ error: "Invalid quote ID" });
+  if (!email) return res.status(400).json({ error: "Customer email is required" });
+  
+  try {
+    // Get quote with customer details and lines
+    const quoteResult: any = await db.execute(sql`
+      select q.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
+      from quotes q join customers c on c.id=q.customer_id
+      where q.id=${id}::uuid and q.org_id=${orgId}::uuid
+    `);
+    const quote = quoteResult[0];
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    // Get quote lines
+    const lines: any = await db.execute(sql`
+      select * from quote_lines where quote_id=${id}::uuid order by position asc, created_at asc
+    `);
+
+    // Prepare quote data for email template
+    const quoteData = {
+      ...quote,
+      items: lines.map((line: any) => ({
+        description: line.description,
+        quantity: line.quantity,
+        unit_price: line.unit_amount
+      }))
+    };
+
+    // Get organization name for branding
+    const orgResult: any = await db.execute(sql`
+      select name from organizations where id=${orgId}::uuid
+    `);
+    const orgName = orgResult[0]?.name || "Your Business";
+
+    // Generate email content
+    const { subject, html, text } = generateQuoteEmailTemplate(quoteData, orgName);
+
+    // Send email
+    const emailSent = await sendEmail({
+      to: email,
+      from: `${fromName} <${fromEmail}>`,
+      subject,
+      html,
+      text
+    });
+
+    if (!emailSent) {
+      return res.status(500).json({ error: "Failed to send email" });
+    }
+
+    // Update quote status to 'sent' if it was 'draft'
+    if (quote.status === 'draft') {
+      await db.execute(sql`
+        update quotes 
+        set status='sent', updated_at=now() 
+        where id=${id}::uuid and org_id=${orgId}::uuid
+      `);
+    }
+
+    res.json({ 
+      ok: true, 
+      message: `Quote sent successfully to ${email}`,
+      email: email
+    });
+
+  } catch (error) {
+    console.error('Error sending quote email:', error);
+    res.status(500).json({ error: "Failed to send quote email" });
   }
 });
 

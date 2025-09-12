@@ -6,6 +6,7 @@ import { requireOrg } from "../middleware/tenancy";
 import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
 import { xeroService } from "../services/xero";
 import { sumLines } from "../lib/totals";
+import { sendEmail, generateInvoiceEmailTemplate } from "../services/email";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -308,6 +309,83 @@ router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
       return res.status(401).json({ error: "Xero integration not connected. Please connect Xero in Settings." });
     }
     res.status(500).json({ error: "Failed to create invoice in Xero" });
+  }
+});
+
+/** Send invoice via email */
+router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  const { email, fromEmail = "noreply@taska.info", fromName = "Taska" } = req.body;
+  
+  if (!isUuid(id)) return res.status(400).json({ error: "Invalid invoice ID" });
+  if (!email) return res.status(400).json({ error: "Customer email is required" });
+  
+  try {
+    // Get invoice with customer details and items
+    const invoiceResult: any = await db.execute(sql`
+      select i.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
+      from invoices i join customers c on c.id=i.customer_id
+      where i.id=${id}::uuid and i.org_id=${orgId}::uuid
+    `);
+    const invoice = invoiceResult[0];
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    // Get invoice items
+    const items: any = await db.execute(sql`
+      select * from invoice_items where invoice_id=${id}::uuid order by created_at nulls last, id
+    `);
+
+    // Prepare invoice data for email template
+    const invoiceData = {
+      ...invoice,
+      items: items.map((item: any) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price
+      }))
+    };
+
+    // Get organization name for branding
+    const orgResult: any = await db.execute(sql`
+      select name from organizations where id=${orgId}::uuid
+    `);
+    const orgName = orgResult[0]?.name || "Your Business";
+
+    // Generate email content
+    const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, orgName);
+
+    // Send email
+    const emailSent = await sendEmail({
+      to: email,
+      from: `${fromName} <${fromEmail}>`,
+      subject,
+      html,
+      text
+    });
+
+    if (!emailSent) {
+      return res.status(500).json({ error: "Failed to send email" });
+    }
+
+    // Update invoice status to 'sent' if it was 'draft'
+    if (invoice.status === 'draft') {
+      await db.execute(sql`
+        update invoices 
+        set status='sent', updated_at=now() 
+        where id=${id}::uuid and org_id=${orgId}::uuid
+      `);
+    }
+
+    res.json({ 
+      ok: true, 
+      message: `Invoice sent successfully to ${email}`,
+      email: email
+    });
+
+  } catch (error) {
+    console.error('Error sending invoice email:', error);
+    res.status(500).json({ error: "Failed to send invoice email" });
   }
 });
 

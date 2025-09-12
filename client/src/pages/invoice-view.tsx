@@ -23,6 +23,8 @@ export default function InvoiceView() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailAddress, setEmailAddress] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailStep, setEmailStep] = useState<'input' | 'preview'>('input');
+  const [emailPreview, setEmailPreview] = useState<{subject: string; html: string; text: string} | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -79,6 +81,74 @@ export default function InvoiceView() {
     }
   }
 
+  function generateEmailPreview() {
+    if (!invoice) return null;
+    
+    const orgName = "Taska"; // Could get from org context
+    const subject = `Invoice ${invoice.title} from ${orgName}`;
+    
+    const itemsHtml = invoice.items?.map((item: any) => `
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.description}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${Number(item.quantity).toFixed(2)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${Number(item.unit_price).toFixed(2)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${(Number(item.quantity) * Number(item.unit_price)).toFixed(2)}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" style="padding: 16px; text-align: center; color: #666;">No items</td></tr>';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin: 0;">${orgName}</h1>
+          <p style="color: #666; margin: 5px 0;">Invoice</p>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+          <h2 style="margin: 0 0 15px 0; color: #333;">Invoice ${invoice.title}</h2>
+          <p style="margin: 5px 0; color: #666;">Customer: ${invoice.customer_name || 'N/A'}</p>
+          <p style="margin: 5px 0; color: #666;">Date: ${new Date(invoice.date).toLocaleDateString()}</p>
+          <p style="margin: 5px 0; color: #666;">Status: ${invoice.status}</p>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+          <thead>
+            <tr style="background: #f8f9fa;">
+              <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">Description</th>
+              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Qty</th>
+              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Unit Price</th>
+              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div style="text-align: right; margin-bottom: 30px;">
+          <p style="margin: 5px 0; font-size: 18px; font-weight: bold;">Total: $${Number(invoice.total_amount).toFixed(2)}</p>
+        </div>
+
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
+          <p style="margin: 0; color: #666;">Thank you for your business!</p>
+          <p style="margin: 5px 0 0 0; color: #666;">If you have any questions, please don't hesitate to contact us.</p>
+        </div>
+      </div>
+    `;
+
+    const text = `Invoice ${invoice.title} from ${orgName}\n\nCustomer: ${invoice.customer_name || 'N/A'}\nDate: ${new Date(invoice.date).toLocaleDateString()}\nStatus: ${invoice.status}\n\nTotal: $${Number(invoice.total_amount).toFixed(2)}\n\nThank you for your business!`;
+
+    return { subject, html, text };
+  }
+
+  function handlePreviewEmail() {
+    if (!emailAddress.trim()) return;
+    const preview = generateEmailPreview();
+    if (preview) {
+      setEmailPreview(preview);
+      setEmailStep('preview');
+    }
+  }
+
   async function handleSendEmail() {
     if (!id || !emailAddress.trim()) return;
     setSendingEmail(true);
@@ -89,6 +159,8 @@ export default function InvoiceView() {
         description: `Invoice sent successfully to ${emailAddress}`,
       });
       setEmailDialogOpen(false);
+      setEmailStep('input');
+      setEmailPreview(null);
       
       // Refresh invoice data to reflect status change
       const updatedInvoice = await invoicesApi.get(id);
@@ -102,6 +174,12 @@ export default function InvoiceView() {
     } finally {
       setSendingEmail(false);
     }
+  }
+
+  function handleCloseEmailDialog() {
+    setEmailDialogOpen(false);
+    setEmailStep('input');
+    setEmailPreview(null);
   }
 
   if (loading) return <div className="page">Loading…</div>;
@@ -213,40 +291,95 @@ export default function InvoiceView() {
       </div>
 
       {/* Email Dialog */}
-      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
-        <DialogContent>
+      <Dialog open={emailDialogOpen} onOpenChange={handleCloseEmailDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Send Invoice via Email</DialogTitle>
+            <DialogTitle>
+              {emailStep === 'input' ? 'Send Invoice via Email' : 'Email Preview'}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="email">Customer Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={emailAddress}
-                onChange={(e) => setEmailAddress(e.target.value)}
-                placeholder="customer@example.com"
-                data-testid="input-invoice-email"
-              />
+          
+          {emailStep === 'input' && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="email">Customer Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={emailAddress}
+                  onChange={(e) => setEmailAddress(e.target.value)}
+                  placeholder="customer@example.com"
+                  data-testid="input-invoice-email"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={handleCloseEmailDialog}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handlePreviewEmail}
+                  disabled={!emailAddress.trim()}
+                  data-testid="button-preview-invoice-email"
+                >
+                  Preview Email
+                </Button>
+              </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setEmailDialogOpen(false)}
-                disabled={sendingEmail}
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSendEmail}
-                disabled={sendingEmail || !emailAddress.trim()}
-                data-testid="button-send-invoice-email"
-              >
-                {sendingEmail ? "Sending..." : "Send Invoice"}
-              </Button>
+          )}
+
+          {emailStep === 'preview' && emailPreview && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <Label className="font-medium">To:</Label>
+                  <p className="text-muted-foreground">{emailAddress}</p>
+                </div>
+                <div>
+                  <Label className="font-medium">From:</Label>
+                  <p className="text-muted-foreground">Taska &lt;noreply@taska.info&gt;</p>
+                </div>
+                <div>
+                  <Label className="font-medium">Subject:</Label>
+                  <p className="text-muted-foreground">{emailPreview.subject}</p>
+                </div>
+              </div>
+              
+              <div className="border rounded-lg p-4 bg-white">
+                <div 
+                  className="prose max-w-none"
+                  dangerouslySetInnerHTML={{ __html: emailPreview.html }}
+                />
+              </div>
+              
+              <div className="flex justify-between gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setEmailStep('input')}
+                  data-testid="button-back-to-email-input"
+                >
+                  ← Back
+                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleCloseEmailDialog}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSendEmail}
+                    disabled={sendingEmail}
+                    data-testid="button-send-invoice-email"
+                  >
+                    {sendingEmail ? "Sending..." : "Send Invoice"}
+                  </Button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

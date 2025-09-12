@@ -214,9 +214,7 @@ export default function QuoteEdit() {
                 fetch('/api/quotes/${id}/email', {
                   method: 'POST',
                   headers: { 
-                    'Content-Type': 'application/json',
-                    'x-user-id': localStorage.getItem('x-user-id'),
-                    'x-org-id': localStorage.getItem('x-org-id')
+                    'Content-Type': 'application/json'
                   },
                   credentials: 'include',
                   body: JSON.stringify({ email: email.trim() })

@@ -5,8 +5,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { ExternalLink } from "lucide-react";
+import { api } from "@/lib/api";
+import { ExternalLink, Mail } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
@@ -17,6 +20,9 @@ export default function InvoiceView() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [creatingXero, setCreatingXero] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailAddress, setEmailAddress] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -25,6 +31,10 @@ export default function InvoiceView() {
       try {
         const i = await invoicesApi.get(id);
         setInvoice(i);
+        // Pre-populate email if customer has one
+        if (i.customer_email) {
+          setEmailAddress(i.customer_email);
+        }
       } catch (e: any) {
         setErr(e.message);
       } finally {
@@ -48,7 +58,7 @@ export default function InvoiceView() {
     if (!id) return;
     setCreatingXero(true);
     try {
-      const response = await apiRequest(`/api/invoices/${id}/xero`, { method: 'POST' });
+      const response = await api(`/api/invoices/${id}/xero`, { method: 'POST' });
       
       toast({
         title: "Invoice created in Xero",
@@ -69,6 +79,31 @@ export default function InvoiceView() {
     }
   }
 
+  async function handleSendEmail() {
+    if (!id || !emailAddress.trim()) return;
+    setSendingEmail(true);
+    try {
+      await invoicesApi.sendEmail(id, { email: emailAddress.trim() });
+      toast({
+        title: "Invoice sent",
+        description: `Invoice sent successfully to ${emailAddress}`,
+      });
+      setEmailDialogOpen(false);
+      
+      // Refresh invoice data to reflect status change
+      const updatedInvoice = await invoicesApi.get(id);
+      setInvoice(updatedInvoice);
+    } catch (e: any) {
+      toast({
+        title: "Failed to send email",
+        description: e.message || "Unable to send invoice email",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
   if (loading) return <div className="page">Loading…</div>;
   if (!invoice) return <div className="page">Invoice not found</div>;
 
@@ -78,6 +113,14 @@ export default function InvoiceView() {
         <h1 className="text-2xl font-bold">{invoice.title}</h1>
         <div className="header-actions">
           <Link href={`/invoices/${id}/edit`}><a><Button variant="outline">Edit</Button></a></Link>
+          <Button 
+            onClick={() => setEmailDialogOpen(true)}
+            variant="outline"
+            data-testid="button-email-invoice"
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Email
+          </Button>
           {invoice.status !== 'paid' && invoice.status !== 'void' && (
             <Button onClick={handleMarkPaid}>Mark Paid</Button>
           )}
@@ -168,6 +211,44 @@ export default function InvoiceView() {
           </Card>
         </div>
       </div>
+
+      {/* Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Invoice via Email</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="email">Customer Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={emailAddress}
+                onChange={(e) => setEmailAddress(e.target.value)}
+                placeholder="customer@example.com"
+                data-testid="input-invoice-email"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setEmailDialogOpen(false)}
+                disabled={sendingEmail}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSendEmail}
+                disabled={sendingEmail || !emailAddress.trim()}
+                data-testid="button-send-invoice-email"
+              >
+                {sendingEmail ? "Sending..." : "Send Invoice"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

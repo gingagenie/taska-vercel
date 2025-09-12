@@ -192,6 +192,8 @@ export const quotesApi = {
     api(`/api/quotes/${id}/items/${itemId}`, { method: "DELETE" }),
   accept: (id: string) => api(`/api/quotes/${id}/accept`, { method: "POST" }),
   convertToJob: (id: string) => api(`/api/quotes/${id}/convert`, { method: "POST" }),
+  sendEmail: (id: string, body: { email: string; fromEmail?: string; fromName?: string }) =>
+    api(`/api/quotes/${id}/email`, { method: "POST", body: JSON.stringify(body) }),
 };
 
 export const invoicesApi = {
@@ -210,6 +212,8 @@ export const invoicesApi = {
   deleteItem: (id: string, itemId: string) => 
     api(`/api/invoices/${id}/items/${itemId}`, { method: "DELETE" }),
   markPaid: (id: string) => api(`/api/invoices/${id}/pay`, { method: "POST" }),
+  sendEmail: (id: string, body: { email: string; fromEmail?: string; fromName?: string }) =>
+    api(`/api/invoices/${id}/email`, { method: "POST", body: JSON.stringify(body) }),
 };
 
 export const scheduleApi = {

@@ -5,8 +5,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { ExternalLink } from "lucide-react";
+import { api } from "@/lib/api";
+import { ExternalLink, Mail } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function QuoteView() {
   const [match, params] = useRoute("/quotes/:id");
@@ -17,6 +20,9 @@ export default function QuoteView() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [creatingXero, setCreatingXero] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailAddress, setEmailAddress] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -25,6 +31,10 @@ export default function QuoteView() {
       try {
         const q = await quotesApi.get(id);
         setQuote(q);
+        // Pre-populate email if customer has one
+        if (q.customer_email) {
+          setEmailAddress(q.customer_email);
+        }
       } catch (e: any) {
         setErr(e.message);
       } finally {
@@ -58,7 +68,7 @@ export default function QuoteView() {
     if (!id) return;
     setCreatingXero(true);
     try {
-      const response = await apiRequest(`/api/quotes/${id}/xero`, { method: 'POST' });
+      const response = await api(`/api/quotes/${id}/xero`, { method: 'POST' });
       
       toast({
         title: "Quote created in Xero",
@@ -79,6 +89,31 @@ export default function QuoteView() {
     }
   }
 
+  async function handleSendEmail() {
+    if (!id || !emailAddress.trim()) return;
+    setSendingEmail(true);
+    try {
+      await quotesApi.sendEmail(id, { email: emailAddress.trim() });
+      toast({
+        title: "Quote sent",
+        description: `Quote sent successfully to ${emailAddress}`,
+      });
+      setEmailDialogOpen(false);
+      
+      // Refresh quote data to reflect status change
+      const updatedQuote = await quotesApi.get(id);
+      setQuote(updatedQuote);
+    } catch (e: any) {
+      toast({
+        title: "Failed to send email",
+        description: e.message || "Unable to send quote email",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
   if (loading) return <div className="page">Loading…</div>;
   if (!quote) return <div className="page">Quote not found</div>;
 
@@ -88,6 +123,14 @@ export default function QuoteView() {
         <h1 className="text-2xl font-bold">{quote.title}</h1>
         <div className="header-actions">
           <Link href={`/quotes/${id}/edit`}><a><Button variant="outline">Edit</Button></a></Link>
+          <Button 
+            onClick={() => setEmailDialogOpen(true)}
+            variant="outline"
+            data-testid="button-email-quote"
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Email
+          </Button>
           {quote.status === 'sent' && (
             <Button onClick={handleAccept}>Accept</Button>
           )}
@@ -181,6 +224,44 @@ export default function QuoteView() {
           </Card>
         </div>
       </div>
+
+      {/* Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Quote via Email</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="email">Customer Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={emailAddress}
+                onChange={(e) => setEmailAddress(e.target.value)}
+                placeholder="customer@example.com"
+                data-testid="input-quote-email"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setEmailDialogOpen(false)}
+                disabled={sendingEmail}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSendEmail}
+                disabled={sendingEmail || !emailAddress.trim()}
+                data-testid="button-send-quote-email"
+              >
+                {sendingEmail ? "Sending..." : "Send Quote"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

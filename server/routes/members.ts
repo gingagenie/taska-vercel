@@ -13,33 +13,11 @@ const isUuid = (v: string | undefined) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 members.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   try {
-    // Get members with online status
     const r: any = await db.execute(sql`
-      SELECT 
-        u.id, 
-        u.name, 
-        u.email, 
-        u.phone, 
-        u.role, 
-        u.color,
-        CASE 
-          WHEN s.user_id IS NOT NULL THEN true 
-          ELSE false 
-        END as is_online,
-        COUNT(s.sid) as active_sessions,
-        MAX(s.expire) as last_seen
-      FROM users u
-      LEFT JOIN (
-        SELECT DISTINCT 
-          (sess->>'userId')::uuid as user_id,
-          sid,
-          expire
-        FROM session 
-        WHERE expire > NOW()
-      ) s ON u.id = s.user_id
-      WHERE u.org_id = ${orgId}::uuid
-      GROUP BY u.id, u.name, u.email, u.phone, u.role, u.color, s.user_id
-      ORDER BY u.name ASC
+      SELECT id, name, email, phone, role, color 
+      FROM users 
+      WHERE org_id = ${orgId}::uuid 
+      ORDER BY name ASC
     `);
     res.json(r);
   } catch (error: any) {

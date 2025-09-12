@@ -15,28 +15,14 @@ export default function MembersPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: list = [], isLoading } = useQuery({
-    queryKey: ["/api/members", Date.now()], // Force unique key each time
+    queryKey: ["/api/members"],
     queryFn: membersApi.getAll,
-    staleTime: 0,
-    gcTime: 0, // Force no caching to get latest data (v5 syntax)
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
   });
-
-  // Debug log to see what data we're getting
-  console.log('Members data:', list);
-  
-  // TEMPORARY: Add test data to verify status column shows
-  const testList = list.map((u: any) => ({
-    ...u,
-    is_online: u.id === '5ddd6d46-fe3a-4908-bc44-fbd7ed52a494', // Keith is online
-    active_sessions: u.id === '5ddd6d46-fe3a-4908-bc44-fbd7ed52a494' ? 7 : 0,
-  }));
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any|null>(null);
 
-  const filtered = (testList as any[]).filter((u) =>
+  const filtered = (list as any[]).filter((u) =>
     [u.name, u.email, u.role, u.phone].join(" ").toLowerCase().includes(q.toLowerCase())
   );
 
@@ -97,7 +83,6 @@ export default function MembersPage() {
                   <th className="text-left">Email</th>
                   <th className="text-left">Role</th>
                   <th className="text-left">Phone</th>
-                  <th className="text-left">Status</th>
                   <th className="text-left w-12"></th>
                 </tr>
               </thead>
@@ -115,17 +100,6 @@ export default function MembersPage() {
                     </td>
                     <td className="px-4 py-3" data-testid={`text-member-phone-${u.id}`}>
                       {u.phone || "—"}
-                    </td>
-                    <td className="px-4 py-3" data-testid={`text-member-status-${u.id}`}>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${u.is_online ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                        <span className={`text-xs ${u.is_online ? 'text-green-700' : 'text-gray-500'}`}>
-                          {u.is_online ? 'Online' : 'Offline'}
-                        </span>
-                        {u.is_online && u.active_sessions > 1 && (
-                          <span className="text-xs text-gray-400">({u.active_sessions} sessions)</span>
-                        )}
-                      </div>
                     </td>
                     <td className="px-2 py-3 text-right">
                       <div className="flex gap-1 justify-end">
@@ -152,7 +126,7 @@ export default function MembersPage() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500" data-testid="text-no-members">
+                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500" data-testid="text-no-members">
                       {q ? "No members match your search" : "No members found"}
                     </td>
                   </tr>
@@ -178,16 +152,8 @@ export default function MembersPage() {
                           <div className="font-medium text-gray-900" data-testid={`text-member-name-${u.id}`}>
                             {u.name || u.email}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <div className="text-xs text-gray-500 capitalize" data-testid={`text-member-role-${u.id}`}>
-                              {u.role || "technician"}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <div className={`w-2 h-2 rounded-full ${u.is_online ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                              <span className={`text-xs ${u.is_online ? 'text-green-700' : 'text-gray-500'}`}>
-                                {u.is_online ? 'Online' : 'Offline'}
-                              </span>
-                            </div>
+                          <div className="text-xs text-gray-500 capitalize" data-testid={`text-member-role-${u.id}`}>
+                            {u.role || "technician"}
                           </div>
                         </div>
                       </div>
@@ -198,11 +164,6 @@ export default function MembersPage() {
                         {u.phone && (
                           <div data-testid={`text-member-phone-${u.id}`}>
                             📞 {u.phone}
-                          </div>
-                        )}
-                        {u.is_online && u.active_sessions > 1 && (
-                          <div className="text-xs text-gray-400">
-                            🖥️ {u.active_sessions} active sessions
                           </div>
                         )}
                       </div>

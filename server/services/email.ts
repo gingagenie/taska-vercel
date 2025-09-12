@@ -115,7 +115,7 @@ export function generateInvoiceEmailTemplate(invoice: any, orgName: string = "Ta
 
       <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: right;">
         <div style="font-size: 18px; font-weight: bold; color: #2563eb;">
-          Total: $${Number(invoice.total || 0).toFixed(2)}
+          Total: $${Number(invoice.grand_total || invoice.total || 0).toFixed(2)}
         </div>
       </div>
 
@@ -140,7 +140,7 @@ ${invoice.items?.map((item: any) =>
   `${item.description} - Qty: ${Number(item.quantity).toFixed(2)} - Unit: $${Number(item.unit_price).toFixed(2)} - Total: $${(Number(item.quantity) * Number(item.unit_price)).toFixed(2)}`
 ).join('\n') || 'No items'}
 
-Total: $${Number(invoice.total || 0).toFixed(2)}
+Total: $${Number(invoice.grand_total || invoice.total || 0).toFixed(2)}
 
 Thank you for your business!
 This invoice was sent from ${orgName} via Taska.

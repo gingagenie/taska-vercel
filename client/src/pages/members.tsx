@@ -15,18 +15,28 @@ export default function MembersPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: list = [], isLoading } = useQuery({
-    queryKey: ["/api/members"],
+    queryKey: ["/api/members", Date.now()], // Force unique key each time
     queryFn: membersApi.getAll,
     staleTime: 0,
     gcTime: 0, // Force no caching to get latest data (v5 syntax)
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });
+
+  // Debug log to see what data we're getting
+  console.log('Members data:', list);
+  
+  // TEMPORARY: Add test data to verify status column shows
+  const testList = list.map((u: any) => ({
+    ...u,
+    is_online: u.id === '5ddd6d46-fe3a-4908-bc44-fbd7ed52a494', // Keith is online
+    active_sessions: u.id === '5ddd6d46-fe3a-4908-bc44-fbd7ed52a494' ? 7 : 0,
+  }));
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any|null>(null);
 
-  const filtered = (list as any[]).filter((u) =>
+  const filtered = (testList as any[]).filter((u) =>
     [u.name, u.email, u.role, u.phone].join(" ").toLowerCase().includes(q.toLowerCase())
   );
 

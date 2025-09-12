@@ -305,6 +305,9 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
       select * from quote_lines where quote_id=${id}::uuid and org_id=${orgId}::uuid order by position asc, created_at asc
     `);
 
+    console.log('DEBUG - Email preview quote lines found:', lines.length);
+    console.log('DEBUG - Quote lines data:', lines);
+
     // Prepare quote data for email template
     const quoteData = {
       ...quote,

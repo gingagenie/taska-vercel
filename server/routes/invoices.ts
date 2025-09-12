@@ -396,9 +396,9 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     const invoiceData = {
       ...invoice,
       items: items.map((item: any) => ({
-        description: item.description,
-        quantity: item.quantity,
-        unit_price: item.unit_price
+        description: item.description || 'Item',
+        quantity: Number(item.quantity || 1),
+        unit_price: Number(item.unit_amount || item.unit_price || 0)
       }))
     };
 
@@ -428,7 +428,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     if (invoice.status === 'draft') {
       await db.execute(sql`
         update invoices 
-        set status='sent', updated_at=now() 
+        set status='sent'
         where id=${id}::uuid and org_id=${orgId}::uuid
       `);
     }

@@ -302,7 +302,7 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
 
     // Get quote lines
     const lines: any = await db.execute(sql`
-      select * from quote_lines where quote_id=${id}::uuid order by position asc, created_at asc
+      select * from quote_lines where quote_id=${id}::uuid and org_id=${orgId}::uuid order by position asc, created_at asc
     `);
 
     // Prepare quote data for email template

@@ -397,7 +397,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     if (quote.status === 'draft') {
       await db.execute(sql`
         update quotes 
-        set status='sent', updated_at=now() 
+        set status='sent' 
         where id=${id}::uuid and org_id=${orgId}::uuid
       `);
     }

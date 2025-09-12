@@ -91,72 +91,30 @@ export default function QuoteView() {
     }
   }
 
-  function generateEmailPreview() {
-    if (!quote) return null;
-    
-    const orgName = "Taska"; // Could get from org context
-    const subject = `Quote ${quote.title} from ${orgName}`;
-    
-    const linesHtml = quote.lines?.map((line: any) => `
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">${line.description}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${Number(line.quantity).toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${Number(line.unit_amount).toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${(Number(line.quantity) * Number(line.unit_amount)).toFixed(2)}</td>
-      </tr>
-    `).join('') || '<tr><td colspan="4" style="padding: 16px; text-align: center; color: #666;">No items</td></tr>';
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #333; margin: 0;">${orgName}</h1>
-          <p style="color: #666; margin: 5px 0;">Quote</p>
-        </div>
-        
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-          <h2 style="margin: 0 0 15px 0; color: #333;">Quote ${quote.title}</h2>
-          <p style="margin: 5px 0; color: #666;">Customer: ${quote.customer_name || 'N/A'}</p>
-          <p style="margin: 5px 0; color: #666;">Date: ${new Date(quote.date).toLocaleDateString()}</p>
-          <p style="margin: 5px 0; color: #666;">Status: ${quote.status}</p>
-          ${quote.valid_until ? `<p style="margin: 5px 0; color: #666;">Valid Until: ${new Date(quote.valid_until).toLocaleDateString()}</p>` : ''}
-        </div>
-
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
-          <thead>
-            <tr style="background: #f8f9fa;">
-              <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">Description</th>
-              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Qty</th>
-              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Unit Price</th>
-              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${linesHtml}
-          </tbody>
-        </table>
-
-        <div style="text-align: right; margin-bottom: 30px;">
-          <p style="margin: 5px 0; font-size: 18px; font-weight: bold;">Total: $${Number(quote.total_amount).toFixed(2)}</p>
-        </div>
-
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; color: #666;">Thank you for considering our services!</p>
-          <p style="margin: 5px 0 0 0; color: #666;">Please contact us if you have any questions about this quote.</p>
-        </div>
-      </div>
-    `;
-
-    const text = `Quote ${quote.title} from ${orgName}\n\nCustomer: ${quote.customer_name || 'N/A'}\nDate: ${new Date(quote.date).toLocaleDateString()}\nStatus: ${quote.status}\n${quote.valid_until ? `Valid Until: ${new Date(quote.valid_until).toLocaleDateString()}\n` : ''}\nTotal: $${Number(quote.total_amount).toFixed(2)}\n\nThank you for considering our services!`;
-
-    return { subject, html, text };
-  }
-
-  function handlePreviewEmail() {
+  async function handlePreviewEmail() {
     if (!emailAddress.trim()) return;
-    const preview = generateEmailPreview();
-    if (preview) {
+    try {
+      const response = await fetch(`/api/quotes/${id}/email-preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailAddress.trim() }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate preview');
+      }
+      
+      const preview = await response.json();
       setEmailPreview(preview);
       setEmailStep('preview');
+    } catch (error) {
+      console.error('Error generating email preview:', error);
+      toast({
+        title: "Preview failed",
+        description: "Unable to generate email preview",
+        variant: "destructive",
+      });
     }
   }
 

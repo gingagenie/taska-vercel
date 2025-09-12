@@ -409,15 +409,6 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     const orgName = orgResult[0]?.name || "Your Business";
 
     // Generate email content
-    console.log('DEBUG - Invoice data for email template:', JSON.stringify({
-      id: invoiceData.id,
-      title: invoiceData.title,
-      grand_total: invoiceData.grand_total,
-      sub_total: invoiceData.sub_total,
-      tax_total: invoiceData.tax_total,
-      total: invoiceData.total
-    }, null, 2));
-    
     const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, orgName);
 
     // Send email

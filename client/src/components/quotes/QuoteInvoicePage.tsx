@@ -225,15 +225,27 @@ export function QuoteInvoicePage({
   }
 
   async function handleEmailPreview() {
+    console.log('handleEmailPreview called!', { emailAddress, initialId: initial?.id, mode });
     if (!emailAddress.trim()) return;
+    if (!initial?.id) {
+      toast({
+        title: "Preview failed",
+        description: "Invoice must be saved before sending email",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
-      const response = await api(`/api/${mode}s/${initial?.id || 'preview'}/email-preview`, {
+      console.log('Making API call:', `/api/${mode}s/${initial.id}/email-preview`);
+      const response = await api(`/api/${mode}s/${initial.id}/email-preview`, {
         method: 'POST',
         body: JSON.stringify({ email: emailAddress.trim() })
       });
+      console.log('API response:', response);
       setEmailPreview(response);
       setEmailStep('preview');
     } catch (e: any) {
+      console.error('Email preview error:', e);
       toast({
         title: "Preview failed",
         description: e.message || "Unable to generate email preview",
@@ -539,13 +551,18 @@ Fix My Forklift agrees to provide repair and maintenance services for forklift t
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={handleCloseEmailDialog}>
+                <Button 
+                  variant="outline" 
+                  onClick={handleCloseEmailDialog}
+                  type="button"
+                >
                   Cancel
                 </Button>
                 <Button 
                   onClick={handleEmailPreview}
                   disabled={!emailAddress.trim()}
                   data-testid="button-preview-email"
+                  type="button"
                 >
                   Preview Email
                 </Button>

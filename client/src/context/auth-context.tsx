@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { clearDevAuth } from "@/lib/api";
 
@@ -28,7 +28,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [organizations] = useState<any[]>([]);
   const [isProUser, setIsProUser] = useState(true); // Enable pro features for demo

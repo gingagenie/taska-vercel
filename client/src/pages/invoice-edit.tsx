@@ -36,6 +36,7 @@ export default function InvoiceEdit() {
 
   // Transform invoice data for the new component
   const initial = invoice ? {
+    id: id, // Add the ID for email functionality
     customer: { id: (invoice as any).customer_id },
     title: (invoice as any).title,
     notes: (invoice as any).notes,

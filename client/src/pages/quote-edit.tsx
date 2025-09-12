@@ -36,6 +36,7 @@ export default function QuoteEdit() {
 
   // Transform quote data for the new component
   const initial = quote ? {
+    id: id, // Add the ID for email functionality
     customer: { id: (quote as any).customer_id },
     title: (quote as any).title,
     notes: (quote as any).notes,

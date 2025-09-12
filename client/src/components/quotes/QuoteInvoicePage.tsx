@@ -35,6 +35,7 @@ interface LineItem {
 }
 
 interface Initial {
+  id?: string;
   customer?: { id: string };
   issueDate?: string;
   dueDate?: string;

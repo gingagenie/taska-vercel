@@ -217,7 +217,7 @@ router.post("/:id/items", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params; const { description, quantity, unit_price } = req.body || {};
   if (!description) return res.status(400).json({ error: "description required" });
   const ins: any = await db.execute(sql`
-    insert into invoice_items (invoice_id, description, quantity, unit_price)
+    insert into invoice_lines (invoice_id, description, quantity, unit_price)
     values (${id}::uuid, ${description}, ${quantity||1}, ${unit_price||0})
     returning id
   `);
@@ -228,7 +228,7 @@ router.put("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) => {
   const { id, itemId } = req.params;
   const { description, quantity, unit_price } = req.body || {};
   await db.execute(sql`
-    update invoice_items
+    update invoice_lines
       set description=coalesce(${description}, description),
           quantity=coalesce(${quantity}, quantity),
           unit_price=coalesce(${unit_price}, unit_price)
@@ -239,7 +239,7 @@ router.put("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) => {
 
 router.delete("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) => {
   const { id, itemId } = req.params;
-  await db.execute(sql`delete from invoice_items where id=${itemId}::uuid and invoice_id=${id}::uuid`);
+  await db.execute(sql`delete from invoice_lines where id=${itemId}::uuid and invoice_id=${id}::uuid`);
   res.json({ ok: true });
 });
 
@@ -267,7 +267,7 @@ router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
 
     // Get invoice items
     const items: any = await db.execute(sql`
-      select * from invoice_items where invoice_id=${id}::uuid order by created_at nulls last, id
+      select * from invoice_lines where invoice_id=${id}::uuid order by created_at nulls last, id
     `);
 
     // Check if already pushed to Xero
@@ -389,7 +389,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
 
     // Get invoice items
     const items: any = await db.execute(sql`
-      select * from invoice_items where invoice_id=${id}::uuid order by created_at nulls last, id
+      select * from invoice_lines where invoice_id=${id}::uuid order by created_at nulls last, id
     `);
 
     // Prepare invoice data for email template

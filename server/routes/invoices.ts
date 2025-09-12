@@ -312,6 +312,62 @@ router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+/** Preview invoice email without sending */
+router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  const { email } = req.body;
+  
+  if (!isUuid(id)) return res.status(400).json({ error: "Invalid invoice ID" });
+  if (!email) return res.status(400).json({ error: "Customer email is required" });
+  
+  try {
+    // Get invoice with customer details and items
+    const invoiceResult: any = await db.execute(sql`
+      select i.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
+      from invoices i join customers c on c.id=i.customer_id
+      where i.id=${id}::uuid and i.org_id=${orgId}::uuid
+    `);
+    const invoice = invoiceResult[0];
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    // Get invoice items
+    const items: any = await db.execute(sql`
+      select * from invoice_items where invoice_id=${id}::uuid order by created_at nulls last, id
+    `);
+
+    // Prepare invoice data for email template
+    const invoiceData = {
+      ...invoice,
+      items: items.map((item: any) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price
+      }))
+    };
+
+    // Get organization name for branding
+    const orgResult: any = await db.execute(sql`
+      select name from organizations where id=${orgId}::uuid
+    `);
+    const orgName = orgResult[0]?.name || "Your Business";
+
+    // Generate email content for preview
+    const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, orgName);
+
+    res.json({ 
+      subject,
+      html,
+      text,
+      to: email
+    });
+
+  } catch (error) {
+    console.error('Error generating invoice email preview:', error);
+    res.status(500).json({ error: "Failed to generate email preview" });
+  }
+});
+
 /** Send invoice via email */
 router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const { id } = req.params;

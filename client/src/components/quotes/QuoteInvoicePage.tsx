@@ -2,6 +2,13 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LineItemsTable } from './parts/LineItemsTable';
 import { TotalsCard } from './parts/TotalsCard';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
+import { Mail, Eye } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -86,6 +93,13 @@ export function QuoteInvoicePage({
   loading = false,
   saving = false,
 }: QuoteInvoicePageProps) {
+  // Email dialog state
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailStep, setEmailStep] = useState<'input' | 'preview'>('input');
+  const [emailAddress, setEmailAddress] = useState('');
+  const [emailPreview, setEmailPreview] = useState<any>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const { toast } = useToast();
   // Fetch previous items for autocomplete
   const { data: previousItems = [] } = useQuery<Array<{ itemName: string; description: string; price: number; tax: string }>>({
     queryKey: [`/api/${mode}s/previous-items`],
@@ -189,6 +203,69 @@ export function QuoteInvoicePage({
     await onSend?.(payload); 
   }
 
+  async function handlePreviewAndEmail() {
+    // First show the preview
+    onPreview?.(payload);
+    
+    // Then show email dialog
+    const customer = customers.find(c => c.id === customerId);
+    if (customer?.email) {
+      setEmailAddress(customer.email);
+    }
+    setEmailDialogOpen(true);
+  }
+
+  async function handleEmailPreview() {
+    if (!emailAddress.trim()) return;
+    try {
+      const response = await api(`/api/${mode}s/${initial?.id || 'preview'}/email-preview`, {
+        method: 'POST',
+        body: JSON.stringify({ email: emailAddress.trim() })
+      });
+      setEmailPreview(response);
+      setEmailStep('preview');
+    } catch (e: any) {
+      toast({
+        title: "Preview failed",
+        description: e.message || "Unable to generate email preview",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleSendEmail() {
+    if (!initial?.id || !emailAddress.trim()) return;
+    setSendingEmail(true);
+    try {
+      const apiMethod = mode === 'quote' ? 'quotes' : 'invoices';
+      await api(`/api/${apiMethod}/${initial.id}/email`, {
+        method: 'POST',
+        body: JSON.stringify({ email: emailAddress.trim() })
+      });
+      toast({
+        title: `${mode === 'quote' ? 'Quote' : 'Invoice'} sent`,
+        description: `Successfully sent to ${emailAddress}`,
+      });
+      setEmailDialogOpen(false);
+      setEmailStep('input');
+      setEmailPreview(null);
+    } catch (e: any) {
+      toast({
+        title: "Failed to send email",
+        description: e.message || `Unable to send ${mode} email`,
+        variant: "destructive",
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
+  function handleCloseEmailDialog() {
+    setEmailDialogOpen(false);
+    setEmailStep('input');
+    setEmailPreview(null);
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
@@ -213,10 +290,13 @@ export function QuoteInvoicePage({
             </div>
             <div className="flex flex-col gap-2">
               <button 
-                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                onClick={() => onPreview?.(payload)}
+                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center gap-2" 
+                onClick={handlePreviewAndEmail}
+                data-testid="button-preview-send"
               >
-                Preview
+                <Eye className="h-4 w-4" />
+                <Mail className="h-4 w-4" />
+                Preview & Send
               </button>
               <div className="grid grid-cols-2 gap-2">
                 <button 
@@ -248,10 +328,13 @@ export function QuoteInvoicePage({
             </div>
             <div className="flex items-center gap-3">
               <button 
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                onClick={() => onPreview?.(payload)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2" 
+                onClick={handlePreviewAndEmail}
+                data-testid="button-preview-send-desktop"
               >
-                Preview
+                <Eye className="h-4 w-4" />
+                <Mail className="h-4 w-4" />
+                Preview & Send
               </button>
               <button 
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
@@ -425,6 +508,71 @@ Fix My Forklift agrees to provide repair and maintenance services for forklift t
           </div>
         </div>
       </div>
+
+      {/* Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={handleCloseEmailDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send {mode === 'quote' ? 'Quote' : 'Invoice'} via Email</DialogTitle>
+          </DialogHeader>
+          
+          {emailStep === 'input' && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="email">Email address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={emailAddress}
+                  onChange={(e) => setEmailAddress(e.target.value)}
+                  placeholder="customer@example.com"
+                  data-testid="input-email-address"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={handleCloseEmailDialog}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleEmailPreview}
+                  disabled={!emailAddress.trim()}
+                  data-testid="button-preview-email"
+                >
+                  Preview Email
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+          
+          {emailStep === 'preview' && emailPreview && (
+            <div className="space-y-4">
+              <div className="text-sm text-gray-600">
+                <strong>To:</strong> {emailAddress}
+              </div>
+              <div className="text-sm text-gray-600">
+                <strong>Subject:</strong> {emailPreview.subject}
+              </div>
+              <div className="border rounded-md p-4 max-h-60 overflow-y-auto bg-gray-50">
+                <div dangerouslySetInnerHTML={{ __html: emailPreview.html }} />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEmailStep('input')}>
+                  Back
+                </Button>
+                <Button 
+                  onClick={handleSendEmail}
+                  disabled={sendingEmail}
+                  className="flex items-center gap-2"
+                  data-testid="button-send-email"
+                >
+                  <Mail className="h-4 w-4" />
+                  {sendingEmail ? 'Sending...' : 'Send Email'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

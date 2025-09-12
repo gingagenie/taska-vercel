@@ -281,6 +281,62 @@ router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+/** Preview quote email without sending */
+router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  const { email } = req.body;
+  
+  if (!isUuid(id)) return res.status(400).json({ error: "Invalid quote ID" });
+  if (!email) return res.status(400).json({ error: "Customer email is required" });
+  
+  try {
+    // Get quote with customer details and lines
+    const quoteResult: any = await db.execute(sql`
+      select q.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
+      from quotes q join customers c on c.id=q.customer_id
+      where q.id=${id}::uuid and q.org_id=${orgId}::uuid
+    `);
+    const quote = quoteResult[0];
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    // Get quote lines
+    const lines: any = await db.execute(sql`
+      select * from quote_lines where quote_id=${id}::uuid order by position asc, created_at asc
+    `);
+
+    // Prepare quote data for email template
+    const quoteData = {
+      ...quote,
+      items: lines.map((line: any) => ({
+        description: line.description,
+        quantity: line.quantity,
+        unit_price: line.unit_amount
+      }))
+    };
+
+    // Get organization name for branding
+    const orgResult: any = await db.execute(sql`
+      select name from organizations where id=${orgId}::uuid
+    `);
+    const orgName = orgResult[0]?.name || "Your Business";
+
+    // Generate email content for preview
+    const { subject, html, text } = generateQuoteEmailTemplate(quoteData, orgName);
+
+    res.json({ 
+      subject,
+      html,
+      text,
+      to: email
+    });
+
+  } catch (error) {
+    console.error('Error generating quote email preview:', error);
+    res.status(500).json({ error: "Failed to generate email preview" });
+  }
+});
+
 /** Send quote via email */
 router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const { id } = req.params;

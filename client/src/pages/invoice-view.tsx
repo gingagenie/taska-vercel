@@ -191,23 +191,6 @@ export default function InvoiceView() {
         <h1 className="text-2xl font-bold">{invoice.title}</h1>
         <div className="header-actions">
           <Link href={`/invoices/${id}/edit`}><a><Button variant="outline">Edit</Button></a></Link>
-          <Button 
-            onClick={() => alert('TEST BUTTON CLICKED')}
-            variant="outline"
-            style={{backgroundColor: 'red', color: 'white'}}
-            data-testid="button-test"
-          >
-            TEST BUTTON
-          </Button>
-          <Button 
-            onClick={() => setEmailDialogOpen(true)}
-            variant="outline"
-            className="flex items-center gap-2"
-            data-testid="button-email-invoice"
-          >
-            <Mail className="h-4 w-4" />
-            Email
-          </Button>
           {invoice.status !== 'paid' && invoice.status !== 'void' && (
             <Button onClick={handleMarkPaid}>Mark Paid</Button>
           )}

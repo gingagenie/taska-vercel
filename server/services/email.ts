@@ -1,14 +1,7 @@
-// Email service using SendGrid integration - reference: blueprint:javascript_sendgrid
-import { MailService } from '@sendgrid/mail';
-
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-if (!SENDGRID_API_KEY) {
-  console.warn("Warning: SENDGRID_API_KEY environment variable not set. Email functionality will be disabled.");
-}
-
-const mailService = new MailService();
-if (SENDGRID_API_KEY) {
-  mailService.setApiKey(SENDGRID_API_KEY);
+// Email service using MailerSend
+const MAILERSEND_API_KEY = process.env.MAILERSEND_API_KEY;
+if (!MAILERSEND_API_KEY) {
+  console.warn("Warning: MAILERSEND_API_KEY not set. Email functionality will be disabled.");
 }
 
 interface EmailParams {
@@ -20,23 +13,46 @@ interface EmailParams {
 }
 
 export async function sendEmail(params: EmailParams): Promise<boolean> {
-  if (!SENDGRID_API_KEY) {
-    console.error('Cannot send email: SENDGRID_API_KEY not configured');
+  if (!MAILERSEND_API_KEY) {
+    console.error('Cannot send email: MailerSend API key not configured');
     return false;
   }
   
   try {
-    await mailService.send({
-      to: params.to,
-      from: params.from,
-      subject: params.subject,
-      text: params.text || '',
-      html: params.html || '',
+    const response = await fetch('https://api.mailersend.com/v1/email', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${MAILERSEND_API_KEY}`,
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({
+        from: {
+          email: params.from.includes('<') ? params.from.match(/<(.+)>/)?.[1] || params.from : params.from,
+          name: params.from.includes('<') ? params.from.split('<')[0].trim() : 'Taska'
+        },
+        to: [
+          {
+            email: params.to,
+            name: params.to.split('@')[0]
+          }
+        ],
+        subject: params.subject,
+        text: params.text || '',
+        html: params.html || ''
+      })
     });
-    console.log(`Email sent successfully to ${params.to}`);
-    return true;
+
+    if (response.ok) {
+      console.log(`Email sent successfully to ${params.to} via MailerSend`);
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.error('MailerSend email error:', response.status, errorText);
+      return false;
+    }
   } catch (error) {
-    console.error('SendGrid email error:', error);
+    console.error('MailerSend email error:', error);
     return false;
   }
 }

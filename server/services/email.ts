@@ -18,6 +18,9 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
     return false;
   }
   
+  console.log('MailerSend - API Key exists:', !!MAILERSEND_API_KEY);
+  console.log('MailerSend - API Key prefix:', MAILERSEND_API_KEY?.substring(0, 10) + '...');
+  
   try {
     const response = await fetch('https://api.mailersend.com/v1/email', {
       method: 'POST',
@@ -47,8 +50,11 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
       console.log(`Email sent successfully to ${params.to} via MailerSend`);
       return true;
     } else {
-      const errorText = await response.text();
-      console.error('MailerSend email error:', response.status, errorText);
+      const errorData = await response.text();
+      console.error('MailerSend API Error:');
+      console.error('Status:', response.status);  
+      console.error('Response:', errorData);
+      console.error('FROM email:', params.from);
       return false;
     }
   } catch (error) {

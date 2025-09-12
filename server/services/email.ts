@@ -201,7 +201,7 @@ export function generateQuoteEmailTemplate(quote: any, orgName: string = "Taska"
 
       <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: right;">
         <div style="font-size: 18px; font-weight: bold; color: #2563eb;">
-          Total: $${Number(quote.total || 0).toFixed(2)}
+          Total: $${Number(quote.grand_total || quote.total || 0).toFixed(2)}
         </div>
       </div>
 
@@ -226,7 +226,7 @@ ${quote.items?.map((item: any) =>
   `${item.description} - Qty: ${Number(item.quantity).toFixed(2)} - Unit: $${Number(item.unit_price).toFixed(2)} - Total: $${(Number(item.quantity) * Number(item.unit_price)).toFixed(2)}`
 ).join('\n') || 'No items'}
 
-Total: $${Number(quote.total || 0).toFixed(2)}
+Total: $${Number(quote.grand_total || quote.total || 0).toFixed(2)}
 
 We look forward to working with you!
 This quote was sent from ${orgName} via Taska.

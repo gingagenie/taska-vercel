@@ -114,6 +114,21 @@ export function QuoteInvoicePage({
   });
   const org = orgData?.org || { invoice_terms: '', quote_terms: '' };
   const [customerId, setCustomerId] = useState(initial?.customer?.id || '');
+  
+  // Expose openEmailDialog to window for preview window communication
+  useEffect(() => {
+    (window as any).openEmailDialog = () => {
+      const customer = customers.find(c => c.id === customerId);
+      if (customer?.email) {
+        setEmailAddress(customer.email);
+      }
+      setEmailDialogOpen(true);
+    };
+    
+    return () => {
+      delete (window as any).openEmailDialog;
+    };
+  }, [customers, customerId]);
   const [issueDate, setIssueDate] = useState(initial?.issueDate || new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(initial?.dueDate || '');
   const [docNo, setDocNo] = useState(initial?.number || '');
@@ -205,15 +220,8 @@ export function QuoteInvoicePage({
   }
 
   async function handlePreviewAndEmail() {
-    // First show the preview
+    // Just show the preview - no email dialog yet
     onPreview?.(payload);
-    
-    // Then show email dialog
-    const customer = customers.find(c => c.id === customerId);
-    if (customer?.email) {
-      setEmailAddress(customer.email);
-    }
-    setEmailDialogOpen(true);
   }
 
   async function handleEmailPreview() {

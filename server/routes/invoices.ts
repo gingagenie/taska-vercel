@@ -331,9 +331,9 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
     const invoice = invoiceResult[0];
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
-    // Get invoice items
+    // Get invoice items (correct table name: invoice_lines)
     const items: any = await db.execute(sql`
-      select * from invoice_items where invoice_id=${id}::uuid order by created_at nulls last, id
+      select * from invoice_lines where invoice_id=${id}::uuid order by position asc, created_at asc
     `);
 
     // Prepare invoice data for email template
@@ -342,7 +342,7 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
       items: items.map((item: any) => ({
         description: item.description,
         quantity: item.quantity,
-        unit_price: item.unit_price
+        unit_price: item.unit_amount
       }))
     };
 

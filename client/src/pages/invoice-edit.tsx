@@ -219,6 +219,7 @@ export default function InvoiceEdit() {
           <div style="position: fixed; top: 10px; right: 10px; z-index: 1000;">
             <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
             <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
+            <button onclick="window.opener?.openEmailDialog?.()" style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">📧 Send</button>
           </div>
         </body>
       </html>

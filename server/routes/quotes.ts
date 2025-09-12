@@ -283,7 +283,6 @@ router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
 
 /** Preview quote email without sending */
 router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
-  console.log('[DEBUG] Quote email preview called for ID:', id);
   const { id } = req.params;
   const orgId = (req as any).orgId;
   const { email } = req.body;
@@ -305,7 +304,6 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
     const lines: any = await db.execute(sql`
       select * from quote_lines where quote_id=${id}::uuid and org_id=${orgId}::uuid order by position asc, created_at asc
     `);
-    console.log('[DEBUG] Found', lines.length, 'quote lines for preview');
 
     // Prepare quote data for email template
     const quoteData = {

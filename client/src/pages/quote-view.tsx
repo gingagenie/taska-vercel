@@ -7,9 +7,6 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { ExternalLink, Mail } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 export default function QuoteView() {
   const [match, params] = useRoute("/quotes/:id");
@@ -20,11 +17,6 @@ export default function QuoteView() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [creatingXero, setCreatingXero] = useState(false);
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [emailAddress, setEmailAddress] = useState("");
-  const [sendingEmail, setSendingEmail] = useState(false);
-  const [emailStep, setEmailStep] = useState<'input' | 'preview'>('input');
-  const [emailPreview, setEmailPreview] = useState<{subject: string; html: string; text: string} | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -33,10 +25,6 @@ export default function QuoteView() {
       try {
         const q = await quotesApi.get(id);
         setQuote(q);
-        // Pre-populate email if customer has one
-        if (q.customer_email) {
-          setEmailAddress(q.customer_email);
-        }
       } catch (e: any) {
         setErr(e.message);
       } finally {
@@ -92,64 +80,6 @@ export default function QuoteView() {
   }
 
 
-  async function handlePreviewEmail() {
-    if (!emailAddress.trim()) return;
-    try {
-      const response = await fetch(`/api/quotes/${id}/email-preview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailAddress.trim() }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to generate preview');
-      }
-      
-      const preview = await response.json();
-      setEmailPreview(preview);
-      setEmailStep('preview');
-    } catch (error) {
-      console.error('Error generating email preview:', error);
-      toast({
-        title: "Preview failed",
-        description: "Unable to generate email preview",
-        variant: "destructive",
-      });
-    }
-  }
-
-  async function handleSendEmail() {
-    if (!id || !emailAddress.trim()) return;
-    setSendingEmail(true);
-    try {
-      await quotesApi.sendEmail(id, { email: emailAddress.trim() });
-      toast({
-        title: "Quote sent",
-        description: `Quote sent successfully to ${emailAddress}`,
-      });
-      setEmailDialogOpen(false);
-      setEmailStep('input');
-      setEmailPreview(null);
-      
-      // Refresh quote data to reflect status change
-      const updatedQuote = await quotesApi.get(id);
-      setQuote(updatedQuote);
-    } catch (e: any) {
-      toast({
-        title: "Failed to send email",
-        description: e.message || "Unable to send quote email",
-        variant: "destructive",
-      });
-    } finally {
-      setSendingEmail(false);
-    }
-  }
-
-  function handleCloseEmailDialog() {
-    setEmailDialogOpen(false);
-    setEmailStep('input');
-    setEmailPreview(null);
-  }
 
   if (loading) return <div className="page">Loading…</div>;
   if (!quote) return <div className="page">Quote not found</div>;
@@ -160,15 +90,18 @@ export default function QuoteView() {
         <h1 className="text-2xl font-bold">{quote.title}</h1>
         <div className="header-actions">
           <Link href={`/quotes/${id}/edit`}><a><Button variant="outline">Edit</Button></a></Link>
-          <Button 
-            onClick={() => setEmailDialogOpen(true)}
-            variant="outline"
-            className="flex items-center gap-2"
-            data-testid="button-email-quote"
-          >
-            <Mail className="h-4 w-4" />
-            Email
-          </Button>
+          <Link href={`/quotes/${id}/edit`}>
+            <a>
+              <Button 
+                variant="outline"
+                className="flex items-center gap-2"
+                data-testid="button-email-quote"
+              >
+                <Mail className="h-4 w-4" />
+                Email
+              </Button>
+            </a>
+          </Link>
           {quote.status === 'sent' && (
             <Button onClick={handleAccept}>Accept</Button>
           )}
@@ -263,106 +196,6 @@ export default function QuoteView() {
         </div>
       </div>
 
-      {/* Email Dialog */}
-      <Dialog open={emailDialogOpen} onOpenChange={(open) => {
-        if (!open) {
-          setEmailDialogOpen(false);
-          setEmailStep('input');
-          setEmailPreview(null);
-        } else {
-          setEmailDialogOpen(true);
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {emailStep === 'input' ? 'Send Quote via Email' : 'Email Preview'}
-            </DialogTitle>
-          </DialogHeader>
-          
-          {emailStep === 'input' && (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="email">Customer Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={emailAddress}
-                  onChange={(e) => setEmailAddress(e.target.value)}
-                  placeholder="customer@example.com"
-                  data-testid="input-quote-email"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={handleCloseEmailDialog}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handlePreviewEmail}
-                  disabled={!emailAddress.trim()}
-                  data-testid="button-preview-quote-email"
-                >
-                  Preview Email
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {emailStep === 'preview' && emailPreview && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <Label className="font-medium">To:</Label>
-                  <p className="text-muted-foreground">{emailAddress}</p>
-                </div>
-                <div>
-                  <Label className="font-medium">From:</Label>
-                  <p className="text-muted-foreground">Taska &lt;noreply@taska.info&gt;</p>
-                </div>
-                <div>
-                  <Label className="font-medium">Subject:</Label>
-                  <p className="text-muted-foreground">{emailPreview.subject}</p>
-                </div>
-              </div>
-              
-              <div className="border rounded-lg p-4 bg-white">
-                <div 
-                  className="prose max-w-none"
-                  dangerouslySetInnerHTML={{ __html: emailPreview.html }}
-                />
-              </div>
-              
-              <div className="flex justify-between gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setEmailStep('input')}
-                  data-testid="button-back-to-email-input"
-                >
-                  ← Back
-                </Button>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={handleCloseEmailDialog}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleSendEmail}
-                    disabled={sendingEmail}
-                    data-testid="button-send-quote-email"
-                  >
-                    {sendingEmail ? "Sending..." : "Send Quote"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

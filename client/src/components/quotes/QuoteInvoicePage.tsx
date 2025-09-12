@@ -94,12 +94,6 @@ export function QuoteInvoicePage({
   loading = false,
   saving = false,
 }: QuoteInvoicePageProps) {
-  // Email dialog state
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [emailStep, setEmailStep] = useState<'input' | 'preview'>('input');
-  const [emailAddress, setEmailAddress] = useState('');
-  const [emailPreview, setEmailPreview] = useState<any>(null);
-  const [sendingEmail, setSendingEmail] = useState(false);
   const { toast } = useToast();
   // Fetch previous items for autocomplete
   const { data: previousItems = [] } = useQuery<Array<{ itemName: string; description: string; price: number; tax: string }>>({
@@ -114,21 +108,6 @@ export function QuoteInvoicePage({
   });
   const org = orgData?.org || { invoice_terms: '', quote_terms: '' };
   const [customerId, setCustomerId] = useState(initial?.customer?.id || '');
-  
-  // Expose openEmailDialog to window for preview window communication
-  useEffect(() => {
-    (window as any).openEmailDialog = () => {
-      const customer = customers.find(c => c.id === customerId);
-      if (customer?.email) {
-        setEmailAddress(customer.email);
-      }
-      setEmailDialogOpen(true);
-    };
-    
-    return () => {
-      delete (window as any).openEmailDialog;
-    };
-  }, [customers, customerId]);
   const [issueDate, setIssueDate] = useState(initial?.issueDate || new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(initial?.dueDate || '');
   const [docNo, setDocNo] = useState(initial?.number || '');
@@ -220,71 +199,8 @@ export function QuoteInvoicePage({
   }
 
   async function handlePreviewAndEmail() {
-    // Just show the preview - no email dialog yet
+    // Just show the preview
     onPreview?.(payload);
-  }
-
-  async function handleEmailPreview() {
-    console.log('handleEmailPreview called!', { emailAddress, initialId: initial?.id, mode });
-    if (!emailAddress.trim()) return;
-    if (!initial?.id) {
-      toast({
-        title: "Preview failed",
-        description: "Invoice must be saved before sending email",
-        variant: "destructive",
-      });
-      return;
-    }
-    try {
-      console.log('Making API call:', `/api/${mode}s/${initial.id}/email-preview`);
-      const response = await api(`/api/${mode}s/${initial.id}/email-preview`, {
-        method: 'POST',
-        body: JSON.stringify({ email: emailAddress.trim() })
-      });
-      console.log('API response:', response);
-      setEmailPreview(response);
-      setEmailStep('preview');
-    } catch (e: any) {
-      console.error('Email preview error:', e);
-      toast({
-        title: "Preview failed",
-        description: e.message || "Unable to generate email preview",
-        variant: "destructive",
-      });
-    }
-  }
-
-  async function handleSendEmail() {
-    if (!initial?.id || !emailAddress.trim()) return;
-    setSendingEmail(true);
-    try {
-      const apiMethod = mode === 'quote' ? 'quotes' : 'invoices';
-      await api(`/api/${apiMethod}/${initial.id}/email`, {
-        method: 'POST',
-        body: JSON.stringify({ email: emailAddress.trim() })
-      });
-      toast({
-        title: `${mode === 'quote' ? 'Quote' : 'Invoice'} sent`,
-        description: `Successfully sent to ${emailAddress}`,
-      });
-      setEmailDialogOpen(false);
-      setEmailStep('input');
-      setEmailPreview(null);
-    } catch (e: any) {
-      toast({
-        title: "Failed to send email",
-        description: e.message || `Unable to send ${mode} email`,
-        variant: "destructive",
-      });
-    } finally {
-      setSendingEmail(false);
-    }
-  }
-
-  function handleCloseEmailDialog() {
-    setEmailDialogOpen(false);
-    setEmailStep('input');
-    setEmailPreview(null);
   }
 
   if (loading) {
@@ -311,13 +227,10 @@ export function QuoteInvoicePage({
             </div>
             <div className="flex flex-col gap-2">
               <button 
-                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center gap-2" 
-                onClick={handlePreviewAndEmail}
-                data-testid="button-preview-send"
+                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                onClick={() => onPreview?.(payload)}
               >
-                <Eye className="h-4 w-4" />
-                <Mail className="h-4 w-4" />
-                Preview & Send
+                Preview
               </button>
               <div className="grid grid-cols-2 gap-2">
                 <button 
@@ -349,13 +262,10 @@ export function QuoteInvoicePage({
             </div>
             <div className="flex items-center gap-3">
               <button 
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2" 
-                onClick={handlePreviewAndEmail}
-                data-testid="button-preview-send-desktop"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                onClick={() => onPreview?.(payload)}
               >
-                <Eye className="h-4 w-4" />
-                <Mail className="h-4 w-4" />
-                Preview & Send
+                Preview
               </button>
               <button 
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
@@ -530,75 +440,6 @@ Fix My Forklift agrees to provide repair and maintenance services for forklift t
         </div>
       </div>
 
-      {/* Email Dialog */}
-      <Dialog open={emailDialogOpen} onOpenChange={handleCloseEmailDialog}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Send {mode === 'quote' ? 'Quote' : 'Invoice'} via Email</DialogTitle>
-          </DialogHeader>
-          
-          {emailStep === 'input' && (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="email">Email address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={emailAddress}
-                  onChange={(e) => setEmailAddress(e.target.value)}
-                  placeholder="customer@example.com"
-                  data-testid="input-email-address"
-                />
-              </div>
-              <DialogFooter>
-                <Button 
-                  variant="outline" 
-                  onClick={handleCloseEmailDialog}
-                  type="button"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleEmailPreview}
-                  disabled={!emailAddress.trim()}
-                  data-testid="button-preview-email"
-                  type="button"
-                >
-                  Preview Email
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-          
-          {emailStep === 'preview' && emailPreview && (
-            <div className="space-y-4">
-              <div className="text-sm text-gray-600">
-                <strong>To:</strong> {emailAddress}
-              </div>
-              <div className="text-sm text-gray-600">
-                <strong>Subject:</strong> {emailPreview.subject}
-              </div>
-              <div className="border rounded-md p-4 max-h-60 overflow-y-auto bg-gray-50">
-                <div dangerouslySetInnerHTML={{ __html: emailPreview.html }} />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setEmailStep('input')}>
-                  Back
-                </Button>
-                <Button 
-                  onClick={handleSendEmail}
-                  disabled={sendingEmail}
-                  className="flex items-center gap-2"
-                  data-testid="button-send-email"
-                >
-                  <Mail className="h-4 w-4" />
-                  {sendingEmail ? 'Sending...' : 'Send Email'}
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -205,9 +205,10 @@ export default function QuoteView() {
           <Button 
             onClick={() => setEmailDialogOpen(true)}
             variant="outline"
+            className="flex items-center gap-2"
             data-testid="button-email-quote"
           >
-            <Mail className="h-4 w-4 mr-2" />
+            <Mail className="h-4 w-4" />
             Email
           </Button>
           {quote.status === 'sent' && (
@@ -305,7 +306,15 @@ export default function QuoteView() {
       </div>
 
       {/* Email Dialog */}
-      <Dialog open={emailDialogOpen} onOpenChange={handleCloseEmailDialog}>
+      <Dialog open={emailDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setEmailDialogOpen(false);
+          setEmailStep('input');
+          setEmailPreview(null);
+        } else {
+          setEmailDialogOpen(true);
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>

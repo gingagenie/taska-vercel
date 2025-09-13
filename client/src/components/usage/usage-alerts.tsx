@@ -22,8 +22,26 @@ import { cn } from "@/lib/utils";
 // Usage data interface matching API response
 export interface UsageData {
   users: { used: number; quota: number; percent: number };
-  sms: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
-  email: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
+  sms: { 
+    used: number; 
+    quota: number; 
+    remaining: number; 
+    percent: number; 
+    quotaExceeded: boolean; 
+    packCredits: number; 
+    totalAvailable: number; 
+    allExhausted: boolean;
+  };
+  email: { 
+    used: number; 
+    quota: number; 
+    remaining: number; 
+    percent: number; 
+    quotaExceeded: boolean; 
+    packCredits: number; 
+    totalAvailable: number; 
+    allExhausted: boolean;
+  };
   periodEnd: string;
   planId: string;
   subscriptionStatus: string;
@@ -105,86 +123,112 @@ export function useUsageAlerts(usageData?: UsageData) {
     }
   }
 
-  // SMS alerts
-  if (sms.quotaExceeded) {
+  // SMS alerts - Pack-aware logic
+  if (sms.allExhausted) {
     const key = `sms-critical`;
     if (!dismissedAlerts.has(key) && !isAlertDismissed('sms', 'critical')) {
       alerts.push({
         type: 'sms',
         severity: 'critical',
-        title: 'SMS Quota Exceeded',
-        message: `You've exceeded your SMS quota of ${sms.quota} messages. Upgrade to continue sending notifications.`,
-        action: 'upgrade',
+        title: 'All SMS Credits Exhausted',
+        message: `You've used all available SMS credits (${sms.quota} plan${sms.packCredits > 0 ? ` + ${sms.packCredits} pack` : ''}). Buy packs or upgrade to continue.`,
+        action: 'packs_or_upgrade',
         isDismissible: false,
-        data: { used: sms.used, quota: sms.quota, remaining: sms.remaining, percent: sms.percent }
+        data: { used: sms.used, quota: sms.quota, packCredits: sms.packCredits, totalAvailable: sms.totalAvailable }
       });
     }
-  } else if (sms.remaining <= 5 && sms.remaining > 0) {
+  } else if (sms.totalAvailable <= 5 && sms.totalAvailable > 0) {
     const key = `sms-error`;
     if (!dismissedAlerts.has(key) && !isAlertDismissed('sms', 'error')) {
       alerts.push({
         type: 'sms',
         severity: 'error',
-        title: 'SMS Running Low',
-        message: `Only ${sms.remaining} SMS remaining this month. Upgrade to avoid service interruption.`,
-        action: 'upgrade',
+        title: 'SMS Credits Running Low',
+        message: `Only ${sms.totalAvailable} total SMS remaining (${sms.remaining} plan + ${sms.packCredits} pack). Buy more packs to avoid interruption.`,
+        action: 'packs',
         isDismissible: true,
-        data: { used: sms.used, quota: sms.quota, remaining: sms.remaining, percent: sms.percent }
+        data: { used: sms.used, quota: sms.quota, packCredits: sms.packCredits, totalAvailable: sms.totalAvailable }
       });
     }
-  } else if (sms.percent >= 80) {
+  } else if (sms.quotaExceeded && sms.packCredits > 0) {
+    const key = `sms-info`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('sms', 'info')) {
+      alerts.push({
+        type: 'sms',
+        severity: 'info',
+        title: 'Using SMS Pack Credits',
+        message: `Plan quota exceeded, now using ${sms.packCredits} pack credits. ${sms.totalAvailable} total SMS remaining.`,
+        action: 'packs',
+        isDismissible: true,
+        data: { used: sms.used, quota: sms.quota, packCredits: sms.packCredits, totalAvailable: sms.totalAvailable }
+      });
+    }
+  } else if (sms.percent >= 80 && !sms.quotaExceeded) {
     const key = `sms-warning`;
     if (!dismissedAlerts.has(key) && !isAlertDismissed('sms', 'warning')) {
       alerts.push({
         type: 'sms',
         severity: 'warning',
         title: 'High SMS Usage',
-        message: `You've used ${sms.percent}% of your SMS quota (${sms.used}/${sms.quota}). Consider upgrading for more messages.`,
-        action: 'upgrade',
+        message: `You've used ${sms.percent}% of your SMS quota (${sms.used}/${sms.quota}). Consider buying packs for additional capacity.`,
+        action: 'packs_or_upgrade',
         isDismissible: true,
-        data: { used: sms.used, quota: sms.quota, remaining: sms.remaining, percent: sms.percent }
+        data: { used: sms.used, quota: sms.quota, packCredits: sms.packCredits, totalAvailable: sms.totalAvailable }
       });
     }
   }
 
-  // Email alerts
-  if (email.quotaExceeded) {
+  // Email alerts - Pack-aware logic
+  if (email.allExhausted) {
     const key = `email-critical`;
     if (!dismissedAlerts.has(key) && !isAlertDismissed('email', 'critical')) {
       alerts.push({
         type: 'email',
         severity: 'critical',
-        title: 'Email Quota Exceeded',
-        message: `You've exceeded your email quota of ${email.quota} messages. Upgrade to continue sending notifications.`,
-        action: 'upgrade',
+        title: 'All Email Credits Exhausted',
+        message: `You've used all available email credits (${email.quota} plan${email.packCredits > 0 ? ` + ${email.packCredits} pack` : ''}). Buy packs or upgrade to continue.`,
+        action: 'packs_or_upgrade',
         isDismissible: false,
-        data: { used: email.used, quota: email.quota, remaining: email.remaining, percent: email.percent }
+        data: { used: email.used, quota: email.quota, packCredits: email.packCredits, totalAvailable: email.totalAvailable }
       });
     }
-  } else if (email.remaining <= 10 && email.remaining > 0) {
+  } else if (email.totalAvailable <= 20 && email.totalAvailable > 0) {
     const key = `email-error`;
     if (!dismissedAlerts.has(key) && !isAlertDismissed('email', 'error')) {
       alerts.push({
         type: 'email',
         severity: 'error',
-        title: 'Email Running Low',
-        message: `Only ${email.remaining} emails remaining this month. Upgrade to avoid service interruption.`,
-        action: 'upgrade',
+        title: 'Email Credits Running Low',
+        message: `Only ${email.totalAvailable} total emails remaining (${email.remaining} plan + ${email.packCredits} pack). Buy more packs to avoid interruption.`,
+        action: 'packs',
         isDismissible: true,
-        data: { used: email.used, quota: email.quota, remaining: email.remaining, percent: email.percent }
+        data: { used: email.used, quota: email.quota, packCredits: email.packCredits, totalAvailable: email.totalAvailable }
       });
     }
-  } else if (email.percent >= 80) {
+  } else if (email.quotaExceeded && email.packCredits > 0) {
+    const key = `email-info`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('email', 'info')) {
+      alerts.push({
+        type: 'email',
+        severity: 'info',
+        title: 'Using Email Pack Credits',
+        message: `Plan quota exceeded, now using ${email.packCredits} pack credits. ${email.totalAvailable} total emails remaining.`,
+        action: 'packs',
+        isDismissible: true,
+        data: { used: email.used, quota: email.quota, packCredits: email.packCredits, totalAvailable: email.totalAvailable }
+      });
+    }
+  } else if (email.percent >= 80 && !email.quotaExceeded) {
     const key = `email-warning`;
     if (!dismissedAlerts.has(key) && !isAlertDismissed('email', 'warning')) {
       alerts.push({
         type: 'email',
         severity: 'warning',
         title: 'High Email Usage',
-        message: `You've used ${email.percent}% of your email quota (${email.used}/${email.quota}). Consider upgrading for more messages.`,
-        action: 'upgrade',
+        message: `You've used ${email.percent}% of your email quota (${email.used}/${email.quota}). Consider buying packs for additional capacity.`,
+        action: 'packs_or_upgrade',
         isDismissible: true,
-        data: { used: email.used, quota: email.quota, remaining: email.remaining, percent: email.percent }
+        data: { used: email.used, quota: email.quota, packCredits: email.packCredits, totalAvailable: email.totalAvailable }
       });
     }
   }

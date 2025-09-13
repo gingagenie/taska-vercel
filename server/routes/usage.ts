@@ -142,20 +142,47 @@ router.get('/', requireAuth, requireOrg, async (req, res) => {
 
     const activeUsers = userCountResult?.count || 0
 
-    // Calculate SMS metrics
+    // Get available pack credits for SMS and Email
+    const activePacks = await db
+      .select({
+        packType: usagePacks.packType,
+        availableCredits: sql<number>`${usagePacks.quantity} - ${usagePacks.usedQuantity}`.as('availableCredits'),
+      })
+      .from(usagePacks)
+      .where(and(
+        eq(usagePacks.orgId, orgId),
+        eq(usagePacks.status, 'active'),
+        sql`${usagePacks.expiresAt} > NOW()`,
+        sql`${usagePacks.quantity} > ${usagePacks.usedQuantity}`
+      ))
+
+    // Calculate total available pack credits by type
+    const smsPackCredits = activePacks
+      .filter(pack => pack.packType === 'sms')
+      .reduce((total, pack) => total + pack.availableCredits, 0)
+    
+    const emailPackCredits = activePacks
+      .filter(pack => pack.packType === 'email')
+      .reduce((total, pack) => total + pack.availableCredits, 0)
+
+    // Calculate SMS metrics with pack awareness
     const smsRemaining = Math.max(0, quotas.smsMonthly - currentUsage.sms)
     const smsPercent = calculatePercent(currentUsage.sms, quotas.smsMonthly)
     const smsQuotaExceeded = currentUsage.sms >= quotas.smsMonthly
+    const totalSmsCredits = smsRemaining + smsPackCredits
+    const allSmsExhausted = totalSmsCredits <= 0
 
-    // Calculate email metrics
+    // Calculate email metrics with pack awareness
     const emailsRemaining = Math.max(0, quotas.emailsMonthly - currentUsage.emails)
     const emailsPercent = calculatePercent(currentUsage.emails, quotas.emailsMonthly)
     const emailsQuotaExceeded = currentUsage.emails >= quotas.emailsMonthly
+    const totalEmailCredits = emailsRemaining + emailPackCredits
+    const allEmailsExhausted = totalEmailCredits <= 0
 
     // Calculate user metrics
     const usersPercent = calculatePercent(activeUsers, quotas.users)
 
-    // Format response according to specified structure
+    // Format response according to specified structure with pack awareness
     const response = {
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
@@ -172,6 +199,10 @@ router.get('/', requireAuth, requireOrg, async (req, res) => {
         remaining: smsRemaining,
         percent: smsPercent,
         quotaExceeded: smsQuotaExceeded,
+        // Pack-aware fields
+        packCredits: smsPackCredits,
+        totalAvailable: totalSmsCredits,
+        allExhausted: allSmsExhausted,
       },
       email: {
         used: currentUsage.emails,
@@ -179,6 +210,10 @@ router.get('/', requireAuth, requireOrg, async (req, res) => {
         remaining: emailsRemaining,
         percent: emailsPercent,
         quotaExceeded: emailsQuotaExceeded,
+        // Pack-aware fields
+        packCredits: emailPackCredits,
+        totalAvailable: totalEmailCredits,
+        allExhausted: allEmailsExhausted,
       },
     }
 

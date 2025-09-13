@@ -29,7 +29,16 @@ if (CLIENT_ORIGIN) {
   }));
 }
 
-app.use(express.json());
+// Conditional body parsing middleware - handles Stripe webhook raw body requirement
+app.use((req, res, next) => {
+  // Stripe webhook needs raw body for signature verification
+  if (req.path === '/api/usage/packs/webhook') {
+    express.raw({ type: 'application/json' })(req, res, next);
+  } else {
+    // All other routes use JSON parsing
+    express.json()(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: false }));
 
 // 3) Session store + cookie flags that work in Deploy

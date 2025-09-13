@@ -787,13 +787,20 @@ export default function SettingsPage() {
     loadPresets();
   }, []);
 
+  // Get the tab from URL parameter
+  const getDefaultTab = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    return tabParam || 'profile';
+  };
+
   if (isLoading) return <div className="p-6">Loading settings...</div>;
 
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-bold text-management">Settings</h1>
 
-      <Tabs defaultValue="profile" className="w-full">
+      <Tabs defaultValue={getDefaultTab()} className="w-full">
         <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>

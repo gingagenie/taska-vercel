@@ -3,6 +3,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { UpgradeModal } from "@/components/subscription/upgrade-modal";
+import { PackSelectionModal } from "@/components/packs/PackSelectionModal";
 import { 
   AlertTriangle, 
   AlertCircle, 
@@ -13,7 +14,8 @@ import {
   Mail,
   Crown,
   Zap,
-  Star
+  Star,
+  ShoppingCart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -312,6 +314,14 @@ export function UsageAlert({
             <p className="text-xs mt-1 opacity-90">{message}</p>
             {showUpgrade && planDetails && (
               <div className="flex items-center gap-2 mt-2">
+                {(type === 'sms' || type === 'email') && (
+                  <PackSelectionModal initialType={type}>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" data-testid={`button-buy-packs-${type}`}>
+                      <ShoppingCart className="w-3 h-3 mr-1" />
+                      Buy {type.toUpperCase()}
+                    </Button>
+                  </PackSelectionModal>
+                )}
                 <UpgradeModal currentPlan={currentPlan}>
                   <Button size="sm" variant="outline" className="h-7 text-xs" data-testid={`button-upgrade-${type}`}>
                     Upgrade to {planDetails.name}

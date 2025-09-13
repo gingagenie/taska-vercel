@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { CheckCircle, ExternalLink, AlertCircle, Trash2, Crown, Star, Zap, CreditCard, Users, Mail, BarChart3 } from "lucide-react";
+import { CheckCircle, ExternalLink, AlertCircle, Trash2, Crown, Star, Zap, CreditCard, Users, Mail, BarChart3, ShoppingCart, Package } from "lucide-react";
 import { useSubscription, useCancelSubscription } from "@/hooks/useSubscription";
 import { UpgradeModal } from "@/components/subscription/upgrade-modal";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,9 @@ import { useSmsUsage } from "@/hooks/useSmsUsage";
 import { Progress } from "@/components/ui/progress";
 import { MessageCircle } from "lucide-react";
 import { useUsageAlerts, UsageAlertList, UsageData } from "@/components/usage/usage-alerts";
+import { PackSelectionModal } from "@/components/packs/PackSelectionModal";
+import { PurchasedPacksList } from "@/components/packs/PurchasedPacksList";
+import { usePackPurchase } from "@/hooks/usePackPurchase";
 
 // Usage Tab Component
 function UsageTab() {
@@ -553,6 +556,7 @@ function SubscriptionTab() {
 export default function SettingsPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { handleSuccess, handleError } = usePackPurchase();
   const { data, isLoading } = useQuery({ queryKey: ["/api/me"], queryFn: meApi.get });
 
   const [profile, setProfile] = useState({ name: "", role: "", phone: "" });
@@ -787,6 +791,27 @@ export default function SettingsPage() {
     loadPresets();
   }, []);
 
+  // Handle URL parameters for pack purchase results
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const packSuccess = params.get('pack_success');
+    const packCanceled = params.get('pack_canceled');
+    
+    if (packSuccess === 'true') {
+      handleSuccess();
+      // Clean up URL parameters
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('pack_success');
+      window.history.replaceState({}, '', newUrl.toString());
+    } else if (packCanceled === 'true') {
+      handleError('Purchase was canceled. You can try again anytime.');
+      // Clean up URL parameters
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('pack_canceled');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  }, [handleSuccess, handleError]);
+
   // Get the tab from URL parameter
   const getDefaultTab = () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -801,13 +826,14 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-management">Settings</h1>
 
       <Tabs defaultValue={getDefaultTab()} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 h-auto">
+        <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>
           <TabsTrigger value="terms" data-testid="tab-terms" className="text-xs px-2 py-2">T&C</TabsTrigger>
           <TabsTrigger value="items" data-testid="tab-items" className="text-xs px-2 py-2">Items</TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
           <TabsTrigger value="usage" data-testid="tab-usage" className="text-xs px-2 py-2">Usage</TabsTrigger>
+          <TabsTrigger value="billing" data-testid="tab-billing" className="text-xs px-2 py-2">Billing</TabsTrigger>
           <TabsTrigger value="subscription" data-testid="tab-subscription" className="text-xs px-2 py-2">Sub</TabsTrigger>
         </TabsList>
 
@@ -1092,6 +1118,142 @@ export default function SettingsPage() {
         {/* Usage */}
         <TabsContent value="usage" className="mt-4">
           <UsageTab />
+        </TabsContent>
+
+        {/* Billing */}
+        <TabsContent value="billing" className="mt-4">
+          <div className="space-y-6">
+            {/* Header */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-blue-500" />
+                  Billing & Pack Purchases
+                </CardTitle>
+                <CardDescription>
+                  Purchase communication packs to extend your SMS and email allowances
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            {/* Quick Purchase Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5 text-green-500" />
+                  Purchase Communication Packs
+                </CardTitle>
+                <CardDescription>
+                  Top up your account with additional SMS and email credits
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4 text-green-500" />
+                      SMS Packs
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      Send notifications, confirmations, and updates to customers
+                    </p>
+                    <PackSelectionModal initialType="sms">
+                      <Button className="w-full" data-testid="button-buy-sms-packs">
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Buy SMS Packs
+                      </Button>
+                    </PackSelectionModal>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-purple-500" />
+                      Email Packs
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      Send invoices, quotes, and follow-up communications
+                    </p>
+                    <PackSelectionModal initialType="email">
+                      <Button className="w-full" data-testid="button-buy-email-packs">
+                        <Mail className="w-4 h-4 mr-2" />
+                        Buy Email Packs
+                      </Button>
+                    </PackSelectionModal>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <PackSelectionModal>
+                    <Button variant="outline" className="w-full" data-testid="button-view-all-packs">
+                      <Package className="w-4 h-4 mr-2" />
+                      View All Pack Options
+                    </Button>
+                  </PackSelectionModal>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Purchased Packs Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-orange-500" />
+                  Your Purchased Packs
+                </CardTitle>
+                <CardDescription>
+                  View and manage your active communication packs
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PurchasedPacksList />
+              </CardContent>
+            </Card>
+
+            {/* Billing Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Billing Information</CardTitle>
+                <CardDescription>
+                  Pack purchase details and security
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <div>
+                      <div className="font-medium">Secure Payments</div>
+                      <div className="text-gray-600">Processed by Stripe</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                    <CreditCard className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                    <div>
+                      <div className="font-medium">Instant Activation</div>
+                      <div className="text-gray-600">Credits available immediately</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
+                    <Star className="w-5 h-5 text-purple-500 flex-shrink-0" />
+                    <div>
+                      <div className="font-medium">Never Expire</div>
+                      <div className="text-gray-600">Use credits anytime</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t text-xs text-gray-500">
+                  <p>
+                    <strong>How it works:</strong> Purchase packs to add credits to your account. 
+                    Credits are automatically used when you send SMS or emails, starting with the oldest packs first. 
+                    All packs include GST and are processed securely through Stripe.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Subscription */}

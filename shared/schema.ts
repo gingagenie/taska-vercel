@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, varchar, text, timestamp, integer, decimal, boolean, jsonb, uuid, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, integer, decimal, boolean, jsonb, uuid, primaryKey, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -385,6 +385,32 @@ export const usageCounters = pgTable("usage_counters", {
   periodValidation: sql`CONSTRAINT usage_counters_period_valid CHECK (period_end > period_start)`,
 }));
 
+// Usage packs for SMS and email add-on purchases
+export const usagePacks = pgTable("usage_packs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  packType: varchar("pack_type", { length: 10 }).notNull(), // 'sms' | 'email'
+  quantity: integer("quantity").notNull(), // Total SMS/emails in the pack
+  usedQuantity: integer("used_quantity").notNull().default(0), // How many have been consumed
+  purchasedAt: timestamp("purchased_at").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(), // 6 months from purchase
+  stripePaymentId: text("stripe_payment_id"), // For payment tracking
+  status: varchar("status", { length: 20 }).notNull().default("active"), // 'active' | 'expired' | 'used_up'
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // Index for efficient lookups by org and status
+  orgStatusIdx: index("usage_packs_org_status_idx").on(t.orgId, t.status),
+  // Index for efficient expiry checks
+  statusExpiryIdx: index("usage_packs_status_expiry_idx").on(t.status, t.expiresAt),
+  // Check constraint for pack type validation
+  packTypeValidation: sql`CONSTRAINT usage_packs_pack_type_valid CHECK (pack_type IN ('sms', 'email'))`,
+  // Check constraint for status validation
+  statusValidation: sql`CONSTRAINT usage_packs_status_valid CHECK (status IN ('active', 'expired', 'used_up'))`,
+  // Check constraint for quantity validation
+  quantityValidation: sql`CONSTRAINT usage_packs_quantity_valid CHECK (quantity > 0 AND used_quantity >= 0 AND used_quantity <= quantity)`,
+}));
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -396,6 +422,7 @@ export const insertJobNotificationSchema = createInsertSchema(jobNotifications).
 export const insertOrgIntegrationSchema = createInsertSchema(orgIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertItemPresetSchema = createInsertSchema(itemPresets).omit({ id: true, createdAt: true });
 export const insertUsageCountersSchema = createInsertSchema(usageCounters).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUsagePackSchema = createInsertSchema(usagePacks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompletedJobSchema = createInsertSchema(completedJobs).omit({ id: true, completedAt: true });
 export const insertJobHoursSchema = createInsertSchema(jobHours).omit({ id: true, createdAt: true });
 export const insertJobPartsSchema = createInsertSchema(jobParts).omit({ id: true, createdAt: true });
@@ -433,6 +460,9 @@ export type InsertItemPreset = z.infer<typeof insertItemPresetSchema>;
 
 export type UsageCounters = typeof usageCounters.$inferSelect;
 export type InsertUsageCounters = z.infer<typeof insertUsageCountersSchema>;
+
+export type UsagePack = typeof usagePacks.$inferSelect;
+export type InsertUsagePack = z.infer<typeof insertUsagePackSchema>;
 
 export type CompletedJob = typeof completedJobs.$inferSelect;
 export type InsertCompletedJob = z.infer<typeof insertCompletedJobSchema>;

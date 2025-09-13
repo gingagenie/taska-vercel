@@ -222,7 +222,7 @@ export async function finalizePackConsumption(reservationId: string): Promise<Pa
         })
         .from(usagePackReservations)
         .where(and(
-          sql`${usagePackReservations.id} LIKE ${reservationId + '%'}`,
+          sql`${usagePackReservations.id}::text LIKE ${reservationId + '%'}`,
           eq(usagePackReservations.status, 'pending')
         ))
         .for('update');
@@ -372,7 +372,7 @@ export async function releasePackReservation(reservationId: string): Promise<Pac
         .update(usagePackReservations)
         .set({ status: 'released' as ReservationStatus })
         .where(and(
-          sql`${usagePackReservations.id} LIKE ${reservationId + '%'}`,
+          sql`${usagePackReservations.id}::text LIKE ${reservationId + '%'}`,
           eq(usagePackReservations.status, 'pending')
         ));
     });
@@ -633,7 +633,7 @@ async function logCriticalFinalizationFailure(
         org_id, pack_id, pack_type, quantity, 'failed',
         NOW() + INTERVAL '30 days', NOW(), NOW()
       FROM usage_pack_reservations 
-      WHERE id LIKE ${reservationId + '%'} 
+      WHERE id::text LIKE ${reservationId + '%'} 
       AND status = 'pending'
       LIMIT 1
       ON CONFLICT (id) DO NOTHING
@@ -666,7 +666,7 @@ async function queueCompensationFinalization(reservationId: string): Promise<voi
       UPDATE usage_pack_reservations 
       SET status = 'compensation_queued',
           updated_at = NOW()
-      WHERE id LIKE ${reservationId + '%'} 
+      WHERE id::text LIKE ${reservationId + '%'} 
       AND status = 'pending'
     `);
     
@@ -695,7 +695,7 @@ export async function reconcilePendingFinalizations(): Promise<{
     // Find non-expired pending reservations that may need finalization
     const pendingReservations = await db
       .select({
-        reservationId: sql`REGEXP_REPLACE(${usagePackReservations.id}, '-[^-]+$', '')`.as('reservationId'),
+        reservationId: sql`REGEXP_REPLACE(${usagePackReservations.id}::text, '-[^-]+$', '')`.as('reservationId'),
         count: sql`COUNT(*)`.as('count'),
         minCreated: sql`MIN(${usagePackReservations.createdAt})`.as('minCreated'),
       })
@@ -705,7 +705,7 @@ export async function reconcilePendingFinalizations(): Promise<{
         sql`${usagePackReservations.expiresAt} > NOW()`,
         sql`${usagePackReservations.createdAt} < NOW() - INTERVAL '2 minutes'` // Only old reservations
       ))
-      .groupBy(sql`REGEXP_REPLACE(${usagePackReservations.id}, '-[^-]+$', '')`)
+      .groupBy(sql`REGEXP_REPLACE(${usagePackReservations.id}::text, '-[^-]+$', '')`)
       .limit(100); // Process in batches
     
     if (pendingReservations.length === 0) {
@@ -769,12 +769,12 @@ export async function processCompensationQueue(): Promise<{
     // Get compensation queued reservations
     const compensationReservations = await db
       .select({
-        reservationId: sql`REGEXP_REPLACE(${usagePackReservations.id}, '-[^-]+$', '')`.as('reservationId'),
+        reservationId: sql`REGEXP_REPLACE(${usagePackReservations.id}::text, '-[^-]+$', '')`.as('reservationId'),
         createdAt: usagePackReservations.createdAt,
       })
       .from(usagePackReservations)
       .where(eq(usagePackReservations.status, 'compensation_queued'))
-      .groupBy(sql`REGEXP_REPLACE(${usagePackReservations.id}, '-[^-]+$', '')`, usagePackReservations.createdAt)
+      .groupBy(sql`REGEXP_REPLACE(${usagePackReservations.id}::text, '-[^-]+$', '')`, usagePackReservations.createdAt)
       .orderBy(asc(usagePackReservations.createdAt))
       .limit(50); // Process in batches
     
@@ -919,12 +919,12 @@ function checkFinalizationAlerts(): void {
   
   // Critical: Success rate below 95%
   if (metrics.successRate < 95 && metrics.totalAttempts > 10) {
-    alerts.push(`CRITICAL: Finalization success rate is ${metrics.successRate.toFixed(1)}% (below 95% threshold)`);
+    alerts.push(`CRITICAL: Finalization success rate is ${(metrics.successRate || 0).toFixed(1)}% (below 95% threshold)`);
   }
   
   // Warning: Success rate below 98%
   if (metrics.successRate < 98 && metrics.totalAttempts > 10) {
-    alerts.push(`WARNING: Finalization success rate is ${metrics.successRate.toFixed(1)}% (below 98% threshold)`);
+    alerts.push(`WARNING: Finalization success rate is ${(metrics.successRate || 0).toFixed(1)}% (below 98% threshold)`);
   }
   
   // Critical: Multiple failures in short period
@@ -934,7 +934,7 @@ function checkFinalizationAlerts(): void {
   
   // Warning: High average retry count
   if (metrics.averageRetryCount > 2.0) {
-    alerts.push(`WARNING: High average retry count (${metrics.averageRetryCount.toFixed(1)}) indicates system instability`);
+    alerts.push(`WARNING: High average retry count (${(metrics.averageRetryCount || 0).toFixed(1)}) indicates system instability`);
   }
   
   // Warning: Growing pending reservations
@@ -977,11 +977,11 @@ export async function generateBillingHealthReport(): Promise<{
   // Analyze metrics for issues
   if (metrics.successRate < 95) {
     status = 'critical';
-    issues.push(`Low finalization success rate: ${metrics.successRate.toFixed(1)}%`);
+    issues.push(`Low finalization success rate: ${(metrics.successRate || 0).toFixed(1)}%`);
     recommendations.push('Investigate database connectivity and performance issues');
   } else if (metrics.successRate < 98) {
     status = 'warning';
-    issues.push(`Declining finalization success rate: ${metrics.successRate.toFixed(1)}%`);
+    issues.push(`Declining finalization success rate: ${(metrics.successRate || 0).toFixed(1)}%`);
     recommendations.push('Monitor database performance and network stability');
   }
   
@@ -1009,7 +1009,7 @@ export async function generateBillingHealthReport(): Promise<{
   
   if (metrics.averageRetryCount > 2.5) {
     status = status === 'critical' ? 'critical' : 'warning';
-    issues.push(`High retry rate: ${metrics.averageRetryCount.toFixed(1)} average retries`);
+    issues.push(`High retry rate: ${(metrics.averageRetryCount || 0).toFixed(1)} average retries`);
     recommendations.push('Investigate database performance and connection stability');
   }
   
@@ -1053,7 +1053,7 @@ setInterval(async () => {
       console.error(`[BILLING HEALTH] Issues: ${report.issues.join(', ')}`);
       console.error(`[BILLING HEALTH] Recommendations: ${report.recommendations.join(', ')}`);
     } else {
-      console.log(`[BILLING HEALTH] System healthy - ${report.metrics.successRate.toFixed(1)}% success rate`);
+      console.log(`[BILLING HEALTH] System healthy - ${report.metrics?.successRate?.toFixed(1) || 'N/A'}% success rate`);
     }
   } catch (error) {
     console.error('[BILLING HEALTH] Error generating health report:', error);

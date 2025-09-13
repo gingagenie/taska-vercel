@@ -5,7 +5,8 @@ import { z } from 'zod'
 import { db } from '../db/client'
 import { subscriptionPlans, orgSubscriptions, usageCounters, users, usagePacks, organizations } from '../../shared/schema'
 import { eq, and, sql, count, gte, lt, desc, asc } from 'drizzle-orm'
-import { requireAuth, requireOrg } from '../middleware/auth'
+import { requireAuth } from '../middleware/auth'
+import { requireOrg } from '../middleware/tenancy'
 
 const router = Router()
 
@@ -432,8 +433,16 @@ router.post('/packs/checkout', requireAuth, requireOrg, async (req, res) => {
 // POST /api/usage/packs/webhook - Handle Stripe webhook for completed purchases
 // Raw body parsing is handled at application level in server/index.ts
 router.post('/packs/webhook', async (req, res) => {
+  console.log('[PACK WEBHOOK] Received webhook request')
+  console.log('[PACK WEBHOOK] Headers:', JSON.stringify(req.headers, null, 2))
+  
   const sig = req.headers['stripe-signature'] as string
   let event: Stripe.Event
+
+  if (!sig) {
+    console.error('[PACK WEBHOOK] Missing stripe-signature header')
+    return res.status(400).send('Missing stripe-signature header')
+  }
 
   try {
     event = stripe.webhooks.constructEvent(
@@ -441,36 +450,57 @@ router.post('/packs/webhook', async (req, res) => {
       sig, 
       process.env.STRIPE_WEBHOOK_SECRET || ''
     )
+    console.log('[PACK WEBHOOK] Successfully constructed event:', event.type)
   } catch (err: any) {
-    console.error(`Pack webhook signature verification failed: ${err.message}`)
+    console.error(`[PACK WEBHOOK] Signature verification failed: ${err.message}`)
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
 
   try {
+    console.log('[PACK WEBHOOK] Processing event type:', event.type)
+    
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        const { orgId, productId, packType, packQuantity } = session.metadata!
+        console.log('[PACK WEBHOOK] Session metadata:', JSON.stringify(session.metadata, null, 2))
+        
+        const { orgId, productId, packType, packQuantity } = session.metadata || {}
 
         // Only process if this is a pack purchase (has packType metadata)
         if (!packType || !packQuantity) {
+          console.log('[PACK WEBHOOK] Not a pack purchase, skipping (missing packType or packQuantity)')
           break
         }
 
+        console.log(`[PACK WEBHOOK] Processing pack purchase: ${packType} x${packQuantity} for org ${orgId}`)
+
         // Check for existing pack with same payment ID to prevent duplicates
         const stripePaymentId = session.payment_intent as string || session.id
+        console.log('[PACK WEBHOOK] Checking for existing pack with payment ID:', stripePaymentId)
+        
         const [existingPack] = await db
           .select()
           .from(usagePacks)
           .where(eq(usagePacks.stripePaymentId, stripePaymentId))
 
         if (existingPack) {
-          console.log(`Pack already exists for payment ${stripePaymentId}, skipping duplicate creation`)
+          console.log(`[PACK WEBHOOK] Pack already exists for payment ${stripePaymentId}, skipping duplicate creation`)
           break
         }
 
         // Create usage pack record
         const expiryDate = getPackExpiryDate()
+        console.log('[PACK WEBHOOK] Creating pack with values:', {
+          orgId,
+          packType,
+          quantity: parseInt(packQuantity),
+          usedQuantity: 0,
+          purchasedAt: new Date(),
+          expiresAt: expiryDate,
+          stripePaymentId,
+          status: 'active',
+        })
+
         await db
           .insert(usagePacks)
           .values({
@@ -484,26 +514,30 @@ router.post('/packs/webhook', async (req, res) => {
             status: 'active',
           })
 
-        console.log(`Pack purchased: ${packType} pack of ${packQuantity} for org ${orgId}`)
+        console.log(`[PACK WEBHOOK] SUCCESS: Pack created - ${packType} pack of ${packQuantity} for org ${orgId}`)
         break
       }
 
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent
-        console.log(`Pack payment succeeded: ${paymentIntent.id}`)
+        console.log(`[PACK WEBHOOK] Pack payment succeeded: ${paymentIntent.id}`)
         break
       }
 
       case 'payment_intent.payment_failed': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent
-        console.log(`Pack payment failed: ${paymentIntent.id}`)
+        console.log(`[PACK WEBHOOK] Pack payment failed: ${paymentIntent.id}`)
         break
       }
+
+      default:
+        console.log(`[PACK WEBHOOK] Unhandled event type: ${event.type}`)
     }
 
+    console.log('[PACK WEBHOOK] Webhook processing completed successfully')
     res.json({ received: true })
   } catch (error) {
-    console.error('Error processing pack webhook:', error)
+    console.error('[PACK WEBHOOK] Error processing pack webhook:', error)
     res.status(500).json({ error: 'Webhook processing failed' })
   }
 })

@@ -40,7 +40,7 @@ export async function updateRetryStateInDatabase(
         nextRetryAt,
         updatedAt: now,
       })
-      .where(sql`${usagePackReservations.id} LIKE ${reservationId + '%'}`);
+      .where(sql`${usagePackReservations.id}::text LIKE ${reservationId + '%'}`);
     
     console.log(`[RETRY STATE] Updated retry state for ${reservationId}: attempt ${attemptCount}, next retry at ${nextRetryAt.toISOString()}`);
     
@@ -83,7 +83,7 @@ export async function queueForBackgroundRetry(
         updatedAt: now,
       })
       .where(and(
-        sql`${usagePackReservations.id} LIKE ${reservationId + '%'}`,
+        sql`${usagePackReservations.id}::text LIKE ${reservationId + '%'}`,
         eq(usagePackReservations.status, 'pending')
       ));
     
@@ -114,7 +114,7 @@ export async function queueCompensationFinalization(reservationId: string): Prom
         updatedAt: now,
       })
       .where(and(
-        sql`${usagePackReservations.id} LIKE ${reservationId + '%'}`,
+        sql`${usagePackReservations.id}::text LIKE ${reservationId + '%'}`,
         eq(usagePackReservations.status, 'pending')
       ))
       .returning({ id: usagePackReservations.id });

@@ -3,11 +3,14 @@ import { useRoute, useLocation } from "wouter";
 import { invoicesApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { ExternalLink, Mail } from "lucide-react";
+import { ExternalLink, Mail, Eye } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
@@ -18,6 +21,9 @@ export default function InvoiceView() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [creatingXero, setCreatingXero] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailAddress, setEmailAddress] = useState("");
+  const [sending, setSending] = useState(false);
   const { toast } = useToast();
 
   // Fetch customers and user data for preview
@@ -91,6 +97,36 @@ export default function InvoiceView() {
       });
     } finally {
       setCreatingXero(false);
+    }
+  }
+
+  function openEmailDialog() {
+    const customer = (customers as any[]).find((c: any) => c.id === invoice.customer_id) || {};
+    setEmailAddress(customer.email || "");
+    setEmailOpen(true);
+  }
+
+  async function sendEmail() {
+    if (!id || !emailAddress.trim()) return;
+    setSending(true);
+    try {
+      await invoicesApi.sendEmail(id, { email: emailAddress.trim() });
+      toast({
+        title: "Invoice sent",
+        description: `Invoice sent successfully to ${emailAddress}`,
+      });
+      setEmailOpen(false);
+      // Refresh invoice to potentially update status
+      const updatedInvoice = await invoicesApi.get(id);
+      setInvoice(updatedInvoice);
+    } catch (e: any) {
+      toast({
+        title: "Failed to send email",
+        description: e.message || "Unable to send invoice email",
+        variant: "destructive",
+      });
+    } finally {
+      setSending(false);
     }
   }
 
@@ -231,44 +267,12 @@ export default function InvoiceView() {
           </div>
 
           <script>
-            function sendInvoiceEmail(invoiceId) {
-              console.log('sendInvoiceEmail called with ID:', invoiceId);
-              var email = prompt('Enter email address to send invoice:', '${safeData.customerEmail}');
-              if (email && email.trim()) {
-                console.log('Sending to email:', email.trim());
-                fetch('/api/invoices/' + encodeURIComponent(invoiceId) + '/email', {
-                  method: 'POST',
-                  headers: { 
-                    'Content-Type': 'application/json'
-                  },
-                  credentials: 'include',
-                  body: JSON.stringify({ email: email.trim() })
-                })
-                .then(function(response) {
-                  console.log('Response:', response);
-                  return response.json();
-                })
-                .then(function(data) {
-                  console.log('Response data:', data);
-                  if (data.ok) {
-                    alert('Invoice sent successfully to ' + email);
-                  } else {
-                    alert('Failed to send: ' + (data.error || 'Unknown error'));
-                  }
-                })
-                .catch(function(err) {
-                  console.error('Fetch error:', err);
-                  alert('Failed to send: ' + err.message);
-                });
-              } else {
-                console.log('No email entered or cancelled');
-              }
-            }
+            // Preview only - email sending handled in main app
           </script>
           <div style="position: fixed; top: 10px; right: 10px; z-index: 1000;">
             <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
             <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
-            <button onclick="sendInvoiceEmail('${escapeHtml(id || '')}')" style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">📧 Send</button>
+            <button onclick="alert('Please use the Email button in the main app to send this invoice.')" style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">📧 Send via App</button>
           </div>
         </body>
       </html>
@@ -291,8 +295,17 @@ export default function InvoiceView() {
           <Button 
             variant="outline"
             className="flex items-center gap-2"
-            data-testid="button-email-invoice"
+            data-testid="button-preview-invoice"
             onClick={handlePreview}
+          >
+            <Eye className="h-4 w-4" />
+            Preview
+          </Button>
+          <Button 
+            variant="outline"
+            className="flex items-center gap-2"
+            data-testid="button-email-invoice"
+            onClick={openEmailDialog}
           >
             <Mail className="h-4 w-4" />
             Email
@@ -390,6 +403,45 @@ export default function InvoiceView() {
           </Card>
         </div>
       </div>
+
+      {/* Email Sending Dialog */}
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Invoice Email</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm text-gray-600">To (email address)</label>
+              <Input 
+                type="email"
+                value={emailAddress} 
+                onChange={(e) => setEmailAddress(e.target.value)} 
+                placeholder="customer@example.com"
+                data-testid="input-email-address"
+              />
+            </div>
+            <div className="text-sm text-gray-500">
+              This will send the invoice "{invoice?.title || 'Invoice'}" to the specified email address.
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col space-y-3">
+            <EmailLimitWarning onProceed={sendEmail} disabled={sending || !emailAddress.trim()}>
+              <Button 
+                onClick={sendEmail} 
+                disabled={sending || !emailAddress.trim()}
+                data-testid="button-send-email-confirm"
+                className="w-full"
+              >
+                {sending ? "Sending…" : "Send Invoice"}
+              </Button>
+            </EmailLimitWarning>
+            <Button variant="ghost" onClick={() => setEmailOpen(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

@@ -90,7 +90,9 @@ export default function Landing() {
           .hero-grid { grid-template-columns: 1fr; }
           .feature-grid, .price-grid, .demo-inner, .faq-grid { grid-template-columns: 1fr; }
           .nav-links { display: none; }
+          .packs-grid { grid-template-columns: 1fr !important; }
         }
+        .packs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
         @media (min-width: 981px) {
           .nav-links { display: flex; }
         }
@@ -216,9 +218,11 @@ export default function Landing() {
               <h4>Taska Solo</h4>
               <div className="amount"><span>$29</span><small>/month</small></div>
               <ul>
-                <li><span className="tick">✓</span> 1 user, 1 team</li>
+                <li><span className="tick">✓</span> 1 user</li>
+                <li><span className="tick">✓</span> 100 SMS & emails monthly</li>
                 <li><span className="tick">✓</span> Jobs, customers, equipment</li>
                 <li><span className="tick">✓</span> Quotes & invoices</li>
+                <li><span className="tick">✓</span> Mobile scheduling</li>
                 <li><span className="tick">✓</span> Email support</li>
               </ul>
             </div>
@@ -233,9 +237,11 @@ export default function Landing() {
               <div className="amount"><span>$49</span><small>/month</small></div>
               <ul>
                 <li><span className="tick">✓</span> Up to 5 users</li>
+                <li><span className="tick">✓</span> 500 SMS & emails monthly</li>
                 <li><span className="tick">✓</span> Advanced scheduling</li>
                 <li><span className="tick">✓</span> Customer portal & file uploads</li>
                 <li><span className="tick">✓</span> Xero & Stripe integration</li>
+                <li><span className="tick">✓</span> SMS job confirmations</li>
               </ul>
             </div>
             <a className="btn primary cta" href="/auth/register?plan=pro">Choose Pro</a>
@@ -247,16 +253,82 @@ export default function Landing() {
               <h4>Taska Enterprise</h4>
               <div className="amount"><span>$99</span><small>/month</small></div>
               <ul>
-                <li><span className="tick">✓</span> Unlimited users</li>
-                <li><span className="tick">✓</span> SSO & advanced permissions</li>
+                <li><span className="tick">✓</span> Up to 12 users</li>
+                <li><span className="tick">✓</span> 2,000 SMS & emails monthly</li>
+                <li><span className="tick">✓</span> Advanced permissions</li>
                 <li><span className="tick">✓</span> Priority support</li>
                 <li><span className="tick">✓</span> Dedicated onboarding</li>
+                <li><span className="tick">✓</span> Usage analytics</li>
               </ul>
             </div>
             <a className="btn cta" href="/auth/register?plan=enterprise">Choose Enterprise</a>
           </div>
         </div>
         <p className="tiny container" style={{textAlign:'center', marginTop:16}}>All plans include 14‑day free trial · No setup fees · Cancel anytime</p>
+      </section>
+
+      {/* Add-on Packs */}
+      <section className="pricing container" style={{paddingTop: '30px'}}>
+        <h2 className="section-title">Need more SMS & emails?</h2>
+        <p className="strip" style={{marginTop:12, marginBottom:22, background:'transparent', border:'none'}}>Purchase add-on packs when you need extra credits</p>
+        
+        <div className="packs-grid">
+          <div>
+            <h3 style={{fontSize:'20px', fontWeight:'700', marginBottom:'16px', color:'#e6e9ef'}}>📱 SMS Packs</h3>
+            <div style={{display:'grid', gap:'12px'}}>
+              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>100 SMS Credits</div>
+                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Perfect for small teams</div>
+                </div>
+                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$5</div>
+              </div>
+              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>500 SMS Credits</div>
+                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Great value for growing teams</div>
+                </div>
+                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$20</div>
+              </div>
+              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>1,000 SMS Credits</div>
+                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Best value for high volume</div>
+                </div>
+                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$35</div>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 style={{fontSize:'20px', fontWeight:'700', marginBottom:'16px', color:'#e6e9ef'}}>📧 Email Packs</h3>
+            <div style={{display:'grid', gap:'12px'}}>
+              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>200 Email Credits</div>
+                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Perfect for small teams</div>
+                </div>
+                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$3</div>
+              </div>
+              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>500 Email Credits</div>
+                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Great value for growing teams</div>
+                </div>
+                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$7</div>
+              </div>
+              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>1,000 Email Credits</div>
+                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Best value for high volume</div>
+                </div>
+                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$12</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <p className="tiny container" style={{textAlign:'center', marginTop:20}}>Add-on packs are available inside the app when you reach your monthly limits · Credits expire after 6 months</p>
       </section>
 
       {/* FAQ */}
@@ -278,6 +350,14 @@ export default function Landing() {
           <details>
             <summary>Does Taska integrate with Xero?</summary>
             <p>Yes. Connect Xero to sync invoices and keep your books tight with minimal effort.</p>
+          </details>
+          <details>
+            <summary>What happens when I run out of SMS or email credits?</summary>
+            <p>When you reach your monthly limit, you can purchase add-on packs instantly inside the app. Credits are available immediately and expire after 6 months.</p>
+          </details>
+          <details>
+            <summary>Can I change my plan anytime?</summary>
+            <p>Absolutely. Upgrade or downgrade your plan anytime from your account settings. Changes take effect immediately with pro-rated billing.</p>
           </details>
         </div>
       </section>

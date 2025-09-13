@@ -113,6 +113,30 @@ async function trackSmsUsage(orgId: string): Promise<void> {
     });
 }
 
+// Email usage tracking helper
+export async function trackEmailUsage(orgId: string): Promise<void> {
+  // Get normalized period boundaries [start, end) pattern
+  const { periodStart, periodEnd } = getCurrentPeriodBoundaries();
+  
+  // Upsert usage_counters record with normalized boundaries
+  await db
+    .insert(usageCounters)
+    .values({
+      orgId: orgId,
+      periodStart: periodStart,
+      periodEnd: periodEnd,
+      smsSent: 0,
+      emailsSent: 1,
+    })
+    .onConflictDoUpdate({
+      target: [usageCounters.orgId, usageCounters.periodStart, usageCounters.periodEnd],
+      set: {
+        emailsSent: sql`${usageCounters.emailsSent} + 1`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
 /**
  * POST /api/jobs/:jobId/sms/confirm
  * body: { phone?: string, messageOverride?: string }
@@ -200,7 +224,12 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
     `);
 
     // Track SMS usage for quota management
-    await trackSmsUsage(orgId);
+    try {
+      await trackSmsUsage(orgId);
+    } catch (error) {
+      console.error('Failed to track SMS usage:', error);
+      // Don't fail the request if usage tracking fails
+    }
 
     return res.json({ ok: true, sid: msg.sid, status: msg.status });
   } catch (e: any) {

@@ -7,6 +7,7 @@ import { checkSubscription, requireActiveSubscription } from "../middleware/subs
 import { xeroService } from "../services/xero";
 import { sumLines } from "../lib/totals";
 import { sendEmail, generateQuoteEmailTemplate } from "../services/email";
+import { trackEmailUsage } from "./job-sms";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -391,6 +392,14 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
 
     if (!emailSent) {
       return res.status(500).json({ error: "Failed to send email" });
+    }
+
+    // Track email usage for quota management
+    try {
+      await trackEmailUsage(orgId);
+    } catch (error) {
+      console.error('Failed to track email usage:', error);
+      // Don't fail the request if usage tracking fails
     }
 
     // Update quote status to 'sent' if it was 'draft'

@@ -231,37 +231,45 @@ export default function InvoiceView() {
             </table>
           </div>
 
+          <script>
+            function sendInvoiceEmail(invoiceId) {
+              console.log('sendInvoiceEmail called with ID:', invoiceId);
+              var email = prompt('Enter email address to send invoice:');
+              if (email && email.trim()) {
+                console.log('Sending to email:', email.trim());
+                fetch('/api/invoices/' + encodeURIComponent(invoiceId) + '/email', {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json'
+                  },
+                  credentials: 'include',
+                  body: JSON.stringify({ email: email.trim() })
+                })
+                .then(function(response) {
+                  console.log('Response:', response);
+                  return response.json();
+                })
+                .then(function(data) {
+                  console.log('Response data:', data);
+                  if (data.ok) {
+                    alert('Invoice sent successfully to ' + email);
+                  } else {
+                    alert('Failed to send: ' + (data.error || 'Unknown error'));
+                  }
+                })
+                .catch(function(err) {
+                  console.error('Fetch error:', err);
+                  alert('Failed to send: ' + err.message);
+                });
+              } else {
+                console.log('No email entered or cancelled');
+              }
+            }
+          </script>
           <div style="position: fixed; top: 10px; right: 10px; z-index: 1000;">
             <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
             <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
-            <button 
-              data-invoice-id="${JSON.stringify(id || '')}"
-              onclick="
-                var invoiceId = JSON.parse(this.getAttribute('data-invoice-id'));
-                var email = prompt('Enter email address to send invoice:');
-                if (email && email.trim()) {
-                  fetch('/api/invoices/' + encodeURIComponent(invoiceId) + '/email', {
-                    method: 'POST',
-                    headers: { 
-                      'Content-Type': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({ email: email.trim() })
-                  })
-                  .then(response => response.json())
-                  .then(data => {
-                    if (data.ok) {
-                      alert('Invoice sent successfully to ' + email);
-                    } else {
-                      alert('Failed to send: ' + (data.error || 'Unknown error'));
-                    }
-                  })
-                  .catch(err => {
-                    alert('Failed to send: ' + err.message);
-                  });
-                }
-              " 
-              style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">📧 Send</button>
+            <button onclick="sendInvoiceEmail('${escapeHtml(id || '')}')" style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">📧 Send</button>
           </div>
         </body>
       </html>

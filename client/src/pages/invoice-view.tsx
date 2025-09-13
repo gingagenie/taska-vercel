@@ -300,12 +300,13 @@ export default function InvoiceView() {
           )}
           {!invoice.xero_id && (
             <Button 
-              onClick={handleCreateInXero}
-              disabled={creatingXero}
+              disabled={true}
               variant="outline"
               data-testid="button-create-xero"
+              className="opacity-50 cursor-not-allowed"
+              title="Coming Soon"
             >
-              {creatingXero ? "Creating..." : "Create in Xero"}
+              Create in Xero
             </Button>
           )}
           {invoice.xero_id && (

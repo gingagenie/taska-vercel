@@ -319,9 +319,8 @@ export default function QuoteView() {
               variant="outline"
               data-testid="button-create-xero"
               className="opacity-50 cursor-not-allowed"
-              title="Coming Soon"
             >
-              Create in Xero
+              Create in Xero - Coming Soon
             </Button>
           )}
           {quote.xero_id && (

@@ -7,7 +7,7 @@ import { checkSubscription, requireActiveSubscription } from "../middleware/subs
 import { xeroService } from "../services/xero";
 import { sumLines } from "../lib/totals";
 import { sendEmail, generateQuoteEmailTemplate } from "../services/email";
-import { trackEmailUsage } from "./job-sms";
+import { trackEmailUsage, checkEmailQuota } from "./job-sms";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -380,6 +380,21 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
 
     // Generate email content
     const { subject, html, text } = generateQuoteEmailTemplate(quoteData, orgName);
+
+    // Check email quota before proceeding
+    const quotaCheck = await checkEmailQuota(orgId);
+    if (!quotaCheck.canSend) {
+      return res.status(429).json({ 
+        error: "Email quota exceeded", 
+        usage: quotaCheck.usage,
+        quota: quotaCheck.quota,
+        planId: quotaCheck.planId,
+        upgradeOptions: {
+          pro: { quota: 50, price: "$29/month" },
+          enterprise: { quota: 200, price: "$99/month" }
+        }
+      });
+    }
 
     // Send email
     const emailSent = await sendEmail({

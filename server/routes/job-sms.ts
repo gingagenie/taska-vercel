@@ -89,6 +89,47 @@ async function checkSmsQuota(orgId: string): Promise<{ canSend: boolean; usage: 
   };
 }
 
+// Email quota checking helper
+export async function checkEmailQuota(orgId: string): Promise<{ canSend: boolean; usage: number; quota: number; planId: string }> {
+  // Get organization's subscription and plan details
+  const [subResult] = await db
+    .select({
+      planId: orgSubscriptions.planId,
+      emailQuota: subscriptionPlans.emailsQuotaMonthly,
+    })
+    .from(orgSubscriptions)
+    .leftJoin(subscriptionPlans, eq(orgSubscriptions.planId, subscriptionPlans.id))
+    .where(eq(orgSubscriptions.orgId, orgId));
+
+  if (!subResult) {
+    // No subscription found, deny email
+    return { canSend: false, usage: 0, quota: 0, planId: 'none' };
+  }
+
+  const quota = subResult.emailQuota || 0;
+  const planId = subResult.planId || 'free';
+  const { now } = getCurrentPeriodBoundaries();
+
+  // Get current month's usage using range query [start <= now < end)
+  const [usageResult] = await db
+    .select({ emailsSent: usageCounters.emailsSent })
+    .from(usageCounters)
+    .where(and(
+      eq(usageCounters.orgId, orgId),
+      sql`${usageCounters.periodStart} <= ${now}`,  // period_start <= now
+      sql`${now} < ${usageCounters.periodEnd}`      // now < period_end
+    ));
+
+  const currentUsage = usageResult?.emailsSent || 0;
+  
+  return {
+    canSend: currentUsage < quota,
+    usage: currentUsage,
+    quota: quota,
+    planId: planId
+  };
+}
+
 // SMS usage tracking helper
 async function trackSmsUsage(orgId: string): Promise<void> {
   // Get normalized period boundaries [start, end) pattern

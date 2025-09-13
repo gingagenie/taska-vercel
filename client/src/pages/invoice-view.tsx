@@ -175,7 +175,6 @@ export default function InvoiceView() {
               <h2>INVOICE</h2>
               <p><strong>Date:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
               <p><strong>Invoice #:</strong> ${safeData.number}</p>
-              <p><strong>Status:</strong> ${escapeHtml(invoice.status)}</p>
             </div>
           </div>
           
@@ -329,7 +328,6 @@ export default function InvoiceView() {
             <CardHeader><CardTitle>Details</CardTitle></CardHeader>
             <CardContent className="card-pad space-y-4">
               <div><strong>Customer:</strong> {invoice.customer_name}</div>
-              <div><strong>Status:</strong> <span className="capitalize">{invoice.status}</span></div>
               {invoice.notes && <div><strong>Notes:</strong> {invoice.notes}</div>}
             </CardContent>
           </Card>

@@ -343,7 +343,6 @@ export default function QuoteView() {
             <CardHeader><CardTitle>Details</CardTitle></CardHeader>
             <CardContent className="card-pad space-y-4">
               <div><strong>Customer:</strong> {quote.customer_name}</div>
-              <div><strong>Status:</strong> <span className="capitalize">{quote.status}</span></div>
               {quote.notes && <div><strong>Notes:</strong> {quote.notes}</div>}
             </CardContent>
           </Card>

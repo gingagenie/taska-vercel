@@ -8,13 +8,308 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { CheckCircle, ExternalLink, AlertCircle, Trash2, Crown, Star, Zap, CreditCard } from "lucide-react";
+import { CheckCircle, ExternalLink, AlertCircle, Trash2, Crown, Star, Zap, CreditCard, Users, Mail, BarChart3 } from "lucide-react";
 import { useSubscription, useCancelSubscription } from "@/hooks/useSubscription";
 import { UpgradeModal } from "@/components/subscription/upgrade-modal";
 import { Badge } from "@/components/ui/badge";
 import { useSmsUsage } from "@/hooks/useSmsUsage";
 import { Progress } from "@/components/ui/progress";
 import { MessageCircle } from "lucide-react";
+
+// Usage Tab Component
+function UsageTab() {
+  const { data: usageData, isLoading, error } = useQuery({
+    queryKey: ["/api/usage"],
+    refetchOnWindowFocus: true,
+    staleTime: 60000, // Refresh every minute
+    refetchInterval: 60000, // Auto-refresh every minute
+    refetchIntervalInBackground: true, // Continue refreshing in background
+  });
+
+  // Type guard to check if usageData has the expected structure
+  const isValidUsageData = (data: any): data is {
+    users: { used: number; quota: number; percent: number };
+    sms: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
+    email: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
+    periodEnd: string;
+    planId: string;
+    subscriptionStatus: string;
+  } => {
+    return data && 
+           data.users && typeof data.users.used === 'number' && typeof data.users.quota === 'number' &&
+           data.sms && typeof data.sms.used === 'number' && typeof data.sms.quota === 'number' &&
+           data.email && typeof data.email.used === 'number' && typeof data.email.quota === 'number' &&
+           typeof data.periodEnd === 'string' &&
+           typeof data.planId === 'string' &&
+           typeof data.subscriptionStatus === 'string';
+  };
+
+  const formatPercentage = (percent: number) => Math.round(percent);
+  
+  const getUsageColor = (percent: number, exceeded: boolean = false) => {
+    if (exceeded || percent >= 100) return "text-red-600";
+    if (percent >= 80) return "text-orange-600";
+    return "text-green-600";
+  };
+
+  const getProgressColor = (percent: number, exceeded: boolean = false) => {
+    if (exceeded || percent >= 100) return "bg-red-500";
+    if (percent >= 80) return "bg-orange-500";
+    return "bg-green-500";
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-AU', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {/* Loading skeleton for three cards */}
+        {[1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardContent className="p-6">
+              <div className="animate-pulse space-y-4">
+                <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+                <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                <div className="h-2 bg-gray-200 rounded"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (error || !usageData || !isValidUsageData(usageData)) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+          <p className="text-gray-500">Unable to load usage information</p>
+          <p className="text-sm text-gray-400 mt-1">Please try refreshing the page</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { users, sms, email, periodEnd, planId, subscriptionStatus } = usageData;
+  const resetDate = formatDate(periodEnd);
+
+  return (
+    <div className="space-y-6">
+      {/* Users Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-500" />
+            Team Members
+          </CardTitle>
+          <CardDescription>
+            Active users in your organization
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-2xl font-bold" data-testid="text-users-usage">
+              {users.used} of {users.quota}
+            </span>
+            <span className={`text-sm font-medium ${getUsageColor(users.percent)}`}>
+              {formatPercentage(users.percent)}% used
+            </span>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Usage</span>
+              <span>{formatPercentage(users.percent)}%</span>
+            </div>
+            <Progress 
+              value={Math.min(users.percent, 100)} 
+              className={`h-2 [&>div]:${getProgressColor(users.percent)}`}
+              data-testid="progress-users-usage"
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-sm">
+            <span>Available slots:</span>
+            <span className={`font-semibold ${users.used >= users.quota ? 'text-red-600' : 'text-green-600'}`}>
+              {Math.max(0, users.quota - users.used)} remaining
+            </span>
+          </div>
+
+          {users.used >= users.quota && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded">
+              <p className="text-sm font-medium text-red-800">User Limit Reached</p>
+              <p className="text-xs text-red-600">Upgrade your plan to add more team members</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* SMS Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-green-500" />
+            SMS Notifications
+          </CardTitle>
+          <CardDescription>
+            SMS messages sent this billing period
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-2xl font-bold" data-testid="text-sms-usage-detailed">
+              {sms.used} of {sms.quota}
+            </span>
+            <span className={`text-sm font-medium ${getUsageColor(sms.percent, sms.quotaExceeded)}`}>
+              {formatPercentage(sms.percent)}% used
+            </span>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Usage</span>
+              <span>{formatPercentage(sms.percent)}%</span>
+            </div>
+            <Progress 
+              value={Math.min(sms.percent, 100)} 
+              className={`h-2 [&>div]:${getProgressColor(sms.percent, sms.quotaExceeded)}`}
+              data-testid="progress-sms-usage-detailed"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="flex items-center justify-between">
+              <span>Remaining:</span>
+              <span className={`font-semibold ${sms.remaining <= 5 ? 'text-red-600' : 'text-green-600'}`}>
+                {sms.remaining} SMS
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Resets:</span>
+              <span className="font-semibold text-gray-600">
+                {resetDate}
+              </span>
+            </div>
+          </div>
+
+          {sms.quotaExceeded && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded">
+              <p className="text-sm font-medium text-red-800">SMS Quota Exceeded</p>
+              <p className="text-xs text-red-600">Upgrade your plan to send more SMS notifications</p>
+            </div>
+          )}
+
+          {sms.remaining <= 5 && sms.remaining > 0 && !sms.quotaExceeded && (
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded">
+              <p className="text-sm font-medium text-orange-800">Low SMS Remaining</p>
+              <p className="text-xs text-orange-600">Consider upgrading to avoid interruptions</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Email Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="w-5 h-5 text-purple-500" />
+            Email Notifications
+          </CardTitle>
+          <CardDescription>
+            Email messages sent this billing period
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-2xl font-bold" data-testid="text-email-usage">
+              {email.used} of {email.quota}
+            </span>
+            <span className={`text-sm font-medium ${getUsageColor(email.percent, email.quotaExceeded)}`}>
+              {formatPercentage(email.percent)}% used
+            </span>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Usage</span>
+              <span>{formatPercentage(email.percent)}%</span>
+            </div>
+            <Progress 
+              value={Math.min(email.percent, 100)} 
+              className={`h-2 [&>div]:${getProgressColor(email.percent, email.quotaExceeded)}`}
+              data-testid="progress-email-usage"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="flex items-center justify-between">
+              <span>Remaining:</span>
+              <span className={`font-semibold ${email.remaining <= 10 ? 'text-red-600' : 'text-green-600'}`}>
+                {email.remaining} emails
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Resets:</span>
+              <span className="font-semibold text-gray-600">
+                {resetDate}
+              </span>
+            </div>
+          </div>
+
+          {email.quotaExceeded && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded">
+              <p className="text-sm font-medium text-red-800">Email Quota Exceeded</p>
+              <p className="text-xs text-red-600">Upgrade your plan to send more email notifications</p>
+            </div>
+          )}
+
+          {email.remaining <= 10 && email.remaining > 0 && !email.quotaExceeded && (
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded">
+              <p className="text-sm font-medium text-orange-800">Low Email Remaining</p>
+              <p className="text-xs text-orange-600">Consider upgrading to avoid interruptions</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Usage Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-indigo-500" />
+            Usage Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+              <span>Plan:</span>
+              <span className="font-semibold capitalize">{planId || 'N/A'}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+              <span>Status:</span>
+              <Badge variant={subscriptionStatus === 'active' ? 'default' : 'secondary'}>
+                {subscriptionStatus || 'Unknown'}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+              <span>Period ends:</span>
+              <span className="font-semibold">{resetDate}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 // Subscription Tab Component
 function SubscriptionTab() {
@@ -508,12 +803,13 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-management">Settings</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>
           <TabsTrigger value="terms" data-testid="tab-terms" className="text-xs px-2 py-2">T&C</TabsTrigger>
           <TabsTrigger value="items" data-testid="tab-items" className="text-xs px-2 py-2">Items</TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
+          <TabsTrigger value="usage" data-testid="tab-usage" className="text-xs px-2 py-2">Usage</TabsTrigger>
           <TabsTrigger value="subscription" data-testid="tab-subscription" className="text-xs px-2 py-2">Sub</TabsTrigger>
         </TabsList>
 
@@ -793,6 +1089,11 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Usage */}
+        <TabsContent value="usage" className="mt-4">
+          <UsageTab />
         </TabsContent>
 
         {/* Subscription */}

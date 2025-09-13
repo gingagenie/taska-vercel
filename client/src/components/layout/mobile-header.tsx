@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarContent } from "@/components/layout/sidebar";
 import { RouteHeader } from "@/components/layout/route-header";
+import { UsageWidget } from "@/components/layout/usage-widget";
 
 export function MobileHeader({ title }: { title?: string }) {
   const [open, setOpen] = useState(false);
@@ -23,7 +24,7 @@ export function MobileHeader({ title }: { title?: string }) {
         <div className="text-base font-semibold truncate">
           {title ? <span>{title}</span> : <RouteHeader />}
         </div>
-        <div className="w-10" /> {/* spacer */}
+        <UsageWidget variant="mobile" showText={false} />
       </div>
     </div>
   );

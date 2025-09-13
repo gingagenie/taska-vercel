@@ -9,6 +9,7 @@ import { CalendarDays, Briefcase, Users, Wrench } from "lucide-react";
 import { JobModal } from "@/components/modals/job-modal";
 import { useSubscription } from "@/hooks/useSubscription";
 import { SubscriptionBanner } from "@/components/subscription/subscription-banner";
+import { UsageWidget } from "@/components/layout/usage-widget";
 
 // --- date helpers ---
 function startOfDay(d = new Date()) {
@@ -62,6 +63,9 @@ export default function Dashboard() {
       <div className="header-row">
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <div className="header-actions">
+          <div className="hidden sm:block">
+            <UsageWidget variant="desktop" />
+          </div>
           <Button data-mobile-full="true" onClick={() => setIsJobModalOpen(true)}>
             + New Job
           </Button>

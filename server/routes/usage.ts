@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { db } from '../db/client'
 import { subscriptionPlans, orgSubscriptions, usageCounters, users } from '../../shared/schema'
-import { eq, and, sql, count } from 'drizzle-orm'
+import { eq, and, sql, count, gte, lt } from 'drizzle-orm'
 import { requireAuth, requireOrg } from '../middleware/auth'
 
 const router = Router()
@@ -84,7 +84,7 @@ function calculatePercent(used: number, quota: number): number {
 router.get('/', requireAuth, requireOrg, async (req, res) => {
   try {
     const orgId = req.orgId!
-    const { periodStart, periodEnd } = getCurrentPeriodBoundaries()
+    const { periodStart, periodEnd, now } = getCurrentPeriodBoundaries()
 
     // Get organization's subscription and plan details
     const [subResult] = await db
@@ -102,7 +102,9 @@ router.get('/', requireAuth, requireOrg, async (req, res) => {
     const planId = subResult.planId || 'free'
     const quotas = await getPlanQuotas(planId)
 
-    // Get current period usage from usage_counters
+    // Get current period usage from usage_counters with proper period filtering
+    // Convert dates to ISO strings to avoid PostgreSQL date object issues
+    const nowString = now.toISOString()
     const [usageResult] = await db
       .select({
         smsSent: usageCounters.smsSent,
@@ -111,8 +113,8 @@ router.get('/', requireAuth, requireOrg, async (req, res) => {
       .from(usageCounters)
       .where(and(
         eq(usageCounters.orgId, orgId),
-        sql`${usageCounters.periodStart} <= ${periodStart}`,  // period_start <= periodStart
-        sql`${periodStart} < ${usageCounters.periodEnd}`      // periodStart < period_end
+        sql`${usageCounters.periodStart} <= ${nowString}::timestamp`,  
+        sql`${nowString}::timestamp < ${usageCounters.periodEnd}`      
       ))
 
     const currentUsage = {

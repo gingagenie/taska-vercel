@@ -308,6 +308,8 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   stripePriceId: varchar("stripe_price_id", { length: 255 }),
   features: jsonb("features").default([]),
   smsQuotaMonthly: integer("sms_quota_monthly").default(0), // SMS limit per month
+  emailsQuotaMonthly: integer("emails_quota_monthly").default(0), // Email limit per month
+  usersQuota: integer("users_quota").default(1), // Maximum users allowed
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });

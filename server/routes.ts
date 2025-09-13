@@ -18,6 +18,7 @@ import { itemPresets } from "./routes/item-presets";
 import tzRouter from "./routes/_tz";
 import objectsRouter from "./routes/objects";
 import subscriptions from "./routes/subscriptions";
+import usage from "./routes/usage";
 import { debug } from "./routes/debug";
 import { aiSupportRouter } from "./routes/ai-support";
 
@@ -55,6 +56,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/objects");
   app.use("/api/subscriptions", subscriptions);
   console.log("[mount] /api/subscriptions");
+  app.use("/api/usage", usage);
+  console.log("[mount] /api/usage");
   app.use("/api/debug", debug);
   console.log("[mount] /api/debug");
   app.use("/api/ai-support", aiSupportRouter);

@@ -185,28 +185,32 @@ router.post('/webhook', async (req, res) => {
       
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice
-        if (invoice.subscription) {
+        const subscription = (invoice as any).subscription
+        if (subscription) {
+          const subscriptionId = typeof subscription === 'string' ? subscription : subscription.id
           await db
             .update(orgSubscriptions)
             .set({
               status: 'active',
               updatedAt: new Date(),
             })
-            .where(eq(orgSubscriptions.stripeSubscriptionId, typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id))
+            .where(eq(orgSubscriptions.stripeSubscriptionId, subscriptionId))
         }
         break
       }
       
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice
-        if (invoice.subscription) {
+        const subscription = (invoice as any).subscription
+        if (subscription) {
+          const subscriptionId = typeof subscription === 'string' ? subscription : subscription.id
           await db
             .update(orgSubscriptions)
             .set({
               status: 'past_due',
               updatedAt: new Date(),
             })
-            .where(eq(orgSubscriptions.stripeSubscriptionId, typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id))
+            .where(eq(orgSubscriptions.stripeSubscriptionId, subscriptionId))
         }
         break
       }

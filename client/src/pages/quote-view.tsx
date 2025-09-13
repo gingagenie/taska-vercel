@@ -257,7 +257,7 @@ export default function QuoteView() {
             <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
             <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
             <button onclick="
-              var email = prompt('Enter email address to send quote:');
+              var email = prompt('Enter email address to send quote:', '${safeData.customerEmail}');
               if (email && email.trim()) {
                 fetch('/api/quotes/${escapeHtml(id || '')}/email', {
                   method: 'POST',

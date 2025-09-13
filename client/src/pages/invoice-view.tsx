@@ -234,7 +234,7 @@ export default function InvoiceView() {
           <script>
             function sendInvoiceEmail(invoiceId) {
               console.log('sendInvoiceEmail called with ID:', invoiceId);
-              var email = prompt('Enter email address to send invoice:');
+              var email = prompt('Enter email address to send invoice:', '${safeData.customerEmail}');
               if (email && email.trim()) {
                 console.log('Sending to email:', email.trim());
                 fetch('/api/invoices/' + encodeURIComponent(invoiceId) + '/email', {

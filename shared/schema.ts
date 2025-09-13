@@ -328,12 +328,14 @@ export const orgSubscriptions = pgTable("org_subscriptions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// SMS usage tracking (monthly counts per organization)
+// DEPRECATED: SMS usage tracking - use usage_counters instead
+// This table is maintained for historical reference and migration purposes only
+// DO NOT USE FOR NEW CODE - use usageCounters table with normalized period boundaries
 export const smsUsage = pgTable("sms_usage", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   orgId: uuid("org_id").references(() => organizations.id).notNull(),
-  month: varchar("month", { length: 7 }).notNull(), // Format: 'YYYY-MM'
-  smsCount: integer("sms_count").default(0),
+  month: varchar("month", { length: 7 }).notNull(), // Format: 'YYYY-MM' - DEPRECATED
+  smsCount: integer("sms_count").default(0), // DEPRECATED: use usageCounters.smsSent
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (t) => ({
@@ -360,6 +362,27 @@ export const itemPresets = pgTable("item_presets", {
   ),
 }));
 
+// Usage counters for tracking SMS, email, and user limits across subscription tiers
+export const usageCounters = pgTable("usage_counters", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  periodStart: timestamp("period_start").notNull(), // Aligned with org_subscriptions
+  periodEnd: timestamp("period_end").notNull(),     // Aligned with org_subscriptions  
+  smsSent: integer("sms_sent").notNull().default(0),
+  emailsSent: integer("emails_sent").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // Unique constraint on org + period combination to prevent duplicate billing periods
+  orgPeriodUnique: uniqueIndex("usage_counters_org_period_unique").on(
+    t.orgId,
+    t.periodStart,
+    t.periodEnd
+  ),
+  // CHECK constraint for data integrity
+  periodValidation: sql`CONSTRAINT usage_counters_period_valid CHECK (period_end > period_start)`,
+}));
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -370,6 +393,7 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true,
 export const insertJobNotificationSchema = createInsertSchema(jobNotifications).omit({ id: true, createdAt: true });
 export const insertOrgIntegrationSchema = createInsertSchema(orgIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertItemPresetSchema = createInsertSchema(itemPresets).omit({ id: true, createdAt: true });
+export const insertUsageCountersSchema = createInsertSchema(usageCounters).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompletedJobSchema = createInsertSchema(completedJobs).omit({ id: true, completedAt: true });
 export const insertJobHoursSchema = createInsertSchema(jobHours).omit({ id: true, createdAt: true });
 export const insertJobPartsSchema = createInsertSchema(jobParts).omit({ id: true, createdAt: true });
@@ -404,6 +428,9 @@ export type InsertOrgIntegration = z.infer<typeof insertOrgIntegrationSchema>;
 
 export type ItemPreset = typeof itemPresets.$inferSelect;
 export type InsertItemPreset = z.infer<typeof insertItemPresetSchema>;
+
+export type UsageCounters = typeof usageCounters.$inferSelect;
+export type InsertUsageCounters = z.infer<typeof insertUsageCountersSchema>;
 
 export type CompletedJob = typeof completedJobs.$inferSelect;
 export type InsertCompletedJob = z.infer<typeof insertCompletedJobSchema>;

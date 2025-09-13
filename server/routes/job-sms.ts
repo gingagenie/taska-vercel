@@ -2,8 +2,8 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { db } from "../db/client";
-import { sql, eq, and } from "drizzle-orm";
-import { jobs as jobsSchema, customers, smsUsage, orgSubscriptions, subscriptionPlans } from "../../shared/schema";
+import { sql, eq, and, lte, lt } from "drizzle-orm";
+import { jobs as jobsSchema, customers, usageCounters, orgSubscriptions, subscriptionPlans } from "../../shared/schema";
 import twilio from "twilio";
 
 export const jobSms = Router();
@@ -40,10 +40,16 @@ function formatAEST(iso: string | null): string {
   }
 }
 
+// Helper to get normalized period boundaries [start inclusive, end exclusive)
+function getCurrentPeriodBoundaries() {
+  const now = new Date();
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1); // First day of current month
+  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);   // First day of next month
+  return { periodStart, periodEnd, now };
+}
+
 // SMS quota checking helper
 async function checkSmsQuota(orgId: string): Promise<{ canSend: boolean; usage: number; quota: number; planId: string }> {
-  const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM' format
-  
   // Get organization's subscription and plan details
   const [subResult] = await db
     .select({
@@ -61,14 +67,19 @@ async function checkSmsQuota(orgId: string): Promise<{ canSend: boolean; usage: 
 
   const quota = subResult.smsQuota || 0;
   const planId = subResult.planId || 'free';
+  const { now } = getCurrentPeriodBoundaries();
 
-  // Get current month's usage
+  // Get current month's usage using range query [start <= now < end)
   const [usageResult] = await db
-    .select({ smsCount: smsUsage.smsCount })
-    .from(smsUsage)
-    .where(and(eq(smsUsage.orgId, orgId), eq(smsUsage.month, currentMonth)));
+    .select({ smsSent: usageCounters.smsSent })
+    .from(usageCounters)
+    .where(and(
+      eq(usageCounters.orgId, orgId),
+      sql`${usageCounters.periodStart} <= ${now}`,  // period_start <= now
+      sql`${now} < ${usageCounters.periodEnd}`      // now < period_end
+    ));
 
-  const currentUsage = usageResult?.smsCount || 0;
+  const currentUsage = usageResult?.smsSent || 0;
   
   return {
     canSend: currentUsage < quota,
@@ -80,20 +91,23 @@ async function checkSmsQuota(orgId: string): Promise<{ canSend: boolean; usage: 
 
 // SMS usage tracking helper
 async function trackSmsUsage(orgId: string): Promise<void> {
-  const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM' format
+  // Get normalized period boundaries [start, end) pattern
+  const { periodStart, periodEnd } = getCurrentPeriodBoundaries();
   
-  // Upsert SMS usage record
+  // Upsert usage_counters record with normalized boundaries
   await db
-    .insert(smsUsage)
+    .insert(usageCounters)
     .values({
       orgId: orgId,
-      month: currentMonth,
-      smsCount: 1,
+      periodStart: periodStart,
+      periodEnd: periodEnd,
+      smsSent: 1,
+      emailsSent: 0,
     })
     .onConflictDoUpdate({
-      target: [smsUsage.orgId, smsUsage.month],
+      target: [usageCounters.orgId, usageCounters.periodStart, usageCounters.periodEnd],
       set: {
-        smsCount: sql`${smsUsage.smsCount} + 1`,
+        smsSent: sql`${usageCounters.smsSent} + 1`,
         updatedAt: new Date(),
       },
     });
@@ -201,7 +215,8 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
 jobSms.get("/sms/usage", requireAuth, requireOrg, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
-    const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM' format
+    const { now } = getCurrentPeriodBoundaries();
+    const currentMonth = now.toISOString().slice(0, 7); // For display compatibility
     
     // Get organization's subscription and plan details  
     const [subResult] = await db
@@ -218,13 +233,17 @@ jobSms.get("/sms/usage", requireAuth, requireOrg, async (req, res) => {
       return res.status(404).json({ error: "No subscription found" });
     }
 
-    // Get current month's usage
+    // Get current month's usage using range query [start <= now < end)
     const [usageResult] = await db
-      .select({ smsCount: smsUsage.smsCount })
-      .from(smsUsage)
-      .where(and(eq(smsUsage.orgId, orgId), eq(smsUsage.month, currentMonth)));
+      .select({ smsSent: usageCounters.smsSent })
+      .from(usageCounters)
+      .where(and(
+        eq(usageCounters.orgId, orgId),
+        sql`${usageCounters.periodStart} <= ${now}`,  // period_start <= now
+        sql`${now} < ${usageCounters.periodEnd}`      // now < period_end  
+      ));
 
-    const currentUsage = usageResult?.smsCount || 0;
+    const currentUsage = usageResult?.smsSent || 0;
     const quota = subResult.smsQuota || 0;
     
     return res.json({
@@ -254,12 +273,14 @@ jobSms.get("/sms/history", requireAuth, requireOrg, async (req, res) => {
     
     const history = await db
       .select({
-        month: smsUsage.month,
-        smsCount: smsUsage.smsCount,
+        month: sql<string>`TO_CHAR(${usageCounters.periodStart}, 'YYYY-MM')`.as('month'),
+        smsCount: usageCounters.smsSent,
+        periodStart: usageCounters.periodStart,
+        periodEnd: usageCounters.periodEnd,
       })
-      .from(smsUsage)
-      .where(eq(smsUsage.orgId, orgId))
-      .orderBy(sql`${smsUsage.month} DESC`)
+      .from(usageCounters)
+      .where(eq(usageCounters.orgId, orgId))
+      .orderBy(sql`${usageCounters.periodStart} DESC`)
       .limit(Number(months));
 
     return res.json(history);

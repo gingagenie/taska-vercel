@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useSmsUsage } from "@/hooks/useSmsUsage";
 import { Progress } from "@/components/ui/progress";
 import { MessageCircle } from "lucide-react";
+import { useUsageAlerts, UsageAlertList, UsageData } from "@/components/usage/usage-alerts";
 
 // Usage Tab Component
 function UsageTab() {
@@ -100,9 +101,28 @@ function UsageTab() {
 
   const { users, sms, email, periodEnd, planId, subscriptionStatus } = usageData;
   const resetDate = formatDate(periodEnd);
+  
+  // Get smart alerts for usage data
+  const { alerts, dismissAlert } = useUsageAlerts(usageData as UsageData);
 
   return (
     <div className="space-y-6">
+      {/* Global Smart Alerts */}
+      {alerts.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-orange-500" />
+            Usage Alerts
+          </h3>
+          <UsageAlertList
+            alerts={alerts}
+            currentPlan={planId}
+            onDismiss={dismissAlert}
+            variant="compact"
+            showUpgrade={true}
+          />
+        </div>
+      )}
       {/* Users Card */}
       <Card>
         <CardHeader>
@@ -143,12 +163,7 @@ function UsageTab() {
             </span>
           </div>
 
-          {users.used >= users.quota && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded">
-              <p className="text-sm font-medium text-red-800">User Limit Reached</p>
-              <p className="text-xs text-red-600">Upgrade your plan to add more team members</p>
-            </div>
-          )}
+          {/* User alerts are now handled by the global smart alerts section above */}
         </CardContent>
       </Card>
 
@@ -200,19 +215,7 @@ function UsageTab() {
             </div>
           </div>
 
-          {sms.quotaExceeded && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded">
-              <p className="text-sm font-medium text-red-800">SMS Quota Exceeded</p>
-              <p className="text-xs text-red-600">Upgrade your plan to send more SMS notifications</p>
-            </div>
-          )}
-
-          {sms.remaining <= 5 && sms.remaining > 0 && !sms.quotaExceeded && (
-            <div className="p-3 bg-orange-50 border border-orange-200 rounded">
-              <p className="text-sm font-medium text-orange-800">Low SMS Remaining</p>
-              <p className="text-xs text-orange-600">Consider upgrading to avoid interruptions</p>
-            </div>
-          )}
+          {/* SMS alerts are now handled by the global smart alerts section above */}
         </CardContent>
       </Card>
 
@@ -264,19 +267,7 @@ function UsageTab() {
             </div>
           </div>
 
-          {email.quotaExceeded && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded">
-              <p className="text-sm font-medium text-red-800">Email Quota Exceeded</p>
-              <p className="text-xs text-red-600">Upgrade your plan to send more email notifications</p>
-            </div>
-          )}
-
-          {email.remaining <= 10 && email.remaining > 0 && !email.quotaExceeded && (
-            <div className="p-3 bg-orange-50 border border-orange-200 rounded">
-              <p className="text-sm font-medium text-orange-800">Low Email Remaining</p>
-              <p className="text-xs text-orange-600">Consider upgrading to avoid interruptions</p>
-            </div>
-          )}
+          {/* Email alerts are now handled by the global smart alerts section above */}
         </CardContent>
       </Card>
 

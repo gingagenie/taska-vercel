@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
+import { SmsLimitWarning } from "@/components/usage/send-limit-warnings";
 
 export default function JobView() {
   const [match, params] = useRoute("/jobs/:id");
@@ -471,15 +472,18 @@ export default function JobView() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col space-y-3">
+            <SmsLimitWarning onProceed={sendSms} disabled={sending || !smsPhone}>
+              <Button 
+                onClick={sendSms} 
+                disabled={sending || !smsPhone}
+                data-testid="button-send-sms-confirm"
+                className="w-full"
+              >
+                {sending ? "Sending…" : "Send SMS"}
+              </Button>
+            </SmsLimitWarning>
             <Button variant="ghost" onClick={() => setSmsOpen(false)}>Cancel</Button>
-            <Button 
-              onClick={sendSms} 
-              disabled={sending || !smsPhone}
-              data-testid="button-send-sms-confirm"
-            >
-              {sending ? "Sending…" : "Send SMS"}
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

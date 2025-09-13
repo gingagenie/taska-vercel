@@ -124,7 +124,9 @@ export default function Dashboard() {
             <div className="header-row">
               <CardTitle>Today's Schedule</CardTitle>
               <div className="header-actions">
-                <Link href="/schedule"><a><Button variant="outline" className="border-schedule text-schedule hover:bg-schedule-light">View Schedule</Button></a></Link>
+                <Button asChild variant="outline" className="border-schedule text-schedule hover:bg-schedule-light">
+                  <Link href="/schedule"><a>View Schedule</a></Link>
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -155,7 +157,9 @@ export default function Dashboard() {
             <div className="header-row">
               <CardTitle>Upcoming Jobs</CardTitle>
               <div className="header-actions">
-                <Link href="/jobs"><a><Button variant="outline" className="border-jobs text-jobs hover:bg-jobs-light">View All</Button></a></Link>
+                <Button asChild variant="outline" className="border-jobs text-jobs hover:bg-jobs-light">
+                  <Link href="/jobs"><a>View All</a></Link>
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -192,15 +196,15 @@ export default function Dashboard() {
             <Button data-mobile-full="true" onClick={() => setIsJobModalOpen(true)} className="bg-jobs hover:bg-jobs/90 text-jobs-foreground">
               <Briefcase className="h-4 w-4 mr-2" /> New Job
             </Button>
-            <Link href="/schedule">
-              <a><Button data-mobile-full="true" variant="outline" className="border-schedule text-schedule hover:bg-schedule-light"><CalendarDays className="h-4 w-4 mr-2" /> Schedule</Button></a>
-            </Link>
-            <Link href="/customers">
-              <a><Button data-mobile-full="true" variant="outline" className="border-people text-people hover:bg-people-light"><Users className="h-4 w-4 mr-2" /> Customers</Button></a>
-            </Link>
-            <Link href="/equipment">
-              <a><Button data-mobile-full="true" variant="outline" className="border-equipment text-equipment hover:bg-equipment-light"><Wrench className="h-4 w-4 mr-2" /> Equipment</Button></a>
-            </Link>
+            <Button asChild data-mobile-full="true" variant="outline" className="border-schedule text-schedule hover:bg-schedule-light">
+              <Link href="/schedule"><a><CalendarDays className="h-4 w-4 mr-2" /> Schedule</a></Link>
+            </Button>
+            <Button asChild data-mobile-full="true" variant="outline" className="border-people text-people hover:bg-people-light">
+              <Link href="/customers"><a><Users className="h-4 w-4 mr-2" /> Customers</a></Link>
+            </Button>
+            <Button asChild data-mobile-full="true" variant="outline" className="border-equipment text-equipment hover:bg-equipment-light">
+              <Link href="/equipment"><a><Wrench className="h-4 w-4 mr-2" /> Equipment</a></Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

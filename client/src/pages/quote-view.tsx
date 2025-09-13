@@ -297,7 +297,9 @@ export default function QuoteView() {
       <div className="header-row">
         <h1 className="text-2xl font-bold">{quote.title}</h1>
         <div className="header-actions">
-          <Link href={`/quotes/${id}/edit`}><a><Button variant="outline">Edit</Button></a></Link>
+          <Button asChild variant="outline">
+            <Link href={`/quotes/${id}/edit`}><a>Edit</a></Link>
+          </Button>
           <Button 
             variant="outline"
             className="flex items-center gap-2"

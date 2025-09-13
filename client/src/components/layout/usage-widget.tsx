@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Users, MessageCircle, Mail, AlertCircle } from "lucide-react";
+import { Users, MessageCircle, Mail, AlertCircle, AlertTriangle, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useUsageAlerts, UsageAlert } from "@/components/usage/usage-alerts";
 
 interface UsageData {
   users: { used: number; quota: number; percent: number };
@@ -50,6 +51,9 @@ export function UsageWidget({ variant = "desktop", showText = true }: UsageWidge
     refetchIntervalInBackground: true, // Continue refreshing in background
   });
 
+  // Get smart alerts for usage data
+  const { alerts, dismissAlert } = useUsageAlerts(isValidUsageData(usageData) ? usageData : undefined);
+
   // Loading state
   if (isLoading) {
     return (
@@ -81,37 +85,59 @@ export function UsageWidget({ variant = "desktop", showText = true }: UsageWidge
     );
   }
 
-  const { users, sms, email } = usageData;
+  const { users, sms, email, planId } = usageData;
 
-  // Mobile compact variant - just status dots
+  // Get critical and warning alerts for display (safely handle undefined alerts)
+  const criticalAlerts = alerts?.filter(alert => alert.severity === 'critical') || [];
+  const warningAlerts = alerts?.filter(alert => alert.severity === 'warning' || alert.severity === 'error') || [];
+  const hasCriticalAlerts = criticalAlerts.length > 0;
+  const hasWarningAlerts = warningAlerts.length > 0;
+
+  // Mobile compact variant - just status dots with alert indicators
   if (variant === "mobile") {
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Link href="/settings?tab=usage">
-              <a>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-1 h-8 hover:bg-gray-100"
-                  data-testid="button-usage-widget-mobile"
-                >
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className={`p-1 h-8 hover:bg-gray-100 ${hasCriticalAlerts ? 'ring-1 ring-red-300' : hasWarningAlerts ? 'ring-1 ring-orange-300' : ''}`}
+            >
+              <Link href="/settings?tab=usage">
+                <a data-testid="button-usage-widget-mobile">
                   <div className="flex items-center gap-1">
+                    {hasCriticalAlerts && <AlertTriangle className="w-3 h-3 text-red-600" />}
+                    {!hasCriticalAlerts && hasWarningAlerts && <AlertTriangle className="w-3 h-3 text-orange-500" />}
                     <span className="text-xs">{getStatusIcon(users.percent)}</span>
                     <span className="text-xs">{getStatusIcon(sms.percent, sms.quotaExceeded)}</span>
                     <span className="text-xs">{getStatusIcon(email.percent, email.quotaExceeded)}</span>
                   </div>
-                </Button>
-              </a>
-            </Link>
+                </a>
+              </Link>
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <div className="text-xs space-y-1">
-              <div>👥 Users: {users.used}/{users.quota}</div>
-              <div>📱 SMS: {sms.used}/{sms.quota}</div>
-              <div>📧 Email: {email.used}/{email.quota}</div>
-              <div className="text-gray-400 mt-1">Click for details</div>
+            <div className="text-xs space-y-2 max-w-64">
+              {hasCriticalAlerts && (
+                <div className="text-red-600 font-medium">
+                  🚨 Critical: {criticalAlerts.map(a => a.title).join(', ')}
+                </div>
+              )}
+              {hasWarningAlerts && !hasCriticalAlerts && (
+                <div className="text-orange-600 font-medium">
+                  ⚠️ Warning: {warningAlerts.map(a => a.title).join(', ')}
+                </div>
+              )}
+              <div className="space-y-1 border-t pt-1">
+                <div>👥 Users: {users.used}/{users.quota} ({users.percent}%)</div>
+                <div>📱 SMS: {sms.used}/{sms.quota} ({Math.round(sms.percent)}%)</div>
+                <div>📧 Email: {email.used}/{email.quota} ({Math.round(email.percent)}%)</div>
+              </div>
+              <div className="text-gray-400 mt-2 border-t pt-1">
+                Click for details and upgrade options
+              </div>
             </div>
           </TooltipContent>
         </Tooltip>
@@ -119,20 +145,22 @@ export function UsageWidget({ variant = "desktop", showText = true }: UsageWidge
     );
   }
 
-  // Desktop detailed variant
+  // Desktop detailed variant with alert indicators
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Link href="/settings?tab=usage">
-            <a>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="px-3 py-1 h-8 hover:bg-gray-100 transition-colors"
-                data-testid="button-usage-widget-desktop"
-              >
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className={`px-3 py-1 h-8 hover:bg-gray-100 transition-colors ${hasCriticalAlerts ? 'ring-1 ring-red-300' : hasWarningAlerts ? 'ring-1 ring-orange-300' : ''}`}
+          >
+            <Link href="/settings?tab=usage">
+              <a data-testid="button-usage-widget-desktop">
                 <div className="flex items-center gap-3 text-xs">
+                  {hasCriticalAlerts && <AlertTriangle className="w-3 h-3 text-red-600" />}
+                  {!hasCriticalAlerts && hasWarningAlerts && <AlertTriangle className="w-3 h-3 text-orange-500" />}
                   <div className="flex items-center gap-1">
                     <Users className="w-3 h-3 text-blue-500" />
                     <span className={getUsageColor(users.percent)}>{users.used}/{users.quota}</span>
@@ -146,13 +174,39 @@ export function UsageWidget({ variant = "desktop", showText = true }: UsageWidge
                     <span className={getUsageColor(email.percent, email.quotaExceeded)}>{email.used}/{email.quota}</span>
                   </div>
                 </div>
-              </Button>
-            </a>
-          </Link>
+              </a>
+            </Link>
+          </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <div className="space-y-2 text-xs">
-            <div className="space-y-1">
+          <div className="space-y-2 text-xs max-w-80">
+            {hasCriticalAlerts && (
+              <div className="text-red-600 font-medium space-y-1">
+                <div className="flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Critical Limits Exceeded
+                </div>
+                {criticalAlerts.map(alert => (
+                  <div key={`${alert.type}-${alert.severity}`} className="text-xs pl-4">
+                    • {alert.title}
+                  </div>
+                ))}
+              </div>
+            )}
+            {hasWarningAlerts && !hasCriticalAlerts && (
+              <div className="text-orange-600 font-medium space-y-1">
+                <div className="flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Approaching Limits
+                </div>
+                {warningAlerts.map(alert => (
+                  <div key={`${alert.type}-${alert.severity}`} className="text-xs pl-4">
+                    • {alert.title}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className={`space-y-1 ${alerts && alerts.length > 0 ? 'border-t pt-2' : ''}`}>
               <div className="flex items-center justify-between gap-6">
                 <span>👥 Users:</span>
                 <span className={getUsageColor(users.percent)}>{users.used}/{users.quota} ({Math.round(users.percent)}%)</span>
@@ -166,8 +220,8 @@ export function UsageWidget({ variant = "desktop", showText = true }: UsageWidge
                 <span className={getUsageColor(email.percent, email.quotaExceeded)}>{email.used}/{email.quota} ({Math.round(email.percent)}%)</span>
               </div>
             </div>
-            <div className="border-t pt-1 text-gray-400">
-              Click for detailed usage information
+            <div className="border-t pt-2 text-gray-400">
+              {alerts && alerts.length > 0 ? 'Click to view alerts and upgrade options' : 'Click for detailed usage information'}
             </div>
           </div>
         </TooltipContent>

@@ -1,0 +1,440 @@
+import { useState, useEffect } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { UpgradeModal } from "@/components/subscription/upgrade-modal";
+import { 
+  AlertTriangle, 
+  AlertCircle, 
+  TrendingUp, 
+  X, 
+  Users, 
+  MessageCircle, 
+  Mail,
+  Crown,
+  Zap,
+  Star
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// Usage data interface matching API response
+export interface UsageData {
+  users: { used: number; quota: number; percent: number };
+  sms: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
+  email: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
+  periodEnd: string;
+  planId: string;
+  subscriptionStatus: string;
+}
+
+// Alert severity levels
+export type AlertSeverity = 'info' | 'warning' | 'error' | 'critical';
+export type AlertType = 'users' | 'sms' | 'email';
+
+// Alert dismissal key generator
+const getDismissalKey = (type: AlertType, severity: AlertSeverity) => 
+  `usage-alert-dismissed-${type}-${severity}`;
+
+// Check if alert was dismissed recently (within 24 hours)
+const isAlertDismissed = (type: AlertType, severity: AlertSeverity): boolean => {
+  const key = getDismissalKey(type, severity);
+  const dismissedAt = localStorage.getItem(key);
+  if (!dismissedAt) return false;
+  
+  const dismissTime = new Date(dismissedAt).getTime();
+  const now = Date.now();
+  const hoursSinceDismissed = (now - dismissTime) / (1000 * 60 * 60);
+  
+  // Allow dismissal for 24 hours for warnings, 4 hours for critical
+  const dismissalPeriod = severity === 'critical' ? 4 : 24;
+  return hoursSinceDismissed < dismissalPeriod;
+};
+
+// Dismiss an alert
+const dismissAlert = (type: AlertType, severity: AlertSeverity) => {
+  const key = getDismissalKey(type, severity);
+  localStorage.setItem(key, new Date().toISOString());
+};
+
+// Smart alert logic to determine what alerts to show
+export function useUsageAlerts(usageData?: UsageData) {
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+
+  const alerts: Array<{
+    type: AlertType;
+    severity: AlertSeverity;
+    title: string;
+    message: string;
+    action?: string;
+    isDismissible: boolean;
+    data: any;
+  }> = [];
+
+  if (!usageData) return { alerts, dismissAlert: () => {} };
+
+  const { users, sms, email, planId } = usageData;
+
+  // Users alerts
+  if (users.used >= users.quota) {
+    const key = `users-critical`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('users', 'critical')) {
+      alerts.push({
+        type: 'users',
+        severity: 'critical',
+        title: 'User Limit Reached',
+        message: `You've reached your limit of ${users.quota} team members. Upgrade to add more users.`,
+        action: 'upgrade',
+        isDismissible: false,
+        data: { used: users.used, quota: users.quota, percent: users.percent }
+      });
+    }
+  } else if (users.percent >= 80) {
+    const key = `users-warning`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('users', 'warning')) {
+      alerts.push({
+        type: 'users',
+        severity: 'warning',
+        title: 'Approaching User Limit',
+        message: `You're using ${users.used} of ${users.quota} team member slots (${users.percent}%). Consider upgrading soon.`,
+        action: 'upgrade',
+        isDismissible: true,
+        data: { used: users.used, quota: users.quota, percent: users.percent }
+      });
+    }
+  }
+
+  // SMS alerts
+  if (sms.quotaExceeded) {
+    const key = `sms-critical`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('sms', 'critical')) {
+      alerts.push({
+        type: 'sms',
+        severity: 'critical',
+        title: 'SMS Quota Exceeded',
+        message: `You've exceeded your SMS quota of ${sms.quota} messages. Upgrade to continue sending notifications.`,
+        action: 'upgrade',
+        isDismissible: false,
+        data: { used: sms.used, quota: sms.quota, remaining: sms.remaining, percent: sms.percent }
+      });
+    }
+  } else if (sms.remaining <= 5 && sms.remaining > 0) {
+    const key = `sms-error`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('sms', 'error')) {
+      alerts.push({
+        type: 'sms',
+        severity: 'error',
+        title: 'SMS Running Low',
+        message: `Only ${sms.remaining} SMS remaining this month. Upgrade to avoid service interruption.`,
+        action: 'upgrade',
+        isDismissible: true,
+        data: { used: sms.used, quota: sms.quota, remaining: sms.remaining, percent: sms.percent }
+      });
+    }
+  } else if (sms.percent >= 80) {
+    const key = `sms-warning`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('sms', 'warning')) {
+      alerts.push({
+        type: 'sms',
+        severity: 'warning',
+        title: 'High SMS Usage',
+        message: `You've used ${sms.percent}% of your SMS quota (${sms.used}/${sms.quota}). Consider upgrading for more messages.`,
+        action: 'upgrade',
+        isDismissible: true,
+        data: { used: sms.used, quota: sms.quota, remaining: sms.remaining, percent: sms.percent }
+      });
+    }
+  }
+
+  // Email alerts
+  if (email.quotaExceeded) {
+    const key = `email-critical`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('email', 'critical')) {
+      alerts.push({
+        type: 'email',
+        severity: 'critical',
+        title: 'Email Quota Exceeded',
+        message: `You've exceeded your email quota of ${email.quota} messages. Upgrade to continue sending notifications.`,
+        action: 'upgrade',
+        isDismissible: false,
+        data: { used: email.used, quota: email.quota, remaining: email.remaining, percent: email.percent }
+      });
+    }
+  } else if (email.remaining <= 10 && email.remaining > 0) {
+    const key = `email-error`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('email', 'error')) {
+      alerts.push({
+        type: 'email',
+        severity: 'error',
+        title: 'Email Running Low',
+        message: `Only ${email.remaining} emails remaining this month. Upgrade to avoid service interruption.`,
+        action: 'upgrade',
+        isDismissible: true,
+        data: { used: email.used, quota: email.quota, remaining: email.remaining, percent: email.percent }
+      });
+    }
+  } else if (email.percent >= 80) {
+    const key = `email-warning`;
+    if (!dismissedAlerts.has(key) && !isAlertDismissed('email', 'warning')) {
+      alerts.push({
+        type: 'email',
+        severity: 'warning',
+        title: 'High Email Usage',
+        message: `You've used ${email.percent}% of your email quota (${email.used}/${email.quota}). Consider upgrading for more messages.`,
+        action: 'upgrade',
+        isDismissible: true,
+        data: { used: email.used, quota: email.quota, remaining: email.remaining, percent: email.percent }
+      });
+    }
+  }
+
+  const handleDismissAlert = (type: AlertType, severity: AlertSeverity) => {
+    dismissAlert(type, severity);
+    const key = `${type}-${severity}`;
+    setDismissedAlerts(prev => new Set([...prev, key]));
+  };
+
+  return { alerts, dismissAlert: handleDismissAlert };
+}
+
+// Get appropriate icon for alert type
+const getAlertIcon = (type: AlertType) => {
+  switch (type) {
+    case 'users': return Users;
+    case 'sms': return MessageCircle;
+    case 'email': return Mail;
+    default: return AlertCircle;
+  }
+};
+
+// Get recommended plan based on current usage
+const getRecommendedPlan = (type: AlertType, data: any, currentPlan: string) => {
+  if (currentPlan === 'enterprise') return null; // Already on highest plan
+  
+  switch (type) {
+    case 'users':
+      if (currentPlan === 'free' || currentPlan === 'solo') return 'starter'; // 3 users
+      if (currentPlan === 'starter') return 'pro'; // 10 users
+      return 'enterprise'; // 50 users
+      
+    case 'sms':
+      if (currentPlan === 'free') return 'starter'; // 50 SMS
+      if (currentPlan === 'starter' || currentPlan === 'solo') return 'pro'; // 200 SMS
+      return 'enterprise'; // 1000 SMS
+      
+    case 'email':
+      if (currentPlan === 'free') return 'starter'; // 100 emails
+      if (currentPlan === 'starter' || currentPlan === 'solo') return 'pro'; // 500 emails
+      return 'enterprise'; // 2000 emails
+      
+    default:
+      return 'pro';
+  }
+};
+
+// Get plan details for recommendations
+const getPlanDetails = (planId: string) => {
+  switch (planId) {
+    case 'starter': 
+      return { name: 'Starter', price: '$19/month', icon: Star, users: 3, sms: 50, email: 100 };
+    case 'pro': 
+      return { name: 'Pro', price: '$29/month', icon: Zap, users: 10, sms: 200, email: 500 };
+    case 'enterprise': 
+      return { name: 'Enterprise', price: '$99/month', icon: Crown, users: 50, sms: 1000, email: 2000 };
+    default: 
+      return { name: 'Pro', price: '$29/month', icon: Zap, users: 10, sms: 200, email: 500 };
+  }
+};
+
+// Usage Alert Component Props
+interface UsageAlertProps {
+  type: AlertType;
+  severity: AlertSeverity;
+  title: string;
+  message: string;
+  action?: string;
+  isDismissible: boolean;
+  data: any;
+  currentPlan: string;
+  onDismiss?: () => void;
+  variant?: 'full' | 'compact' | 'minimal';
+  showUpgrade?: boolean;
+}
+
+// Main Usage Alert Component
+export function UsageAlert({
+  type,
+  severity,
+  title,
+  message,
+  action,
+  isDismissible,
+  data,
+  currentPlan,
+  onDismiss,
+  variant = 'full',
+  showUpgrade = true
+}: UsageAlertProps) {
+  const AlertIcon = getAlertIcon(type);
+  const recommendedPlan = getRecommendedPlan(type, data, currentPlan);
+  const planDetails = recommendedPlan ? getPlanDetails(recommendedPlan) : null;
+  
+  // Get alert styling based on severity
+  const getAlertClass = () => {
+    switch (severity) {
+      case 'critical':
+        return 'border-red-500 bg-red-50 dark:bg-red-950/30 text-red-900 dark:text-red-100';
+      case 'error':
+        return 'border-red-400 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-200';
+      case 'warning':
+        return 'border-orange-400 bg-orange-50 dark:bg-orange-950/20 text-orange-800 dark:text-orange-200';
+      default:
+        return 'border-blue-400 bg-blue-50 dark:bg-blue-950/20 text-blue-800 dark:text-blue-200';
+    }
+  };
+
+  const getIconColor = () => {
+    switch (severity) {
+      case 'critical': return 'text-red-600';
+      case 'error': return 'text-red-500';
+      case 'warning': return 'text-orange-500';
+      default: return 'text-blue-500';
+    }
+  };
+
+  // Compact variant for usage tab cards
+  if (variant === 'compact') {
+    return (
+      <div className={cn('p-3 rounded border', getAlertClass())} data-testid={`alert-${type}-${severity}`}>
+        <div className="flex items-start gap-2">
+          <AlertIcon className={cn('w-4 h-4 mt-0.5 flex-shrink-0', getIconColor())} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">{title}</p>
+            <p className="text-xs mt-1 opacity-90">{message}</p>
+            {showUpgrade && planDetails && (
+              <div className="flex items-center gap-2 mt-2">
+                <UpgradeModal currentPlan={currentPlan}>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" data-testid={`button-upgrade-${type}`}>
+                    Upgrade to {planDetails.name}
+                  </Button>
+                </UpgradeModal>
+                {isDismissible && (
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="h-7 px-2 text-xs opacity-70" 
+                    onClick={onDismiss}
+                    data-testid={`button-dismiss-${type}`}
+                  >
+                    Dismiss
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Minimal variant for header widgets
+  if (variant === 'minimal') {
+    return (
+      <div className="flex items-center gap-1" data-testid={`alert-minimal-${type}-${severity}`}>
+        <AlertIcon className={cn('w-3 h-3', getIconColor())} />
+        {severity === 'critical' && <span className="text-xs font-medium text-red-600">!</span>}
+      </div>
+    );
+  }
+
+  // Full variant for banners and detailed alerts
+  return (
+    <Alert className={cn(getAlertClass())} data-testid={`alert-${type}-${severity}`}>
+      <AlertIcon className={cn('h-4 w-4', getIconColor())} />
+      <div className="flex-1">
+        <AlertTitle className="flex items-center gap-2">
+          {title}
+          {severity === 'critical' && <Badge variant="destructive" className="text-xs">Action Required</Badge>}
+        </AlertTitle>
+        <AlertDescription className="mt-1">
+          <div className="flex items-center justify-between">
+            <span>{message}</span>
+            <div className="flex items-center gap-2 ml-4">
+              {showUpgrade && planDetails && (
+                <UpgradeModal currentPlan={currentPlan}>
+                  <Button size="sm" variant={severity === 'critical' ? 'destructive' : 'default'} data-testid={`button-upgrade-${type}`}>
+                    <TrendingUp className="w-3 h-3 mr-1" />
+                    Upgrade to {planDetails.name}
+                  </Button>
+                </UpgradeModal>
+              )}
+              {isDismissible && (
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="px-2" 
+                  onClick={onDismiss}
+                  data-testid={`button-dismiss-${type}`}
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+          {planDetails && showUpgrade && (
+            <div className="mt-2 text-xs opacity-90">
+              <strong>{planDetails.name} Plan ({planDetails.price}):</strong> {
+                type === 'users' ? `${planDetails.users} team members` :
+                type === 'sms' ? `${planDetails.sms} SMS/month` :
+                `${planDetails.email} emails/month`
+              }
+            </div>
+          )}
+        </AlertDescription>
+      </div>
+    </Alert>
+  );
+}
+
+// Usage Alert List Component - renders multiple alerts
+interface UsageAlertListProps {
+  alerts: ReturnType<typeof useUsageAlerts>['alerts'];
+  currentPlan: string;
+  onDismiss: (type: AlertType, severity: AlertSeverity) => void;
+  variant?: 'full' | 'compact' | 'minimal';
+  maxAlerts?: number;
+  showUpgrade?: boolean;
+}
+
+export function UsageAlertList({ 
+  alerts, 
+  currentPlan, 
+  onDismiss, 
+  variant = 'full', 
+  maxAlerts,
+  showUpgrade = true 
+}: UsageAlertListProps) {
+  // Sort alerts by severity (critical first)
+  const sortedAlerts = [...alerts].sort((a, b) => {
+    const severityOrder = { critical: 0, error: 1, warning: 2, info: 3 };
+    return severityOrder[a.severity] - severityOrder[b.severity];
+  });
+
+  const displayAlerts = maxAlerts ? sortedAlerts.slice(0, maxAlerts) : sortedAlerts;
+
+  if (displayAlerts.length === 0) return null;
+
+  return (
+    <div className={cn('space-y-2', variant === 'full' && 'space-y-3')} data-testid="usage-alert-list">
+      {displayAlerts.map((alert, index) => (
+        <UsageAlert
+          key={`${alert.type}-${alert.severity}`}
+          {...alert}
+          currentPlan={currentPlan}
+          onDismiss={() => onDismiss(alert.type, alert.severity)}
+          variant={variant}
+          showUpgrade={showUpgrade}
+        />
+      ))}
+    </div>
+  );
+}

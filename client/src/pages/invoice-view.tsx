@@ -285,7 +285,9 @@ export default function InvoiceView() {
       <div className="header-row">
         <h1 className="text-2xl font-bold">{invoice.title}</h1>
         <div className="header-actions">
-          <Link href={`/invoices/${id}/edit`}><a><Button variant="outline">Edit</Button></a></Link>
+          <Button asChild variant="outline">
+            <Link href={`/invoices/${id}/edit`}><a>Edit</a></Link>
+          </Button>
           <Button 
             variant="outline"
             className="flex items-center gap-2"

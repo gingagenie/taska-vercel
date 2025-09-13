@@ -2,9 +2,10 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { db } from "../db/client";
-import { sql, eq, and, lte, lt } from "drizzle-orm";
-import { jobs as jobsSchema, customers, usageCounters, orgSubscriptions, subscriptionPlans } from "../../shared/schema";
+import { sql, eq, and, lte, lt, asc } from "drizzle-orm";
+import { jobs as jobsSchema, customers, usageCounters, orgSubscriptions, subscriptionPlans, usagePacks } from "../../shared/schema";
 import twilio from "twilio";
+import { reservePackUnits, finalizePackConsumption, releasePackReservation, checkPackAvailability, durableFinalizePackConsumption } from "../lib/pack-consumption";
 
 export const jobSms = Router();
 
@@ -48,8 +49,25 @@ function getCurrentPeriodBoundaries() {
   return { periodStart, periodEnd, now };
 }
 
-// SMS quota checking helper
-async function checkSmsQuota(orgId: string): Promise<{ canSend: boolean; usage: number; quota: number; planId: string }> {
+// Enhanced quota check result type
+type QuotaCheckResult = {
+  canSend: boolean;
+  usage: number;
+  quota: number;
+  planId: string;
+  reservationId?: string;  // For two-phase consumption
+  packAvailable?: boolean;
+  remainingPacks?: number;
+  packType?: 'sms' | 'email';
+  error?: 'no_packs' | 'db_error';
+  errorMessage?: string;
+};
+
+// DEPRECATED - Replaced with atomic two-phase consumption
+// See server/lib/pack-consumption.ts for new implementation
+
+// Enhanced SMS quota checking with atomic pack reservation
+async function checkSmsQuota(orgId: string): Promise<QuotaCheckResult> {
   // Get organization's subscription and plan details
   const [subResult] = await db
     .select({
@@ -81,16 +99,76 @@ async function checkSmsQuota(orgId: string): Promise<{ canSend: boolean; usage: 
 
   const currentUsage = usageResult?.smsSent || 0;
   
+  // If within plan quota, allow sending (no pack needed)
+  if (currentUsage < quota) {
+    return {
+      canSend: true,
+      usage: currentUsage,
+      quota: quota,
+      planId: planId
+    };
+  }
+
+  // Plan quota exceeded - check if packs are available
+  const packAvailability = await checkPackAvailability(orgId, 'sms', 1);
+  
+  if (packAvailability.error === 'db_error') {
+    // Database error - don't treat as quota exceeded
+    return {
+      canSend: false,
+      usage: currentUsage,
+      quota: quota,
+      planId: planId,
+      error: 'db_error',
+      errorMessage: packAvailability.errorMessage || 'Database error checking packs',
+      packType: 'sms'
+    };
+  }
+
+  if (packAvailability.canConsume) {
+    // Packs available - reserve one unit for sending
+    const reservation = await reservePackUnits(orgId, 'sms', 1);
+    
+    if (reservation.success) {
+      return {
+        canSend: true,
+        usage: currentUsage,
+        quota: quota,
+        planId: planId,
+        reservationId: reservation.reservationId,
+        packAvailable: true,
+        remainingPacks: packAvailability.availablePacks - 1,
+        packType: 'sms'
+      };
+    } else {
+      // Pack reservation failed
+      return {
+        canSend: false,
+        usage: currentUsage,
+        quota: quota,
+        planId: planId,
+        error: reservation.error,
+        errorMessage: reservation.errorMessage || 'Failed to reserve pack unit',
+        packType: 'sms'
+      };
+    }
+  }
+
+  // No packs available - deny sending
   return {
-    canSend: currentUsage < quota,
+    canSend: false,
     usage: currentUsage,
     quota: quota,
-    planId: planId
+    planId: planId,
+    packAvailable: false,
+    remainingPacks: packAvailability.availablePacks,
+    error: 'no_packs',
+    packType: 'sms'
   };
 }
 
-// Email quota checking helper
-export async function checkEmailQuota(orgId: string): Promise<{ canSend: boolean; usage: number; quota: number; planId: string }> {
+// Enhanced email quota checking with atomic pack reservation
+export async function checkEmailQuota(orgId: string): Promise<QuotaCheckResult> {
   // Get organization's subscription and plan details
   const [subResult] = await db
     .select({
@@ -122,11 +200,71 @@ export async function checkEmailQuota(orgId: string): Promise<{ canSend: boolean
 
   const currentUsage = usageResult?.emailsSent || 0;
   
+  // If within plan quota, allow sending (no pack needed)
+  if (currentUsage < quota) {
+    return {
+      canSend: true,
+      usage: currentUsage,
+      quota: quota,
+      planId: planId
+    };
+  }
+
+  // Plan quota exceeded - check if packs are available
+  const packAvailability = await checkPackAvailability(orgId, 'email', 1);
+  
+  if (packAvailability.error === 'db_error') {
+    // Database error - don't treat as quota exceeded
+    return {
+      canSend: false,
+      usage: currentUsage,
+      quota: quota,
+      planId: planId,
+      error: 'db_error',
+      errorMessage: packAvailability.errorMessage || 'Database error checking packs',
+      packType: 'email'
+    };
+  }
+
+  if (packAvailability.canConsume) {
+    // Packs available - reserve one unit for sending
+    const reservation = await reservePackUnits(orgId, 'email', 1);
+    
+    if (reservation.success) {
+      return {
+        canSend: true,
+        usage: currentUsage,
+        quota: quota,
+        planId: planId,
+        reservationId: reservation.reservationId,
+        packAvailable: true,
+        remainingPacks: packAvailability.availablePacks - 1,
+        packType: 'email'
+      };
+    } else {
+      // Pack reservation failed
+      return {
+        canSend: false,
+        usage: currentUsage,
+        quota: quota,
+        planId: planId,
+        error: reservation.error,
+        errorMessage: reservation.errorMessage || 'Failed to reserve pack unit',
+        packType: 'email'
+      };
+    }
+  }
+
+  // No packs available - deny sending
   return {
-    canSend: currentUsage < quota,
+    canSend: false,
     usage: currentUsage,
     quota: quota,
-    planId: planId
+    planId: planId,
+    packAvailable: false,
+    remainingPacks: packAvailability.availablePacks,
+    error: 'no_packs',
+    packType: 'email'
   };
 }
 
@@ -193,19 +331,52 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
   const orgId = (req as any).orgId;
   const { phone: phoneOverride, messageOverride } = (req.body || {}) as { phone?: string; messageOverride?: string };
 
-  // Check SMS quota before proceeding
+  // PHASE 1: Check SMS quota and reserve pack unit if needed
   const quotaCheck = await checkSmsQuota(orgId);
   if (!quotaCheck.canSend) {
-    return res.status(429).json({ 
-      error: "SMS quota exceeded", 
+    // Distinguish between different failure types for proper error handling
+    let statusCode = 429; // Default to quota exceeded
+    let errorMessage = "SMS quota exceeded";
+    
+    if (quotaCheck.error === 'db_error') {
+      statusCode = 500;
+      errorMessage = quotaCheck.errorMessage || "Database error checking SMS quota";
+    } else if (quotaCheck.error === 'no_packs') {
+      errorMessage = "SMS quota exceeded and no packs available";
+    }
+    
+    const errorDetails: any = {
+      error: errorMessage,
       usage: quotaCheck.usage,
       quota: quotaCheck.quota,
       planId: quotaCheck.planId,
-      upgradeOptions: {
-        pro: { quota: 100, price: "$29/month" },
-        enterprise: { quota: 500, price: "$99/month" }
+      packInfo: {
+        type: quotaCheck.packType,
+        remainingPacks: quotaCheck.remainingPacks || 0,
+        packAvailable: quotaCheck.packAvailable || false
+      },
+      solutions: {
+        immediate: quotaCheck.remainingPacks === 0 ? 
+          ["Purchase SMS packs", "Upgrade subscription plan"] :
+          ["Contact support - pack reservation failed"],
+        packs: {
+          sms_pack_100: { quantity: 100, price: "$5.00" },
+          sms_pack_500: { quantity: 500, price: "$20.00" },
+          sms_pack_1000: { quantity: 1000, price: "$35.00" }
+        },
+        upgrade: {
+          pro: { quota: 200, price: "$29/month" },
+          enterprise: { quota: 1000, price: "$99/month" }
+        }
       }
-    });
+    };
+
+    return res.status(statusCode).json(errorDetails);
+  }
+
+  // Log if pack was reserved for this SMS
+  if (quotaCheck.reservationId) {
+    console.log(`[SMS] Pack reserved for org ${orgId}: ${quotaCheck.packType} pack reserved, ${quotaCheck.remainingPacks} packs remaining after send`);
   }
 
   // Pull job + customer info + organization name using proper Drizzle ORM
@@ -251,12 +422,64 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
 
   const body = (messageOverride && messageOverride.trim()) || defaultMsg;
 
+  // PHASE 2: Attempt to send SMS via Twilio
   try {
     const msg = await client!.messages.create({
       to: toPhone,
       ...(messagingServiceSid ? { messagingServiceSid } : { from: fromNumber! }),
       body,
     });
+
+    // PHASE 3A: SMS sent successfully - CRITICAL: MUST finalize pack consumption
+    // Using fail-safe approach: prefer failing request over under-billing
+    if (quotaCheck.reservationId) {
+      try {
+        console.log(`[SMS] SMS sent successfully, finalizing pack consumption: ${quotaCheck.reservationId}`);
+        
+        // Use durable finalization with retry logic and fail-safe approach
+        const finalizeResult = await durableFinalizePackConsumption(
+          quotaCheck.reservationId,
+          {
+            maxAttempts: 3,
+            baseDelayMs: 1000,
+            failRequestOnPersistentFailure: true, // CRITICAL: Fail request if can't charge
+          }
+        );
+        
+        if (!finalizeResult.success) {
+          // This should rarely happen due to retry logic, but if it does, it's critical
+          console.error(`[SMS] CRITICAL: Failed to finalize pack consumption after retry attempts: ${finalizeResult.errorMessage}`);
+          
+          // The durable finalize function should have thrown an error if failRequestOnPersistentFailure is true
+          // If we reach here, something went wrong with the fail-safe logic
+          throw new Error(`BILLING ERROR: SMS delivered but failed to charge after ${finalizeResult.attemptCount} attempts`);
+        }
+        
+        console.log(`[SMS] Pack consumption finalized successfully after ${finalizeResult.attemptCount} attempts`);
+      } catch (error) {
+        // CRITICAL BILLING ERROR: SMS was delivered but we cannot charge for it
+        console.error(`[SMS] CRITICAL BILLING ERROR: SMS sent to ${toPhone} but pack finalization failed:`, error);
+        
+        // Log the critical billing error for manual intervention
+        await db.execute(sql`
+          insert into job_notifications (org_id, job_id, notification_type, recipient, message, status, error_details)
+          values (${orgId}::uuid, ${row.id}::uuid, 'sms_billing_error', ${toPhone}, ${body}, 'billing_error', ${String(error)})
+        `).catch(logError => {
+          console.error(`[SMS] Failed to log billing error:`, logError);
+        });
+        
+        // FAIL-SAFE: Return error to prevent under-billing
+        // This means user sees the SMS as "failed" even though it was delivered
+        // This is better than allowing free SMS delivery
+        return res.status(500).json({
+          error: "SMS delivered but billing failed - contact support immediately",
+          severity: "critical",
+          billingError: true,
+          twilioSid: msg.sid,
+          support: "This SMS was delivered but could not be charged. Please contact support for billing adjustment."
+        });
+      }
+    }
 
     // Log outbound SMS for inbound matching
     await db.execute(sql`
@@ -272,9 +495,30 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
       // Don't fail the request if usage tracking fails
     }
 
-    return res.json({ ok: true, sid: msg.sid, status: msg.status });
+    const response: any = { 
+      ok: true, 
+      sid: msg.sid, 
+      status: msg.status,
+      packUsed: !!quotaCheck.reservationId,
+      billingStatus: quotaCheck.reservationId ? 'charged' : 'plan_quota'
+    };
+
+    return res.json(response);
   } catch (e: any) {
-    return res.status(500).json({ error: e?.message || "Twilio send failed" });
+    // PHASE 3B: SMS send failed - release pack reservation
+    if (quotaCheck.reservationId) {
+      console.log(`[SMS] Send failed, releasing pack reservation: ${quotaCheck.reservationId}`);
+      const releaseResult = await releasePackReservation(quotaCheck.reservationId);
+      if (!releaseResult.success) {
+        console.error(`[SMS] Failed to release pack reservation: ${releaseResult.errorMessage}`);
+        // This is serious - user may be charged for failed send
+      }
+    }
+
+    return res.status(500).json({ 
+      error: e?.message || "Twilio send failed",
+      packReservationReleased: !!quotaCheck.reservationId
+    });
   }
 });
 

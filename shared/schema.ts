@@ -411,6 +411,39 @@ export const usagePacks = pgTable("usage_packs", {
   quantityValidation: sql`CONSTRAINT usage_packs_quantity_valid CHECK (quantity > 0 AND used_quantity >= 0 AND used_quantity <= quantity)`,
 }));
 
+// CRITICAL: Durable pack reservations to prevent billing safety issues
+// Replaces vulnerable in-memory reservation system
+export const usagePackReservations = pgTable("usage_pack_reservations", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  packId: uuid("pack_id").notNull().references(() => usagePacks.id, { onDelete: "cascade" }),
+  packType: varchar("pack_type", { length: 10 }).notNull(), // 'sms' | 'email' for faster queries
+  quantity: integer("quantity").notNull(), // Number of units reserved
+  status: varchar("status", { length: 30 }).notNull().default("pending"), // 'pending' | 'finalized' | 'released' | 'compensation_required'
+  expiresAt: timestamp("expires_at").notNull(), // 5 minute expiry for cleanup (extended on retries)
+  // Enhanced retry state fields for continuous background processing
+  attemptCount: integer("attempt_count").notNull().default(0), // Number of finalization attempts
+  lastError: text("last_error"), // Last error message for debugging
+  nextRetryAt: timestamp("next_retry_at"), // When to retry next (exponential backoff)
+  compensationRequiredAt: timestamp("compensation_required_at"), // When marked for manual compensation
+  originalExpiresAt: timestamp("original_expires_at").notNull(), // Original expiry time (before extensions)
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // Critical indexes for atomic operations and cleanup
+  orgPackTypeIdx: index("reservations_org_pack_type_idx").on(t.orgId, t.packType, t.status),
+  packStatusIdx: index("reservations_pack_status_idx").on(t.packId, t.status),
+  statusExpiryIdx: index("reservations_status_expiry_idx").on(t.status, t.expiresAt),
+  // Enhanced indexes for background processing
+  nextRetryIdx: index("reservations_next_retry_idx").on(t.nextRetryAt, t.status),
+  compensationIdx: index("reservations_compensation_idx").on(t.status, t.compensationRequiredAt),
+  // Check constraints for data integrity
+  packTypeValidation: sql`CONSTRAINT reservations_pack_type_valid CHECK (pack_type IN ('sms', 'email'))`,
+  statusValidation: sql`CONSTRAINT reservations_status_valid CHECK (status IN ('pending', 'finalized', 'released', 'compensation_required'))`,
+  quantityValidation: sql`CONSTRAINT reservations_quantity_valid CHECK (quantity > 0)`,
+  attemptCountValidation: sql`CONSTRAINT reservations_attempt_count_valid CHECK (attempt_count >= 0)`,
+}));
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -423,6 +456,7 @@ export const insertOrgIntegrationSchema = createInsertSchema(orgIntegrations).om
 export const insertItemPresetSchema = createInsertSchema(itemPresets).omit({ id: true, createdAt: true });
 export const insertUsageCountersSchema = createInsertSchema(usageCounters).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUsagePackSchema = createInsertSchema(usagePacks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUsagePackReservationSchema = createInsertSchema(usagePackReservations).omit({ id: true, createdAt: true });
 export const insertCompletedJobSchema = createInsertSchema(completedJobs).omit({ id: true, completedAt: true });
 export const insertJobHoursSchema = createInsertSchema(jobHours).omit({ id: true, createdAt: true });
 export const insertJobPartsSchema = createInsertSchema(jobParts).omit({ id: true, createdAt: true });
@@ -462,6 +496,8 @@ export type UsageCounters = typeof usageCounters.$inferSelect;
 export type InsertUsageCounters = z.infer<typeof insertUsageCountersSchema>;
 
 export type UsagePack = typeof usagePacks.$inferSelect;
+export type UsagePackReservation = typeof usagePackReservations.$inferSelect;
+export type InsertUsagePackReservation = z.infer<typeof insertUsagePackReservationSchema>;
 export type InsertUsagePack = z.infer<typeof insertUsagePackSchema>;
 
 export type CompletedJob = typeof completedJobs.$inferSelect;

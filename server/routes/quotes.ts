@@ -8,6 +8,7 @@ import { xeroService } from "../services/xero";
 import { sumLines } from "../lib/totals";
 import { sendEmail, generateQuoteEmailTemplate } from "../services/email";
 import { trackEmailUsage, checkEmailQuota } from "./job-sms";
+import { finalizePackConsumption, releasePackReservation, durableFinalizePackConsumption } from "../lib/pack-consumption";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -381,22 +382,44 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     // Generate email content
     const { subject, html, text } = generateQuoteEmailTemplate(quoteData, orgName);
 
-    // Check email quota before proceeding
+    // PHASE 1: Check email quota and reserve pack unit if needed
     const quotaCheck = await checkEmailQuota(orgId);
     if (!quotaCheck.canSend) {
-      return res.status(429).json({ 
-        error: "Email quota exceeded", 
+      // Distinguish between different failure types for proper error handling
+      let statusCode = 429; // Default to quota exceeded
+      let errorMessage = "Email quota exceeded";
+      
+      if (quotaCheck.error === 'db_error') {
+        statusCode = 500;
+        errorMessage = quotaCheck.errorMessage || "Database error checking email quota";
+      } else if (quotaCheck.error === 'no_packs') {
+        errorMessage = "Email quota exceeded and no packs available";
+      }
+      
+      return res.status(statusCode).json({ 
+        error: errorMessage,
         usage: quotaCheck.usage,
         quota: quotaCheck.quota,
         planId: quotaCheck.planId,
+        packInfo: {
+          type: quotaCheck.packType,
+          remainingPacks: quotaCheck.remainingPacks || 0,
+          packAvailable: quotaCheck.packAvailable || false
+        },
         upgradeOptions: {
-          pro: { quota: 50, price: "$29/month" },
-          enterprise: { quota: 200, price: "$99/month" }
+          pro: { quota: 500, price: "$29/month" },
+          enterprise: { quota: 2000, price: "$99/month" }
         }
       });
     }
 
-    // Send email
+    // Log if pack was reserved for this email
+    if (quotaCheck.reservationId) {
+      console.log(`[EMAIL] Pack reserved for org ${orgId}: ${quotaCheck.packType} pack reserved, ${quotaCheck.remainingPacks} packs remaining after send`);
+    }
+
+    // PHASE 2: Attempt to send email
+    let finalizeSuccess = true;
     const emailSent = await sendEmail({
       to: email,
       from: `${fromName} <${fromEmail}>`,
@@ -406,7 +429,70 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     });
 
     if (!emailSent) {
-      return res.status(500).json({ error: "Failed to send email" });
+      // PHASE 3B: Email send failed - release pack reservation
+      if (quotaCheck.reservationId) {
+        console.log(`[EMAIL] Send failed, releasing pack reservation: ${quotaCheck.reservationId}`);
+        const releaseResult = await releasePackReservation(quotaCheck.reservationId);
+        if (!releaseResult.success) {
+          console.error(`[EMAIL] Failed to release pack reservation: ${releaseResult.errorMessage}`);
+        }
+      }
+      return res.status(500).json({ 
+        error: "Failed to send email",
+        packReservationReleased: !!quotaCheck.reservationId
+      });
+    }
+
+    // PHASE 3A: Email sent successfully - CRITICAL: MUST finalize pack consumption
+    // Using fail-safe approach: prefer failing request over under-billing
+    if (quotaCheck.reservationId) {
+      try {
+        console.log(`[EMAIL] Quote email sent successfully, finalizing pack consumption: ${quotaCheck.reservationId}`);
+        
+        // Use durable finalization with retry logic and fail-safe approach
+        const finalizeResult = await durableFinalizePackConsumption(
+          quotaCheck.reservationId,
+          {
+            maxAttempts: 3,
+            baseDelayMs: 1000,
+            failRequestOnPersistentFailure: true, // CRITICAL: Fail request if can't charge
+          }
+        );
+        
+        if (!finalizeResult.success) {
+          // This should rarely happen due to retry logic, but if it does, it's critical
+          console.error(`[EMAIL] CRITICAL: Failed to finalize pack consumption after retry attempts: ${finalizeResult.errorMessage}`);
+          
+          // The durable finalize function should have thrown an error if failRequestOnPersistentFailure is true
+          // If we reach here, something went wrong with the fail-safe logic
+          throw new Error(`BILLING ERROR: Email delivered but failed to charge after ${finalizeResult.attemptCount} attempts`);
+        }
+        
+        console.log(`[EMAIL] Pack consumption finalized successfully after ${finalizeResult.attemptCount} attempts`);
+      } catch (error) {
+        // CRITICAL BILLING ERROR: Email was delivered but we cannot charge for it
+        console.error(`[EMAIL] CRITICAL BILLING ERROR: Quote email sent to ${email} but pack finalization failed:`, error);
+        
+        // Log the critical billing error for manual intervention
+        await db.execute(sql`
+          INSERT INTO quote_lines (org_id, quote_id, position, description, quantity, unit_amount, tax_rate)
+          VALUES (${orgId}::uuid, ${id}::uuid, 999, ${'BILLING_ERROR: Email sent but not charged - ' + String(error).slice(0, 200)}, 0, 0, 0)
+          ON CONFLICT DO NOTHING
+        `).catch(logError => {
+          console.error(`[EMAIL] Failed to log billing error:`, logError);
+        });
+        
+        // FAIL-SAFE: Return error to prevent under-billing
+        // This means user sees the email as "failed" even though it was delivered
+        // This is better than allowing free email delivery
+        return res.status(500).json({
+          error: "Email delivered but billing failed - contact support immediately",
+          severity: "critical",
+          billingError: true,
+          emailDelivered: true,
+          support: "This email was delivered but could not be charged. Please contact support for billing adjustment."
+        });
+      }
     }
 
     // Track email usage for quota management
@@ -426,11 +512,15 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       `);
     }
 
-    res.json({ 
+    const response: any = { 
       ok: true, 
       message: `Quote sent successfully to ${email}`,
-      email: email
-    });
+      email: email,
+      packUsed: !!quotaCheck.reservationId,
+      billingStatus: quotaCheck.reservationId ? 'charged' : 'plan_quota'
+    };
+
+    res.json(response);
 
   } catch (error) {
     console.error('Error sending quote email:', error);

@@ -79,8 +79,17 @@ export function usePackPurchase() {
   const handleSuccess = () => {
     // Invalidate relevant queries to refresh usage data
     queryClient.invalidateQueries({ queryKey: ['/api/usage'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/usage/packs'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/usage/packs/active'] });
+    
+    // Invalidate all pack-related queries regardless of filtering parameters
+    queryClient.invalidateQueries({ 
+      predicate: (query) => {
+        const queryKey = query.queryKey;
+        if (!queryKey || !Array.isArray(queryKey) || queryKey.length === 0) return false;
+        
+        const firstKey = queryKey[0];
+        return typeof firstKey === 'string' && firstKey.startsWith('/api/usage/packs');
+      }
+    });
     
     toast({
       title: 'Purchase Successful!',

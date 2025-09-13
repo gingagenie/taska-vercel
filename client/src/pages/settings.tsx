@@ -301,6 +301,290 @@ function UsageTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pack Management Section */}
+      <PackManagementSection />
+    </div>
+  );
+}
+
+// Pack Management Section Component
+function PackManagementSection() {
+  const [selectedPackType, setSelectedPackType] = useState<'all' | 'sms' | 'email'>('all');
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'expired' | 'used_up'>('all');
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+
+  return (
+    <div className="space-y-6">
+      {/* Pack Management Header */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-green-500" />
+                Communication Packs
+              </CardTitle>
+              <CardDescription>
+                Manage your SMS and Email pack inventory and track usage
+              </CardDescription>
+            </div>
+            <PackSelectionModal 
+              open={showPurchaseModal}
+              onOpenChange={setShowPurchaseModal}
+            >
+              <Button 
+                className="flex items-center gap-2" 
+                data-testid="button-buy-packs"
+                onClick={() => setShowPurchaseModal(true)}
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Buy Packs
+              </Button>
+            </PackSelectionModal>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Pack Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium">Type:</Label>
+              <div className="flex gap-1">
+                <Button
+                  variant={selectedPackType === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedPackType('all')}
+                  data-testid="filter-pack-type-all"
+                >
+                  All
+                </Button>
+                <Button
+                  variant={selectedPackType === 'sms' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedPackType('sms')}
+                  data-testid="filter-pack-type-sms"
+                  className="flex items-center gap-1"
+                >
+                  <MessageCircle className="w-3 h-3" />
+                  SMS
+                </Button>
+                <Button
+                  variant={selectedPackType === 'email' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedPackType('email')}
+                  data-testid="filter-pack-type-email"
+                  className="flex items-center gap-1"
+                >
+                  <Mail className="w-3 h-3" />
+                  Email
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium">Status:</Label>
+              <div className="flex gap-1">
+                <Button
+                  variant={selectedStatus === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedStatus('all')}
+                  data-testid="filter-status-all"
+                >
+                  All
+                </Button>
+                <Button
+                  variant={selectedStatus === 'active' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedStatus('active')}
+                  data-testid="filter-status-active"
+                >
+                  Active
+                </Button>
+                <Button
+                  variant={selectedStatus === 'expired' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedStatus('expired')}
+                  data-testid="filter-status-expired"
+                >
+                  Expired
+                </Button>
+                <Button
+                  variant={selectedStatus === 'used_up' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedStatus('used_up')}
+                  data-testid="filter-status-used-up"
+                >
+                  Used Up
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Pack Usage Statistics */}
+          <PackUsageStats 
+            packType={selectedPackType === 'all' ? undefined : selectedPackType}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Purchased Packs List */}
+      <PackListWithEmptyState
+        selectedStatus={selectedStatus}
+        selectedPackType={selectedPackType}
+        onPurchase={() => setShowPurchaseModal(true)}
+      />
+    </div>
+  );
+}
+
+// Pack List with Enhanced Empty State Component
+function PackListWithEmptyState({
+  selectedStatus,
+  selectedPackType,
+  onPurchase
+}: {
+  selectedStatus: 'all' | 'active' | 'expired' | 'used_up';
+  selectedPackType: 'all' | 'sms' | 'email';
+  onPurchase: () => void;
+}) {
+  return (
+    <>
+      <PurchasedPacksList
+        status={selectedStatus === 'all' ? 'all' : selectedStatus}
+        packType={selectedPackType === 'all' ? undefined : selectedPackType}
+        className="space-y-4"
+      />
+      
+      {/* Enhanced Empty State for First-Time Users */}
+      <PackEmptyStateCta onPurchase={onPurchase} />
+    </>
+  );
+}
+
+// Enhanced Empty State Call-to-Action Component
+function PackEmptyStateCta({ onPurchase }: { onPurchase: () => void }) {
+  const { data: packsResponse, isLoading } = useQuery({
+    queryKey: ['/api/usage/packs', 'all'],
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const packs = packsResponse?.data || [];
+  const hasAnyPacks = packs.length > 0;
+  
+  // Only show CTA if user has never purchased packs
+  if (isLoading || hasAnyPacks) {
+    return null;
+  }
+
+  return (
+    <Card className="border-2 border-dashed border-gray-200">
+      <CardContent className="p-8 text-center">
+        <div className="max-w-md mx-auto">
+          <div className="flex justify-center mb-4">
+            <div className="p-3 bg-green-50 rounded-full">
+              <Package className="w-8 h-8 text-green-500" />
+            </div>
+          </div>
+          
+          <h3 className="text-lg font-semibold mb-2">Get Started with Communication Packs</h3>
+          <p className="text-gray-500 mb-6">
+            Purchase SMS and Email packs to ensure uninterrupted service when your plan limits are reached. 
+            Packs never expire and provide extra capacity for busy periods.
+          </p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <MessageCircle className="w-5 h-5 text-blue-500 mx-auto mb-2" />
+              <div className="font-medium text-blue-900">SMS Packs</div>
+              <div className="text-blue-600">Starting from $5</div>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <Mail className="w-5 h-5 text-purple-500 mx-auto mb-2" />
+              <div className="font-medium text-purple-900">Email Packs</div>
+              <div className="text-purple-600">Starting from $3</div>
+            </div>
+          </div>
+          
+          <Button 
+            onClick={onPurchase}
+            className="flex items-center gap-2"
+            data-testid="button-get-started-packs"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            Get Your First Pack
+          </Button>
+          
+          <div className="flex items-center justify-center gap-6 mt-6 text-xs text-gray-500">
+            <div className="flex items-center gap-1">
+              <CheckCircle className="w-3 h-3 text-green-500" />
+              Never expire
+            </div>
+            <div className="flex items-center gap-1">
+              <CheckCircle className="w-3 h-3 text-green-500" />
+              Instant activation
+            </div>
+            <div className="flex items-center gap-1">
+              <CheckCircle className="w-3 h-3 text-green-500" />
+              Automatic billing
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Pack Usage Statistics Component
+function PackUsageStats({ packType }: { packType?: 'sms' | 'email' }) {
+  // Build query parameters for pack statistics
+  const queryParams = new URLSearchParams();
+  if (packType) queryParams.append('packType', packType);
+  
+  const queryString = queryParams.toString();
+  const endpoint = queryString ? `/api/usage/packs?${queryString}` : '/api/usage/packs';
+
+  // Query for pack statistics
+  const { data: packsResponse, isLoading } = useQuery({
+    queryKey: [endpoint, 'stats', packType],
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+
+  const packs = packsResponse?.data || [];
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-pulse">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-16 bg-gray-200 rounded"></div>
+        ))}
+      </div>
+    );
+  }
+
+  // Calculate statistics
+  const totalPacks = packs.length;
+  const activePacks = packs.filter(p => p.status === 'active').length;
+  const totalQuantity = packs.reduce((sum, p) => sum + p.quantity, 0);
+  const usedQuantity = packs.reduce((sum, p) => sum + p.usedQuantity, 0);
+  const remainingQuantity = packs.reduce((sum, p) => sum + p.remainingQuantity, 0);
+
+  const stats = [
+    { label: 'Total Packs', value: totalPacks, color: 'text-blue-600' },
+    { label: 'Active Packs', value: activePacks, color: 'text-green-600' },
+    { label: 'Total Credits', value: totalQuantity.toLocaleString(), color: 'text-purple-600' },
+    { label: 'Available Credits', value: remainingQuantity.toLocaleString(), color: 'text-orange-600' }
+  ];
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      {stats.map((stat) => (
+        <div key={stat.label} className="bg-gray-50 rounded-lg p-4">
+          <div className="text-sm text-gray-600">{stat.label}</div>
+          <div className={`text-2xl font-bold ${stat.color}`} data-testid={`stat-${stat.label.toLowerCase().replace(' ', '-')}`}>
+            {stat.value}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

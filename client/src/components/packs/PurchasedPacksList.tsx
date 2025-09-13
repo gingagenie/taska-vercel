@@ -72,7 +72,7 @@ export function PurchasedPacksList({
   const endpoint = queryString ? `/api/usage/packs?${queryString}` : '/api/usage/packs';
 
   const { data: packsResponse, isLoading, error } = useQuery<PurchasedPacksResponse>({
-    queryKey: ['/api/usage/packs', status, packType],
+    queryKey: [endpoint, status, packType],
     staleTime: 2 * 60 * 1000, // 2 minutes
     refetchOnWindowFocus: true,
   });

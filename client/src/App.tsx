@@ -48,6 +48,9 @@ import CreateSupportTicket from "@/pages/support-new";
 import SupportTicketDetail from "@/pages/support-ticket";
 import SupportTicketsList from "@/pages/support-tickets";
 
+// Import support admin pages
+import SupportLogin from "@/pages/support-login";
+
 // Import modals
 import { JobModal } from "@/components/modals/job-modal";
 import { CustomerModal } from "@/components/modals/customer-modal";
@@ -109,14 +112,8 @@ function SupportAppContent() {
   if (!isAuthenticated) {
     return (
       <Switch>
-        <Route path="/support-admin/login" component={() => {
-          const SupportLogin = require("./pages/support-login.tsx").default;
-          return <SupportLogin />;
-        }} />
-        <Route path="*" component={() => {
-          const SupportLogin = require("./pages/support-login.tsx").default;
-          return <SupportLogin />;
-        }} />
+        <Route path="/support-admin/login" component={SupportLogin} />
+        <Route path="*" component={SupportLogin} />
       </Switch>
     );
   }

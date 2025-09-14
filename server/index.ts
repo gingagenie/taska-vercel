@@ -231,6 +231,7 @@ app.get("/health/db", async (_req, res) => {
 import { members } from "./routes/members";
 import auth from "./routes/auth";
 import supportAuth from "./routes/support-auth";
+import supportAdmin from "./routes/support-admin";
 import { health } from "./routes/health";
 import { debugRouter } from "./routes/debug";
 app.use("/api/me", me);
@@ -241,6 +242,9 @@ app.use("/health", health);
 
 // Support staff authentication routes (completely isolated from regular auth)
 app.use("/support/api/auth", supportAuth);
+
+// Support admin routes (only accessible to support_admin role)
+app.use("/support/api/admin", supportAdmin);
 
 // Legacy compatibility endpoint
 app.post("/api/teams/add-member", (req, res, next) => {

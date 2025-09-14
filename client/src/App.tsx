@@ -65,6 +65,12 @@ import TicketQueue from "@/pages/support/tickets";
 import TicketDetail from "@/pages/support/ticket-detail";
 import MyTickets from "@/pages/support/my-tickets";
 
+// Import support admin components
+import SupportAdminDashboard from "@/pages/support/admin/dashboard";
+import SupportUsersAdmin from "@/pages/support/admin/users";
+import SupportInvitesAdmin from "@/pages/support/admin/invites";
+import SupportAuditAdmin from "@/pages/support/admin/audit";
+
 // Role-based route protection
 function ProtectedRoute({ 
   component: Component, 
@@ -93,6 +99,13 @@ function SupportApp() {
         <Route path="/support/tickets" component={TicketQueue} />
         <Route path="/support/tickets/:id" component={TicketDetail} />
         <Route path="/support/my-tickets" component={MyTickets} />
+        
+        {/* Admin Routes - Only accessible to support_admin role */}
+        <Route path="/support/admin" component={SupportAdminDashboard} />
+        <Route path="/support/admin/users" component={SupportUsersAdmin} />
+        <Route path="/support/admin/invites" component={SupportInvitesAdmin} />
+        <Route path="/support/admin/audit" component={SupportAuditAdmin} />
+        
         <Route component={SupportDashboard} />
       </Switch>
     </SupportLayout>

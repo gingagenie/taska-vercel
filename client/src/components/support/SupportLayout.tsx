@@ -18,7 +18,8 @@ import {
   LogOut,
   Menu,
   X,
-  HelpCircle
+  HelpCircle,
+  Settings
 } from "lucide-react";
 
 export function SupportLayout({ children }: { children: React.ReactNode }) {
@@ -44,6 +45,16 @@ export function SupportLayout({ children }: { children: React.ReactNode }) {
       href: "/support/my-tickets",
       icon: User,
       active: location === "/support/my-tickets"
+    }
+  ];
+
+  // Admin navigation for support_admin users only
+  const adminNavigation = [
+    {
+      name: "Admin Console",
+      href: "/support/admin",
+      icon: Settings,
+      active: location.startsWith("/support/admin")
     }
   ];
 
@@ -103,6 +114,22 @@ export function SupportLayout({ children }: { children: React.ReactNode }) {
                     </a>
                   </Link>
                 ))}
+                {/* Admin Navigation - Only shown to support_admin users */}
+                {user?.role === 'support_admin' && adminNavigation.map((item) => (
+                  <Link key={item.name} href={item.href}>
+                    <a
+                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
+                        item.active
+                          ? "border-orange-500 text-gray-900"
+                          : "border-transparent text-orange-600 hover:border-orange-300 hover:text-orange-700"
+                      }`}
+                      data-testid={`nav-admin-${item.name.toLowerCase().replace(' ', '-')}`}
+                    >
+                      <item.icon className="h-4 w-4 mr-2" />
+                      {item.name}
+                    </a>
+                  </Link>
+                ))}
               </nav>
             </div>
 
@@ -155,6 +182,25 @@ export function SupportLayout({ children }: { children: React.ReactNode }) {
                     }`}
                     onClick={() => setIsMobileMenuOpen(false)}
                     data-testid={`mobile-nav-${item.name.toLowerCase().replace(' ', '-')}`}
+                  >
+                    <div className="flex items-center">
+                      <item.icon className="h-5 w-5 mr-3" />
+                      {item.name}
+                    </div>
+                  </a>
+                </Link>
+              ))}
+              {/* Admin Navigation - Mobile */}
+              {user?.role === 'support_admin' && adminNavigation.map((item) => (
+                <Link key={item.name} href={item.href}>
+                  <a
+                    className={`block pl-3 pr-4 py-2 text-base font-medium transition-colors ${
+                      item.active
+                        ? "bg-orange-50 border-r-4 border-orange-500 text-orange-700"
+                        : "text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    data-testid={`mobile-nav-admin-${item.name.toLowerCase().replace(' ', '-')}`}
                   >
                     <div className="flex items-center">
                       <item.icon className="h-5 w-5 mr-3" />

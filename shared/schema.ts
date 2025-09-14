@@ -35,7 +35,7 @@ export const users = pgTable("users", {
   orgId: uuid("org_id").references(() => organizations.id),
   email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
-  role: varchar("role", { length: 100 }),
+  role: varchar("role", { length: 100 }), // 'admin', 'member', 'support_staff'
   phone: varchar("phone", { length: 50 }),
   avatarUrl: varchar("avatar_url", { length: 500 }),
   color: varchar("color", { length: 7 }).default("#3b82f6"), // Default blue
@@ -444,6 +444,75 @@ export const usagePackReservations = pgTable("usage_pack_reservations", {
   attemptCountValidation: sql`CONSTRAINT reservations_attempt_count_valid CHECK (attempt_count >= 0)`,
 }));
 
+// Ticket categories for support system
+export const ticketCategories = pgTable("ticket_categories", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  autoAssignToRole: varchar("auto_assign_to_role", { length: 50 }), // 'support_staff', 'billing_team', etc.
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  // Ensure category names are unique
+  nameUnique: uniqueIndex("ticket_categories_name_unique").on(t.name),
+}));
+
+// Support tickets for customer support system
+export const supportTickets = pgTable("support_tickets", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }), // Customer org
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("open"), // 'open', 'in_progress', 'resolved', 'closed'
+  priority: varchar("priority", { length: 20 }).notNull().default("medium"), // 'low', 'medium', 'high', 'urgent'
+  categoryId: uuid("category_id").notNull().references(() => ticketCategories.id),
+  submittedBy: uuid("submitted_by").notNull().references(() => users.id), // Customer who submitted
+  assignedTo: uuid("assigned_to").references(() => users.id), // Support staff assigned (nullable)
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // Index for efficient lookups by org and status
+  orgStatusIdx: index("support_tickets_org_status_idx").on(t.orgId, t.status),
+  // Index for efficient lookups by assigned staff
+  assignedToIdx: index("support_tickets_assigned_to_idx").on(t.assignedTo),
+  // Index for efficient lookups by category
+  categoryIdx: index("support_tickets_category_idx").on(t.categoryId),
+  // Check constraints for data integrity
+  statusValidation: sql`CONSTRAINT support_tickets_status_valid CHECK (status IN ('open', 'in_progress', 'resolved', 'closed'))`,
+  priorityValidation: sql`CONSTRAINT support_tickets_priority_valid CHECK (priority IN ('low', 'medium', 'high', 'urgent'))`,
+}));
+
+// Ticket messages for conversation threads
+export const ticketMessages = pgTable("ticket_messages", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: uuid("ticket_id").notNull().references(() => supportTickets.id, { onDelete: "cascade" }),
+  authorId: uuid("author_id").notNull().references(() => users.id),
+  message: text("message").notNull(),
+  isInternal: boolean("is_internal").default(false), // Internal notes vs customer-visible messages
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  // Index for efficient lookups by ticket
+  ticketIdx: index("ticket_messages_ticket_idx").on(t.ticketId, t.createdAt),
+  // Index for filtering internal vs external messages
+  ticketInternalIdx: index("ticket_messages_ticket_internal_idx").on(t.ticketId, t.isInternal),
+}));
+
+// Ticket assignments for tracking support staff assignments
+export const ticketAssignments = pgTable("ticket_assignments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: uuid("ticket_id").notNull().references(() => supportTickets.id, { onDelete: "cascade" }),
+  assignedTo: uuid("assigned_to").notNull().references(() => users.id), // Support staff
+  assignedBy: uuid("assigned_by").notNull().references(() => users.id), // Who made the assignment
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  unassignedAt: timestamp("unassigned_at"),
+}, (t) => ({
+  // Index for efficient lookups by ticket
+  ticketIdx: index("ticket_assignments_ticket_idx").on(t.ticketId, t.assignedAt),
+  // Index for efficient lookups by assigned staff
+  assignedToIdx: index("ticket_assignments_assigned_to_idx").on(t.assignedTo, t.assignedAt),
+}));
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -463,6 +532,10 @@ export const insertJobPartsSchema = createInsertSchema(jobParts).omit({ id: true
 export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans).omit({ createdAt: true });
 export const insertOrgSubscriptionSchema = createInsertSchema(orgSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSmsUsageSchema = createInsertSchema(smsUsage).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTicketCategorySchema = createInsertSchema(ticketCategories).omit({ id: true, createdAt: true });
+export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTicketMessageSchema = createInsertSchema(ticketMessages).omit({ id: true, createdAt: true });
+export const insertTicketAssignmentSchema = createInsertSchema(ticketAssignments).omit({ id: true, assignedAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -517,3 +590,15 @@ export type InsertOrgSubscription = z.infer<typeof insertOrgSubscriptionSchema>;
 
 export type SmsUsage = typeof smsUsage.$inferSelect;
 export type InsertSmsUsage = z.infer<typeof insertSmsUsageSchema>;
+
+export type TicketCategory = typeof ticketCategories.$inferSelect;
+export type InsertTicketCategory = z.infer<typeof insertTicketCategorySchema>;
+
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+
+export type TicketMessage = typeof ticketMessages.$inferSelect;
+export type InsertTicketMessage = z.infer<typeof insertTicketMessageSchema>;
+
+export type TicketAssignment = typeof ticketAssignments.$inferSelect;
+export type InsertTicketAssignment = z.infer<typeof insertTicketAssignmentSchema>;

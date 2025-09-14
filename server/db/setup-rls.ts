@@ -19,7 +19,7 @@ export async function setupRowLevelSecurity() {
     console.log('✅ Helper function created')
 
     // Enable RLS on all tenant tables
-    const tables = ['orgs', 'users', 'memberships', 'customers', 'jobs']
+    const tables = ['orgs', 'users', 'memberships', 'customers', 'jobs', 'support_tickets', 'ticket_messages', 'ticket_assignments']
     
     for (const table of tables) {
       await db.execute(sql.raw(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`))
@@ -32,7 +32,13 @@ export async function setupRowLevelSecurity() {
       'DROP POLICY IF EXISTS "user_org_isolation" ON users', 
       'DROP POLICY IF EXISTS "membership_org_isolation" ON memberships',
       'DROP POLICY IF EXISTS "customer_org_isolation" ON customers',
-      'DROP POLICY IF EXISTS "job_org_isolation" ON jobs'
+      'DROP POLICY IF EXISTS "job_org_isolation" ON jobs',
+      'DROP POLICY IF EXISTS "support_ticket_org_isolation" ON support_tickets',
+      'DROP POLICY IF EXISTS "support_ticket_staff_access" ON support_tickets',
+      'DROP POLICY IF EXISTS "ticket_message_org_isolation" ON ticket_messages',
+      'DROP POLICY IF EXISTS "ticket_message_staff_access" ON ticket_messages',
+      'DROP POLICY IF EXISTS "ticket_assignment_org_isolation" ON ticket_assignments',
+      'DROP POLICY IF EXISTS "ticket_assignment_staff_access" ON ticket_assignments'
     ]
     
     for (const dropSql of dropPolicies) {
@@ -79,6 +85,84 @@ export async function setupRowLevelSecurity() {
       USING (org_id = current_org_id())
     `)
     console.log('✅ Job isolation policy created')
+
+    // Support Tickets: Customer orgs can only see their own tickets
+    await db.execute(sql`
+      CREATE POLICY "support_ticket_org_isolation" ON support_tickets
+      FOR ALL
+      USING (org_id = current_org_id())
+    `)
+    console.log('✅ Support ticket org isolation policy created')
+
+    // Support Tickets: Support staff can see all tickets (bypass org isolation)
+    await db.execute(sql`
+      CREATE POLICY "support_ticket_staff_access" ON support_tickets
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM users 
+          WHERE users.id = auth.uid() 
+          AND users.role = 'support_staff'
+        )
+      )
+    `)
+    console.log('✅ Support ticket staff access policy created')
+
+    // Ticket Messages: Customer orgs can only see messages for their tickets
+    await db.execute(sql`
+      CREATE POLICY "ticket_message_org_isolation" ON ticket_messages
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM support_tickets 
+          WHERE support_tickets.id = ticket_messages.ticket_id
+          AND support_tickets.org_id = current_org_id()
+        )
+      )
+    `)
+    console.log('✅ Ticket message org isolation policy created')
+
+    // Ticket Messages: Support staff can see all ticket messages
+    await db.execute(sql`
+      CREATE POLICY "ticket_message_staff_access" ON ticket_messages
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM users 
+          WHERE users.id = auth.uid() 
+          AND users.role = 'support_staff'
+        )
+      )
+    `)
+    console.log('✅ Ticket message staff access policy created')
+
+    // Ticket Assignments: Customer orgs can see assignments for their tickets
+    await db.execute(sql`
+      CREATE POLICY "ticket_assignment_org_isolation" ON ticket_assignments
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM support_tickets 
+          WHERE support_tickets.id = ticket_assignments.ticket_id
+          AND support_tickets.org_id = current_org_id()
+        )
+      )
+    `)
+    console.log('✅ Ticket assignment org isolation policy created')
+
+    // Ticket Assignments: Support staff can see all ticket assignments
+    await db.execute(sql`
+      CREATE POLICY "ticket_assignment_staff_access" ON ticket_assignments
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM users 
+          WHERE users.id = auth.uid() 
+          AND users.role = 'support_staff'
+        )
+      )
+    `)
+    console.log('✅ Ticket assignment staff access policy created')
 
     console.log('🎉 Row Level Security setup completed!')
     

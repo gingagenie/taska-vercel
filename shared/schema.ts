@@ -556,6 +556,62 @@ export const notificationHistory = pgTable("notification_history", {
   statusValidation: sql`CONSTRAINT notification_history_status_valid CHECK (status IN ('pending', 'sent', 'failed', 'bounced'))`,
 }));
 
+// ============================================================================
+// SUPPORT PLATFORM ISOLATION - Completely separate from customer organizations
+// ============================================================================
+
+// Support users - completely isolated authentication system for support staff
+export const supportUsers = pgTable("support_users", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 255 }),
+  role: varchar("role", { length: 20 }).notNull(), // 'support_agent' | 'support_admin'
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastLoginAt: timestamp("last_login_at"),
+}, (t) => ({
+  // Unique constraint on email
+  emailUnique: uniqueIndex("support_users_email_unique").on(t.email),
+  // Check constraint for role validation
+  roleValidation: sql`CONSTRAINT support_users_role_valid CHECK (role IN ('support_agent', 'support_admin'))`,
+}));
+
+// Support invites - invite-only user creation for support staff
+export const supportInvites = pgTable("support_invites", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email", { length: 255 }).notNull(),
+  invitedBy: uuid("invited_by").notNull().references(() => supportUsers.id),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  // Unique constraint on token
+  tokenUnique: uniqueIndex("support_invites_token_unique").on(t.token),
+  // Index for efficient lookups by email
+  emailIdx: index("support_invites_email_idx").on(t.email),
+  // Index for efficient cleanup of expired invites
+  expiryIdx: index("support_invites_expiry_idx").on(t.expiresAt),
+}));
+
+// Support audit logs - comprehensive activity tracking for support staff
+export const supportAuditLogs = pgTable("support_audit_logs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  actorId: uuid("actor_id").notNull().references(() => supportUsers.id),
+  action: varchar("action", { length: 100 }).notNull(), // 'login', 'ticket_view', 'ticket_reply', 'user_created', etc.
+  target: varchar("target", { length: 255 }), // ticket_id, user_id, etc.
+  meta: jsonb("meta"), // Additional context data
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  // Index for efficient lookups by actor
+  actorIdx: index("support_audit_logs_actor_idx").on(t.actorId, t.createdAt),
+  // Index for efficient lookups by action type
+  actionIdx: index("support_audit_logs_action_idx").on(t.action, t.createdAt),
+  // Index for efficient lookups by target
+  targetIdx: index("support_audit_logs_target_idx").on(t.target),
+}));
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -581,6 +637,9 @@ export const insertTicketMessageSchema = createInsertSchema(ticketMessages).omit
 export const insertTicketAssignmentSchema = createInsertSchema(ticketAssignments).omit({ id: true, assignedAt: true });
 export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertNotificationHistorySchema = createInsertSchema(notificationHistory).omit({ id: true, createdAt: true });
+export const insertSupportUserSchema = createInsertSchema(supportUsers).omit({ id: true, createdAt: true });
+export const insertSupportInviteSchema = createInsertSchema(supportInvites).omit({ id: true, createdAt: true });
+export const insertSupportAuditLogSchema = createInsertSchema(supportAuditLogs).omit({ id: true, createdAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -653,3 +712,12 @@ export type InsertNotificationPreferences = z.infer<typeof insertNotificationPre
 
 export type NotificationHistory = typeof notificationHistory.$inferSelect;
 export type InsertNotificationHistory = z.infer<typeof insertNotificationHistorySchema>;
+
+export type SupportUser = typeof supportUsers.$inferSelect;
+export type InsertSupportUser = z.infer<typeof insertSupportUserSchema>;
+
+export type SupportInvite = typeof supportInvites.$inferSelect;
+export type InsertSupportInvite = z.infer<typeof insertSupportInviteSchema>;
+
+export type SupportAuditLog = typeof supportAuditLogs.$inferSelect;
+export type InsertSupportAuditLog = z.infer<typeof insertSupportAuditLogSchema>;

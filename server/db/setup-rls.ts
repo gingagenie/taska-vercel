@@ -101,7 +101,7 @@ export async function setupRowLevelSecurity() {
       USING (
         EXISTS (
           SELECT 1 FROM users 
-          WHERE users.id = auth.uid() 
+          WHERE users.id = current_setting('app.current_user_id', true)::uuid
           AND users.role = 'support_staff'
         )
       )
@@ -129,7 +129,7 @@ export async function setupRowLevelSecurity() {
       USING (
         EXISTS (
           SELECT 1 FROM users 
-          WHERE users.id = auth.uid() 
+          WHERE users.id = current_setting('app.current_user_id', true)::uuid
           AND users.role = 'support_staff'
         )
       )
@@ -157,7 +157,7 @@ export async function setupRowLevelSecurity() {
       USING (
         EXISTS (
           SELECT 1 FROM users 
-          WHERE users.id = auth.uid() 
+          WHERE users.id = current_setting('app.current_user_id', true)::uuid
           AND users.role = 'support_staff'
         )
       )

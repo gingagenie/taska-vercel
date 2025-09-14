@@ -21,6 +21,7 @@ import subscriptions from "./routes/subscriptions";
 import usage from "./routes/usage";
 import { debug } from "./routes/debug";
 import { aiSupportRouter } from "./routes/ai-support";
+import supportTickets from "./routes/support-tickets";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
@@ -62,6 +63,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/debug");
   app.use("/api/ai-support", aiSupportRouter);
   console.log("[mount] /api/ai-support");
+  app.use("/api/support-tickets", supportTickets);
+  console.log("[mount] /api/support-tickets");
   
   // Migration export tool
   app.get("/migration-export.html", (_req, res) => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/context/auth-context";
+import { useSupportAuth } from "@/context/support-auth-context";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -24,27 +24,27 @@ import {
 
 export function SupportLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout } = useSupportAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navigation = [
     {
       name: "Dashboard",
-      href: "/support",
+      href: "/support-admin",
       icon: LayoutDashboard,
-      active: location === "/support"
+      active: location === "/support-admin"
     },
     {
       name: "Ticket Queue",
-      href: "/support/tickets",
+      href: "/support-admin/tickets",
       icon: Ticket,
-      active: location.startsWith("/support/tickets")
+      active: location.startsWith("/support-admin/tickets")
     },
     {
       name: "My Tickets",
-      href: "/support/my-tickets",
+      href: "/support-admin/my-tickets",
       icon: User,
-      active: location === "/support/my-tickets"
+      active: location === "/support-admin/my-tickets"
     }
   ];
 
@@ -52,9 +52,9 @@ export function SupportLayout({ children }: { children: React.ReactNode }) {
   const adminNavigation = [
     {
       name: "Admin Console",
-      href: "/support/admin",
+      href: "/support-admin/admin",
       icon: Settings,
-      active: location.startsWith("/support/admin")
+      active: location.startsWith("/support-admin/admin")
     }
   ];
 

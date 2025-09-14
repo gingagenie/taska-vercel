@@ -16,8 +16,7 @@ import {
   Calendar,
   LogOut,
   Cog,
-  CheckCircle,
-  LifeBuoy
+  CheckCircle
 } from "lucide-react";
 import logoUrl from "@assets/Taska_1755842483680.png";
 
@@ -28,7 +27,6 @@ const navigationItems = [
   { path: "/equipment", label: "Equipment", icon: Settings, category: "equipment" },
   { path: "/members", label: "Members", icon: Users, category: "people" },
   { path: "/schedule", label: "Schedule", icon: Calendar, category: "schedule" },
-  { path: "/support", label: "Support", icon: LifeBuoy, category: "management" },
   { path: "/quotes", label: "Quotes", icon: FileText, isPro: true, category: "financial" },
   { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true, category: "financial" },
   { path: "/settings", label: "Settings", icon: Cog, category: "management" },

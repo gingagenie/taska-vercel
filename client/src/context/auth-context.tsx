@@ -40,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMounted(true);
   }, []);
 
-  // Only use React Query hooks after component is mounted
-  const queryClient = mounted ? useQueryClient() : null;
+  // Always call hooks unconditionally to avoid hooks rule violations
+  const queryClient = useQueryClient();
   
   const { data: authData, isLoading, error, refetch } = useQuery({
     queryKey: ["/api/auth/me"],
@@ -68,9 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (mounted && refetch) {
       await refetch();
       // Also invalidate all other queries to refresh the app state
-      if (queryClient) {
-        queryClient.invalidateQueries();
-      }
+      queryClient.invalidateQueries();
     }
   };
 

@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/auth-context";
+import { SupportAuthProvider, useSupportAuth } from "@/context/support-auth-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileHeader } from "@/components/layout/mobile-header";
 import { TopBar } from "@/components/layout/top-bar";
@@ -90,25 +91,63 @@ function ProtectedRoute({
   return <Component {...props} />;
 }
 
-// Support Portal App for support staff
-function SupportApp() {
+// Support Portal App content - authenticated support users
+function SupportAppContent() {
+  const { isLoading, isAuthenticated } = useSupportAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading support portal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/support-admin/login" component={() => {
+          const SupportLogin = require("./pages/support-login.tsx").default;
+          return <SupportLogin />;
+        }} />
+        <Route path="*" component={() => {
+          const SupportLogin = require("./pages/support-login.tsx").default;
+          return <SupportLogin />;
+        }} />
+      </Switch>
+    );
+  }
+
   return (
     <SupportLayout>
       <Switch>
-        <Route path="/support" component={SupportDashboard} />
-        <Route path="/support/tickets" component={TicketQueue} />
-        <Route path="/support/tickets/:id" component={TicketDetail} />
-        <Route path="/support/my-tickets" component={MyTickets} />
+        <Route path="/support-admin/tickets" component={TicketQueue} />
+        <Route path="/support-admin/tickets/:id" component={TicketDetail} />
+        <Route path="/support-admin/my-tickets" component={MyTickets} />
         
         {/* Admin Routes - Only accessible to support_admin role */}
-        <Route path="/support/admin" component={SupportAdminDashboard} />
-        <Route path="/support/admin/users" component={SupportUsersAdmin} />
-        <Route path="/support/admin/invites" component={SupportInvitesAdmin} />
-        <Route path="/support/admin/audit" component={SupportAuditAdmin} />
+        <Route path="/support-admin/admin" component={SupportAdminDashboard} />
+        <Route path="/support-admin/users" component={SupportUsersAdmin} />
+        <Route path="/support-admin/invites" component={SupportInvitesAdmin} />
+        <Route path="/support-admin/audit" component={SupportAuditAdmin} />
         
+        {/* Default dashboard route - must be last */}
+        <Route path="/support-admin" component={SupportDashboard} />
         <Route component={SupportDashboard} />
       </Switch>
     </SupportLayout>
+  );
+}
+
+// Support Portal App wrapper
+function SupportApp() {
+  return (
+    <SupportAuthProvider>
+      <SupportAppContent />
+    </SupportAuthProvider>
   );
 }
 
@@ -119,18 +158,6 @@ function AuthenticatedApp() {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-
-  // Automatic routing for support staff
-  useEffect(() => {
-    if (user?.role === "support_staff" && !location.startsWith("/support")) {
-      setLocation("/support");
-    }
-  }, [user?.role, location, setLocation]);
-
-  // Support staff should be routed to the dedicated support portal
-  if (user?.role === "support_staff") {
-    return <SupportApp />;
-  }
 
   // Page configuration
   const getPageConfig = () => {
@@ -261,7 +288,8 @@ function AuthenticatedApp() {
   );
 }
 
-function AppContent() {
+// Customer App Content - uses customer auth context
+function CustomerAppContent() {
   const { isLoading, isAuthenticated } = useAuth();
 
   if (isLoading) {
@@ -288,17 +316,37 @@ function AppContent() {
   return <AuthenticatedApp />;
 }
 
+// Customer App wrapper with customer auth provider
+function CustomerApp() {
+  return (
+    <AuthProvider>
+      <TooltipProvider>
+        <SubscriptionErrorModalProvider>
+          <CustomerAppContent />
+        </SubscriptionErrorModalProvider>
+      </TooltipProvider>
+    </AuthProvider>
+  );
+}
+
+// Top-level App Content with route branching BEFORE any hook calls
+function AppContent() {
+  const [location] = useLocation();
+  
+  // Support admin portal routes - completely separate app with own auth
+  if (location.startsWith("/support-admin")) {
+    return <SupportApp />;
+  }
+  
+  // Customer app routes (including customer support at /support/*)
+  return <CustomerApp />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <SubscriptionErrorModalProvider>
-            <Toaster />
-            <AppContent />
-          </SubscriptionErrorModalProvider>
-        </TooltipProvider>
-      </AuthProvider>
+      <Toaster />
+      <AppContent />
     </QueryClientProvider>
   );
 }

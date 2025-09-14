@@ -91,13 +91,13 @@ export default function SupportAdminDashboard() {
         </div>
         <div className="flex gap-3">
           <Button asChild data-testid="button-manage-users">
-            <Link href="/support/admin/users">
+            <Link href="/support-admin/users">
               <Users className="h-4 w-4 mr-2" />
               Manage Users
             </Link>
           </Button>
           <Button asChild variant="outline" data-testid="button-manage-invites">
-            <Link href="/support/admin/invites">
+            <Link href="/support-admin/invites">
               <Mail className="h-4 w-4 mr-2" />
               Manage Invites
             </Link>
@@ -216,7 +216,7 @@ export default function SupportAdminDashboard() {
             
             <div className="mt-6">
               <Button asChild className="w-full" data-testid="button-view-users">
-                <Link href="/support/admin/users">
+                <Link href="/support-admin/users">
                   <Eye className="h-4 w-4 mr-2" />
                   View All Users
                 </Link>
@@ -269,7 +269,7 @@ export default function SupportAdminDashboard() {
             
             <div className="mt-6">
               <Button asChild className="w-full" data-testid="button-view-invites">
-                <Link href="/support/admin/invites">
+                <Link href="/support-admin/invites">
                   <UserPlus className="h-4 w-4 mr-2" />
                   Manage Invites
                 </Link>
@@ -322,7 +322,7 @@ export default function SupportAdminDashboard() {
           
           <div className="mt-6">
             <Button asChild className="w-full" variant="outline" data-testid="button-view-audit">
-              <Link href="/support/admin/audit">
+              <Link href="/support-admin/audit">
                 <Settings className="h-4 w-4 mr-2" />
                 View Audit Logs
               </Link>
@@ -339,21 +339,21 @@ export default function SupportAdminDashboard() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Button asChild className="h-24 flex-col gap-2" data-testid="button-quick-add-user">
-              <Link href="/support/admin/users">
+              <Link href="/support-admin/users">
                 <UserPlus className="h-8 w-8" />
                 <span>Add Support User</span>
               </Link>
             </Button>
             
             <Button asChild variant="outline" className="h-24 flex-col gap-2" data-testid="button-quick-send-invite">
-              <Link href="/support/admin/invites">
+              <Link href="/support-admin/invites">
                 <Mail className="h-8 w-8" />
                 <span>Send Invite</span>
               </Link>
             </Button>
             
             <Button asChild variant="outline" className="h-24 flex-col gap-2" data-testid="button-quick-view-audit">
-              <Link href="/support/admin/audit">
+              <Link href="/support-admin/audit">
                 <Eye className="h-8 w-8" />
                 <span>View Audit Trail</span>
               </Link>

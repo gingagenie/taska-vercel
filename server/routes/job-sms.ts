@@ -67,7 +67,7 @@ type QuotaCheckResult = {
 // See server/lib/pack-consumption.ts for new implementation
 
 // Enhanced SMS quota checking with atomic pack reservation
-async function checkSmsQuota(orgId: string): Promise<QuotaCheckResult> {
+export async function checkSmsQuota(orgId: string): Promise<QuotaCheckResult> {
   // Get organization's subscription and plan details
   const [subResult] = await db
     .select({

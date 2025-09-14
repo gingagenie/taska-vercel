@@ -32,7 +32,6 @@ const updateTicketSchema = z.object({
 
 const createMessageSchema = insertTicketMessageSchema.pick({
   message: true,
-  isInternal: true
 }).extend({
   is_internal: z.boolean().default(false)
 });
@@ -185,9 +184,9 @@ router.get("/assignments/my", requireAuth, requireSupportStaff, async (req, res)
       LEFT JOIN ticket_categories tc ON st.category_id = tc.id
       LEFT JOIN users u1 ON st.submitted_by = u1.id
       LEFT JOIN orgs o ON st.org_id = o.id
-      WHERE st.assigned_to = $1
+      WHERE st.assigned_to = ${userId}
       ORDER BY st.created_at DESC
-    `, [userId]);
+    `);
 
     console.log(`[TICKETS] Retrieved ${ticketsResult.length} assigned tickets for support staff ${userId}`);
 
@@ -221,22 +220,7 @@ router.get("/", requireAuth, requireTicketAccess, async (req, res) => {
     const { status, priority, assigned_to, category_id, page, limit } = validationResult.data;
     const offset = (Number(page) - 1) * Number(limit);
 
-    // Build base query using SQL for better compatibility
-    let baseQuery = sql`
-      SELECT 
-        st.id, st.org_id, st.title, st.description, st.status, st.priority,
-        st.category_id, st.submitted_by, st.assigned_to, st.resolved_at,
-        st.created_at, st.updated_at,
-        tc.name as category_name,
-        u1.name as submitted_by_name, u1.email as submitted_by_email,
-        u2.name as assigned_to_name, u2.email as assigned_to_email,
-        o.name as org_name
-      FROM support_tickets st
-      LEFT JOIN ticket_categories tc ON st.category_id = tc.id
-      LEFT JOIN users u1 ON st.submitted_by = u1.id
-      LEFT JOIN users u2 ON st.assigned_to = u2.id
-      LEFT JOIN orgs o ON st.org_id = o.id
-    `;
+    // Start building where conditions and parameters
 
     let whereConditions = [];
     let queryParams: any[] = [];
@@ -274,25 +258,61 @@ router.get("/", requireAuth, requireTicketAccess, async (req, res) => {
       queryParams.push(category_id);
     }
 
-    if (whereConditions.length > 0) {
-      baseQuery = sql`${baseQuery} WHERE ${sql.raw(whereConditions.join(' AND '))}`;
-    }
+    // Simple approach - build everything with drizzle SQL template
+    let query = sql`
+      SELECT 
+        st.id, st.org_id, st.title, st.description, st.status, st.priority,
+        st.category_id, st.submitted_by, st.assigned_to, st.resolved_at,
+        st.created_at, st.updated_at,
+        tc.name as category_name,
+        u1.name as submitted_by_name, u1.email as submitted_by_email,
+        u2.name as assigned_to_name, u2.email as assigned_to_email,
+        o.name as org_name
+      FROM support_tickets st
+      LEFT JOIN ticket_categories tc ON st.category_id = tc.id
+      LEFT JOIN users u1 ON st.submitted_by = u1.id
+      LEFT JOIN users u2 ON st.assigned_to = u2.id
+      LEFT JOIN orgs o ON st.org_id = o.id
+    `;
 
-    baseQuery = sql`${baseQuery} ORDER BY st.created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
-    queryParams.push(Number(limit), offset);
-
-    const tickets = await db.execute(sql`${baseQuery}`, queryParams);
-
-    // Get total count for pagination
-    let countQuery = sql`SELECT COUNT(*) as count FROM support_tickets st`;
-    let countParams: any[] = [];
-
+    // Add where conditions with actual SQL template parameters
+    const whereFilters = [];
     if (!req.isSupportStaff && req.orgId) {
-      countQuery = sql`${countQuery} WHERE st.org_id = $1`;
-      countParams.push(req.orgId);
+      whereFilters.push(sql`st.org_id = ${req.orgId}`);
+    }
+    if (status) {
+      whereFilters.push(sql`st.status = ${status}`);
+    }
+    if (priority) {
+      whereFilters.push(sql`st.priority = ${priority}`);
+    }
+    if (assigned_to) {
+      if (assigned_to === 'unassigned') {
+        whereFilters.push(sql`st.assigned_to IS NULL`);
+      } else {
+        whereFilters.push(sql`st.assigned_to = ${assigned_to}`);
+      }
+    }
+    if (category_id) {
+      whereFilters.push(sql`st.category_id = ${category_id}`);
     }
 
-    const countResult = await db.execute(countQuery, countParams);
+    if (whereFilters.length > 0) {
+      query = sql`${query} WHERE ${sql.join(whereFilters, sql` AND `)}`;
+    }
+
+    query = sql`${query} ORDER BY st.created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`;
+
+    const tickets = await db.execute(query);
+
+    // Get total count for pagination - use same filters as main query
+    let countQuery = sql`SELECT COUNT(*) as count FROM support_tickets st`;
+    
+    if (whereFilters.length > 0) {
+      countQuery = sql`${countQuery} WHERE ${sql.join(whereFilters, sql` AND `)}`;
+    }
+
+    const countResult = await db.execute(countQuery);
     const totalCount = countResult[0]?.count || 0;
 
     console.log(`[TICKETS] Retrieved ${tickets.length} tickets for ${req.isSupportStaff ? 'support staff' : 'regular user'}`);
@@ -343,8 +363,8 @@ router.post("/", requireAuth, requireTicketAccess, async (req, res) => {
 
     // Verify category exists
     const categoryResult = await db.execute(sql`
-      SELECT id, name FROM ticket_categories WHERE id = $1
-    `, [categoryId]);
+      SELECT id, name FROM ticket_categories WHERE id = ${categoryId}
+    `);
 
     if (!categoryResult[0]) {
       return res.status(400).json({ error: "Invalid category" });
@@ -354,9 +374,9 @@ router.post("/", requireAuth, requireTicketAccess, async (req, res) => {
 
     const ticketResult = await db.execute(sql`
       INSERT INTO support_tickets (org_id, title, description, priority, category_id, submitted_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES (${req.orgId}, ${title}, ${description}, ${priority}, ${categoryId}, ${userId})
       RETURNING *
-    `, [req.orgId, title, description, priority, categoryId, userId]);
+    `);
 
     const ticket = ticketResult[0];
 
@@ -407,7 +427,14 @@ router.get("/:id", requireAuth, requireTicketAccess, async (req, res) => {
     }
 
     // Build ticket query with org filtering
-    let ticketQuery = sql`
+    const whereFilters = [sql`st.id = ${id}`];
+    
+    // Apply org filtering for non-support staff
+    if (!req.isSupportStaff && req.orgId) {
+      whereFilters.push(sql`st.org_id = ${req.orgId}`);
+    }
+
+    const ticketQuery = sql`
       SELECT 
         st.id, st.org_id, st.title, st.description, st.status, st.priority,
         st.category_id, st.submitted_by, st.assigned_to, st.resolved_at,
@@ -421,18 +448,10 @@ router.get("/:id", requireAuth, requireTicketAccess, async (req, res) => {
       LEFT JOIN users u1 ON st.submitted_by = u1.id
       LEFT JOIN users u2 ON st.assigned_to = u2.id
       LEFT JOIN orgs o ON st.org_id = o.id
-      WHERE st.id = $1
+      WHERE ${sql.join(whereFilters, sql` AND `)}
     `;
 
-    let ticketParams = [id];
-
-    // Apply org filtering for non-support staff
-    if (!req.isSupportStaff && req.orgId) {
-      ticketQuery = sql`${ticketQuery} AND st.org_id = $2`;
-      ticketParams.push(req.orgId);
-    }
-
-    const ticketResult = await db.execute(ticketQuery, ticketParams);
+    const ticketResult = await db.execute(ticketQuery);
     const ticket = ticketResult[0];
 
     if (!ticket) {
@@ -440,25 +459,24 @@ router.get("/:id", requireAuth, requireTicketAccess, async (req, res) => {
     }
 
     // Get recent messages (last 10)
-    let messagesQuery = sql`
+    const messageFilters = [sql`tm.ticket_id = ${id}`];
+    
+    // Filter internal messages for non-support staff
+    if (!req.isSupportStaff) {
+      messageFilters.push(sql`tm.is_internal = false`);
+    }
+
+    const messagesQuery = sql`
       SELECT 
         tm.id, tm.ticket_id, tm.author_id, tm.message, tm.is_internal, tm.created_at,
         u.name as author_name, u.email as author_email, u.role as author_role
       FROM ticket_messages tm
       LEFT JOIN users u ON tm.author_id = u.id
-      WHERE tm.ticket_id = $1
+      WHERE ${sql.join(messageFilters, sql` AND `)}
+      ORDER BY tm.created_at DESC LIMIT 10
     `;
 
-    let messagesParams = [id];
-
-    // Filter internal messages for non-support staff
-    if (!req.isSupportStaff) {
-      messagesQuery = sql`${messagesQuery} AND tm.is_internal = false`;
-    }
-
-    messagesQuery = sql`${messagesQuery} ORDER BY tm.created_at DESC LIMIT 10`;
-
-    const messages = await db.execute(messagesQuery, messagesParams);
+    const messages = await db.execute(messagesQuery);
 
     // Get assignment history
     const assignmentsResult = await db.execute(sql`
@@ -469,9 +487,9 @@ router.get("/:id", requireAuth, requireTicketAccess, async (req, res) => {
       FROM ticket_assignments ta
       LEFT JOIN users u1 ON ta.assigned_to = u1.id
       LEFT JOIN users u2 ON ta.assigned_by = u2.id
-      WHERE ta.ticket_id = $1
+      WHERE ta.ticket_id = ${id}
       ORDER BY ta.assigned_at DESC
-    `, [id]);
+    `);
 
     console.log(`[TICKETS] Retrieved ticket details ${id} by ${req.isSupportStaff ? 'support staff' : 'customer'} ${req.user?.id}`);
 
@@ -506,8 +524,8 @@ router.delete("/:id", requireAuth, requireSupportStaff, async (req, res) => {
 
     // Check if ticket exists
     const ticketResult = await db.execute(sql`
-      SELECT id, title, org_id FROM support_tickets WHERE id = $1
-    `, [id]);
+      SELECT id, title, org_id FROM support_tickets WHERE id = ${id}
+    `);
 
     const ticket = ticketResult[0];
     if (!ticket) {
@@ -516,8 +534,8 @@ router.delete("/:id", requireAuth, requireSupportStaff, async (req, res) => {
 
     // Delete ticket (cascading deletes will handle messages and assignments)
     await db.execute(sql`
-      DELETE FROM support_tickets WHERE id = $1
-    `, [id]);
+      DELETE FROM support_tickets WHERE id = ${id}
+    `);
 
     console.log(`[TICKETS] Deleted ticket ${id} ("${ticket.title}") by admin ${req.user?.id}`);
 
@@ -559,8 +577,8 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
 
     // Get current ticket to verify permissions
     const currentTicketResult = await db.execute(sql`
-      SELECT * FROM support_tickets WHERE id = $1
-    `, [id]);
+      SELECT * FROM support_tickets WHERE id = ${id}
+    `);
 
     const currentTicket = currentTicketResult[0];
     if (!currentTicket) {
@@ -579,10 +597,9 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
       }
     }
 
-    // Build update query
-    const updates = [];
-    const params = [];
-    let paramIndex = 1;
+    // Build update fields
+    const updateFields = [];
+    const updateValues = {};
 
     if (status !== undefined) {
       // Validate status transition
@@ -594,43 +611,39 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
         });
       }
 
-      updates.push(`status = $${paramIndex++}`);
-      params.push(status);
+      updateFields.push(sql`status = ${status}`);
       
       if (status === 'resolved' || status === 'closed') {
-        updates.push(`resolved_at = now()`);
+        updateFields.push(sql`resolved_at = now()`);
       }
     }
     
     if (priority !== undefined) {
-      updates.push(`priority = $${paramIndex++}`);
-      params.push(priority);
+      updateFields.push(sql`priority = ${priority}`);
     }
     
     if (assigned_to !== undefined) {
-      updates.push(`assigned_to = $${paramIndex++}`);
-      params.push(assigned_to);
+      updateFields.push(sql`assigned_to = ${assigned_to}`);
       
       // Create assignment record if assigning to someone
       if (assigned_to) {
         await db.execute(sql`
           INSERT INTO ticket_assignments (ticket_id, assigned_to, assigned_by)
-          VALUES ($1, $2, $3)
-        `, [id, assigned_to, req.user?.id || req.session?.userId]);
+          VALUES (${id}, ${assigned_to}, ${req.user?.id || req.session?.userId})
+        `);
       }
     }
 
-    updates.push(`updated_at = now()`);
-    params.push(id); // Add id for WHERE clause
+    updateFields.push(sql`updated_at = now()`);
 
-    const updateQuery = sql.raw(`
+    const updateQuery = sql`
       UPDATE support_tickets 
-      SET ${updates.join(', ')}
-      WHERE id = $${paramIndex}
+      SET ${sql.join(updateFields, sql`, `)}
+      WHERE id = ${id}
       RETURNING *
-    `);
+    `;
 
-    const updatedTicketResult = await db.execute(updateQuery, params);
+    const updatedTicketResult = await db.execute(updateQuery);
     const updatedTicket = updatedTicketResult[0];
 
     // Add a system message about the update if there were significant changes
@@ -639,8 +652,8 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
       if (status) message += `Status changed to: ${status}. `;
       if (assigned_to) {
         const assigneeResult = await db.execute(sql`
-          SELECT name FROM users WHERE id = $1
-        `, [assigned_to]);
+          SELECT name FROM users WHERE id = ${assigned_to}
+        `);
         message += `Assigned to: ${assigneeResult[0]?.name || 'Unknown'}. `;
       } else if (assigned_to === null) {
         message += 'Unassigned. ';
@@ -650,8 +663,8 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
       if (message) {
         await db.execute(sql`
           INSERT INTO ticket_messages (ticket_id, author_id, message, is_internal)
-          VALUES ($1, $2, $3, true)
-        `, [id, req.user?.id || req.session?.userId, message.trim()]);
+          VALUES (${id}, ${req.user?.id || req.session?.userId}, ${message.trim()}, true)
+        `);
       }
     }
 
@@ -719,8 +732,8 @@ router.post("/:id/messages", requireAuth, requireTicketAccess, async (req, res) 
 
     // Get current ticket to verify permissions
     const currentTicketResult = await db.execute(sql`
-      SELECT * FROM support_tickets WHERE id = $1
-    `, [id]);
+      SELECT * FROM support_tickets WHERE id = ${id}
+    `);
 
     const currentTicket = currentTicketResult[0];
     if (!currentTicket) {
@@ -737,16 +750,16 @@ router.post("/:id/messages", requireAuth, requireTicketAccess, async (req, res) 
 
     const messageResult = await db.execute(sql`
       INSERT INTO ticket_messages (ticket_id, author_id, message, is_internal)
-      VALUES ($1, $2, $3, $4)
+      VALUES (${id}, ${req.user?.id || req.session?.userId}, ${message.trim()}, ${isInternal})
       RETURNING *
-    `, [id, req.user?.id || req.session?.userId, message.trim(), isInternal]);
+    `);
 
     const newMessage = messageResult[0];
 
     // Update ticket's updated_at timestamp
     await db.execute(sql`
-      UPDATE support_tickets SET updated_at = now() WHERE id = $1
-    `, [id]);
+      UPDATE support_tickets SET updated_at = now() WHERE id = ${id}
+    `);
 
     console.log(`[TICKETS] Added message to ticket ${id} by ${req.isSupportStaff ? 'support staff' : 'customer'} ${req.user?.id}`);
 
@@ -800,18 +813,18 @@ router.get("/:id/messages", requireAuth, requireTicketAccess, async (req, res) =
     const { include_internal } = queryValidation.data;
 
     // Get current ticket to verify permissions
-    let ticketQuery = sql`
-      SELECT id, org_id FROM support_tickets WHERE id = $1
-    `;
-    let ticketParams = [id];
-
+    const ticketFilters = [sql`id = ${id}`];
+    
     // Apply org filtering for non-support staff
     if (!req.isSupportStaff && req.orgId) {
-      ticketQuery = sql`${ticketQuery} AND org_id = $2`;
-      ticketParams.push(req.orgId);
+      ticketFilters.push(sql`org_id = ${req.orgId}`);
     }
 
-    const ticketResult = await db.execute(ticketQuery, ticketParams);
+    const ticketQuery = sql`
+      SELECT id, org_id FROM support_tickets WHERE ${sql.join(ticketFilters, sql` AND `)}
+    `;
+
+    const ticketResult = await db.execute(ticketQuery);
     const ticket = ticketResult[0];
 
     if (!ticket) {
@@ -819,28 +832,27 @@ router.get("/:id/messages", requireAuth, requireTicketAccess, async (req, res) =
     }
 
     // Build messages query - support staff can see internal messages, customers cannot
-    let messagesQuery = sql`
+    const messageFilters = [sql`tm.ticket_id = ${id}`];
+    
+    // Filter internal messages for non-support staff
+    if (!req.isSupportStaff) {
+      messageFilters.push(sql`tm.is_internal = false`);
+    } else if (include_internal === 'false') {
+      // Support staff can optionally exclude internal messages
+      messageFilters.push(sql`tm.is_internal = false`);
+    }
+
+    const messagesQuery = sql`
       SELECT 
         tm.id, tm.ticket_id, tm.author_id, tm.message, tm.is_internal, tm.created_at,
         u.name as author_name, u.email as author_email, u.role as author_role
       FROM ticket_messages tm
       LEFT JOIN users u ON tm.author_id = u.id
-      WHERE tm.ticket_id = $1
+      WHERE ${sql.join(messageFilters, sql` AND `)}
+      ORDER BY tm.created_at ASC
     `;
 
-    let messagesParams = [id];
-
-    // Filter internal messages for non-support staff
-    if (!req.isSupportStaff) {
-      messagesQuery = sql`${messagesQuery} AND tm.is_internal = false`;
-    } else if (include_internal === 'false') {
-      // Support staff can optionally exclude internal messages
-      messagesQuery = sql`${messagesQuery} AND tm.is_internal = false`;
-    }
-
-    messagesQuery = sql`${messagesQuery} ORDER BY tm.created_at ASC`;
-
-    const messages = await db.execute(messagesQuery, messagesParams);
+    const messages = await db.execute(messagesQuery);
 
     console.log(`[TICKETS] Retrieved ${messages.length} messages for ticket ${id} by ${req.isSupportStaff ? 'support staff' : 'customer'}`);
 
@@ -880,8 +892,8 @@ router.patch("/:id/messages/:messageId", requireAuth, requireTicketAccess, async
       SELECT tm.*, st.org_id as ticket_org_id
       FROM ticket_messages tm
       JOIN support_tickets st ON tm.ticket_id = st.id
-      WHERE tm.id = $1 AND tm.ticket_id = $2
-    `, [messageId, id]);
+      WHERE tm.id = ${messageId} AND tm.ticket_id = ${id}
+    `);
 
     const currentMessage = messageResult[0];
     if (!currentMessage) {
@@ -909,17 +921,17 @@ router.patch("/:id/messages/:messageId", requireAuth, requireTicketAccess, async
     // Update the message
     const updatedMessageResult = await db.execute(sql`
       UPDATE ticket_messages 
-      SET message = $1
-      WHERE id = $2
+      SET message = ${message.trim()}
+      WHERE id = ${messageId}
       RETURNING *
-    `, [message.trim(), messageId]);
+    `);
 
     const updatedMessage = updatedMessageResult[0];
 
     // Update ticket's updated_at timestamp
     await db.execute(sql`
-      UPDATE support_tickets SET updated_at = now() WHERE id = $1
-    `, [id]);
+      UPDATE support_tickets SET updated_at = now() WHERE id = ${id}
+    `);
 
     console.log(`[TICKETS] Updated message ${messageId} in ticket ${id} by user ${userId}`);
 
@@ -954,8 +966,8 @@ router.post("/:id/assign", requireAuth, requireSupportStaff, async (req, res) =>
 
     // Verify the assignee is support staff
     const assigneeResult = await db.execute(sql`
-      SELECT id, name, email, role FROM users WHERE id = $1
-    `, [assigned_to]);
+      SELECT id, name, email, role FROM users WHERE id = ${assigned_to}
+    `);
 
     const assignee = assigneeResult[0];
     if (!assignee) {
@@ -968,8 +980,8 @@ router.post("/:id/assign", requireAuth, requireSupportStaff, async (req, res) =>
 
     // Check if ticket exists
     const ticketResult = await db.execute(sql`
-      SELECT id, title, assigned_to, status FROM support_tickets WHERE id = $1
-    `, [id]);
+      SELECT id, title, assigned_to, status FROM support_tickets WHERE id = ${id}
+    `);
 
     const ticket = ticketResult[0];
     if (!ticket) {
@@ -979,18 +991,18 @@ router.post("/:id/assign", requireAuth, requireSupportStaff, async (req, res) =>
     // Update ticket assignment
     const updatedTicketResult = await db.execute(sql`
       UPDATE support_tickets 
-      SET assigned_to = $1, updated_at = now()
-      WHERE id = $2
+      SET assigned_to = ${assigned_to}, updated_at = now()
+      WHERE id = ${id}
       RETURNING *
-    `, [assigned_to, id]);
+    `);
 
     const updatedTicket = updatedTicketResult[0];
 
     // Create assignment record
     await db.execute(sql`
       INSERT INTO ticket_assignments (ticket_id, assigned_to, assigned_by)
-      VALUES ($1, $2, $3)
-    `, [id, assigned_to, req.user?.id || req.session?.userId]);
+      VALUES (${id}, ${assigned_to}, ${req.user?.id || req.session?.userId})
+    `);
 
     // Add system message about assignment
     let systemMessage = `Assigned to: ${assignee.name}`;
@@ -998,8 +1010,8 @@ router.post("/:id/assign", requireAuth, requireSupportStaff, async (req, res) =>
 
     await db.execute(sql`
       INSERT INTO ticket_messages (ticket_id, author_id, message, is_internal)
-      VALUES ($1, $2, $3, true)
-    `, [id, req.user?.id || req.session?.userId, systemMessage]);
+      VALUES (${id}, ${req.user?.id || req.session?.userId}, ${systemMessage}, true)
+    `);
 
     console.log(`[TICKETS] Assigned ticket ${id} to ${assignee.name} by support staff ${req.user?.id}`);
 
@@ -1041,8 +1053,8 @@ router.delete("/:id/assign", requireAuth, requireSupportStaff, async (req, res) 
 
     // Check if ticket exists and is assigned
     const ticketResult = await db.execute(sql`
-      SELECT id, title, assigned_to, status FROM support_tickets WHERE id = $1
-    `, [id]);
+      SELECT id, title, assigned_to, status FROM support_tickets WHERE id = ${id}
+    `);
 
     const ticket = ticketResult[0];
     if (!ticket) {
@@ -1055,8 +1067,8 @@ router.delete("/:id/assign", requireAuth, requireSupportStaff, async (req, res) 
 
     // Get assignee name for the system message
     const assigneeResult = await db.execute(sql`
-      SELECT name FROM users WHERE id = $1
-    `, [ticket.assigned_to]);
+      SELECT name FROM users WHERE id = ${ticket.assigned_to}
+    `);
 
     const assigneeName = assigneeResult[0]?.name || 'Unknown';
 
@@ -1064,9 +1076,9 @@ router.delete("/:id/assign", requireAuth, requireSupportStaff, async (req, res) 
     const updatedTicketResult = await db.execute(sql`
       UPDATE support_tickets 
       SET assigned_to = NULL, updated_at = now()
-      WHERE id = $1
+      WHERE id = ${id}
       RETURNING *
-    `, [id]);
+    `);
 
     const updatedTicket = updatedTicketResult[0];
 
@@ -1074,8 +1086,8 @@ router.delete("/:id/assign", requireAuth, requireSupportStaff, async (req, res) 
     await db.execute(sql`
       UPDATE ticket_assignments 
       SET unassigned_at = now()
-      WHERE ticket_id = $1 AND assigned_to = $2 AND unassigned_at IS NULL
-    `, [id, ticket.assigned_to]);
+      WHERE ticket_id = ${id} AND assigned_to = ${ticket.assigned_to} AND unassigned_at IS NULL
+    `);
 
     // Add system message about unassignment
     let systemMessage = `Unassigned from: ${assigneeName}`;
@@ -1083,8 +1095,8 @@ router.delete("/:id/assign", requireAuth, requireSupportStaff, async (req, res) 
 
     await db.execute(sql`
       INSERT INTO ticket_messages (ticket_id, author_id, message, is_internal)
-      VALUES ($1, $2, $3, true)
-    `, [id, req.user?.id || req.session?.userId, systemMessage]);
+      VALUES (${id}, ${req.user?.id || req.session?.userId}, ${systemMessage}, true)
+    `);
 
     console.log(`[TICKETS] Unassigned ticket ${id} from ${assigneeName} by support staff ${req.user?.id}`);
 

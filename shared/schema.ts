@@ -571,8 +571,6 @@ export const supportUsers = pgTable("support_users", {
   createdAt: timestamp("created_at").defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
 }, (t) => ({
-  // Unique constraint on email
-  emailUnique: uniqueIndex("support_users_email_unique").on(t.email),
   // Check constraint for role validation
   roleValidation: sql`CONSTRAINT support_users_role_valid CHECK (role IN ('support_agent', 'support_admin'))`,
 }));
@@ -587,8 +585,6 @@ export const supportInvites = pgTable("support_invites", {
   usedAt: timestamp("used_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
-  // Unique constraint on token
-  tokenUnique: uniqueIndex("support_invites_token_unique").on(t.token),
   // Index for efficient lookups by email
   emailIdx: index("support_invites_email_idx").on(t.email),
   // Index for efficient cleanup of expired invites
@@ -718,6 +714,26 @@ export type InsertSupportUser = z.infer<typeof insertSupportUserSchema>;
 
 export type SupportInvite = typeof supportInvites.$inferSelect;
 export type InsertSupportInvite = z.infer<typeof insertSupportInviteSchema>;
+
+// Session storage table for connect-pg-simple (regular user sessions)
+export const sessions = pgTable("session", {
+  sid: varchar("sid", { length: 255 }).primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire", { withTimezone: true }).notNull(),
+}, (t) => ({
+  // Index for efficient cleanup of expired sessions
+  expireIdx: index("session_expire_idx").on(t.expire),
+}));
+
+// Support session storage table for connect-pg-simple (support staff sessions)
+export const supportSessions = pgTable("support_session", {
+  sid: varchar("sid", { length: 255 }).primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire", { withTimezone: true }).notNull(),
+}, (t) => ({
+  // Index for efficient cleanup of expired sessions
+  expireIdx: index("support_session_expire_idx").on(t.expire),
+}));
 
 export type SupportAuditLog = typeof supportAuditLogs.$inferSelect;
 export type InsertSupportAuditLog = z.infer<typeof insertSupportAuditLogSchema>;

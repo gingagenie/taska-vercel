@@ -53,21 +53,50 @@ const pool = new Pool({
   connectionString: process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL 
 });
 
-app.use(
-  session({
-    store: new PgStore({ pool, tableName: "session" }), // Temporarily disabled
-    secret: process.env.SESSION_SECRET || "dev-secret-change-me",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      // If cross-origin in production, cookie must be SameSite=None + Secure
-      sameSite: (CLIENT_ORIGIN && isProd) ? "none" : "lax",
-      secure: (CLIENT_ORIGIN && isProd) ? true : false,
-      maxAge: 1000 * 60 * 60 * 24 * 30,
-    },
-  })
-);
+// Regular user session configuration
+const regularSessionConfig = session({
+  store: new PgStore({ pool, tableName: "session" }),
+  secret: process.env.SESSION_SECRET || "dev-secret-change-me",
+  name: "sid", // Default session cookie name
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    path: "/", // Regular app routes
+    // If cross-origin in production, cookie must be SameSite=None + Secure
+    sameSite: (CLIENT_ORIGIN && isProd) ? "none" : "lax",
+    secure: (CLIENT_ORIGIN && isProd) ? true : false,
+    maxAge: 1000 * 60 * 60 * 24 * 30,
+  },
+});
+
+// Support staff session configuration (completely separate)
+const supportSessionConfig = session({
+  store: new PgStore({ pool, tableName: "support_session" }),
+  secret: process.env.SUPPORT_SESSION_SECRET || process.env.SESSION_SECRET || "support-dev-secret-change-me",
+  name: "support_sid", // Different cookie name for isolation
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    path: "/support", // Support routes only
+    sameSite: "strict", // Stricter security for support staff
+    secure: isProd, // Always secure in production for support
+    maxAge: 1000 * 60 * 60 * 8, // Shorter session for support (8 hours)
+  },
+});
+
+// Apply regular session middleware to all non-support routes
+app.use((req, res, next) => {
+  if (req.path.startsWith("/support")) {
+    // Skip regular session for support routes
+    return next();
+  }
+  return regularSessionConfig(req, res, next);
+});
+
+// Apply support session middleware only to support routes
+app.use("/support", supportSessionConfig);
 
 // Ensure database schema is up to date
 (async () => {
@@ -201,6 +230,7 @@ app.get("/health/db", async (_req, res) => {
 /** Mount API routes that aren't part of registerRoutes */
 import { members } from "./routes/members";
 import auth from "./routes/auth";
+import supportAuth from "./routes/support-auth";
 import { health } from "./routes/health";
 import { debugRouter } from "./routes/debug";
 app.use("/api/me", me);
@@ -208,6 +238,9 @@ app.use("/api/auth", auth);
 app.use("/api/members", members);
 app.use("/api/debug", debugRouter);
 app.use("/health", health);
+
+// Support staff authentication routes (completely isolated from regular auth)
+app.use("/support/api/auth", supportAuth);
 
 // Legacy compatibility endpoint
 app.post("/api/teams/add-member", (req, res, next) => {

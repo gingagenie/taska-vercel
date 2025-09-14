@@ -513,6 +513,49 @@ export const ticketAssignments = pgTable("ticket_assignments", {
   assignedToIdx: index("ticket_assignments_assigned_to_idx").on(t.assignedTo, t.assignedAt),
 }));
 
+// Notification preferences for users
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  emailNotifications: boolean("email_notifications").default(true),
+  smsNotifications: boolean("sms_notifications").default(false),
+  urgentSmsOnly: boolean("urgent_sms_only").default(true),
+  businessHoursOnly: boolean("business_hours_only").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // Unique constraint on user_id - one preference record per user
+  userUnique: uniqueIndex("notification_preferences_user_unique").on(t.userId),
+}));
+
+// Notification history for audit trail
+export const notificationHistory = pgTable("notification_history", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: uuid("ticket_id").notNull().references(() => supportTickets.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  orgId: uuid("org_id").notNull().references(() => organizations.id),
+  type: varchar("type", { length: 10 }).notNull(), // 'email', 'sms'
+  template: varchar("template", { length: 100 }).notNull(), // 'ticket_created', 'status_changed', etc.
+  status: varchar("status", { length: 20 }).default("pending"), // 'sent', 'failed', 'bounced'
+  reservationId: varchar("reservation_id", { length: 255 }), // Link to pack consumption
+  recipientEmail: varchar("recipient_email", { length: 255 }),
+  recipientPhone: varchar("recipient_phone", { length: 50 }),
+  subject: varchar("subject", { length: 500 }),
+  messagePreview: text("message_preview"), // First 500 chars for debugging
+  sentAt: timestamp("sent_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  // Indexes for efficient lookups
+  ticketIdx: index("notification_history_ticket_idx").on(t.ticketId),
+  userIdx: index("notification_history_user_idx").on(t.userId),
+  orgIdx: index("notification_history_org_idx").on(t.orgId),
+  statusTypeIdx: index("notification_history_status_type_idx").on(t.status, t.type),
+  // Check constraints
+  typeValidation: sql`CONSTRAINT notification_history_type_valid CHECK (type IN ('email', 'sms'))`,
+  statusValidation: sql`CONSTRAINT notification_history_status_valid CHECK (status IN ('pending', 'sent', 'failed', 'bounced'))`,
+}));
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -536,6 +579,8 @@ export const insertTicketCategorySchema = createInsertSchema(ticketCategories).o
 export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTicketMessageSchema = createInsertSchema(ticketMessages).omit({ id: true, createdAt: true });
 export const insertTicketAssignmentSchema = createInsertSchema(ticketAssignments).omit({ id: true, assignedAt: true });
+export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertNotificationHistorySchema = createInsertSchema(notificationHistory).omit({ id: true, createdAt: true });
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -602,3 +647,9 @@ export type InsertTicketMessage = z.infer<typeof insertTicketMessageSchema>;
 
 export type TicketAssignment = typeof ticketAssignments.$inferSelect;
 export type InsertTicketAssignment = z.infer<typeof insertTicketAssignmentSchema>;
+
+export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreferences = z.infer<typeof insertNotificationPreferencesSchema>;
+
+export type NotificationHistory = typeof notificationHistory.$inferSelect;
+export type InsertNotificationHistory = z.infer<typeof insertNotificationHistorySchema>;

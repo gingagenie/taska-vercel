@@ -5,6 +5,7 @@ import { eq, and, desc, asc, isNull, isNotNull } from "drizzle-orm";
 import { supportTickets, ticketCategories, ticketMessages, ticketAssignments, users, organizations, insertSupportTicketSchema, insertTicketMessageSchema, insertTicketAssignmentSchema } from "../../shared/schema";
 import { detectSupportStaff, requireTicketAccess, requireSupportStaff } from "../middleware/support-staff";
 import { requireAuth } from "../middleware/auth";
+import { notificationService } from "../services/notification-service";
 import { z } from "zod";
 
 const router = Router();
@@ -361,6 +362,31 @@ router.post("/", requireAuth, requireTicketAccess, async (req, res) => {
 
     console.log(`[TICKETS] Created new ticket ${ticket.id} by user ${userId} in org ${req.orgId}`);
 
+    // Send notifications for ticket creation
+    try {
+      // Get support staff for notifications
+      const supportStaffResult = await db.execute(sql`
+        SELECT id FROM users WHERE role = 'support_staff' LIMIT 3
+      `);
+      const supportStaffIds = supportStaffResult.map(staff => staff.id);
+
+      // Trigger notifications (async - don't block the response)
+      setTimeout(async () => {
+        try {
+          const notificationResults = await notificationService.notifyTicketCreated(
+            ticket.id,
+            userId,
+            supportStaffIds
+          );
+          console.log(`[TICKETS] Sent ${notificationResults.length} notifications for ticket ${ticket.id}`);
+        } catch (error) {
+          console.error(`[TICKETS] Error sending notifications for ticket ${ticket.id}:`, error);
+        }
+      }, 100);
+    } catch (error) {
+      console.error(`[TICKETS] Error getting support staff for notifications:`, error);
+    }
+
     res.status(201).json({ ticket });
   } catch (error) {
     console.error("[TICKETS] Error creating ticket:", error);
@@ -631,6 +657,37 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
 
     console.log(`[TICKETS] Updated ticket ${id} by ${req.isSupportStaff ? 'support staff' : 'customer'} ${req.user?.id}`);
 
+    // Send notifications for significant changes
+    if (status || assigned_to !== undefined) {
+      setTimeout(async () => {
+        try {
+          // Notify status changes
+          if (status && status !== currentTicket.status) {
+            const notificationResults = await notificationService.notifyStatusChanged(
+              id,
+              currentTicket.submitted_by,
+              currentTicket.status,
+              status,
+              updatedTicket.assigned_to
+            );
+            console.log(`[TICKETS] Sent ${notificationResults.length} status change notifications for ticket ${id}`);
+          }
+
+          // Notify ticket assignments
+          if (assigned_to && assigned_to !== currentTicket.assigned_to) {
+            const assignmentResults = await notificationService.notifyTicketAssigned(
+              id,
+              assigned_to,
+              req.user?.id || req.session?.userId
+            );
+            console.log(`[TICKETS] Sent ${assignmentResults.length} assignment notifications for ticket ${id}`);
+          }
+        } catch (error) {
+          console.error(`[TICKETS] Error sending update notifications for ticket ${id}:`, error);
+        }
+      }, 100);
+    }
+
     res.json({ ticket: updatedTicket });
   } catch (error) {
     console.error("[TICKETS] Error updating ticket:", error);
@@ -692,6 +749,23 @@ router.post("/:id/messages", requireAuth, requireTicketAccess, async (req, res) 
     `, [id]);
 
     console.log(`[TICKETS] Added message to ticket ${id} by ${req.isSupportStaff ? 'support staff' : 'customer'} ${req.user?.id}`);
+
+    // Send notifications for new messages (async - don't block response)
+    if (!isInternal) {
+      setTimeout(async () => {
+        try {
+          const notificationResults = await notificationService.notifyNewMessage(
+            id,
+            req.user?.id || req.session?.userId,
+            message.trim(),
+            isInternal
+          );
+          console.log(`[TICKETS] Sent ${notificationResults.length} message notifications for ticket ${id}`);
+        } catch (error) {
+          console.error(`[TICKETS] Error sending message notifications for ticket ${id}:`, error);
+        }
+      }, 100);
+    }
 
     res.status(201).json({ message: newMessage });
   } catch (error) {

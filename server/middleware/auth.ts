@@ -61,13 +61,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     req.user = { id: user.id, role: user.role };
     
-    // Set org context based on user role
-    if (user.role === 'support_staff') {
-      // Support staff detection for role-based routing
-      req.isSupportStaff = true;
-      req.supportStaffOrgId = user.org_id;
-      console.log(`[AUTH] Support staff authenticated: ${user.email} (${user.id})`);
-    } else {
+    // SECURITY FIX: Do NOT automatically trust database role for support staff privileges
+    // Support staff privileges must be granted only via cryptographically verified tokens
+    // The detectSupportStaff middleware handles secure support staff detection
+    
+    // Set org context for regular users only
+    if (user.role !== 'support_staff') {
       // Regular users get their org context
       if (req.session.orgId) {
         req.orgId = req.session.orgId;
@@ -80,8 +79,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     try {
       // Use direct SQL string construction for SET commands (session-scoped for RLS)
       await db.execute(sql.raw(`SET app.current_user_id = '${user.id.replace(/'/g, "''")}'`));
-      // Only set org context for non-support staff (support staff need cross-org access)
-      if (user.role !== 'support_staff' && req.orgId) {
+      // Only set org context for regular users (verified support staff handled separately)
+      if (req.orgId && !req.isSupportStaff) {
         await db.execute(sql.raw(`SET app.current_org = '${req.orgId.replace(/'/g, "''")}'`));
       }
       console.log(`[AUTH] RLS context set for user ${user.id}, org: ${req.orgId || 'cross-org'}`);

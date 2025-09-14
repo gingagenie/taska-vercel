@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { generateSupportToken } from "../lib/secure-support-token";
 
 declare module 'express-session' {
   interface SessionData {
@@ -97,6 +98,20 @@ router.post("/login", async (req, res) => {
         
         console.log(`[SUPPORT AUTH] Successful login for ${supportUser.email} (${supportUser.id})`);
         
+        // Generate secure, cryptographically signed support token
+        // This replaces the forgeable boolean marker with tamper-proof authentication
+        const secureToken = generateSupportToken(supportUser.id, supportUser.role);
+        
+        // Set secure support token cookie for cross-path detection
+        // This token is HMAC-signed and cannot be forged by customers
+        res.cookie('support_token', secureToken, {
+          path: '/',
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 2 * 60 * 60 * 1000 // 2 hours to match token expiration
+        });
+        
         res.json({ 
           ok: true, 
           user: { 
@@ -139,6 +154,15 @@ router.post("/logout", async (req, res) => {
       return res.status(500).json({ error: "Logout failed" });
     }
     
+    // Clear secure support token cookie
+    res.clearCookie('support_token', {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production'
+    });
+    
+    console.log(`[SUPPORT AUTH] Cleared secure support token on logout`);
     res.json({ ok: true });
   });
 });

@@ -11,8 +11,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { reconcilePendingFinalizations } from "./lib/pack-consumption";
 import { startContinuousCompensationProcessor, stopContinuousCompensationProcessor } from "./lib/continuous-compensation-processor";
+import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
 
 import cors from "cors";
+import cookieParser from "cookie-parser";
 
 const app = express();
 
@@ -42,6 +44,9 @@ app.use((req, res, next) => {
   }
 });
 app.use(express.urlencoded({ extended: false }));
+
+// Cookie parser middleware (required for support marker cookies)
+app.use(cookieParser());
 
 // 3) Session store + cookie flags that work in Deploy
 import session from "express-session";
@@ -240,11 +245,11 @@ app.use("/api/members", members);
 app.use("/api/debug", debugRouter);
 app.use("/health", health);
 
-// Support staff authentication routes (completely isolated from regular auth)
+// Support staff authentication routes (accessible to unauthenticated support staff for login)
 app.use("/support/api/auth", supportAuth);
 
 // Support admin routes (only accessible to support_admin role)
-app.use("/support/api/admin", supportAdmin);
+app.use("/support/api/admin", blockCustomersFromSupportAdmin, supportAdmin);
 
 // Legacy compatibility endpoint
 app.post("/api/teams/add-member", (req, res, next) => {

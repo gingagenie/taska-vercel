@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
+import { verifySupportToken } from "../lib/secure-support-token";
 
 declare global {
   namespace Express {
@@ -14,50 +15,109 @@ declare global {
 }
 
 /**
- * Middleware to detect support staff and enable cross-org access to tickets only.
- * Support staff can access ticket data from all customer organizations,
- * but remain restricted to their own org for other data types.
+ * SECURITY-HARDENED: Middleware to detect support staff using only cryptographically verified tokens.
+ * 
+ * This middleware only trusts support tokens that are cryptographically signed and cannot be forged.
+ * ALL REFERENCES TO FORGEABLE COOKIES HAVE BEEN REMOVED for security.
  */
 export async function detectSupportStaff(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = req.user?.id || req.session?.userId;
-    
-    if (!userId) {
-      return next(); // Not authenticated, let other middleware handle
+    let isVerifiedSupportStaff = false;
+    let supportUserId: string | null = null;
+    let supportUserRole: string | null = null;
+    let detectionMethod = 'none';
+
+    // SECURITY FIX: Only trust cryptographically verified support tokens
+    // Step 1: Check for secure support token (cryptographically signed, cannot be forged)
+    const supportToken = req.cookies?.support_token;
+    if (supportToken) {
+      const tokenPayload = verifySupportToken(supportToken);
+      if (tokenPayload) {
+        // Token is cryptographically verified - safe to trust
+        isVerifiedSupportStaff = true;
+        supportUserId = tokenPayload.supportUserId;
+        supportUserRole = tokenPayload.role;
+        detectionMethod = 'verified_token';
+        
+        console.log(`[SUPPORT_STAFF] VERIFIED support staff via secure token: ${supportUserId} (${tokenPayload.role})`);
+        
+        // Fetch additional user details from database for context
+        try {
+          const userResult: any = await db.execute(sql`
+            SELECT id, email, name, org_id
+            FROM support_users 
+            WHERE id = ${supportUserId}::uuid
+            AND is_active = true
+          `);
+          
+          const supportUser = userResult[0];
+          if (supportUser) {
+            req.supportStaffOrgId = supportUser.org_id;
+            req.user = {
+              id: supportUser.id,
+              role: supportUserRole
+            };
+          }
+        } catch (dbError) {
+          console.error(`[SUPPORT_STAFF] Database lookup error for verified token: ${dbError}`);
+        }
+      } else {
+        // Invalid token - possible forgery attempt
+        console.warn(`[SUPPORT_STAFF] SECURITY: Invalid support token detected - possible forgery from IP ${req.ip}`);
+      }
     }
 
-    // Fetch user role from database
-    const userResult: any = await db.execute(sql`
-      SELECT id, role, org_id, email, name
-      FROM users 
-      WHERE id = ${userId}::uuid
-    `);
-    
-    const user = userResult[0];
-    if (!user) {
-      return next(); // User not found, let other middleware handle
+    // Step 2: Fallback to session-based verification (for support portal routes)
+    if (!isVerifiedSupportStaff) {
+      const sessionSupportUserId = req.session?.supportUserId;
+      if (sessionSupportUserId) {
+        // Verify session support user exists and is active
+        try {
+          const sessionUserResult: any = await db.execute(sql`
+            SELECT id, role, email, name, org_id, is_active
+            FROM support_users 
+            WHERE id = ${sessionSupportUserId}::uuid
+            AND is_active = true
+          `);
+          
+          const sessionUser = sessionUserResult[0];
+          if (sessionUser) {
+            isVerifiedSupportStaff = true;
+            supportUserId = sessionUser.id;
+            supportUserRole = sessionUser.role;
+            detectionMethod = 'verified_session';
+            
+            req.supportStaffOrgId = sessionUser.org_id;
+            req.user = {
+              id: sessionUser.id,
+              role: sessionUser.role
+            };
+            
+            console.log(`[SUPPORT_STAFF] VERIFIED support staff via session: ${sessionUser.email} (${sessionUser.id})`);
+          } else {
+            console.warn(`[SUPPORT_STAFF] Invalid session support user ID: ${sessionSupportUserId}`);
+            // Clear invalid session
+            req.session.supportUserId = undefined;
+            req.session.supportUserRole = undefined;
+          }
+        } catch (dbError) {
+          console.error(`[SUPPORT_STAFF] Session verification error: ${dbError}`);
+        }
+      }
     }
 
-    // Store user info on request for easy access
-    req.user = {
-      id: user.id,
-      role: user.role
-    };
-
-    // Check if user is support staff
-    const isSupportStaff = user.role === 'support_staff';
-    req.isSupportStaff = isSupportStaff;
-
-    if (isSupportStaff) {
-      // Store the support staff's original org ID for reference
-      req.supportStaffOrgId = user.org_id;
-      console.log(`[SUPPORT_STAFF] Detected support staff: ${user.email} (${user.id})`);
+    // Set verified support staff status
+    req.isSupportStaff = isVerifiedSupportStaff;
+    
+    if (isVerifiedSupportStaff) {
+      console.log(`[SUPPORT_STAFF] Support staff access granted via ${detectionMethod}: ${supportUserId}`);
     }
 
     next();
   } catch (error) {
-    console.error("[SUPPORT_STAFF] Error detecting support staff:", error);
-    // Don't fail the request, just continue without support staff privileges
+    console.error("[SUPPORT_STAFF] Error in secure support staff detection:", error);
+    // SECURITY: Fail closed - do not grant support staff privileges on error
+    req.isSupportStaff = false;
     next();
   }
 }

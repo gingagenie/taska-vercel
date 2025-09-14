@@ -16,5 +16,12 @@ declare namespace Express {
   interface Session {
     userId?: string
     orgId?: string
+    user?: { 
+      id: string; 
+      role?: string;
+      email?: string;
+    }
+    role?: string
+    supportUserId?: string
   }
 }

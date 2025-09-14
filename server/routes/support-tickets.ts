@@ -5,13 +5,15 @@ import { eq, and, desc, asc, isNull, isNotNull } from "drizzle-orm";
 import { supportTickets, ticketCategories, ticketMessages, ticketAssignments, users, organizations, insertSupportTicketSchema, insertTicketMessageSchema, insertTicketAssignmentSchema } from "../../shared/schema";
 import { detectSupportStaff, requireTicketAccess, requireSupportStaff } from "../middleware/support-staff";
 import { requireAuth } from "../middleware/auth";
+import { enforceSupportTicketAccess, detectAndEnforceSupportStaff, mixedAccessControl } from "../middleware/access-control";
 import { notificationService } from "../services/notification-service";
 import { z } from "zod";
 
 const router = Router();
 
-// Apply support staff detection to all routes
+// Apply support staff detection and access control to all routes
 router.use(detectSupportStaff);
+router.use(detectAndEnforceSupportStaff);
 
 // Validation schemas
 const createTicketSchema = insertSupportTicketSchema.pick({
@@ -59,7 +61,7 @@ const listTicketsSchema = z.object({
 });
 
 // Status transition validation
-const VALID_STATUS_TRANSITIONS = {
+const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   "open": ["in_progress", "resolved", "closed"],
   "in_progress": ["open", "resolved", "closed"], 
   "resolved": ["in_progress", "closed"],
@@ -68,7 +70,8 @@ const VALID_STATUS_TRANSITIONS = {
 
 function validateStatusTransition(currentStatus: string, newStatus: string): boolean {
   if (currentStatus === newStatus) return true;
-  return VALID_STATUS_TRANSITIONS[currentStatus]?.includes(newStatus) || false;
+  const validTransitions = VALID_STATUS_TRANSITIONS[currentStatus];
+  return validTransitions?.includes(newStatus) || false;
 }
 
 /**
@@ -77,9 +80,13 @@ function validateStatusTransition(currentStatus: string, newStatus: string): boo
 
 /**
  * GET /api/support-tickets/categories
- * Get all ticket categories
+ * Get all ticket categories (accessible to both customers and support staff)
  */
-router.get("/categories", requireAuth, async (_req, res) => {
+router.get("/categories", requireAuth, mixedAccessControl({
+  allowSupportStaff: true,
+  allowCustomers: true,
+  requireOrgForCustomers: false // Categories are global reference data
+}), async (_req, res) => {
   try {
     const categoriesResult = await db.execute(sql`
       SELECT * FROM ticket_categories WHERE is_active = true ORDER BY name ASC
@@ -207,7 +214,7 @@ router.get("/assignments/my", requireAuth, requireSupportStaff, async (req, res)
  * - Support staff: Can see tickets from all organizations
  * - Regular users: Only see tickets from their organization
  */
-router.get("/", requireAuth, requireTicketAccess, async (req, res) => {
+router.get("/", requireAuth, enforceSupportTicketAccess, async (req, res) => {
   try {
     const validationResult = listTicketsSchema.safeParse(req.query);
     if (!validationResult.success) {
@@ -313,7 +320,7 @@ router.get("/", requireAuth, requireTicketAccess, async (req, res) => {
     }
 
     const countResult = await db.execute(countQuery);
-    const totalCount = countResult[0]?.count || 0;
+    const totalCount = Number(countResult[0]?.count) || 0;
 
     console.log(`[TICKETS] Retrieved ${tickets.length} tickets for ${req.isSupportStaff ? 'support staff' : 'regular user'}`);
 
@@ -337,7 +344,7 @@ router.get("/", requireAuth, requireTicketAccess, async (req, res) => {
  * POST /api/support-tickets
  * Create a new support ticket (customers only, support staff cannot create tickets for customers)
  */
-router.post("/", requireAuth, requireTicketAccess, async (req, res) => {
+router.post("/", requireAuth, enforceSupportTicketAccess, async (req, res) => {
   try {
     const validationResult = createTicketSchema.safeParse(req.body);
     if (!validationResult.success) {
@@ -388,14 +395,14 @@ router.post("/", requireAuth, requireTicketAccess, async (req, res) => {
       const supportStaffResult = await db.execute(sql`
         SELECT id FROM users WHERE role = 'support_staff' LIMIT 3
       `);
-      const supportStaffIds = supportStaffResult.map(staff => staff.id);
+      const supportStaffIds = supportStaffResult.map(staff => String(staff.id));
 
       // Trigger notifications (async - don't block the response)
       setTimeout(async () => {
         try {
           const notificationResults = await notificationService.notifyTicketCreated(
-            ticket.id,
-            userId,
+            String(ticket.id),
+            String(userId),
             supportStaffIds
           );
           console.log(`[TICKETS] Sent ${notificationResults.length} notifications for ticket ${ticket.id}`);
@@ -418,7 +425,7 @@ router.post("/", requireAuth, requireTicketAccess, async (req, res) => {
  * GET /api/support-tickets/:id
  * Get single ticket details with full information
  */
-router.get("/:id", requireAuth, requireTicketAccess, async (req, res) => {
+router.get("/:id", requireAuth, enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -517,8 +524,8 @@ router.delete("/:id", requireAuth, requireSupportStaff, async (req, res) => {
     }
 
     // Check for admin role (more restrictive than support staff)
-    const user = req.user || { role: req.session?.role };
-    if (user?.role !== 'admin' && user?.role !== 'support_staff') {
+    const userRole = req.user?.role || (req.session as any)?.role;
+    if (userRole !== 'admin' && userRole !== 'support_staff') {
       return res.status(403).json({ error: "Admin privileges required to delete tickets" });
     }
 
@@ -557,7 +564,7 @@ router.delete("/:id", requireAuth, requireSupportStaff, async (req, res) => {
  * PATCH /api/support-tickets/:id
  * Update ticket status, priority, or assignment (support staff can update any ticket)
  */
-router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
+router.patch("/:id", requireAuth, enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -603,11 +610,11 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
 
     if (status !== undefined) {
       // Validate status transition
-      if (!validateStatusTransition(currentTicket.status, status)) {
+      if (!validateStatusTransition(String(currentTicket.status), status)) {
         return res.status(400).json({ 
           error: "Invalid status transition",
           details: `Cannot change status from '${currentTicket.status}' to '${status}'`,
-          validTransitions: VALID_STATUS_TRANSITIONS[currentTicket.status] || []
+          validTransitions: VALID_STATUS_TRANSITIONS[String(currentTicket.status) as keyof typeof VALID_STATUS_TRANSITIONS] || []
         });
       }
 
@@ -629,7 +636,7 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
       if (assigned_to) {
         await db.execute(sql`
           INSERT INTO ticket_assignments (ticket_id, assigned_to, assigned_by)
-          VALUES (${id}, ${assigned_to}, ${req.user?.id || req.session?.userId})
+          VALUES (${id}, ${assigned_to}, ${String(req.user?.id || req.session?.userId)})
         `);
       }
     }
@@ -663,7 +670,7 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
       if (message) {
         await db.execute(sql`
           INSERT INTO ticket_messages (ticket_id, author_id, message, is_internal)
-          VALUES (${id}, ${req.user?.id || req.session?.userId}, ${message.trim()}, true)
+          VALUES (${id}, ${String(req.user?.id || req.session?.userId)}, ${message.trim()}, true)
         `);
       }
     }
@@ -678,10 +685,10 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
           if (status && status !== currentTicket.status) {
             const notificationResults = await notificationService.notifyStatusChanged(
               id,
-              currentTicket.submitted_by,
-              currentTicket.status,
+              String(currentTicket.submitted_by),
+              String(currentTicket.status),
               status,
-              updatedTicket.assigned_to
+              updatedTicket.assigned_to ? String(updatedTicket.assigned_to) : undefined
             );
             console.log(`[TICKETS] Sent ${notificationResults.length} status change notifications for ticket ${id}`);
           }
@@ -691,7 +698,7 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
             const assignmentResults = await notificationService.notifyTicketAssigned(
               id,
               assigned_to,
-              req.user?.id || req.session?.userId
+              String(req.user?.id || req.session?.userId)
             );
             console.log(`[TICKETS] Sent ${assignmentResults.length} assignment notifications for ticket ${id}`);
           }
@@ -712,7 +719,7 @@ router.patch("/:id", requireAuth, requireTicketAccess, async (req, res) => {
  * POST /api/support-tickets/:id/messages
  * Add a message to a ticket
  */
-router.post("/:id/messages", requireAuth, requireTicketAccess, async (req, res) => {
+router.post("/:id/messages", requireAuth, enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -769,7 +776,7 @@ router.post("/:id/messages", requireAuth, requireTicketAccess, async (req, res) 
         try {
           const notificationResults = await notificationService.notifyNewMessage(
             id,
-            req.user?.id || req.session?.userId,
+            String(req.user?.id || req.session?.userId),
             message.trim(),
             isInternal
           );
@@ -791,7 +798,7 @@ router.post("/:id/messages", requireAuth, requireTicketAccess, async (req, res) 
  * GET /api/support-tickets/:id/messages
  * Get conversation history for a specific ticket
  */
-router.get("/:id/messages", requireAuth, requireTicketAccess, async (req, res) => {
+router.get("/:id/messages", requireAuth, enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -867,7 +874,7 @@ router.get("/:id/messages", requireAuth, requireTicketAccess, async (req, res) =
  * PATCH /api/support-tickets/:id/messages/:messageId
  * Edit a ticket message (author only, within 24 hours)
  */
-router.patch("/:id/messages/:messageId", requireAuth, requireTicketAccess, async (req, res) => {
+router.patch("/:id/messages/:messageId", requireAuth, enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id, messageId } = req.params;
 
@@ -911,7 +918,7 @@ router.patch("/:id/messages/:messageId", requireAuth, requireTicketAccess, async
     }
 
     // Check if message is within 24-hour edit window
-    const messageAge = Date.now() - new Date(currentMessage.created_at).getTime();
+    const messageAge = Date.now() - new Date(String(currentMessage.created_at)).getTime();
     const maxEditTime = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
     if (messageAge > maxEditTime) {

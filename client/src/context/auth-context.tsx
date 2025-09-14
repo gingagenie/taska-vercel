@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { clearDevAuth } from "@/lib/api";
 
@@ -29,16 +29,26 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Initialize React state hooks first - these must be called in the same order every render
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [organizations] = useState<any[]>([]);
-  const [isProUser, setIsProUser] = useState(true); // Enable pro features for demo
-  const queryClient = useQueryClient();
+  const [isProUser, setIsProUser] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  
+  // Ensure component is properly mounted before using React Query hooks
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  // Check authentication status from session
+  // Only use React Query hooks after component is mounted
+  const queryClient = mounted ? useQueryClient() : null;
+  
   const { data: authData, isLoading, error, refetch } = useQuery({
     queryKey: ["/api/auth/me"],
     retry: false,
-    staleTime: 0, // Always fresh to catch session changes
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    enabled: mounted, // Only enable query after mount
   });
 
   const user = authData ? {
@@ -55,9 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = !!authData && !error;
 
   const reload = async () => {
-    await refetch();
-    // Also invalidate all other queries to refresh the app state
-    queryClient.invalidateQueries();
+    if (mounted && refetch) {
+      await refetch();
+      // Also invalidate all other queries to refresh the app state
+      if (queryClient) {
+        queryClient.invalidateQueries();
+      }
+    }
   };
 
   const logout = () => {

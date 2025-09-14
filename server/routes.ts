@@ -22,34 +22,37 @@ import usage from "./routes/usage";
 import { debug } from "./routes/debug";
 import { aiSupportRouter } from "./routes/ai-support";
 import supportTickets from "./routes/support-tickets";
+import { blockSupportStaffFromCustomerData } from "./middleware/access-control";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
   app.use(express.json({ limit: "2mb" }));
   
   app.use("/health", health);
-  app.use("/api/customers", customers);
-  console.log("[mount] /api/customers");
-  app.use("/api/equipment", equipment);
-  console.log("[mount] /api/equipment");
-  app.use("/api/teams", teams);
-  app.use("/api/jobs", jobs);
-  app.use("/api/jobs", jobSms);
+  
+  // Customer data routes - block support staff from accessing these
+  app.use("/api/customers", blockSupportStaffFromCustomerData, customers);
+  console.log("[mount] /api/customers (customer-only)");
+  app.use("/api/equipment", blockSupportStaffFromCustomerData, equipment);
+  console.log("[mount] /api/equipment (customer-only)");
+  app.use("/api/teams", blockSupportStaffFromCustomerData, teams);
+  app.use("/api/jobs", blockSupportStaffFromCustomerData, jobs);
+  app.use("/api/jobs", blockSupportStaffFromCustomerData, jobSms);
   app.use("/api/twilio", twilioWebhooks);
   console.log("[mount] /api/twilio");
-  console.log("[mount] /api/jobs");
-  app.use("/api/schedule", schedule);
-  console.log("[mount] /api/schedule");
-  app.use("/api/members", members);
-  console.log("[mount] /api/members");
-  app.use("/api/quotes", quotes);
-  console.log("[mount] /api/quotes");
-  app.use("/api/invoices", invoices);
-  console.log("[mount] /api/invoices");
-  app.use("/api/xero", xero);
-  app.use("/api/item-presets", itemPresets);
-  console.log("[mount] /api/xero");
-  console.log("[mount] /api/item-presets");
+  console.log("[mount] /api/jobs (customer-only)");
+  app.use("/api/schedule", blockSupportStaffFromCustomerData, schedule);
+  console.log("[mount] /api/schedule (customer-only)");
+  app.use("/api/members", blockSupportStaffFromCustomerData, members);
+  console.log("[mount] /api/members (customer-only)");
+  app.use("/api/quotes", blockSupportStaffFromCustomerData, quotes);
+  console.log("[mount] /api/quotes (customer-only)");
+  app.use("/api/invoices", blockSupportStaffFromCustomerData, invoices);
+  console.log("[mount] /api/invoices (customer-only)");
+  app.use("/api/xero", blockSupportStaffFromCustomerData, xero);
+  app.use("/api/item-presets", blockSupportStaffFromCustomerData, itemPresets);
+  console.log("[mount] /api/xero (customer-only)");
+  console.log("[mount] /api/item-presets (customer-only)");
   
   app.use("/api/_tz", tzRouter);
   console.log("[mount] /api/_tz");

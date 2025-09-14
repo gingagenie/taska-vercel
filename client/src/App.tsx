@@ -10,7 +10,7 @@ import { TopBar } from "@/components/layout/top-bar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileDrawer } from "@/components/layout/mobile-drawer";
 import { SubscriptionErrorModalProvider } from "@/components/modals/subscription-error-modal";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // Import pages
 import Dashboard from "@/pages/dashboard";
@@ -52,6 +52,13 @@ import { AIChatWidget } from "@/components/ai-chat/AIChatWidget";
 // Import usage banner
 import { UsageBanner } from "@/components/usage/usage-banner";
 
+// Import support portal components
+import { SupportLayout } from "@/components/support/SupportLayout";
+import SupportDashboard from "@/pages/support/dashboard";
+import TicketQueue from "@/pages/support/tickets";
+import TicketDetail from "@/pages/support/ticket-detail";
+import MyTickets from "@/pages/support/my-tickets";
+
 // Role-based route protection
 function ProtectedRoute({ 
   component: Component, 
@@ -71,13 +78,40 @@ function ProtectedRoute({
   return <Component {...props} />;
 }
 
+// Support Portal App for support staff
+function SupportApp() {
+  return (
+    <SupportLayout>
+      <Switch>
+        <Route path="/support" component={SupportDashboard} />
+        <Route path="/support/tickets" component={TicketQueue} />
+        <Route path="/support/tickets/:id" component={TicketDetail} />
+        <Route path="/support/my-tickets" component={MyTickets} />
+        <Route component={SupportDashboard} />
+      </Switch>
+    </SupportLayout>
+  );
+}
+
 function AuthenticatedApp() {
-  const [location] = useLocation();
-  const { isProUser } = useAuth();
+  const [location, setLocation] = useLocation();
+  const { user, isProUser } = useAuth();
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+
+  // Automatic routing for support staff
+  useEffect(() => {
+    if (user?.role === "support_staff" && !location.startsWith("/support")) {
+      setLocation("/support");
+    }
+  }, [user?.role, location, setLocation]);
+
+  // Support staff should be routed to the dedicated support portal
+  if (user?.role === "support_staff") {
+    return <SupportApp />;
+  }
 
   // Page configuration
   const getPageConfig = () => {

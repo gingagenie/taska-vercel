@@ -1025,5 +1025,3 @@ router.delete("/:id/assign", requireAuth, requireSupportStaff, async (req, res) 
 });
 
 export default router;
-
-export default router;

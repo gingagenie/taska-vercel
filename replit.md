@@ -4,7 +4,21 @@
 
 Taska is a comprehensive field service management application designed for service businesses. It provides tools to manage jobs, customers, equipment, teams, quotes, and invoices through a responsive web interface. The project aims to deliver an intuitive solution for streamlining field service operations.
 
-## Recent Changes (August 2025)
+## Recent Changes (September 2025)
+
+**Customer-Facing Support Integration - Complete:**
+- Integrated customer support ticket system into main Taska interface
+- Created complete customer support workflow with 4 new pages:
+  - Support Dashboard (`/support`) - Overview with stats and recent tickets
+  - Create Ticket (`/support/new`) - User-friendly ticket creation form
+  - Ticket Details (`/support/ticket/:id`) - Full conversation view with reply functionality
+  - Tickets List (`/support/tickets`) - Comprehensive ticket management with filtering/search
+- Added Support navigation link to main sidebar with LifeBuoy icon
+- Implemented customer support API wrapper with full CRUD operations
+- Customer-scoped ticket access using existing org-based authentication
+- Professional UI using existing Shadcn/ui components and Taska design patterns
+- Complete separation from support staff portal while using same backend APIs
+- Ready for production deployment with proper error handling and loading states
 
 **Xero Integration - Production Ready:**
 - Complete OAuth2 integration with Xero accounting software

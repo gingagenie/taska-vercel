@@ -231,3 +231,24 @@ export const itemPresetsApi = {
 };
 
 // Photos API helper functions already defined above in photosApi
+
+/** Support tickets API for customers */
+export const supportTicketsApi = {
+  getAll: (params?: { status?: string; priority?: string; page?: number; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.priority) searchParams.set('priority', params.priority);
+    if (params?.page) searchParams.set('page', params.page.toString());
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    const query = searchParams.toString();
+    return api(`/api/support-tickets${query ? `?${query}` : ''}`);
+  },
+  get: (id: string) => api(`/api/support-tickets/${id}`),
+  create: (body: { title: string; description: string; priority: string; categoryId: string }) =>
+    api("/api/support-tickets", { method: "POST", body: JSON.stringify(body) }),
+  update: (id: string, body: { status?: string; priority?: string; notes?: string }) =>
+    api(`/api/support-tickets/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  addMessage: (id: string, body: { message: string; is_internal?: boolean }) =>
+    api(`/api/support-tickets/${id}/messages`, { method: "POST", body: JSON.stringify(body) }),
+  getCategories: () => api("/api/support-tickets/categories"),
+};

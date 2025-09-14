@@ -41,6 +41,12 @@ import Register from "@/pages/auth-register";
 import Login from "@/pages/auth-login";
 import TrialExpired from "@/pages/trial-expired";
 
+// Import customer support pages
+import CustomerSupportDashboard from "@/pages/support";
+import CreateSupportTicket from "@/pages/support-new";
+import SupportTicketDetail from "@/pages/support-ticket";
+import SupportTicketsList from "@/pages/support-tickets";
+
 // Import modals
 import { JobModal } from "@/components/modals/job-modal";
 import { CustomerModal } from "@/components/modals/customer-modal";
@@ -221,6 +227,10 @@ function AuthenticatedApp() {
           <Route path="/jobs/:id/notes">{() => <JobNotesCharges />}</Route>
           <Route path="/customers/:id">{() => <CustomerView />}</Route>
           <Route path="/equipment/:id">{() => <EquipmentView />}</Route>
+          <Route path="/support" component={CustomerSupportDashboard} />
+          <Route path="/support/new" component={CreateSupportTicket} />
+          <Route path="/support/tickets" component={SupportTicketsList} />
+          <Route path="/support/ticket/:id" component={SupportTicketDetail} />
           <Route path="/trial-expired" component={TrialExpired} />
           <Route component={NotFound} />
         </Switch>

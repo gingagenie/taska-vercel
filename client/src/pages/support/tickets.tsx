@@ -297,14 +297,14 @@ export default function TicketQueue() {
                     tickets.map((ticket: any) => (
                       <TableRow key={ticket.id} className="hover:bg-gray-50">
                         <TableCell>
-                          <Link href={`/support/tickets/${ticket.id}`}>
+                          <Link href={`/support-admin/tickets/${ticket.id}`}>
                             <a className="font-mono text-sm text-blue-600 hover:text-blue-800" data-testid={`link-ticket-${ticket.id}`}>
                               {ticket.id.slice(0, 8)}...
                             </a>
                           </Link>
                         </TableCell>
                         <TableCell>
-                          <Link href={`/support/tickets/${ticket.id}`}>
+                          <Link href={`/support-admin/tickets/${ticket.id}`}>
                             <a className="font-medium hover:text-blue-600" data-testid={`text-ticket-title-${ticket.id}`}>
                               {ticket.title}
                             </a>

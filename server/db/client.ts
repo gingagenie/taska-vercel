@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { sql } from 'drizzle-orm'
 import * as schema from '../../shared/schema'
 
 // Environment-based database configuration
@@ -50,7 +51,172 @@ function getDatabaseConfig() {
 }
 
 const { databaseUrl, connectionConfig, environment } = getDatabaseConfig()
-const sql = postgres(databaseUrl, connectionConfig)
-export const db = drizzle(sql, { schema })
+const sqlConnection = postgres(databaseUrl, connectionConfig)
+export const db = drizzle(sqlConnection, { schema })
 
 console.log(`✅ Connected to ${environment} database`)
+
+/**
+ * CRITICAL SECURITY VERIFICATION
+ * 
+ * Verifies that the database connection is using a secure role without
+ * BYPASSRLS or SUPERUSER privileges. This prevents the vulnerability where
+ * RLS policies are completely ignored.
+ */
+export async function verifyDatabaseRoleSecurity(): Promise<boolean> {
+  try {
+    console.log('🔒 Verifying database role security...')
+    
+    const roleCheck = await db.execute(sql`
+      SELECT 
+        current_user as role_name,
+        usesuper as is_superuser,
+        usebypassrls as can_bypass_rls,
+        NOT (usesuper OR usebypassrls) as is_secure
+      FROM pg_user 
+      WHERE usename = current_user
+    `)
+    
+    if (roleCheck.length === 0) {
+      console.error('❌ CRITICAL: Could not verify database role security')
+      return false
+    }
+    
+    const role = roleCheck[0]
+    const roleName = role.role_name
+    const isSuperuser = role.is_superuser
+    const canBypassRLS = role.can_bypass_rls
+    const isSecure = role.is_secure
+    
+    console.log(`📋 Database Role Security Audit:`)
+    console.log(`   Role: ${roleName}`)
+    console.log(`   Superuser: ${isSuperuser ? '❌ YES (DANGEROUS)' : '✅ NO'}`)
+    console.log(`   Can Bypass RLS: ${canBypassRLS ? '❌ YES (CRITICAL VULNERABILITY)' : '✅ NO'}`)
+    console.log(`   Is Secure: ${isSecure ? '✅ YES' : '❌ NO'}`)
+    
+    if (!isSecure) {
+      console.error('\n🚨 CRITICAL SECURITY VULNERABILITY DETECTED!')
+      console.error('🚨 Database role has dangerous privileges that bypass Row Level Security!')
+      console.error('🚨 This completely breaks multi-tenant data isolation!')
+      console.error('\n📋 REQUIRED ACTIONS:')
+      console.error('   1. Create a secure database role: CREATE ROLE taska_app WITH LOGIN NOSUPERUSER NOBYPASSRLS')
+      console.error('   2. Update connection string to use the secure role')
+      console.error('   3. Grant only necessary permissions to the new role')
+      console.error('\n⚠️  BLOCKING APPLICATION STARTUP DUE TO SECURITY VULNERABILITY')
+      return false
+    }
+    
+    console.log('✅ Database role security verified - safe for multi-tenant use')
+    return true
+    
+  } catch (error) {
+    console.error('❌ CRITICAL: Failed to verify database role security:', error)
+    console.error('⚠️  This could indicate a serious security configuration issue')
+    return false
+  }
+}
+
+/**
+ * Verify RLS is properly enabled and enforced on tenant tables
+ */
+export async function verifyRLSEnforcement(): Promise<boolean> {
+  try {
+    console.log('🔐 Verifying Row Level Security enforcement...')
+    
+    // Check critical tenant tables have RLS enabled and forced
+    const rlsCheck = await db.execute(sql`
+      SELECT 
+        schemaname,
+        tablename,
+        rowsecurity as rls_enabled,
+        pg_class.relforcerowsecurity as rls_forced
+      FROM pg_tables 
+      LEFT JOIN pg_class ON pg_class.relname = pg_tables.tablename
+      WHERE schemaname = 'public'
+      AND tablename IN ('orgs', 'users', 'customers', 'jobs', 'equipment', 'quotes', 'invoices')
+      ORDER BY tablename
+    `)
+    
+    let allSecure = true
+    
+    console.log('📋 Row Level Security Status:')
+    for (const table of rlsCheck) {
+      const isEnabled = table.rls_enabled
+      const isForced = table.rls_forced
+      const isSecure = isEnabled && isForced
+      
+      console.log(`   ${table.tablename}: ${isSecure ? '✅' : '❌'} (enabled: ${isEnabled}, forced: ${isForced})`)
+      
+      if (!isSecure) {
+        allSecure = false
+      }
+    }
+    
+    if (!allSecure) {
+      console.error('\n❌ CRITICAL: Some tenant tables do not have proper RLS enforcement!')
+      console.error('📋 Run this SQL to fix: ALTER TABLE <table_name> ENABLE ROW LEVEL SECURITY; ALTER TABLE <table_name> FORCE ROW LEVEL SECURITY;')
+      return false
+    }
+    
+    console.log('✅ Row Level Security properly enforced on all tenant tables')
+    return true
+    
+  } catch (error) {
+    console.error('❌ Failed to verify RLS enforcement:', error)
+    return false
+  }
+}
+
+/**
+ * Comprehensive security startup verification
+ * BLOCKS APPLICATION STARTUP if security is compromised
+ */
+export async function performSecurityStartupCheck(): Promise<void> {
+  console.log('\n🔒 PERFORMING CRITICAL SECURITY STARTUP VERIFICATION')
+  console.log('==================================================')
+  
+  try {
+    const [roleSecure, rlsSecure] = await Promise.all([
+      verifyDatabaseRoleSecurity(),
+      verifyRLSEnforcement()
+    ])
+    
+    if (!roleSecure || !rlsSecure) {
+      console.error('\n🚨 CRITICAL SECURITY VERIFICATION FAILED!')
+      console.error('🚨 APPLICATION STARTUP BLOCKED DUE TO SECURITY VULNERABILITIES!')
+      console.error('\n📋 This prevents catastrophic data breaches in multi-tenant systems.')
+      console.error('📋 Fix the security issues above before restarting the application.')
+      
+      // In development, we can continue with warnings but log heavily
+      // In production, we should exit to prevent data breaches
+      if (process.env.NODE_ENV === 'production') {
+        console.error('\n⚠️  EXITING APPLICATION TO PREVENT DATA BREACH IN PRODUCTION')
+        process.exit(1)
+      } else {
+        console.error('\n⚠️  CONTINUING IN DEVELOPMENT MODE WITH SECURITY WARNINGS')
+        console.error('⚠️  DO NOT DEPLOY TO PRODUCTION WITH THESE SECURITY ISSUES!')
+      }
+    } else {
+      console.log('\n🎉 SECURITY VERIFICATION PASSED!')
+      console.log('✅ Database role is secure (no BYPASSRLS or SUPERUSER)')
+      console.log('✅ Row Level Security is properly enforced')
+      console.log('✅ Safe for multi-tenant production use')
+    }
+    
+  } catch (error) {
+    console.error('\n💥 SECURITY VERIFICATION CRASHED:', error)
+    console.error('⚠️  Cannot verify security status - this is extremely dangerous!')
+    
+    if (process.env.NODE_ENV === 'production') {
+      console.error('⚠️  EXITING APPLICATION DUE TO SECURITY VERIFICATION FAILURE')
+      process.exit(1)
+    }
+  }
+  
+  console.log('==================================================\n')
+}
+
+// Perform security check immediately after connection
+performSecurityStartupCheck().catch(error => {
+  console.error('Failed to perform security startup check:', error)
+})

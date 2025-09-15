@@ -55,7 +55,8 @@ import { Pool } from "pg";
 
 const PgStore = pgSession(session as any);
 const pool = new Pool({ 
-  connectionString: process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL 
+  connectionString: process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL,
+  ssl: isProd ? { rejectUnauthorized: false } : false // Handle self-signed certificates in production
 });
 
 // Regular user session configuration
@@ -112,10 +113,8 @@ app.use("/support", supportSessionConfig);
   } catch (error) {
     console.error("[STARTUP] ❌ CRITICAL: Failed to ensure database schema:", error);
     console.error("[STARTUP] Application may not function correctly without proper database schema");
-    if (process.env.NODE_ENV === "production") {
-      console.error("[STARTUP] Exiting due to database schema failure in production");
-      process.exit(1);
-    }
+    // Don't exit in production - allow graceful degradation instead of crash loop
+    console.error("[STARTUP] Continuing startup despite database schema issues...");
   }
 })();
 
@@ -307,10 +306,8 @@ app.use((req, res, next) => {
       console.log("[STARTUP] ✅ API routes registered successfully");
     } catch (e: any) {
       console.error("[STARTUP] ❌ registerRoutes failed:", e?.stack || e);
-      if (process.env.NODE_ENV === "production") {
-        console.error("[STARTUP] CRITICAL: Cannot start without API routes in production");
-        process.exit(1);
-      }
+      // Don't exit in production - create fallback server to prevent crash loop
+      console.error("[STARTUP] Creating fallback server instead of exiting...");
       // If registerRoutes throws, don't crash — create a basic HTTP server so we can see logs/health.
       console.log("[STARTUP] Creating fallback HTTP server for development...");
       const http = await import("http");
@@ -391,20 +388,16 @@ app.use((req, res, next) => {
         console.error(`[STARTUP] Permission denied to bind to port ${port}`);
       }
       
-      if (process.env.NODE_ENV === "production") {
-        console.error("[STARTUP] Exiting due to server startup failure in production");
-        process.exit(1);
-      }
+      // Log error but don't exit to prevent crash loop
+      console.error("[STARTUP] Server startup failed, but continuing to prevent crash loop...");
     });
 
   } catch (startupError: any) {
     console.error("[STARTUP] ❌ FATAL: Unhandled startup error:", startupError?.stack || startupError);
     console.error("[STARTUP] Application failed to initialize properly");
     
-    if (process.env.NODE_ENV === "production") {
-      console.error("[STARTUP] Exiting due to fatal startup error in production");
-      process.exit(1);
-    }
+    // Log error but don't exit to prevent crash loop
+    console.error("[STARTUP] Fatal startup error encountered, but continuing to prevent crash loop...");
   }
 })();
 

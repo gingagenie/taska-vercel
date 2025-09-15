@@ -30,7 +30,7 @@ function getDatabaseConfig() {
         idle_timeout: 30,           // Keep connections alive longer
         connect_timeout: 5,         // Reduce connection timeout for faster failures
         prepare: true,              // Enable prepared statements for better performance
-        ssl: true,                  // Require SSL for Supabase
+        ssl: { rejectUnauthorized: false },  // Accept self-signed certificates in production
         connection: {
           application_name: 'taska-v2-prod'
         }

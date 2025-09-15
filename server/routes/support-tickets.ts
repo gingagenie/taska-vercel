@@ -673,9 +673,11 @@ router.patch("/:id", enforceSupportTicketAccess, async (req, res) => {
       if (notes) message += `Notes: ${notes}`;
 
       if (message) {
+        // Use NULL for author_id when support staff creates system messages to avoid FK constraint issues
+        const authorId = req.isSupportStaff ? null : String(req.user?.id || req.session?.userId);
         await db.execute(sql`
           INSERT INTO ticket_messages (ticket_id, author_id, message, is_internal)
-          VALUES (${id}, ${String(req.user?.id || req.session?.userId)}, ${message.trim()}, true)
+          VALUES (${id}, ${authorId}, ${message.trim()}, true)
         `);
       }
     }
@@ -760,9 +762,11 @@ router.post("/:id/messages", enforceSupportTicketAccess, async (req, res) => {
     // Only support staff can create internal messages
     const isInternal = req.isSupportStaff ? is_internal : false;
 
+    // Use NULL for author_id when support staff creates messages to avoid FK constraint issues
+    const authorId = req.isSupportStaff ? null : String(req.user?.id || req.session?.userId);
     const messageResult = await db.execute(sql`
       INSERT INTO ticket_messages (ticket_id, author_id, message, is_internal)
-      VALUES (${id}, ${req.user?.id || req.session?.userId}, ${message.trim()}, ${isInternal})
+      VALUES (${id}, ${authorId}, ${message.trim()}, ${isInternal})
       RETURNING *
     `);
 
@@ -1020,9 +1024,11 @@ router.post("/:id/assign", requireSupportStaff, async (req, res) => {
     let systemMessage = `Assigned to: ${assignee.name}`;
     if (notes) systemMessage += `. Notes: ${notes}`;
 
+    // Use NULL for author_id when support staff creates system messages to avoid FK constraint issues
+    const authorId = req.isSupportStaff ? null : String(req.user?.id || req.session?.userId);
     await db.execute(sql`
       INSERT INTO ticket_messages (ticket_id, author_id, message, is_internal)
-      VALUES (${id}, ${req.user?.id || req.session?.userId}, ${systemMessage}, true)
+      VALUES (${id}, ${authorId}, ${systemMessage}, true)
     `);
 
     console.log(`[TICKETS] Assigned ticket ${id} to ${assignee.name} by support staff ${req.user?.id}`);
@@ -1105,9 +1111,11 @@ router.delete("/:id/assign", requireSupportStaff, async (req, res) => {
     let systemMessage = `Unassigned from: ${assigneeName}`;
     if (notes) systemMessage += `. Notes: ${notes}`;
 
+    // Use NULL for author_id when support staff creates system messages to avoid FK constraint issues
+    const authorId = req.isSupportStaff ? null : String(req.user?.id || req.session?.userId);
     await db.execute(sql`
       INSERT INTO ticket_messages (ticket_id, author_id, message, is_internal)
-      VALUES (${id}, ${req.user?.id || req.session?.userId}, ${systemMessage}, true)
+      VALUES (${id}, ${authorId}, ${systemMessage}, true)
     `);
 
     console.log(`[TICKETS] Unassigned ticket ${id} from ${assigneeName} by support staff ${req.user?.id}`);

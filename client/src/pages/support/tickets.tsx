@@ -44,6 +44,12 @@ interface TicketListParams {
   limit?: number;
 }
 
+// Helper function to convert "all_*" values to undefined for filtering
+const normalizeFilterValue = (value: string | undefined) => {
+  if (!value || value.startsWith('all_')) return undefined;
+  return value;
+};
+
 const supportTicketsApi = {
   getTickets: (params: TicketListParams = {}) => {
     const searchParams = new URLSearchParams();
@@ -77,10 +83,10 @@ export default function TicketQueue() {
       limit: 20
     }],
     queryFn: () => supportTicketsApi.getTickets({
-      status: statusFilter || undefined,
-      priority: priorityFilter || undefined,
-      assigned_to: assignedFilter || undefined,
-      category_id: categoryFilter || undefined,
+      status: normalizeFilterValue(statusFilter),
+      priority: normalizeFilterValue(priorityFilter),
+      assigned_to: normalizeFilterValue(assignedFilter),
+      category_id: normalizeFilterValue(categoryFilter),
       search: searchTerm || undefined,
       page: currentPage,
       limit: 20
@@ -177,7 +183,7 @@ export default function TicketQueue() {
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Statuses</SelectItem>
+                <SelectItem value="all_statuses">All Statuses</SelectItem>
                 <SelectItem value="open">Open</SelectItem>
                 <SelectItem value="in_progress">In Progress</SelectItem>
                 <SelectItem value="resolved">Resolved</SelectItem>
@@ -191,7 +197,7 @@ export default function TicketQueue() {
                 <SelectValue placeholder="All Priorities" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Priorities</SelectItem>
+                <SelectItem value="all_priorities">All Priorities</SelectItem>
                 <SelectItem value="urgent">Urgent</SelectItem>
                 <SelectItem value="high">High</SelectItem>
                 <SelectItem value="medium">Medium</SelectItem>
@@ -205,7 +211,7 @@ export default function TicketQueue() {
                 <SelectValue placeholder="All Assignments" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Assignments</SelectItem>
+                <SelectItem value="all_assignments">All Assignments</SelectItem>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
                 {staffData?.staff?.map((staff: any) => (
                   <SelectItem key={staff.id} value={staff.id}>

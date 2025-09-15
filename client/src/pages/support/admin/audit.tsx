@@ -22,6 +22,12 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
+// Helper function to convert "all_*" values to undefined for filtering
+const normalizeFilterValue = (value: string | undefined) => {
+  if (!value || value.startsWith('all_')) return undefined;
+  return value;
+};
+
 // Support API client for audit logs
 const supportAuditApi = {
   getAuditLogs: async (params?: any) => {
@@ -72,8 +78,8 @@ export default function SupportAuditAdmin() {
       page 
     }],
     queryFn: () => supportAuditApi.getAuditLogs({ 
-      action: actionFilter || undefined,
-      user_id: userFilter || undefined,
+      action: normalizeFilterValue(actionFilter),
+      user_id: normalizeFilterValue(userFilter),
       start_date: startDate?.toISOString(),
       end_date: endDate?.toISOString(),
       page 
@@ -248,7 +254,7 @@ export default function SupportAuditAdmin() {
                   <SelectValue placeholder="Filter by user" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Users</SelectItem>
+                  <SelectItem value="all_users">All Users</SelectItem>
                   {usersData?.users?.map((user: any) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.name} ({user.email})
@@ -261,7 +267,7 @@ export default function SupportAuditAdmin() {
                   <SelectValue placeholder="Filter by action" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Actions</SelectItem>
+                  <SelectItem value="all_actions">All Actions</SelectItem>
                   {commonActions.map((action) => (
                     <SelectItem key={action} value={action}>
                       {formatActionName(action)}

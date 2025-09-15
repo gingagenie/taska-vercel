@@ -31,6 +31,12 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
+// Helper function to convert "all_*" values to undefined for filtering
+const normalizeFilterValue = (value: string | undefined) => {
+  if (!value || value.startsWith('all_')) return undefined;
+  return value;
+};
+
 // Support API client specifically for admin routes
 const supportAdminApi = {
   getUsers: async (params?: any) => {
@@ -136,7 +142,12 @@ export default function SupportUsersAdmin() {
   // Query for users list
   const { data: usersData, isLoading } = useQuery({
     queryKey: ['/support/api/admin/users', { search: searchTerm, role: roleFilter, status: statusFilter, page }],
-    queryFn: () => supportAdminApi.getUsers({ search: searchTerm, role: roleFilter, status: statusFilter, page }),
+    queryFn: () => supportAdminApi.getUsers({ 
+      search: searchTerm || undefined, 
+      role: normalizeFilterValue(roleFilter), 
+      status: normalizeFilterValue(statusFilter), 
+      page 
+    }),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -439,7 +450,7 @@ export default function SupportUsersAdmin() {
                 <SelectValue placeholder="Filter by role" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Roles</SelectItem>
+                <SelectItem value="all_roles">All Roles</SelectItem>
                 <SelectItem value="support_agent">Support Agent</SelectItem>
                 <SelectItem value="support_admin">Support Admin</SelectItem>
               </SelectContent>
@@ -449,7 +460,7 @@ export default function SupportUsersAdmin() {
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="all_status">All Status</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>

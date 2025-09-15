@@ -16,7 +16,8 @@ import {
   Calendar,
   LogOut,
   Cog,
-  CheckCircle
+  CheckCircle,
+  LifeBuoy
 } from "lucide-react";
 import logoUrl from "@assets/Taska_1755842483680.png";
 
@@ -29,6 +30,7 @@ const navigationItems = [
   { path: "/schedule", label: "Schedule", icon: Calendar, category: "schedule" },
   { path: "/quotes", label: "Quotes", icon: FileText, isPro: true, category: "financial" },
   { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true, category: "financial" },
+  { path: "/support", label: "Support", icon: LifeBuoy, category: "management" },
   { path: "/settings", label: "Settings", icon: Cog, category: "management" },
 ];
 
@@ -39,7 +41,7 @@ interface SidebarContentProps {
 // Filter navigation items based on user role
 function getFilteredNavigationItems(userRole: string | undefined) {
   // Technicians can only access these sections
-  const technicianAllowedPaths = ["/", "/jobs", "/customers", "/equipment", "/schedule"];
+  const technicianAllowedPaths = ["/", "/jobs", "/customers", "/equipment", "/schedule", "/support"];
   
   if (userRole === "technician") {
     return navigationItems.filter(item => technicianAllowedPaths.includes(item.path));

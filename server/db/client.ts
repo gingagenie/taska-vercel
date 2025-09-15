@@ -9,11 +9,11 @@ function getDatabaseConfig() {
   const nodeEnv = process.env.NODE_ENV
   const isProduction = nodeEnv === 'production'
   
-  // FIXED: Use local Replit database (secure, no BYPASSRLS vulnerability)
-  // Build connection string from PG environment variables
-  let databaseUrl = process.env.PGHOST && process.env.PGPORT && process.env.PGDATABASE
-    ? `postgresql://postgres:password@${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`
-    : (isProduction ? process.env.SUPABASE_DATABASE_URL : process.env.DATABASE_URL)
+  // Production: Use SUPABASE_DATABASE_URL (business data)
+  // Development/Local: Use DATABASE_URL (local Replit database for testing)
+  let databaseUrl = isProduction 
+    ? process.env.SUPABASE_DATABASE_URL 
+    : process.env.DATABASE_URL
   
   // DEBUG: Check all available database environment variables
   console.log('🔍 Available DATABASE environment variables:')

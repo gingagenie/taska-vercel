@@ -6,11 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { useSupportAuth } from "@/context/support-auth-context";
 import { HelpCircle, LogIn } from "lucide-react";
 
 export default function SupportLogin() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { reload } = useSupportAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -73,6 +75,9 @@ export default function SupportLogin() {
         description: "Welcome to Taska Support Portal",
       });
 
+      // Refresh authentication state
+      await reload();
+      
       // Redirect to support admin dashboard
       setLocation("/support-admin");
     } catch (error: any) {

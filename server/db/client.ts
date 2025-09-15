@@ -4,6 +4,37 @@ import postgres from 'postgres'
 import { sql } from 'drizzle-orm'
 import * as schema from '../../shared/schema'
 
+// Secure SSL configuration for production Supabase connections
+function buildProductionSSLConfig() {
+  const supabaseCaCert = process.env.SUPABASE_DB_CA_CERT
+  const allowSelfSigned = process.env.ALLOW_SELF_SIGNED === 'true'
+  
+  // PREFERRED: Use Supabase CA certificate for secure verification
+  if (supabaseCaCert) {
+    console.log('🔒 Using Supabase CA certificate for secure SSL verification')
+    return {
+      ca: supabaseCaCert,
+      rejectUnauthorized: true
+    }
+  }
+  
+  // EMERGENCY ESCAPE HATCH: Allow self-signed certificates temporarily
+  if (allowSelfSigned) {
+    console.warn('⚠️  WARNING: Using ALLOW_SELF_SIGNED=true - This reduces security!')
+    console.warn('⚠️  WARNING: Add SUPABASE_DB_CA_CERT for proper SSL verification')
+    return {
+      rejectUnauthorized: false
+    }
+  }
+  
+  // DEFAULT: Fail with clear instructions
+  console.error('❌ PRODUCTION SSL ERROR: Missing Supabase CA certificate')
+  console.error('📋 REQUIRED: Add SUPABASE_DB_CA_CERT environment variable')
+  console.error('📋 GET CA CERT: Supabase Dashboard → Database → Certificates')
+  console.error('📋 EMERGENCY: Set ALLOW_SELF_SIGNED=true to bypass temporarily')
+  throw new Error('Missing Supabase CA certificate for secure production SSL')
+}
+
 // Environment-based database configuration
 function getDatabaseConfig() {
   const nodeEnv = process.env.NODE_ENV
@@ -50,7 +81,7 @@ function getDatabaseConfig() {
         idle_timeout: 30,           // Keep connections alive longer
         connect_timeout: 5,         // Reduce connection timeout for faster failures
         prepare: true,              // Enable prepared statements for better performance
-        ssl: { rejectUnauthorized: true },   // Enforce proper SSL certificate validation in production
+        ssl: buildProductionSSLConfig(),  // Secure SSL configuration for production
         connection: {
           application_name: 'taska-v2-prod'
         }

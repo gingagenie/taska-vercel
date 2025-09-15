@@ -106,10 +106,16 @@ app.use("/support", supportSessionConfig);
 // Ensure database schema is up to date
 (async () => {
   try {
+    console.log("[STARTUP] Ensuring database schema...");
     await ensureUsersTableShape();
-    console.log("Database schema ensured");
+    console.log("[STARTUP] ✅ Database schema ensured successfully");
   } catch (error) {
-    console.error("Failed to ensure database schema:", error);
+    console.error("[STARTUP] ❌ CRITICAL: Failed to ensure database schema:", error);
+    console.error("[STARTUP] Application may not function correctly without proper database schema");
+    if (process.env.NODE_ENV === "production") {
+      console.error("[STARTUP] Exiting due to database schema failure in production");
+      process.exit(1);
+    }
   }
 })();
 
@@ -286,19 +292,30 @@ app.use((req, res, next) => {
   next();
 });
 
+// Wrap entire startup sequence in try-catch
 (async () => {
   let server: any;
 
   try {
+    console.log("[STARTUP] 🚀 Starting Taska server...");
+    
     // registerRoutes should mount all /api/* routers (jobs, customers, etc.)
     // IMPORTANT: Must be called BEFORE static file serving in production!
-    server = await registerRoutes(app);
-  } catch (e: any) {
-    console.error("registerRoutes failed:", e?.stack || e);
-    // If registerRoutes throws, don't crash — create a basic HTTP server so we can see logs/health.
-    const http = await import("http");
-    server = http.createServer(app);
-  }
+    try {
+      console.log("[STARTUP] Registering API routes...");
+      server = await registerRoutes(app);
+      console.log("[STARTUP] ✅ API routes registered successfully");
+    } catch (e: any) {
+      console.error("[STARTUP] ❌ registerRoutes failed:", e?.stack || e);
+      if (process.env.NODE_ENV === "production") {
+        console.error("[STARTUP] CRITICAL: Cannot start without API routes in production");
+        process.exit(1);
+      }
+      // If registerRoutes throws, don't crash — create a basic HTTP server so we can see logs/health.
+      console.log("[STARTUP] Creating fallback HTTP server for development...");
+      const http = await import("http");
+      server = http.createServer(app);
+    }
 
   // CRITICAL BILLING PROTECTION: Startup reconciliation for missed finalizations
   try {
@@ -344,21 +361,51 @@ app.use((req, res, next) => {
     // DON'T: throw err;
   });
 
-  // Always bind to PORT (Replit requirement)
+  // Always bind to PORT (Replit requirement) with explicit host binding
   const port = parseInt(process.env.PORT || "5000", 10);
+  
+  console.log(`[STARTUP] Starting server on 0.0.0.0:${port}...`);
+  
   server.listen(
     {
       port,
-      host: "0.0.0.0",
+      host: "0.0.0.0", // Explicit binding for production deployment
       reusePort: true, // harmless on Node; ignored if unsupported
     },
     () => {
       const dbUrlHash = (process.env.DATABASE_URL || "").slice(0, 24) + "...";
+      console.log(`[STARTUP] ✅ Server successfully started!`);
       log(`serving on port ${port} (NODE_ENV=${app.get("env")})`);
       log(`Database: ${dbUrlHash}`);
       log("Health: /health  |  API health: /health/db  |  Jobs: /api/jobs");
+      console.log(`[STARTUP] 🌐 Server is ready and listening on 0.0.0.0:${port}`);
     }
   );
+
+    // Add server error handling
+    server.on('error', (error: any) => {
+      console.error("[STARTUP] ❌ CRITICAL: Server failed to start:", error);
+      if (error.code === 'EADDRINUSE') {
+        console.error(`[STARTUP] Port ${port} is already in use`);
+      } else if (error.code === 'EACCES') {
+        console.error(`[STARTUP] Permission denied to bind to port ${port}`);
+      }
+      
+      if (process.env.NODE_ENV === "production") {
+        console.error("[STARTUP] Exiting due to server startup failure in production");
+        process.exit(1);
+      }
+    });
+
+  } catch (startupError: any) {
+    console.error("[STARTUP] ❌ FATAL: Unhandled startup error:", startupError?.stack || startupError);
+    console.error("[STARTUP] Application failed to initialize properly");
+    
+    if (process.env.NODE_ENV === "production") {
+      console.error("[STARTUP] Exiting due to fatal startup error in production");
+      process.exit(1);
+    }
+  }
 })();
 
 /** 🛡️ Graceful shutdown handling for billing safety */

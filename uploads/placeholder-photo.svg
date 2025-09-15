@@ -1,0 +1,13 @@
+<svg width="200" height="150" viewBox="0 0 200 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="200" height="150" fill="#f3f4f6"/>
+<g clip-path="url(#clip0_1_1)">
+<path d="M50 50C54.418 50 58 46.418 58 42C58 37.582 54.418 34 50 34C45.582 34 42 37.582 42 42C42 46.418 45.582 50 50 50Z" fill="#d1d5db"/>
+<path d="M165 90.5L140 65L125 80L105 60L85 80L65 100V120H165V90.5Z" fill="#d1d5db"/>
+</g>
+<text x="100" y="90" font-family="Arial" font-size="12" fill="#9ca3af" text-anchor="middle">Photo Not Available</text>
+<defs>
+<clipPath id="clip0_1_1">
+<rect width="200" height="150" fill="white"/>
+</clipPath>
+</defs>
+</svg>

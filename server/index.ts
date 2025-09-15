@@ -123,7 +123,39 @@ const uploadsDir = path.join(process.cwd(), "uploads");
 const avatarsDir = path.join(uploadsDir, "avatars");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 if (!fs.existsSync(avatarsDir)) fs.mkdirSync(avatarsDir, { recursive: true });
-app.use("/uploads", express.static(uploadsDir, { maxAge: "1y", immutable: true }));
+
+// Pre-instantiate static middleware for better performance
+const staticUploads = express.static(uploadsDir, { maxAge: "1y", immutable: true });
+
+// Custom middleware to handle missing photos with placeholder
+app.use("/uploads", (req: Request, res: Response, next: NextFunction) => {
+  // Fix path handling: remove leading slashes to prevent path.join from treating as absolute
+  const relativePath = req.path.replace(/^\/+/, "");
+  const filePath = path.join(uploadsDir, relativePath);
+  
+  // Check if requested file exists
+  if (fs.existsSync(filePath)) {
+    // File exists, serve it normally using pre-instantiated middleware
+    return staticUploads(req, res, next);
+  }
+  
+  // File doesn't exist - check if it's an image request (expanded format support)
+  const isImageRequest = /\.(jpe?g|png|gif|webp|heic|heif|avif|svg|bmp|tiff?)$/i.test(req.path);
+  if (isImageRequest) {
+    console.log(`[UPLOADS] Missing photo requested: ${req.path}, serving placeholder`);
+    // Serve placeholder image with consistent cache headers
+    const placeholderPath = path.join(uploadsDir, "placeholder-photo.svg");
+    
+    // Set cache headers to match static file settings
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Expires', new Date(Date.now() + 31536000000).toUTCString());
+    
+    return res.sendFile(placeholderPath);
+  }
+  
+  // Not an image request, continue with normal static serving for other file types
+  return staticUploads(req, res, next);
+});
 
 // --- BEGIN tenant guard ---
 /**

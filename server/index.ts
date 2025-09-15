@@ -129,8 +129,8 @@ const staticUploads = express.static(uploadsDir, { maxAge: "1y", immutable: true
 
 // Custom middleware to handle missing photos with placeholder
 app.use("/uploads", (req: Request, res: Response, next: NextFunction) => {
-  // Fix path handling: remove leading slashes to prevent path.join from treating as absolute
-  const relativePath = req.path.replace(/^\/+/, "");
+  // Fix path handling: decode URL and remove leading slashes to prevent path.join from treating as absolute
+  const relativePath = decodeURIComponent(req.path.replace(/^\/+/, ""));
   const filePath = path.join(uploadsDir, relativePath);
   
   // Check if requested file exists

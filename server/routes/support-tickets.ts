@@ -70,7 +70,7 @@ const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   "open": ["in_progress", "resolved", "closed"],
   "in_progress": ["open", "resolved", "closed"], 
   "resolved": ["in_progress", "closed"],
-  "closed": [] // Closed tickets cannot transition
+  "closed": ["open", "in_progress"] // Support staff can reopen closed tickets
 };
 
 function validateStatusTransition(currentStatus: string, newStatus: string): boolean {

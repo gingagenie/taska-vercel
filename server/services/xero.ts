@@ -1,6 +1,6 @@
 import { XeroClient } from 'xero-node';
 import { Invoice, Quote, Contact } from 'xero-node';
-import { db } from '../db';
+import { db } from '../db/client';
 import { orgIntegrations } from '../../shared/schema';
 import { eq, and } from 'drizzle-orm';
 

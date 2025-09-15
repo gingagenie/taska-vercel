@@ -53,15 +53,32 @@ import session from "express-session";
 import pgSession from "connect-pg-simple";
 import { Pool } from "pg";
 
-const PgStore = pgSession(session as any);
-const pool = new Pool({ 
-  connectionString: process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL,
-  ssl: isProd ? { rejectUnauthorized: false } : false // Handle self-signed certificates in production
-});
+const useHTTP = process.env.USE_SUPABASE_HTTP === 'true';
+
+let pool: Pool | undefined;
+let PgStore: any;
+let regularStore: any;
+let supportStore: any;
+
+if (useHTTP) {
+  console.log('🌐 [Sessions] Using memory storage for sessions (HTTP mode)');
+  // Use default memory store when in HTTP mode to avoid TCP connection issues
+  regularStore = undefined; // Default memory store
+  supportStore = undefined; // Default memory store
+} else {
+  console.log('🔗 [Sessions] Using PostgreSQL storage for sessions (TCP mode)');
+  PgStore = pgSession(session as any);
+  pool = new Pool({ 
+    connectionString: process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL,
+    ssl: isProd ? { rejectUnauthorized: false } : false // Handle self-signed certificates in production
+  });
+  regularStore = new PgStore({ pool, tableName: "session" });
+  supportStore = new PgStore({ pool, tableName: "support_session" });
+}
 
 // Regular user session configuration
 const regularSessionConfig = session({
-  store: new PgStore({ pool, tableName: "session" }),
+  store: regularStore,
   secret: process.env.SESSION_SECRET || "dev-secret-change-me",
   name: "sid", // Default session cookie name
   resave: false,
@@ -78,7 +95,7 @@ const regularSessionConfig = session({
 
 // Support staff session configuration (completely separate)
 const supportSessionConfig = session({
-  store: new PgStore({ pool, tableName: "support_session" }),
+  store: supportStore,
   secret: process.env.SUPPORT_SESSION_SECRET || process.env.SESSION_SECRET || "support-dev-secret-change-me",
   name: "support_sid", // Different cookie name for isolation
   resave: false,

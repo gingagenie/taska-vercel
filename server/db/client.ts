@@ -12,3 +12,5 @@ const databaseUrl = process.env.DATABASE_URL.replace(/:\s+(\d+)/, ':$1').trim()
 
 const client = postgres(databaseUrl)
 export const db = drizzle(client, { schema })
+
+console.log('✅ Database connected successfully')

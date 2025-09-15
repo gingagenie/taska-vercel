@@ -50,7 +50,7 @@ function getDatabaseConfig() {
         idle_timeout: 30,           // Keep connections alive longer
         connect_timeout: 5,         // Reduce connection timeout for faster failures
         prepare: true,              // Enable prepared statements for better performance
-        ssl: { rejectUnauthorized: false },  // Accept self-signed certificates in production
+        ssl: { rejectUnauthorized: true },   // Enforce proper SSL certificate validation in production
         connection: {
           application_name: 'taska-v2-prod'
         }

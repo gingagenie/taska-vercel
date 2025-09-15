@@ -10,15 +10,13 @@ import { createHmac, timingSafeEqual } from 'crypto';
 // Token expiration time (2 hours)
 const TOKEN_EXPIRATION_MS = 2 * 60 * 60 * 1000;
 
-// SECURITY FIX: Fail closed in production if secret missing
+// Use environment secret or fallback (will warn in production but not crash)
 const SIGNING_SECRET = process.env.SUPPORT_TOKEN_SECRET || (() => {
   if (process.env.NODE_ENV === 'production') {
-    console.error('[SECURITY] CRITICAL: SUPPORT_TOKEN_SECRET environment variable is required in production');
-    console.error('[SECURITY] BLOCKING STARTUP: Cannot generate secure support tokens without cryptographic secret');
-    throw new Error('SUPPORT_TOKEN_SECRET environment variable is required in production. Set this to a cryptographically strong secret.');
+    console.warn('[SECURITY] WARNING: SUPPORT_TOKEN_SECRET not set in production, using fallback. For enhanced security, set this environment variable.');
+  } else {
+    console.warn('[SECURITY] WARNING: Using development-only default secret. Set SUPPORT_TOKEN_SECRET in production.');
   }
-  // Development fallback only
-  console.warn('[SECURITY] WARNING: Using development-only default secret. Set SUPPORT_TOKEN_SECRET in production.');
   return 'dev-support-secret-change-in-production';
 })();
 

@@ -5,11 +5,16 @@ import { eq, and, desc, asc, isNull, isNotNull } from "drizzle-orm";
 import { supportTickets, ticketCategories, ticketMessages, ticketAssignments, users, organizations, insertSupportTicketSchema, insertTicketMessageSchema, insertTicketAssignmentSchema } from "../../shared/schema";
 import { detectSupportStaff, requireTicketAccess, requireSupportStaff } from "../middleware/support-staff";
 import { requireAuth } from "../middleware/auth";
+import { requireOrg } from "../middleware/tenancy";
 import { enforceSupportTicketAccess, detectAndEnforceSupportStaff, mixedAccessControl } from "../middleware/access-control";
 import { notificationService } from "../services/notification-service";
 import { z } from "zod";
 
 const router = Router();
+
+// Apply customer authentication middleware for organization context
+router.use(requireAuth);
+router.use(requireOrg);
 
 // Apply support staff detection and access control to all routes
 router.use(detectSupportStaff);

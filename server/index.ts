@@ -53,15 +53,16 @@ import session from "express-session";
 import pgSession from "connect-pg-simple";
 import { Pool } from "pg";
 
-const PgStore = pgSession(session as any);
-const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
-  ssl: isProd ? { rejectUnauthorized: false } : false
-});
+// Temporarily use MemoryStore to bypass database connection issues
+// const PgStore = pgSession(session as any);
+// const pool = new Pool({ 
+//   connectionString: process.env.DATABASE_URL,
+//   ssl: isProd ? { rejectUnauthorized: false } : false
+// });
 
 // Regular user session configuration
 const regularSessionConfig = session({
-  store: new PgStore({ pool, tableName: "session" }),
+  // store: new PgStore({ pool, tableName: "session" }),
   secret: process.env.SESSION_SECRET || "dev-secret-change-me",
   name: "sid",
   resave: false,
@@ -75,9 +76,9 @@ const regularSessionConfig = session({
   },
 });
 
-// Support staff session configuration
+// Support staff session configuration  
 const supportSessionConfig = session({
-  store: new PgStore({ pool, tableName: "support_session" }),
+  // store: new PgStore({ pool, tableName: "support_session" }),
   secret: process.env.SUPPORT_SESSION_SECRET || process.env.SESSION_SECRET || "support-dev-secret-change-me",
   name: "support_sid",
   resave: false,

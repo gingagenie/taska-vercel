@@ -208,7 +208,7 @@ export default function Landing() {
           </div>
           <div>
             <h2 className="section-title" style={{textAlign:'left'}}>See Taska in action</h2>
-            <p className="lead">Create a job, assign a tech, capture photos, and turn it into an invoice — all in under a minute. Replace this placeholder with a quick GIF or video to boost conversions.</p>
+            <p className="lead">Create a job, assign a tech, capture photos, and turn it into an invoice — all in under a minute. Watch how Taska streamlines your entire workflow from start to finish.</p>
             <div className="hero-ctas">
               <a className="btn primary" href="/auth/register">Start your free trial</a>
               <a className="btn" href="/auth/login">Log in</a>

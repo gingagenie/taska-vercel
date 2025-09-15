@@ -1,5 +1,6 @@
 import taskaDemo from '@assets/ezgif.com-effects_1757423433414.gif';
 import taskaLogo from '@assets/Taska_1755842483680.png';
+import taskaVideoDemo from '@assets/WhatsApp Video 2025-08-24 at 15.58.50_1757909355458.mp4';
 
 export default function Landing() {
   return (
@@ -193,7 +194,17 @@ export default function Landing() {
         <div className="demo-inner">
           <div className="mock">
             <div className="bar"><span className="dot" /><span className="dot" /><span className="dot" /></div>
-            <div className="placeholder">Drop a 40s screen capture here</div>
+            <video 
+              src={taskaVideoDemo} 
+              controls 
+              autoPlay 
+              muted 
+              loop
+              style={{width: '100%', display: 'block', aspectRatio: '16/10', objectFit: 'cover'}}
+              aria-label="Taska in action - demonstration video showing field service management features"
+            >
+              Your browser does not support the video tag.
+            </video>
           </div>
           <div>
             <h2 className="section-title" style={{textAlign:'left'}}>See Taska in action</h2>

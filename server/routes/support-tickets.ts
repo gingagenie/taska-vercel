@@ -82,7 +82,7 @@ function validateStatusTransition(currentStatus: string, newStatus: string): boo
  * GET /api/support-tickets/categories
  * Get all ticket categories (accessible to both customers and support staff)
  */
-router.get("/categories", requireAuth, mixedAccessControl({
+router.get("/categories", mixedAccessControl({
   allowSupportStaff: true,
   allowCustomers: true,
   requireOrgForCustomers: false // Categories are global reference data
@@ -103,7 +103,7 @@ router.get("/categories", requireAuth, mixedAccessControl({
  * GET /api/support-tickets/stats
  * Get ticket statistics (support staff only)
  */
-router.get("/stats", requireAuth, requireSupportStaff, async (_req, res) => {
+router.get("/stats", requireSupportStaff, async (_req, res) => {
   try {
     // Get ticket counts by status
     const statusStatsResult = await db.execute(sql`
@@ -151,7 +151,7 @@ router.get("/stats", requireAuth, requireSupportStaff, async (_req, res) => {
  * GET /api/support-tickets/staff
  * Get all support staff members for assignment (support staff only)
  */
-router.get("/staff", requireAuth, requireSupportStaff, async (_req, res) => {
+router.get("/staff", requireSupportStaff, async (_req, res) => {
   try {
     const supportStaffResult = await db.execute(sql`
       SELECT id, name, email 
@@ -171,7 +171,7 @@ router.get("/staff", requireAuth, requireSupportStaff, async (_req, res) => {
  * GET /api/support-tickets/assignments/my
  * Get tickets assigned to current user (support staff only)
  */
-router.get("/assignments/my", requireAuth, requireSupportStaff, async (req, res) => {
+router.get("/assignments/my", requireSupportStaff, async (req, res) => {
   try {
     const userId = req.user?.id || req.session?.userId;
     
@@ -214,7 +214,7 @@ router.get("/assignments/my", requireAuth, requireSupportStaff, async (req, res)
  * - Support staff: Can see tickets from all organizations
  * - Regular users: Only see tickets from their organization
  */
-router.get("/", requireAuth, enforceSupportTicketAccess, async (req, res) => {
+router.get("/", enforceSupportTicketAccess, async (req, res) => {
   try {
     const validationResult = listTicketsSchema.safeParse(req.query);
     if (!validationResult.success) {
@@ -344,7 +344,7 @@ router.get("/", requireAuth, enforceSupportTicketAccess, async (req, res) => {
  * POST /api/support-tickets
  * Create a new support ticket (customers only, support staff cannot create tickets for customers)
  */
-router.post("/", requireAuth, enforceSupportTicketAccess, async (req, res) => {
+router.post("/", enforceSupportTicketAccess, async (req, res) => {
   try {
     const validationResult = createTicketSchema.safeParse(req.body);
     if (!validationResult.success) {
@@ -425,7 +425,7 @@ router.post("/", requireAuth, enforceSupportTicketAccess, async (req, res) => {
  * GET /api/support-tickets/:id
  * Get single ticket details with full information
  */
-router.get("/:id", requireAuth, enforceSupportTicketAccess, async (req, res) => {
+router.get("/:id", enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -515,7 +515,7 @@ router.get("/:id", requireAuth, enforceSupportTicketAccess, async (req, res) => 
  * DELETE /api/support-tickets/:id
  * Delete ticket (admin only - requires 'admin' role)
  */
-router.delete("/:id", requireAuth, requireSupportStaff, async (req, res) => {
+router.delete("/:id", requireSupportStaff, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -564,7 +564,7 @@ router.delete("/:id", requireAuth, requireSupportStaff, async (req, res) => {
  * PATCH /api/support-tickets/:id
  * Update ticket status, priority, or assignment (support staff can update any ticket)
  */
-router.patch("/:id", requireAuth, enforceSupportTicketAccess, async (req, res) => {
+router.patch("/:id", enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -719,7 +719,7 @@ router.patch("/:id", requireAuth, enforceSupportTicketAccess, async (req, res) =
  * POST /api/support-tickets/:id/messages
  * Add a message to a ticket
  */
-router.post("/:id/messages", requireAuth, enforceSupportTicketAccess, async (req, res) => {
+router.post("/:id/messages", enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -798,7 +798,7 @@ router.post("/:id/messages", requireAuth, enforceSupportTicketAccess, async (req
  * GET /api/support-tickets/:id/messages
  * Get conversation history for a specific ticket
  */
-router.get("/:id/messages", requireAuth, enforceSupportTicketAccess, async (req, res) => {
+router.get("/:id/messages", enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -874,7 +874,7 @@ router.get("/:id/messages", requireAuth, enforceSupportTicketAccess, async (req,
  * PATCH /api/support-tickets/:id/messages/:messageId
  * Edit a ticket message (author only, within 24 hours)
  */
-router.patch("/:id/messages/:messageId", requireAuth, enforceSupportTicketAccess, async (req, res) => {
+router.patch("/:id/messages/:messageId", enforceSupportTicketAccess, async (req, res) => {
   try {
     const { id, messageId } = req.params;
 
@@ -953,7 +953,7 @@ router.patch("/:id/messages/:messageId", requireAuth, enforceSupportTicketAccess
  * POST /api/support-tickets/:id/assign
  * Assign ticket to support staff member (support staff only)
  */
-router.post("/:id/assign", requireAuth, requireSupportStaff, async (req, res) => {
+router.post("/:id/assign", requireSupportStaff, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1040,7 +1040,7 @@ router.post("/:id/assign", requireAuth, requireSupportStaff, async (req, res) =>
  * DELETE /api/support-tickets/:id/assign
  * Unassign ticket (support staff only)
  */
-router.delete("/:id/assign", requireAuth, requireSupportStaff, async (req, res) => {
+router.delete("/:id/assign", requireSupportStaff, async (req, res) => {
   try {
     const { id } = req.params;
 

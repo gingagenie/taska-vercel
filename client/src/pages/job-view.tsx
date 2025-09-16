@@ -83,7 +83,7 @@ export default function JobView() {
       ? new Date(job.scheduled_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })
       : "Not scheduled";
     const orgName = meData?.org?.name || "Taska";
-    return `Hi from ${orgName}! Job "${job.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
+    return `Hi from ${orgName}! Job "${job.title}" is scheduled for ${when}. Confirm here: [link will be generated] or call if you need to reschedule.`;
   }
 
   function formatAustralianPhone(phone: string): string {

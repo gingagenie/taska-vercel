@@ -86,6 +86,7 @@ export async function checkSmsQuota(orgId: string): Promise<QuotaCheckResult> {
   const quota = subResult.smsQuota || 0;
   const planId = subResult.planId || 'free';
   const { now } = getCurrentPeriodBoundaries();
+  const nowIso = now.toISOString();
 
   // Get current month's usage using range query [start <= now < end)
   const [usageResult] = await db
@@ -93,8 +94,8 @@ export async function checkSmsQuota(orgId: string): Promise<QuotaCheckResult> {
     .from(usageCounters)
     .where(and(
       eq(usageCounters.orgId, orgId),
-      lte(usageCounters.periodStart, now),  // period_start <= now
-      gt(usageCounters.periodEnd, now)      // period_end > now
+      sql`${usageCounters.periodStart} <= ${nowIso}::timestamptz`,  // period_start <= now
+      sql`${nowIso}::timestamptz < ${usageCounters.periodEnd}`      // now < period_end
     ));
 
   const currentUsage = usageResult?.smsSent || 0;
@@ -187,6 +188,7 @@ export async function checkEmailQuota(orgId: string): Promise<QuotaCheckResult> 
   const quota = subResult.emailQuota || 0;
   const planId = subResult.planId || 'free';
   const { now } = getCurrentPeriodBoundaries();
+  const nowIso = now.toISOString();
 
   // Get current month's usage using range query [start <= now < end)
   const [usageResult] = await db
@@ -194,8 +196,8 @@ export async function checkEmailQuota(orgId: string): Promise<QuotaCheckResult> 
     .from(usageCounters)
     .where(and(
       eq(usageCounters.orgId, orgId),
-      lte(usageCounters.periodStart, now),  // period_start <= now
-      gt(usageCounters.periodEnd, now)      // period_end > now
+      sql`${usageCounters.periodStart} <= ${nowIso}::timestamptz`,  // period_start <= now
+      sql`${nowIso}::timestamptz < ${usageCounters.periodEnd}`      // now < period_end
     ));
 
   const currentUsage = usageResult?.emailsSent || 0;
@@ -530,6 +532,7 @@ jobSms.get("/sms/usage", requireAuth, requireOrg, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
     const { now } = getCurrentPeriodBoundaries();
+    const nowIso = now.toISOString();
     const currentMonth = now.toISOString().slice(0, 7); // For display compatibility
     
     // Get organization's subscription and plan details  
@@ -553,8 +556,8 @@ jobSms.get("/sms/usage", requireAuth, requireOrg, async (req, res) => {
       .from(usageCounters)
       .where(and(
         eq(usageCounters.orgId, orgId),
-        lte(usageCounters.periodStart, now),  // period_start <= now
-        gt(usageCounters.periodEnd, now)      // period_end > now
+        sql`${usageCounters.periodStart} <= ${nowIso}::timestamptz`,  // period_start <= now
+        sql`${nowIso}::timestamptz < ${usageCounters.periodEnd}`      // now < period_end
       ));
 
     const currentUsage = usageResult?.smsSent || 0;

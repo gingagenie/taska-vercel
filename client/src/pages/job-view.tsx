@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle } from "lucide-react";
+import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle, Check } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { SmsLimitWarning } from "@/components/usage/send-limit-warnings";
 
@@ -39,6 +39,11 @@ export default function JobView() {
   const [confirmComplete, setConfirmComplete] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [errComplete, setErrComplete] = useState<string | null>(null);
+  
+  // Manual job confirmation dialog state
+  const [confirmJobDialog, setConfirmJobDialog] = useState(false);
+  const [confirmingJob, setConfirmingJob] = useState(false);
+  const [errConfirmJob, setErrConfirmJob] = useState<string | null>(null);
 
   // Fetch organization data for SMS
   const { data: meData } = useQuery<{
@@ -158,6 +163,45 @@ export default function JobView() {
     }
   }
 
+  async function confirmJob() {
+    setConfirmingJob(true);
+    setErrConfirmJob(null);
+    try {
+      if (!job.confirmationToken) {
+        throw new Error('No confirmation token available for this job');
+      }
+
+      const response = await fetch(`/api/public/jobs/confirm?token=${job.confirmationToken}`, {
+        method: 'GET',
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to confirm job');
+      }
+      
+      // Success - refresh job data and show success message
+      const [jobData, photoData] = await Promise.all([
+        api(`/api/jobs/${jobId}`),
+        photosApi.list(jobId),
+      ]);
+      setJob(jobData);
+      setPhotos(photoData);
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/schedule'] });
+      
+      setToast("Job confirmed successfully ✔");
+      setConfirmJobDialog(false);
+      // Clear toast after 3 seconds
+      setTimeout(() => setToast(null), 3000);
+    } catch (e: any) {
+      setErrConfirmJob(e.message || 'Failed to confirm job');
+    } finally {
+      setConfirmingJob(false);
+    }
+  }
+
   function openMaps(destinationLabel: string, address?: string, lat?: number, lng?: number) {
     // If no address or coordinates, fallback to searching by customer name
     if (!address && !destinationLabel && !lat && !lng) {
@@ -263,6 +307,15 @@ export default function JobView() {
           <Link href={`/jobs/${jobId}/edit`} className="w-full">
             <Button className="w-full">Edit Job</Button>
           </Link>
+          {job.status === 'new' && job.confirmationToken && (
+            <Button 
+              onClick={() => setConfirmJobDialog(true)}
+              data-testid="button-confirm-job"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Check className="h-4 w-4 mr-1" /> Confirm Job
+            </Button>
+          )}
           <Button 
             onClick={() => setConfirmComplete(true)}
             data-testid="button-complete-job"
@@ -439,6 +492,31 @@ export default function JobView() {
               data-testid="button-confirm-complete"
             >
               {completing ? "Completing…" : "Complete Job"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Job Confirmation Dialog */}
+      <Dialog open={confirmJobDialog} onOpenChange={setConfirmJobDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-600">
+              <Check className="h-5 w-5" />
+              Confirm Job
+            </DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to confirm <strong>{job.title}</strong>? This will mark the job as confirmed.</p>
+          {errConfirmJob && <div className="text-red-600 text-sm">{errConfirmJob}</div>}
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmJobDialog(false)}>Cancel</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={confirmingJob}
+              onClick={confirmJob}
+              data-testid="button-confirm-job-dialog"
+            >
+              {confirmingJob ? "Confirming…" : "Confirm Job"}
             </Button>
           </DialogFooter>
         </DialogContent>

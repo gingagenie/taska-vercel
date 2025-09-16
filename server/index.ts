@@ -53,12 +53,12 @@ import session from "express-session";
 import pgSession from "connect-pg-simple";
 import { Pool } from "pg";
 
-// Temporarily use MemoryStore to bypass database connection issues
-// const PgStore = pgSession(session as any);
-// const pool = new Pool({ 
-//   connectionString: process.env.DATABASE_URL,
-//   ssl: isProd ? { rejectUnauthorized: false } : false
-// });
+// Database connection pool for sessions and tenant guard
+const PgStore = pgSession(session as any);
+const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  ssl: isProd ? { rejectUnauthorized: false } : false
+});
 
 // Regular user session configuration
 const regularSessionConfig = session({

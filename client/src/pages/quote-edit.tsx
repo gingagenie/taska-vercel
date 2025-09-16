@@ -4,6 +4,10 @@ import { quotesApi, customersApi, meApi } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { QuoteInvoicePage } from "@/components/quotes/QuoteInvoicePage";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 
 export default function QuoteEdit() {
   const [isNewMatch] = useRoute("/quotes/new");

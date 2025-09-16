@@ -43,20 +43,35 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
     if (bodyUpper === "YES" || bodyUpper === "Y") {
       console.log(`[TWILIO] Processing YES confirmation from ${normalizedFrom}`);
       
-      // Set service context to bypass RLS for webhook operations
-      await db.execute(sql`select set_config('app.service', 'true', true)`);
-      
-      // Simple approach: find the most recent job sent to this phone number and confirm it
-      const jobResult: any = await db.execute(sql`
-        select j.id, j.org_id
-        from jobs j
-        join job_notifications jn on j.id = jn.job_id
-        where jn.to_addr = ${normalizedFrom}
-          and jn.direction = 'out'
-          and jn.channel = 'sms'
-        order by jn.created_at desc
+      // First get the org from any outbound SMS to this number
+      const orgResult: any = await db.execute(sql`
+        select org_id from job_notifications 
+        where to_addr = ${normalizedFrom} 
+          and direction = 'out' 
+          and channel = 'sms' 
+          and org_id != '00000000-0000-0000-0000-000000000000'::uuid
+        order by created_at desc 
         limit 1
       `);
+      
+      if (orgResult.rows?.[0]?.org_id) {
+        const orgId = orgResult.rows[0].org_id;
+        
+        // Set both service and org context to bypass RLS
+        await db.execute(sql`select set_config('app.service', 'true', true)`);
+        await db.execute(sql`select set_config('app.current_org', ${orgId}, true)`);
+        
+        // Now find the job
+        const jobResult: any = await db.execute(sql`
+          select j.id, j.org_id
+          from jobs j
+          join job_notifications jn on j.id = jn.job_id
+          where jn.to_addr = ${normalizedFrom}
+            and jn.direction = 'out'
+            and jn.channel = 'sms'
+          order by jn.created_at desc
+          limit 1
+        `);
 
       console.log(`[TWILIO] Job lookup result:`, jobResult.rows);
 
@@ -80,8 +95,11 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
         `);
 
         console.log(`[TWILIO] Job ${jobId} confirmed successfully`);
+        } else {
+          console.log("[TWILIO] No job found for this phone number");
+        }
       } else {
-        console.log("[TWILIO] No job found for this phone number");
+        console.log("[TWILIO] No org found for phone number, cannot process confirmation");
       }
     }
 

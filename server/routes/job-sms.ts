@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { db } from "../db/client";
-import { sql, eq, and, lte, lt, asc } from "drizzle-orm";
+import { sql, eq, and, lte, lt, gt, asc } from "drizzle-orm";
 import { jobs as jobsSchema, customers, usageCounters, orgSubscriptions, subscriptionPlans, usagePacks } from "../../shared/schema";
 import twilio from "twilio";
 import { reservePackUnits, finalizePackConsumption, releasePackReservation, checkPackAvailability, durableFinalizePackConsumption } from "../lib/pack-consumption";
@@ -93,8 +93,8 @@ export async function checkSmsQuota(orgId: string): Promise<QuotaCheckResult> {
     .from(usageCounters)
     .where(and(
       eq(usageCounters.orgId, orgId),
-      sql`${usageCounters.periodStart} <= ${now}`,  // period_start <= now
-      sql`${now} < ${usageCounters.periodEnd}`      // now < period_end
+      lte(usageCounters.periodStart, now),  // period_start <= now
+      gt(usageCounters.periodEnd, now)      // period_end > now
     ));
 
   const currentUsage = usageResult?.smsSent || 0;
@@ -194,8 +194,8 @@ export async function checkEmailQuota(orgId: string): Promise<QuotaCheckResult> 
     .from(usageCounters)
     .where(and(
       eq(usageCounters.orgId, orgId),
-      sql`${usageCounters.periodStart} <= ${now}`,  // period_start <= now
-      sql`${now} < ${usageCounters.periodEnd}`      // now < period_end
+      lte(usageCounters.periodStart, now),  // period_start <= now
+      gt(usageCounters.periodEnd, now)      // period_end > now
     ));
 
   const currentUsage = usageResult?.emailsSent || 0;
@@ -463,7 +463,7 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
         // Log the critical billing error for manual intervention
         await db.execute(sql`
           insert into job_notifications (org_id, job_id, notification_type, recipient, message, status, error_details)
-          values (${orgId}::uuid, ${row.id}::uuid, 'sms_billing_error', ${toPhone}, ${body}, 'billing_error', ${String(error)})
+          values (${orgId}::uuid, ${row.id}::uuid, 'sms_billing_error'::text, ${toPhone}::text, ${body}::text, 'billing_error'::text, ${String(error)}::text)
         `).catch(logError => {
           console.error(`[SMS] Failed to log billing error:`, logError);
         });
@@ -553,8 +553,8 @@ jobSms.get("/sms/usage", requireAuth, requireOrg, async (req, res) => {
       .from(usageCounters)
       .where(and(
         eq(usageCounters.orgId, orgId),
-        sql`${usageCounters.periodStart} <= ${now}`,  // period_start <= now
-        sql`${now} < ${usageCounters.periodEnd}`      // now < period_end  
+        lte(usageCounters.periodStart, now),  // period_start <= now
+        gt(usageCounters.periodEnd, now)      // period_end > now
       ));
 
     const currentUsage = usageResult?.smsSent || 0;

@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { tiktokEvents } from "../services/tiktok-events";
+import type { CustomerInfo } from "../services/tiktok-events";
 
 declare module 'express-session' {
   interface SessionData {
@@ -73,6 +75,41 @@ router.post("/register", async (req, res) => {
       insert into subscriptions (id, org_id, plan_id, status, trial_start, trial_end, current_period_end, created_at)
       values (gen_random_uuid(), ${orgId}, 'pro', 'trial', now(), ${trialEndDate.toISOString()}, ${trialEndDate.toISOString()}, now())
     `);
+
+    // Track TikTok CompleteRegistration event (non-blocking)
+    try {
+      const customerInfo: CustomerInfo = {
+        email: email,
+        firstName: name?.split(' ')[0] || undefined,
+        lastName: name?.split(' ').slice(1).join(' ') || undefined,
+        ip: req.ip || req.connection.remoteAddress || '',
+        userAgent: req.get('User-Agent') || '',
+        country: 'AU', // Default to Australia for Taska
+      };
+
+      const registrationData = {
+        value: 100, // Estimated customer lifetime value for tracking
+        currency: 'AUD',
+        status: 'completed',
+        contentName: 'User Registration - New Account Created',
+      };
+
+      // Fire and forget - don't wait for response to avoid slowing down registration
+      tiktokEvents.trackCompleteRegistration(
+        customerInfo,
+        registrationData,
+        req.get('Referer') || undefined,
+        req.get('Referer') || undefined
+      ).catch((trackingError) => {
+        // Log tracking errors but don't throw them
+        console.error('[REGISTRATION] TikTok tracking failed:', trackingError);
+      });
+
+      console.log(`[REGISTRATION] TikTok CompleteRegistration tracking initiated for user: ${user.email}`);
+    } catch (trackingError) {
+      // Log any tracking errors but don't let them break registration
+      console.error('[REGISTRATION] TikTok tracking error:', trackingError);
+    }
 
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ error: "session error" });

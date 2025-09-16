@@ -43,6 +43,9 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
     if (bodyUpper === "YES" || bodyUpper === "Y") {
       console.log(`[TWILIO] Processing YES confirmation from ${normalizedFrom}`);
       
+      // Set service context to bypass RLS for webhook operations
+      await db.execute(sql`select set_config('app.service', 'true', true)`);
+      
       // Simple approach: find the most recent job sent to this phone number and confirm it
       const jobResult: any = await db.execute(sql`
         select j.id, j.org_id

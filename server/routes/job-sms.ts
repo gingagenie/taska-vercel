@@ -416,11 +416,26 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
   
   const toPhone = normPhone(rawPhone);
 
-  // Build default confirmation message
+  // Generate a unique confirmation token for this job
+  const confirmationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  
+  // Update job with confirmation token
+  await db
+    .update(jobsSchema)
+    .set({ confirmationToken })
+    .where(eq(jobsSchema.id, jobId));
+
+  // Build confirmation link
+  const baseUrl = process.env.NODE_ENV === 'production' 
+    ? 'https://taska-gingagenie.replit.app' 
+    : `https://${process.env.REPL_SLUG}-${process.env.REPL_OWNER || 'unknown'}.replit.app`;
+  const confirmLink = `${baseUrl}/api/public/jobs/confirm?token=${confirmationToken}`;
+
+  // Build default confirmation message with link
   const when = formatAEST(row.scheduled_at as string);
   const orgName = row.org_name || "Taska";
   const defaultMsg =
-    `Hi from ${orgName}! Job "${row.title}" is scheduled for ${when}. Reply YES to confirm or call if you need to reschedule.`;
+    `Hi from ${orgName}! Job "${row.title}" is scheduled for ${when}. Confirm here: ${confirmLink} or call if you need to reschedule.`;
 
   const body = (messageOverride && messageOverride.trim()) || defaultMsg;
 

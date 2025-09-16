@@ -22,6 +22,7 @@ import usage from "./routes/usage";
 import { debug } from "./routes/debug";
 import { aiSupportRouter } from "./routes/ai-support";
 import supportTickets from "./routes/support-tickets";
+import { publicRouter } from "./routes/public";
 import { blockSupportStaffFromCustomerData } from "./middleware/access-control";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -29,6 +30,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(express.json({ limit: "2mb" }));
   
   app.use("/health", health);
+  
+  // Public routes - no authentication required
+  app.use("/api/public", publicRouter);
+  console.log("[mount] /api/public");
   
   // Customer data routes - block support staff from accessing these
   app.use("/api/customers", blockSupportStaffFromCustomerData, customers);

@@ -1,0 +1,37 @@
+Implement Events API
+You can view or send the following instructions to a developer on how to implement Events API. This allows you to send all the event activity you've selected.
+
+Email instructions
+Getting started
+Ensure you have access to the server environment and developer resources for setup.
+Pixel ID: D34FV3JC77U1PDQ72P1G
+1. Generate access token
+An access token gives you access to Events API. Each time you make a call, you're required to use your access token.
+After a token is generated, make sure to copy it. For security, TikTok won't save the token.
+Generate access token
+2. Send events through the API
+Now that you have a token, choose events you want to send from your server. We recommend choosing at least 3 events. You'll also need to make a request and set up your payload.
+Make a POST request
+To send new events, make a POST request to this API's endpoint from this path:/open_api/v1.3/event/track/
+When you post to this edge, TikTok creates new server events.
+3. Build a payload
+View how your payload should be structured. You can also use Payload Helper to check if there's any issues by creating a sample payload for your events.
+
+Go to Payload Helper
+Set up ViewContent event
+Measure when a visitor views a specific page. TikTok recommends tracking pages important to your business such as product comparison, announcement, or release pages. View payload
+Event parameters	value, currency, content_id, content_type, content_name, event_time, url
+Customer information parameters	email, phone, external_id, ip, user_agent, ttclid
+Set up CompleteRegistration event
+Measure when a visitor signs up for something such as account registration. View payload
+Event parameters	value, currency, content_id, content_type, content_name, event_time, url
+Customer information parameters	email, phone, external_id, ip, user_agent, ttclid
+Set up ClickButton event
+Measure when a visitor taps a button. TikTok recommends tracking website buttons important to your business such as social media buttons. View payload
+Event parameters	value, currency, content_id, content_type, content_name, event_time, url
+Customer information parameters	email, phone, external_id, ip, user_agent, ttclid
+Set up Lead event
+Measure when a visitor submits a form. View payload
+Event parameters	value, currency, content_id, content_type, content_name, event_time, url
+Customer information parameters	email, phone, external_id, ip, user_agent, ttclid
+Back

@@ -47,7 +47,7 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
     });
 
     if (response.ok) {
-      console.log(`Email sent successfully to ${params.to} via MailerSend`);
+      console.log(`Email sent successfully via MailerSend`);
       return true;
     } else {
       const errorData = await response.text();

@@ -356,7 +356,7 @@ export class NotificationService {
       if (quotaCheck.reservationId) {
         const finalizationResult = await finalizePackConsumption(quotaCheck.reservationId);
         if (!finalizationResult.success) {
-          console.error(`[NOTIFICATIONS] Pack finalization failed for email to ${user.email}:`, finalizationResult.error);
+          console.error(`[NOTIFICATIONS] Pack finalization failed for user_id ${userId}:`, finalizationResult.error);
           // Note: Email was sent, so we don't return error here
         }
         // Clear reservation ID since it's been finalized
@@ -366,7 +366,7 @@ export class NotificationService {
       // Update notification history
       await this.updateNotificationHistory(notificationId, 'sent');
 
-      console.log(`[NOTIFICATIONS] Email sent successfully to ${user.email} for ticket ${data.ticketId}`);
+      console.log(`[NOTIFICATIONS] Email sent successfully to user_id ${userId} for ticket ${data.ticketId}`);
       return { success: true, type: 'email', notificationId };
 
     } catch (error) {

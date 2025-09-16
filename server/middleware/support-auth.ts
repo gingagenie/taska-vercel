@@ -61,7 +61,7 @@ export async function supportRequireAuth(req: Request, res: Response, next: Next
     };
 
     // Log successful authentication for audit
-    console.log(`[SUPPORT AUTH] Authenticated support user: ${supportUser.email} (${supportUser.role})`);
+    console.log(`[SUPPORT AUTH] Authenticated support user: user_id ${supportUser.id} (${supportUser.role})`);
     
     next();
   } catch (error) {
@@ -96,11 +96,11 @@ export async function supportRequireAdmin(req: Request, res: Response, next: Nex
       console.error("[SUPPORT AUTH] Audit log error:", auditError);
     }
     
-    console.log(`[SUPPORT AUTH] Admin access denied for ${req.supportUser.email} (role: ${req.supportUser.role})`);
+    console.log(`[SUPPORT AUTH] Admin access denied for user_id ${req.supportUser.id} (role: ${req.supportUser.role})`);
     return res.status(403).json({ error: "Support admin role required" });
   }
 
-  console.log(`[SUPPORT AUTH] Admin access granted for ${req.supportUser.email}`);
+  console.log(`[SUPPORT AUTH] Admin access granted for user_id ${req.supportUser.id}`);
   next();
 }
 
@@ -117,7 +117,7 @@ export async function supportRequireUser(req: Request, res: Response, next: Next
   // Check for valid support role
   const validRoles = ['support_user', 'support_admin'];
   if (!validRoles.includes(req.supportUser.role)) {
-    console.log(`[SUPPORT AUTH] Invalid support role: ${req.supportUser.role} for ${req.supportUser.email}`);
+    console.log(`[SUPPORT AUTH] Invalid support role: ${req.supportUser.role} for user_id ${req.supportUser.id}`);
     return res.status(403).json({ error: "Valid support role required" });
   }
 

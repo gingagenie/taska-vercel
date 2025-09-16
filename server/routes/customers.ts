@@ -7,6 +7,8 @@ import { checkSubscription, requireActiveSubscription } from "../middleware/subs
 import multer from "multer";
 import { parse } from "csv-parse";
 import { Readable } from "stream";
+import { tiktokEvents } from "../services/tiktok-events";
+import type { CustomerInfo } from "../services/tiktok-events";
 
 export const customers = Router();
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
@@ -79,7 +81,51 @@ customers.post("/", requireAuth, requireOrg, async (req, res) => {
       returning id, name, contact_name, email, phone, street, suburb, state, postcode, notes, created_at
     `);
 
-    res.json({ ok: true, customer: result[0] });
+    const customer = result[0];
+
+    // Track TikTok Lead event for customer creation (fire and forget - non-blocking)
+    try {
+      const customerInfo: CustomerInfo = {
+        email: customer.email || undefined,
+        phone: customer.phone || undefined,
+        firstName: customer.contact_name?.split(' ')[0] || undefined,
+        lastName: customer.contact_name?.split(' ').slice(1).join(' ') || undefined,
+        city: customer.suburb || undefined,
+        state: customer.state || undefined,
+        country: 'AU', // Default to Australia for Taska
+        zipCode: customer.postcode || undefined,
+        ip: req.ip || req.connection.remoteAddress || undefined,
+        userAgent: req.get('User-Agent') || undefined,
+      };
+
+      const leadData = {
+        value: 500, // Estimated customer lifetime value for field service business
+        currency: 'AUD',
+        contentName: 'New Customer Lead',
+        contentCategory: 'lead_generation',
+        contentType: 'lead_generation',
+        description: `Customer created with ID: ${customer.id}`,
+        status: 'qualified',
+      };
+
+      // Fire and forget - don't wait for response to avoid slowing down customer creation
+      tiktokEvents.trackLead(
+        customerInfo,
+        leadData,
+        req.get('Referer') || undefined,
+        req.get('Referer') || undefined
+      ).catch((trackingError) => {
+        // Log tracking errors but don't throw them
+        console.error('[CUSTOMER_CREATION] TikTok Lead tracking failed:', trackingError);
+      });
+
+      console.log(`[CUSTOMER_CREATION] TikTok Lead tracking initiated for customer_id: ${customer.id}`);
+    } catch (trackingError) {
+      // Log any tracking errors but don't let them break customer creation
+      console.error('[CUSTOMER_CREATION] TikTok tracking error:', trackingError);
+    }
+
+    res.json({ ok: true, customer });
   } catch (error: any) {
     console.error("POST /api/customers error:", error);
     res.status(500).json({ error: error?.message || "Failed to create customer" });
@@ -229,6 +275,43 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
         imported++;
       } catch (error: any) {
         errors.push(`Row ${rowNum}: ${error.message}`);
+      }
+    }
+
+    // Track TikTok Lead event for successful CSV import (fire and forget - non-blocking)
+    if (imported > 0) {
+      try {
+        const customerInfo: CustomerInfo = {
+          ip: req.ip || req.connection.remoteAddress || undefined,
+          userAgent: req.get('User-Agent') || undefined,
+          country: 'AU', // Default to Australia for Taska
+        };
+
+        const leadData = {
+          value: imported * 500, // Estimated customer lifetime value per imported customer
+          currency: 'AUD',
+          contentName: 'Bulk Customer Import Lead',
+          contentCategory: 'lead_generation',
+          contentType: 'lead_generation',
+          description: `CSV import completed: ${imported} customers imported from ${records.length} records`,
+          status: 'qualified',
+        };
+
+        // Fire and forget - don't wait for response to avoid slowing down import response
+        tiktokEvents.trackLead(
+          customerInfo,
+          leadData,
+          req.get('Referer') || undefined,
+          req.get('Referer') || undefined
+        ).catch((trackingError) => {
+          // Log tracking errors but don't throw them
+          console.error('[CSV_IMPORT] TikTok Lead tracking failed:', trackingError);
+        });
+
+        console.log(`[CSV_IMPORT] TikTok Lead tracking initiated for bulk import: ${imported} customers (Total value: $${imported * 500})`);
+      } catch (trackingError) {
+        // Log any tracking errors but don't let them break CSV import
+        console.error('[CSV_IMPORT] TikTok tracking error:', trackingError);
       }
     }
 

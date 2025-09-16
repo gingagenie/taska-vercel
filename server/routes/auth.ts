@@ -105,7 +105,7 @@ router.post("/register", async (req, res) => {
         console.error('[REGISTRATION] TikTok tracking failed:', trackingError);
       });
 
-      console.log(`[REGISTRATION] TikTok CompleteRegistration tracking initiated for user: ${user.email}`);
+      console.log(`[REGISTRATION] TikTok CompleteRegistration tracking initiated for user_id: ${user.id}`);
     } catch (trackingError) {
       // Log any tracking errors but don't let them break registration
       console.error('[REGISTRATION] TikTok tracking error:', trackingError);

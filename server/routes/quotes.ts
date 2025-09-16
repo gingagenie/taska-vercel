@@ -9,6 +9,8 @@ import { sumLines } from "../lib/totals";
 import { sendEmail, generateQuoteEmailTemplate } from "../services/email";
 import { trackEmailUsage, checkEmailQuota } from "./job-sms";
 import { finalizePackConsumption, releasePackReservation, durableFinalizePackConsumption } from "../lib/pack-consumption";
+import { tiktokEvents } from "../services/tiktok-events";
+import type { CustomerInfo } from "../services/tiktok-events";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -101,6 +103,56 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
         grand_total=${sums.grand_total}
       WHERE id=${quoteId}::uuid AND org_id=${orgId}::uuid
     `);
+
+    // Get customer details for tracking
+    const customerResult: any = await db.execute(sql`
+      select name, contact_name, email, phone, suburb, state, postcode
+      from customers
+      where id = ${customerId}::uuid and org_id = ${orgId}::uuid
+    `);
+    const customer = customerResult[0];
+
+    // Track TikTok Lead event for quote creation (fire and forget - non-blocking)
+    try {
+      const customerInfo: CustomerInfo = {
+        email: customer?.email || undefined,
+        phone: customer?.phone || undefined,
+        firstName: customer?.contact_name?.split(' ')[0] || undefined,
+        lastName: customer?.contact_name?.split(' ').slice(1).join(' ') || undefined,
+        city: customer?.suburb || undefined,
+        state: customer?.state || undefined,
+        country: 'AU', // Default to Australia for Taska
+        zipCode: customer?.postcode || undefined,
+        ip: req.ip || req.connection.remoteAddress || undefined,
+        userAgent: req.get('User-Agent') || undefined,
+      };
+
+      const leadData = {
+        value: sums.grand_total || 1000, // Use quote value or default estimate for lead value
+        currency: 'AUD',
+        contentName: 'New Quote Request Lead',
+        contentCategory: 'lead_generation',
+        contentType: 'lead_generation',
+        description: `Quote created: ${quoteId}`,
+        status: 'qualified',
+      };
+
+      // Fire and forget - don't wait for response to avoid slowing down quote creation
+      tiktokEvents.trackLead(
+        customerInfo,
+        leadData,
+        req.get('Referer') || undefined,
+        req.get('Referer') || undefined
+      ).catch((trackingError) => {
+        // Log tracking errors but don't throw them
+        console.error('[QUOTE_CREATION] TikTok Lead tracking failed:', trackingError);
+      });
+
+      console.log(`[QUOTE_CREATION] TikTok Lead tracking initiated for quote_id: ${quoteId}`);
+    } catch (trackingError) {
+      // Log any tracking errors but don't let them break quote creation
+      console.error('[QUOTE_CREATION] TikTok tracking error:', trackingError);
+    }
     
     res.json({ ok: true, id: quoteId });
   } catch (error: any) {

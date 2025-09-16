@@ -26,7 +26,7 @@ router.post("/login", async (req, res) => {
 
   try {
     // Log login attempt (before authentication for security monitoring)
-    console.log(`[SUPPORT AUTH] Login attempt for email: ${email} from IP: ${req.ip}`);
+    console.log(`[SUPPORT AUTH] Login attempt from IP: ${req.ip}`);
     
     // Find support user by email
     const result: any = await db.execute(sql`
@@ -96,7 +96,7 @@ router.post("/login", async (req, res) => {
           console.error("[SUPPORT AUTH] Audit log error:", auditError);
         }
         
-        console.log(`[SUPPORT AUTH] Successful login for ${supportUser.email} (${supportUser.id})`);
+        console.log(`[SUPPORT AUTH] Successful login for user_id: ${supportUser.id}`);
         
         // Generate secure, cryptographically signed support token
         // This replaces the forgeable boolean marker with tamper-proof authentication
@@ -256,7 +256,7 @@ router.put("/password", async (req, res) => {
       VALUES ('password_changed', ${supportUserId}, ${JSON.stringify({})}, ${req.ip}, ${req.get('User-Agent') || 'unknown'}, now())
     `);
 
-    console.log(`[SUPPORT AUTH] Password changed for support user: ${supportUser.email}`);
+    console.log(`[SUPPORT AUTH] Password changed for support user_id: ${supportUserId}`);
     res.json({ ok: true });
   } catch (error) {
     console.error("[SUPPORT AUTH] Password change error:", error);

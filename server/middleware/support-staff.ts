@@ -93,7 +93,7 @@ export async function detectSupportStaff(req: Request, res: Response, next: Next
               role: sessionUser.role
             };
             
-            console.log(`[SUPPORT_STAFF] VERIFIED support staff via session: ${sessionUser.email} (${sessionUser.id})`);
+            console.log(`[SUPPORT_STAFF] VERIFIED support staff via session: user_id ${sessionUser.id}`);
           } else {
             console.warn(`[SUPPORT_STAFF] Invalid session support user ID: ${sessionSupportUserId}`);
             // Clear invalid session

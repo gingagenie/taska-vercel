@@ -66,7 +66,7 @@ me.put("/profile", requireAuth, async (req, res) => {
     const userId = (req as any).user?.id;
     const { name, role, phone } = req.body || {};
     
-    console.log("Profile update:", { userId, name, role, phone });
+    console.log("Profile update:", { userId });
     
     // Update user in database
     await db.execute(sql`
@@ -90,7 +90,7 @@ me.put("/", requireAuth, requireOrg, async (req, res) => {
     const userId = (req as any).user?.id;
     const { name, phone } = req.body || {};
     
-    console.log("Profile update (PUT /):", { userId, name, phone });
+    console.log("Profile update (PUT /):", { userId });
     
     // Update user in database
     await db.execute(sql`
@@ -133,7 +133,7 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
     const orgId = (req as any).orgId;
     const { name, abn, street, suburb, state, postcode, logo_url, invoice_terms, quote_terms, account_name, bsb, account_number } = req.body || {};
     
-    console.log("Organization update:", { orgId, name, abn, street, suburb, state, postcode });
+    console.log("Organization update:", { orgId });
     
     // Update organization in database
     const params = [];

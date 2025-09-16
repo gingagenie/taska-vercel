@@ -72,6 +72,22 @@ export default function JobView() {
     })();
   }, [jobId]);
 
+  // Watch for job status changes and update main jobs cache
+  useEffect(() => {
+    if (job?.status === 'confirmed') {
+      // Update cached jobs list to show confirmed status
+      queryClient.setQueryData(['/api/jobs'], (oldData: any) => {
+        if (!oldData) return oldData;
+        return oldData.map((j: any) => 
+          j.id === job.id ? { ...j, status: 'confirmed' } : j
+        );
+      });
+      // Also invalidate to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/schedule'] });
+    }
+  }, [job?.status, job?.id, queryClient]);
+
   if (loading) return <div className="p-6">Loading…</div>;
   if (err) return <div className="p-6 text-red-600">{err}</div>;
   if (!job) return null;
@@ -83,7 +99,8 @@ export default function JobView() {
       ? new Date(job.scheduled_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })
       : "Not scheduled";
     const orgName = meData?.org?.name || "Taska";
-    return `Hi from ${orgName}! Job "${job.title}" is scheduled for ${when}. Confirm here: https://taska-gingagenie.replit.app/api/public/jobs/confirm?token=... or call if you need to reschedule.`;
+    const baseUrl = import.meta.env.VITE_PUBLIC_BASE_URL || 'https://www.taska.info';
+    return `Hi from ${orgName}! Job "${job.title}" is scheduled for ${when}. Confirm here: ${baseUrl}/api/public/jobs/confirm?token=... or call if you need to reschedule.`;
   }
 
   function formatAustralianPhone(phone: string): string {

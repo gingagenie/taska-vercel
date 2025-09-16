@@ -426,9 +426,9 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
     .where(eq(jobsSchema.id, jobId));
 
   // Build confirmation link
-  const baseUrl = process.env.NODE_ENV === 'production' 
-    ? 'https://taska-gingagenie.replit.app' 
-    : `https://${process.env.REPL_SLUG}-${process.env.REPL_OWNER || 'unknown'}.replit.app`;
+  const baseUrl = process.env.PUBLIC_BASE_URL || (process.env.NODE_ENV === 'production' 
+    ? 'https://www.taska.info' 
+    : `https://${process.env.REPL_SLUG}-${process.env.REPL_OWNER || 'unknown'}.replit.app`);
   const confirmLink = `${baseUrl}/api/public/jobs/confirm?token=${confirmationToken}`;
 
   // Build default confirmation message with link

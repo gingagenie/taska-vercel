@@ -220,7 +220,7 @@ export default function InvoiceEdit() {
             <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
             <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
             <button onclick="
-              var email = prompt('Enter email address to send invoice:');
+              var email = prompt('Enter email address to send invoice:', '${(customer?.email || "").replace(/'/g, "\\'")}');
               if (email && email.trim()) {
                 fetch('/api/invoices/${id}/email', {
                   method: 'POST',

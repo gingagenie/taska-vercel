@@ -4,10 +4,6 @@ import { quotesApi, customersApi, meApi } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { QuoteInvoicePage } from "@/components/quotes/QuoteInvoicePage";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 
 export default function QuoteEdit() {
   const [isNewMatch] = useRoute("/quotes/new");
@@ -214,7 +210,7 @@ export default function QuoteEdit() {
             <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
             <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
             <button onclick="
-              var email = prompt('Enter email address to send quote:');
+              var email = prompt('Enter email address to send quote:', '${(customer?.email || "").replace(/'/g, "\\'")}');
               if (email && email.trim()) {
                 fetch('/api/quotes/${id}/email', {
                   method: 'POST',

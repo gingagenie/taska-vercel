@@ -219,30 +219,6 @@ export default function InvoiceEdit() {
           <div style="position: fixed; top: 10px; right: 10px; z-index: 1000;">
             <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
             <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
-            <button onclick="
-              var email = prompt('Enter email address to send invoice:', '${(customer?.email || "").replace(/'/g, "\\'")}');
-              if (email && email.trim()) {
-                fetch('/api/invoices/${id}/email', {
-                  method: 'POST',
-                  headers: { 
-                    'Content-Type': 'application/json'
-                  },
-                  credentials: 'include',
-                  body: JSON.stringify({ email: email.trim() })
-                })
-                .then(response => response.json())
-                .then(data => {
-                  if (data.ok) {
-                    alert('Invoice sent successfully to ' + email);
-                  } else {
-                    alert('Failed to send: ' + (data.error || 'Unknown error'));
-                  }
-                })
-                .catch(err => {
-                  alert('Failed to send: ' + err.message);
-                });
-              }
-            " style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">📧 Send</button>
           </div>
         </body>
       </html>

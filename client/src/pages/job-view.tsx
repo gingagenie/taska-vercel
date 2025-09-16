@@ -121,9 +121,13 @@ export default function JobView() {
   async function sendSms() {
     setSending(true);
     try {
+      // Only send messageOverride if user actually changed it from the default
+      const defaultPreview = buildDefaultPreview();
+      const isCustomMessage = smsPreview !== defaultPreview;
+      
       await jobsApi.sendConfirm(job.id, {
         phone: smsPhone || undefined,
-        messageOverride: smsPreview || undefined,
+        messageOverride: isCustomMessage ? smsPreview : undefined,
       });
       setToast("SMS sent ✔");
       setSmsOpen(false);

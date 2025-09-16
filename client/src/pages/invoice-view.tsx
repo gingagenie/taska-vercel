@@ -102,6 +102,10 @@ export default function InvoiceView() {
 
   function openEmailDialog() {
     const customer = (customers as any[]).find((c: any) => c.id === invoice.customer_id) || {};
+    console.log("DEBUG: Invoice customer_id:", invoice.customer_id);
+    console.log("DEBUG: Customers data:", customers);
+    console.log("DEBUG: Found customer:", customer);
+    console.log("DEBUG: Customer email:", customer.email);
     setEmailAddress(customer.email || "");
     setEmailOpen(true);
   }

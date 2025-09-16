@@ -95,6 +95,10 @@ export default function QuoteView() {
 
   function openEmailDialog() {
     const customer = (customers as any[]).find((c: any) => c.id === quote.customer_id) || {};
+    console.log("DEBUG: Quote customer_id:", quote.customer_id);
+    console.log("DEBUG: Customers data:", customers);
+    console.log("DEBUG: Found customer:", customer);
+    console.log("DEBUG: Customer email:", customer.email);
     setEmailAddress(customer.email || "");
     setEmailOpen(true);
   }

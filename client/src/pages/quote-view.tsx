@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { ExternalLink, Mail, Eye } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
+import { trackViewContent } from "@/lib/tiktok-tracking";
 
 export default function QuoteView() {
   const [match, params] = useRoute("/quotes/:id");
@@ -39,6 +40,28 @@ export default function QuoteView() {
       try {
         const q = await quotesApi.get(id);
         setQuote(q);
+        
+        // Calculate quote total for tracking
+        const items = q.items || [];
+        const subtotal = items.reduce((sum: number, item: any) => {
+          return sum + (Number(item.quantity || 0) * Number(item.unit_price || 0));
+        }, 0);
+        const gst = items.reduce((sum: number, item: any) => {
+          const itemTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
+          const taxRate = Number(item.tax_rate || 0) / 100;
+          return sum + (itemTotal * taxRate);
+        }, 0);
+        const total = subtotal + gst;
+        
+        // Track TikTok ViewContent event for quote page
+        trackViewContent({
+          contentId: q.id,
+          contentType: 'quote',
+          contentName: q.title || 'Quote Details',
+          contentCategory: 'billing_quotes',
+          value: total > 0 ? total : undefined,
+          currency: 'AUD'
+        });
       } catch (e: any) {
         setErr(e.message);
       } finally {

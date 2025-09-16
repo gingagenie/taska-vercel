@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { jobsApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { JobModal } from "@/components/modals/job-modal";
 import { useSubscription } from "@/hooks/useSubscription";
 import { SubscriptionBanner } from "@/components/subscription/subscription-banner";
 import { UsageWidget } from "@/components/layout/usage-widget";
+import { trackViewContent } from "@/lib/tiktok-tracking";
 
 // --- date helpers ---
 function startOfDay(d = new Date()) {
@@ -56,6 +57,18 @@ export default function Dashboard() {
       .slice(0, 5);
     return { todaysJobs: todays, upcomingJobs: upcoming };
   }, [jobs]);
+
+  // Track TikTok ViewContent event for dashboard page when jobs data loads
+  useEffect(() => {
+    if (!isLoading && jobs.length >= 0) {
+      trackViewContent({
+        contentType: 'dashboard',
+        contentName: 'Main Dashboard',
+        contentCategory: 'dashboard_overview',
+        value: (jobs as any[]).length // Use job count as a value metric
+      });
+    }
+  }, [isLoading, jobs]);
 
   return (
     <div className="page space-y-6">

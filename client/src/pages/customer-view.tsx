@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { CustomerModal } from "@/components/modals/customer-modal";
 import { JobModal } from "@/components/modals/job-modal";
 import { Building2, ArrowLeft, MapPin, Clipboard, Plus, AlertTriangle, Trash } from "lucide-react";
+import { trackViewContent } from "@/lib/tiktok-tracking";
 
 // helper to build a single-line address
 function buildAddress(c: any) {
@@ -71,7 +72,16 @@ export default function CustomerView() {
   useEffect(() => {
     if (id) {
       customersApi.get(id)
-        .then(setCustomer)
+        .then((customer) => {
+          setCustomer(customer);
+          // Track TikTok ViewContent event for customer page
+          trackViewContent({
+            contentId: customer.id,
+            contentType: 'customer',
+            contentName: customer.name || 'Customer Profile',
+            contentCategory: 'customer_management'
+          });
+        })
         .catch((err) => setError(err?.message || "Failed to load customer"))
         .finally(() => setLoading(false));
     }

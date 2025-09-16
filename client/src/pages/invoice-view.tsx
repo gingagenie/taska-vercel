@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { ExternalLink, Mail, Eye } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
+import { trackViewContent } from "@/lib/tiktok-tracking";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
@@ -39,6 +40,28 @@ export default function InvoiceView() {
       try {
         const i = await invoicesApi.get(id);
         setInvoice(i);
+        
+        // Calculate invoice total for tracking
+        const items = i.items || [];
+        const subtotal = items.reduce((sum: number, item: any) => {
+          return sum + (Number(item.quantity || 0) * Number(item.unit_price || 0));
+        }, 0);
+        const gst = items.reduce((sum: number, item: any) => {
+          const itemTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
+          const taxRate = Number(item.tax_rate || 0) / 100;
+          return sum + (itemTotal * taxRate);
+        }, 0);
+        const total = subtotal + gst;
+        
+        // Track TikTok ViewContent event for invoice page
+        trackViewContent({
+          contentId: i.id,
+          contentType: 'invoice',
+          contentName: i.title || 'Invoice Details',
+          contentCategory: 'billing_invoices',
+          value: total > 0 ? total : undefined,
+          currency: 'AUD'
+        });
       } catch (e: any) {
         setErr(e.message);
       } finally {

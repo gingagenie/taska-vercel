@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle, Check } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { SmsLimitWarning } from "@/components/usage/send-limit-warnings";
+import { trackViewContent } from "@/lib/tiktok-tracking";
 
 export default function JobView() {
   const [match, params] = useRoute("/jobs/:id");
@@ -64,6 +65,16 @@ export default function JobView() {
         ]);
         setJob(jobData);
         setPhotos(photoData);
+        
+        // Track TikTok ViewContent event for job page
+        trackViewContent({
+          contentId: jobData.id,
+          contentType: 'job',
+          contentName: jobData.title || 'Job Details',
+          contentCategory: 'job_management',
+          value: jobData.estimated_value ? Number(jobData.estimated_value) : undefined,
+          currency: 'AUD'
+        });
       } catch (e: any) {
         setErr(e?.message || "Failed to load job");
       } finally {

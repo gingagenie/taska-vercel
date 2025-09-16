@@ -10,6 +10,7 @@ import { FileText, User, ArrowRight, Edit, Trash } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { trackClickButton } from "@/lib/tiktok-tracking";
 
 export default function QuotesPage() {
   const qc = useQueryClient();
@@ -70,6 +71,13 @@ export default function QuotesPage() {
               <Button 
                 data-mobile-full="true" 
                 className="bg-financial hover:bg-financial/90 text-financial-foreground w-full sm:w-auto"
+                onClick={() => {
+                  trackClickButton({
+                    contentName: "New Quote Button (Header)",
+                    contentCategory: "lead_generation",
+                  });
+                }}
+                data-testid="button-new-quote-header"
               >
                 <FileText className="h-4 w-4 mr-2" />
                 New Quote
@@ -93,7 +101,16 @@ export default function QuotesPage() {
           {!q && (
             <Link href="/quotes/new">
               <a>
-                <Button className="bg-financial hover:bg-financial/90 text-financial-foreground">
+                <Button 
+                  className="bg-financial hover:bg-financial/90 text-financial-foreground"
+                  onClick={() => {
+                    trackClickButton({
+                      contentName: "New Quote Button (Empty State)",
+                      contentCategory: "lead_generation",
+                    });
+                  }}
+                  data-testid="button-new-quote-empty"
+                >
                   <FileText className="h-4 w-4 mr-2" />
                   New Quote
                 </Button>

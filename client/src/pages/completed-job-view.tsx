@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText, MessageSquare, Camera } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { useToast } from "@/hooks/use-toast";
+import { trackClickButton } from "@/lib/tiktok-tracking";
 
 interface CompletedJob {
   id: string;
@@ -133,6 +134,12 @@ export default function CompletedJobView() {
 
   async function handleConvertToInvoice() {
     if (!job) return;
+    
+    // Track the Convert to Invoice button click
+    trackClickButton({
+      contentName: "Convert Completed Job to Invoice Button",
+      contentCategory: "conversion",
+    });
     
     try {
       setConvertingToInvoice(true);

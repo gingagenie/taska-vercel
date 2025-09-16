@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { ExternalLink, Mail, Eye } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
-import { trackViewContent } from "@/lib/tiktok-tracking";
+import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
@@ -72,6 +72,15 @@ export default function InvoiceView() {
 
   async function handleMarkPaid() {
     if (!id) return;
+    
+    // Track the Mark Paid button click
+    const items = invoice?.items || [];
+    const { total } = calculateTotals(items);
+    trackClickButton({
+      contentName: "Mark Invoice Paid Button",
+      contentCategory: "conversion",
+    });
+    
     try {
       await invoicesApi.markPaid(id);
       const i = await invoicesApi.get(id);
@@ -100,6 +109,15 @@ export default function InvoiceView() {
 
   async function handleCreateInXero() {
     if (!id) return;
+    
+    // Track the Create in Xero button click
+    const items = invoice?.items || [];
+    const { total } = calculateTotals(items);
+    trackClickButton({
+      contentName: "Create Invoice in Xero Button",
+      contentCategory: "integration",
+    });
+    
     setCreatingXero(true);
     try {
       const response = await api(`/api/invoices/${id}/xero`, { method: 'POST' });
@@ -124,6 +142,12 @@ export default function InvoiceView() {
   }
 
   function openEmailDialog() {
+    // Track the Email Invoice button click
+    trackClickButton({
+      contentName: "Email Invoice Button",
+      contentCategory: "engagement",
+    });
+    
     const customer = (customers as any[]).find((c: any) => c.id === invoice.customer_id) || {};
     console.log("DEBUG: Invoice customer_id:", invoice.customer_id);
     console.log("DEBUG: Customers data:", customers);
@@ -135,6 +159,15 @@ export default function InvoiceView() {
 
   async function sendEmail() {
     if (!id || !emailAddress.trim()) return;
+    
+    // Track the Send Invoice button click
+    const items = invoice?.items || [];
+    const { total } = calculateTotals(items);
+    trackClickButton({
+      contentName: "Send Invoice Button",
+      contentCategory: "conversion",
+    });
+    
     setSending(true);
     try {
       await invoicesApi.sendEmail(id, { email: emailAddress.trim() });
@@ -166,6 +199,12 @@ export default function InvoiceView() {
 
   function handlePreview() {
     if (!invoice) return;
+    
+    // Track the Preview Invoice button click
+    trackClickButton({
+      contentName: "Preview Invoice Button",
+      contentCategory: "engagement",
+    });
     
     // Open preview window synchronously from user click to avoid popup blocking
     const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');

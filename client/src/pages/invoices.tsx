@@ -10,6 +10,7 @@ import { FileText, User, ArrowRight, Edit, Trash } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { trackClickButton } from "@/lib/tiktok-tracking";
 
 export default function InvoicesPage() {
   const qc = useQueryClient();
@@ -70,6 +71,13 @@ export default function InvoicesPage() {
               <Button 
                 data-mobile-full="true" 
                 className="bg-financial hover:bg-financial/90 text-financial-foreground w-full sm:w-auto"
+                onClick={() => {
+                  trackClickButton({
+                    contentName: "New Invoice Button (Header)",
+                    contentCategory: "lead_generation",
+                  });
+                }}
+                data-testid="button-new-invoice-header"
               >
                 <FileText className="h-4 w-4 mr-2" />
                 New Invoice
@@ -93,7 +101,16 @@ export default function InvoicesPage() {
           {!q && (
             <Link href="/invoices/new">
               <a>
-                <Button className="bg-financial hover:bg-financial/90 text-financial-foreground">
+                <Button 
+                  className="bg-financial hover:bg-financial/90 text-financial-foreground"
+                  onClick={() => {
+                    trackClickButton({
+                      contentName: "New Invoice Button (Empty State)",
+                      contentCategory: "lead_generation",
+                    });
+                  }}
+                  data-testid="button-new-invoice-empty"
+                >
                   <FileText className="h-4 w-4 mr-2" />
                   New Invoice
                 </Button>

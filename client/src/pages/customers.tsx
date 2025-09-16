@@ -5,6 +5,7 @@ import { Link, useLocation } from "wouter";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { trackClickButton } from "@/lib/tiktok-tracking";
 import { Input } from "@/components/ui/input";
 
 import { Mail, Phone, MapPin, MoreHorizontal, Edit, ArrowRight, Upload } from "lucide-react";
@@ -139,7 +140,13 @@ export default function Customers() {
             className="hidden"
           />
           <Button 
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              trackClickButton({
+                contentName: "Import CSV Button",
+                contentCategory: "lead_generation",
+              });
+              fileInputRef.current?.click();
+            }}
             disabled={isUploading}
             variant="outline"
             data-testid="button-import-csv"
@@ -148,7 +155,13 @@ export default function Customers() {
             {isUploading ? "Importing..." : "Import CSV"}
           </Button>
           <Button 
-            onClick={() => navigate("/customers/new")} 
+            onClick={() => {
+              trackClickButton({
+                contentName: "New Customer Button",
+                contentCategory: "lead_generation",
+              });
+              navigate("/customers/new");
+            }} 
             data-testid="button-new-customer"
             data-mobile-full="true"
             className="bg-people hover:bg-people/90 text-people-foreground"

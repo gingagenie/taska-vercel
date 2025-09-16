@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle, Check } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { SmsLimitWarning } from "@/components/usage/send-limit-warnings";
-import { trackViewContent } from "@/lib/tiktok-tracking";
+import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
 
 export default function JobView() {
   const [match, params] = useRoute("/jobs/:id");
@@ -140,6 +140,12 @@ export default function JobView() {
   }
 
   function openSmsDialog() {
+    // Track the SMS dialog open
+    trackClickButton({
+      contentName: "Open SMS Dialog Button",
+      contentCategory: "engagement",
+    });
+    
     const formattedPhone = formatAustralianPhone(job.customer_phone || "");
     setSmsPhone(formattedPhone);
     setSmsPreview(buildDefaultPreview());
@@ -147,6 +153,12 @@ export default function JobView() {
   }
 
   async function sendSms() {
+    // Track the Send SMS button click
+    trackClickButton({
+      contentName: "Send Job SMS Button",
+      contentCategory: "engagement",
+    });
+    
     setSending(true);
     try {
       // Only send messageOverride if user actually changed it from the default
@@ -171,6 +183,12 @@ export default function JobView() {
 
 
   async function completeJob() {
+    // Track the Complete Job button click
+    trackClickButton({
+      contentName: "Complete Job Button",
+      contentCategory: "conversion",
+    });
+    
     setCompleting(true);
     setErrComplete(null);
     try {
@@ -192,10 +210,17 @@ export default function JobView() {
       setErrComplete(e.message || 'Failed to complete job');
     } finally {
       setCompleting(false);
+      setConfirmComplete(false);
     }
   }
 
   async function confirmJob() {
+    // Track the Confirm Job button click
+    trackClickButton({
+      contentName: "Manual Confirm Job Button",
+      contentCategory: "conversion",
+    });
+    
     setConfirmingJob(true);
     setErrConfirmJob(null);
     try {

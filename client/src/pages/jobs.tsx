@@ -11,6 +11,7 @@ import { jobsApi } from "@/lib/api";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Edit, MoreHorizontal, Calendar, User, ArrowRight, CheckCircle } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
+import { trackClickButton } from "@/lib/tiktok-tracking";
 
 export default function Jobs() {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
@@ -103,7 +104,13 @@ export default function Jobs() {
             Completed Jobs
           </Button>
           <Button 
-            onClick={() => setIsJobModalOpen(true)}
+            onClick={() => {
+              trackClickButton({
+                contentName: "New Job Button",
+                contentCategory: "lead_generation",
+              });
+              setIsJobModalOpen(true);
+            }}
             data-testid="button-new-job"
             data-mobile-full="true"
             className="bg-jobs hover:bg-jobs/90 text-jobs-foreground"

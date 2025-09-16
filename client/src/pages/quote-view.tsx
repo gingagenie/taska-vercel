@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { ExternalLink, Mail, Eye } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
-import { trackViewContent } from "@/lib/tiktok-tracking";
+import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
 
 export default function QuoteView() {
   const [match, params] = useRoute("/quotes/:id");
@@ -72,6 +72,15 @@ export default function QuoteView() {
 
   async function handleAccept() {
     if (!id) return;
+    
+    // Track the Accept Quote button click
+    const items = quote?.items || [];
+    const { total } = calculateTotals(items);
+    trackClickButton({
+      contentName: "Accept Quote Button",
+      contentCategory: "conversion",
+    });
+    
     try {
       await quotesApi.accept(id);
       const q = await quotesApi.get(id);
@@ -83,6 +92,15 @@ export default function QuoteView() {
 
   async function handleConvert() {
     if (!id) return;
+    
+    // Track the Convert to Job button click
+    const items = quote?.items || [];
+    const { total } = calculateTotals(items);
+    trackClickButton({
+      contentName: "Convert Quote to Job Button",
+      contentCategory: "conversion",
+    });
+    
     try {
       const result = await quotesApi.convertToJob(id);
       nav(`/jobs/${result.jobId}`);
@@ -117,6 +135,12 @@ export default function QuoteView() {
   }
 
   function openEmailDialog() {
+    // Track the Email button click
+    trackClickButton({
+      contentName: "Email Quote Button",
+      contentCategory: "engagement",
+    });
+    
     const customer = (customers as any[]).find((c: any) => c.id === quote.customer_id) || {};
     console.log("DEBUG: Quote customer_id:", quote.customer_id);
     console.log("DEBUG: Customers data:", customers);
@@ -128,6 +152,15 @@ export default function QuoteView() {
 
   async function sendEmail() {
     if (!id || !emailAddress.trim()) return;
+    
+    // Track the Send Quote button click
+    const items = quote?.items || [];
+    const { total } = calculateTotals(items);
+    trackClickButton({
+      contentName: "Send Quote Button",
+      contentCategory: "conversion",
+    });
+    
     setSending(true);
     try {
       await quotesApi.sendEmail(id, { email: emailAddress.trim() });
@@ -176,6 +209,12 @@ export default function QuoteView() {
 
   function handlePreview() {
     if (!quote) return;
+    
+    // Track the Preview Quote button click
+    trackClickButton({
+      contentName: "Preview Quote Button",
+      contentCategory: "engagement",
+    });
     
     // Open preview window synchronously from user click to avoid popup blocking
     const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');

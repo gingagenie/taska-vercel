@@ -44,41 +44,29 @@ export interface EventData {
 
 export interface TikTokEventPayload {
   pixel_code: string;
-  event: string;
-  event_id: string;
-  timestamp: string;
-  context: {
-    user_agent?: string;
-    ip?: string;
-    ad: {
-      callback?: string;
-    };
+  event_source_id: string;
+  data: [{
+    event: string;
+    event_time: number;
+    event_id: string;
+    event_source: string;
     user: {
       email?: string;
-      phone_number?: string;
-      first_name?: string;
-      last_name?: string;
-      city?: string;
-      state?: string;
-      country?: string;
-      zip_code?: string;
+      phone?: string;
+      external_id?: string;
     };
-    page: {
-      url?: string;
-      referrer?: string;
+    properties?: {
+      value?: number;
+      currency?: string;
+      content_id?: string;
+      content_type?: string;
+      content_name?: string;
+      content_category?: string;
+      description?: string;
+      query?: string;
+      status?: string;
     };
-  };
-  properties?: {
-    value?: number;
-    currency?: string;
-    content_id?: string;
-    content_type?: string;
-    content_name?: string;
-    content_category?: string;
-    description?: string;
-    query?: string;
-    status?: string;
-  };
+  }];
 }
 
 export interface TikTokApiResponse {
@@ -146,44 +134,33 @@ export class TikTokEventsService {
     referrer?: string
   ): TikTokEventPayload {
     const eventId = this.generateEventId();
-    const timestamp = new Date().toISOString();
+    const eventTime = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
 
     // Hash PII data
     const hashedEmail = customerInfo.email ? this.hashPII(customerInfo.email) : undefined;
     const normalizedPhone = this.normalizePhoneNumber(customerInfo.phone || '');
     const hashedPhone = normalizedPhone ? this.hashPII(normalizedPhone) : undefined;
 
-    const payload: TikTokEventPayload = {
-      pixel_code: TIKTOK_PIXEL_ID,
+    // Create user external_id from available data
+    const externalId = customerInfo.email ? this.hashPII(customerInfo.email) : undefined;
+
+    const eventPayload = {
       event: eventName,
+      event_time: eventTime,
       event_id: eventId,
-      timestamp: timestamp,
-      context: {
-        user_agent: customerInfo.userAgent,
-        ip: customerInfo.ip,
-        ad: {},
-        user: {
-          email: hashedEmail,
-          phone_number: hashedPhone,
-          first_name: customerInfo.firstName,
-          last_name: customerInfo.lastName,
-          city: customerInfo.city,
-          state: customerInfo.state,
-          country: customerInfo.country || 'AU', // Default to Australia
-          zip_code: customerInfo.zipCode,
-        },
-        page: {
-          url: pageUrl,
-          referrer: referrer,
-        },
+      event_source: 'web',
+      user: {
+        email: hashedEmail,
+        phone: hashedPhone,
+        external_id: externalId,
       },
     };
 
     // Add event-specific properties if provided
     if (eventData) {
-      payload.properties = {
+      eventPayload.properties = {
         value: eventData.value,
-        currency: eventData.currency || 'AUD', // Default to Australian Dollar
+        currency: eventData.currency || 'AUD',
         content_id: eventData.contentId,
         content_type: eventData.contentType,
         content_name: eventData.contentName,
@@ -193,20 +170,26 @@ export class TikTokEventsService {
         status: eventData.status,
       };
 
-      // Remove undefined properties to keep payload clean
-      Object.keys(payload.properties).forEach(key => {
-        if (payload.properties![key as keyof typeof payload.properties] === undefined) {
-          delete payload.properties![key as keyof typeof payload.properties];
+      // Remove undefined properties
+      Object.keys(eventPayload.properties).forEach(key => {
+        if (eventPayload.properties![key as keyof typeof eventPayload.properties] === undefined) {
+          delete eventPayload.properties![key as keyof typeof eventPayload.properties];
         }
       });
     }
 
     // Remove undefined user properties
-    Object.keys(payload.context.user).forEach(key => {
-      if (payload.context.user[key as keyof typeof payload.context.user] === undefined) {
-        delete payload.context.user[key as keyof typeof payload.context.user];
+    Object.keys(eventPayload.user).forEach(key => {
+      if (eventPayload.user[key as keyof typeof eventPayload.user] === undefined) {
+        delete eventPayload.user[key as keyof typeof eventPayload.user];
       }
     });
+
+    const payload: TikTokEventPayload = {
+      pixel_code: TIKTOK_PIXEL_ID,
+      event_source_id: TIKTOK_PIXEL_ID,
+      data: [eventPayload],
+    };
 
     return payload;
   }
@@ -221,7 +204,7 @@ export class TikTokEventsService {
     }
 
     try {
-      console.log(`[TIKTOK_EVENTS] Sending ${payload.event} event with ID: ${payload.event_id}`);
+      console.log(`[TIKTOK_EVENTS] Sending ${payload.data[0].event} event with ID: ${payload.data[0].event_id}`);
       
       const response = await fetch(TIKTOK_API_ENDPOINT, {
         method: 'POST',
@@ -229,27 +212,20 @@ export class TikTokEventsService {
           'Access-Token': TIKTOK_ACCESS_TOKEN,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          pixel_code: payload.pixel_code,
-          event: payload.event,
-          event_id: payload.event_id,
-          timestamp: payload.timestamp,
-          context: payload.context,
-          properties: payload.properties,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const responseData: TikTokApiResponse = await response.json();
 
       if (response.ok && responseData.code === 0) {
-        console.log(`[TIKTOK_EVENTS] ${payload.event} event sent successfully. Request ID: ${responseData.request_id}`);
+        console.log(`[TIKTOK_EVENTS] ${payload.data[0].event} event sent successfully. Request ID: ${responseData.request_id}`);
         return { 
           success: true, 
-          eventId: payload.event_id,
+          eventId: payload.data[0].event_id,
           apiResponse: responseData 
         };
       } else {
-        console.error(`[TIKTOK_EVENTS] API Error for ${payload.event}:`, {
+        console.error(`[TIKTOK_EVENTS] API Error for ${payload.data[0].event}:`, {
           status: response.status,
           code: responseData.code,
           message: responseData.message,
@@ -262,7 +238,7 @@ export class TikTokEventsService {
         };
       }
     } catch (error) {
-      console.error(`[TIKTOK_EVENTS] Network error sending ${payload.event}:`, error);
+      console.error(`[TIKTOK_EVENTS] Network error sending ${payload.data[0].event}:`, error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Network error' 

@@ -43,68 +43,42 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
     if (bodyUpper === "YES" || bodyUpper === "Y") {
       console.log(`[TWILIO] Processing YES confirmation from ${normalizedFrom}`);
       
-      // First get org_id from any outbound SMS to this number (bypass RLS by getting org_id first)
-      const orgLookup: any = await db.execute(sql`
-        select org_id from job_notifications 
-        where to_addr = ${normalizedFrom} 
-          and direction = 'out' 
-          and channel = 'sms' 
-          and org_id != '00000000-0000-0000-0000-000000000000'::uuid
-        order by created_at desc 
+      // Simple approach: find the most recent job sent to this phone number and confirm it
+      const jobResult: any = await db.execute(sql`
+        select j.id, j.org_id
+        from jobs j
+        join job_notifications jn on j.id = jn.job_id
+        where jn.to_addr = ${normalizedFrom}
+          and jn.direction = 'out'
+          and jn.channel = 'sms'
+        order by jn.created_at desc
         limit 1
       `);
-      
-      if (orgLookup.rows?.[0]?.org_id) {
-        const orgId = orgLookup.rows[0].org_id;
-        console.log(`[TWILIO] Found org ${orgId}, setting RLS context`);
-        
-        // Set org context for RLS (matches current_org_id() function)
-        await db.execute(sql`select set_config('app.current_org', ${orgId}, true)`);
-        
-        // Now find the most recent outbound SMS to this phone number
-        const outboundResult: any = await db.execute(sql`
-          select jn.job_id, j.org_id, jn.created_at
-          from job_notifications jn
-          join jobs j on j.id = jn.job_id
-          where jn.to_addr = ${normalizedFrom}
-            and jn.direction = 'out' 
-            and jn.channel = 'sms'
-          order by jn.created_at desc
-          limit 1
+
+      console.log(`[TWILIO] Job lookup result:`, jobResult.rows);
+
+      if (jobResult.rows?.[0]?.id) {
+        const jobId = jobResult.rows[0].id;
+        const orgId = jobResult.rows[0].org_id;
+
+        console.log(`[TWILIO] Confirming job ${jobId} for org ${orgId}`);
+
+        // Just update the job status - keep it simple
+        await db.execute(sql`
+          update jobs set status='confirmed' where id=${jobId}
         `);
 
-        console.log(`[TWILIO] Query result:`, outboundResult.rows);
+        // Link the inbound notification to the job  
+        await db.execute(sql`
+          update job_notifications
+             set job_id=${jobId}, org_id=${orgId}
+           where provider_id=${MessageSid}
+             and direction='in'
+        `);
 
-        const outbound = outboundResult.rows?.[0];
-        if (outbound && outbound.job_id) {
-          const jobId = outbound.job_id;
-          const orgIdFromJob = outbound.org_id;
-
-          console.log(`[TWILIO] Found matching outbound SMS for job ${jobId}, org ${orgIdFromJob}`);
-
-          // Update job status to confirmed with row count check
-          const updateResult: any = await db.execute(sql`
-            update jobs set status='confirmed' where id=${jobId}::uuid
-          `);
-
-          if (updateResult.rowCount === 0) {
-            console.warn(`[TWILIO] Job update matched 0 rows`, { jobId, orgId });
-          } else {
-            console.log(`[TWILIO] Job ${jobId} confirmed via SMS reply (${updateResult.rowCount} rows updated)`);
-          }
-
-          // Link the inbound notification to the job
-          await db.execute(sql`
-            update job_notifications
-               set job_id=${jobId}::uuid, org_id=${orgId}::uuid
-             where provider_id=${MessageSid}
-               and direction='in'
-          `);
-        } else {
-          console.log("[TWILIO] No matching outbound SMS found for confirmation");
-        }
+        console.log(`[TWILIO] Job ${jobId} confirmed successfully`);
       } else {
-        console.log("[TWILIO] No org found for phone number, cannot process confirmation");
+        console.log("[TWILIO] No job found for this phone number");
       }
     }
 

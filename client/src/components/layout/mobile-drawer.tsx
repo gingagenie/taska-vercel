@@ -23,8 +23,8 @@ const navigationItems = [
   { path: "/equipment", label: "Equipment", icon: Settings },
   { path: "/members", label: "Members", icon: Users },
   { path: "/schedule", label: "Schedule", icon: Calendar },
-  { path: "/quotes", label: "Quotes", icon: FileText, isPro: true },
-  { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true },
+  { path: "/quotes", label: "Quotes", icon: FileText },
+  { path: "/invoices", label: "Invoices", icon: Receipt },
 ];
 
 interface MobileDrawerProps {
@@ -108,7 +108,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
             {filteredNavigationItems.map((item) => {
               const Icon = item.icon;
               const isActive = location === item.path;
-              const isLocked = item.isPro && !isProUser;
+              const isLocked = (item as any).isPro && !isProUser;
               
               return (
                 <Link key={item.path} href={item.path}>
@@ -131,7 +131,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
                   >
                     <Icon className="w-4 h-4" />
                     {item.label}
-                    {item.isPro && (
+                    {(item as any).isPro && (
                       <div className="ml-auto flex items-center gap-1">
                         {!isProUser && <Crown className="w-3 h-3 text-amber-500" />}
                         <span className={`text-xs px-1.5 py-0.5 rounded-full ${

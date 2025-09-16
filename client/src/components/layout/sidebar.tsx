@@ -28,8 +28,8 @@ const navigationItems = [
   { path: "/equipment", label: "Equipment", icon: Settings, category: "equipment" },
   { path: "/members", label: "Members", icon: Users, category: "people" },
   { path: "/schedule", label: "Schedule", icon: Calendar, category: "schedule" },
-  { path: "/quotes", label: "Quotes", icon: FileText, isPro: true, category: "financial" },
-  { path: "/invoices", label: "Invoices", icon: Receipt, isPro: true, category: "financial" },
+  { path: "/quotes", label: "Quotes", icon: FileText, category: "financial" },
+  { path: "/invoices", label: "Invoices", icon: Receipt, category: "financial" },
   { path: "/support", label: "Support", icon: LifeBuoy, category: "management" },
   { path: "/settings", label: "Settings", icon: Cog, category: "management" },
 ];
@@ -75,7 +75,7 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
         {filteredNavigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.path;
-          const isLocked = item.isPro && !isProUser;
+          const isLocked = (item as any).isPro && !isProUser;
           const category = item.category as 'jobs' | 'people' | 'equipment' | 'schedule' | 'financial' | 'management';
           
           // Get category-specific colors
@@ -118,7 +118,7 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
               >
                 <Icon className="w-4 h-4" />
                 {item.label}
-                {item.isPro && (
+                {(item as any).isPro && (
                   <div className="ml-auto flex items-center gap-1">
                     {!isProUser && <Crown className="w-3 h-3 text-amber-500" />}
                     <span className={`text-xs px-1.5 py-0.5 rounded-full ${

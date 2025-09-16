@@ -1096,13 +1096,12 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       return res.status(400).json({ error: "Cannot create invoice: job has no customer" });
     }
 
-    // Check if already converted (idempotency guard)
+    // Check if already converted (idempotency guard) - using title and customer for simpler check
     const existingInvoice: any = await db.execute(sql`
       SELECT id FROM invoices 
       WHERE org_id = ${orgId}::uuid 
       AND title = ${`Invoice for: ${completedJob.title}`}
       AND customer_id = ${completedJob.customer_id}::uuid
-      AND notes = ${completedJob.notes || ''}
     `);
 
     if (existingInvoice.length > 0) {
@@ -1137,6 +1136,21 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       }
     }
 
+    // Get individual note entries from completed job
+    const noteEntries: any = await db.execute(sql`
+      SELECT text, created_at
+      FROM completed_job_notes
+      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY created_at ASC
+    `);
+
+    // Combine main job notes with individual note entries
+    let combinedNotes = completedJob.notes || '';
+    if (noteEntries.length > 0) {
+      const noteTexts = noteEntries.map((note: any) => note.text).join('\n');
+      combinedNotes = combinedNotes ? `${combinedNotes}\n\n${noteTexts}` : noteTexts;
+    }
+
     // Create invoice from completed job (notes go into invoice notes, not line items)
     const invoiceResult: any = await db.execute(sql`
       INSERT INTO invoices (org_id, customer_id, title, notes, status, sub_total, tax_total, grand_total)
@@ -1144,7 +1158,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
         ${orgId}::uuid, 
         ${completedJob.customer_id}::uuid, 
         ${`Invoice for: ${completedJob.title}`},
-        ${completedJob.notes || ''},
+        ${combinedNotes},
         'draft',
         0,
         0,

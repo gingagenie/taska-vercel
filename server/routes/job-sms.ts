@@ -484,7 +484,7 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
     // Log outbound SMS for inbound matching
     await db.execute(sql`
       insert into job_notifications (org_id, job_id, notification_type, recipient, message, status)
-      values (${orgId}::uuid, ${row.id}::uuid, 'sms', ${toPhone}, ${body}, ${msg.status})
+      values (${orgId}::uuid, ${row.id}::uuid, 'sms'::text, ${toPhone}::text, ${body}::text, ${String(msg.status)}::text)
     `);
 
     // Track SMS usage for quota management

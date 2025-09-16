@@ -72,8 +72,8 @@ router.post("/register", async (req, res) => {
     trialEndDate.setDate(trialEndDate.getDate() + 14);
     
     await db.execute(sql`
-      insert into subscriptions (id, org_id, plan_id, status, trial_start, trial_end, current_period_end, created_at)
-      values (gen_random_uuid(), ${orgId}, 'pro', 'trial', now(), ${trialEndDate.toISOString()}, ${trialEndDate.toISOString()}, now())
+      insert into org_subscriptions (org_id, plan_id, status, trial_end, current_period_end)
+      values (${orgId}, 'pro', 'trial', ${trialEndDate.toISOString()}, ${trialEndDate.toISOString()})
     `);
 
     // Track TikTok CompleteRegistration event (non-blocking)

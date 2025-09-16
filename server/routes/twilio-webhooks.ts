@@ -58,10 +58,21 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
         const jobId = outbound.job_id;
         const orgId = outbound.org_id;
 
-        // Update job status to confirmed
-        await db.execute(sql`
+        console.log(`[TWILIO] Found matching outbound SMS for job ${jobId}, org ${orgId}`);
+
+        // Set org context for RLS before updating job
+        await db.execute(sql`select set_config('app.org_id', ${orgId}, true)`);
+
+        // Update job status to confirmed with row count check
+        const updateResult: any = await db.execute(sql`
           update jobs set status='confirmed' where id=${jobId}::uuid
         `);
+
+        if (updateResult.rowCount === 0) {
+          console.warn(`[TWILIO] Job update matched 0 rows`, { jobId, orgId });
+        } else {
+          console.log(`[TWILIO] Job ${jobId} confirmed via SMS reply (${updateResult.rowCount} rows updated)`);
+        }
 
         // Link the inbound notification to the job
         await db.execute(sql`
@@ -70,8 +81,6 @@ twilioWebhooks.post("/webhook/sms", async (req, res) => {
            where provider_id=${MessageSid}
              and direction='in'
         `);
-
-        console.log(`[TWILIO] Job ${jobId} confirmed via SMS reply`);
       } else {
         console.log("[TWILIO] No matching outbound SMS found for confirmation");
       }

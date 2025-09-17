@@ -41,6 +41,7 @@ import Landing from "@/pages/landing";
 import Register from "@/pages/auth-register";
 import Login from "@/pages/auth-login";
 import TrialExpired from "@/pages/trial-expired";
+import PrivacyPolicy from "@/pages/privacy";
 
 // Import customer support pages
 import CustomerSupportDashboard from "@/pages/support";
@@ -268,6 +269,7 @@ function AuthenticatedApp() {
           <Route path="/support/new" component={CreateSupportTicket} />
           <Route path="/support/tickets" component={SupportTicketsList} />
           <Route path="/support/ticket/:id" component={SupportTicketDetail} />
+          <Route path="/privacy" component={PrivacyPolicy} />
           <Route path="/trial-expired" component={TrialExpired} />
           <Route component={NotFound} />
         </Switch>
@@ -305,6 +307,7 @@ function CustomerAppContent() {
       <Switch>
         <Route path="/auth/register" component={Register} />
         <Route path="/auth/login" component={Login} />
+        <Route path="/privacy" component={PrivacyPolicy} />
         <Route path="*" component={Landing} />
       </Switch>
     );

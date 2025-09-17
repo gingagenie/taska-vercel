@@ -1,9 +1,10 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "postgresql-16", "java-17"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["android-tools", "gradle"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -41,6 +42,10 @@ externalPort = 80
 [[ports]]
 localPort = 37705
 externalPort = 3000
+
+[[ports]]
+localPort = 40073
+externalPort = 3003
 
 [[ports]]
 localPort = 42695

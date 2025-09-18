@@ -70,8 +70,10 @@ const regularSessionConfig = session({
   cookie: {
     httpOnly: true,
     path: "/",
-    sameSite: (CLIENT_ORIGIN && isProd) ? "none" : "lax",
-    secure: (CLIENT_ORIGIN && isProd) ? true : false,
+    // Use "lax" for better mobile compatibility - mobile apps don't need cross-origin cookies
+    sameSite: "lax",
+    // Only require secure in production with HTTPS, but allow mobile apps to work
+    secure: isProd && process.env.NODE_ENV === "production",
     maxAge: 1000 * 60 * 60 * 24 * 30,
   },
 });

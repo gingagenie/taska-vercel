@@ -70,10 +70,10 @@ const regularSessionConfig = session({
   cookie: {
     httpOnly: true,
     path: "/",
-    // Use "lax" for better mobile compatibility - mobile apps don't need cross-origin cookies
-    sameSite: "lax",
-    // Only require secure in production with HTTPS, but allow mobile apps to work
-    secure: isProd && process.env.NODE_ENV === "production",
+    // Use "none" for iOS WebView compatibility - iOS can be stricter with sameSite
+    sameSite: "none",
+    // Always require secure for sameSite: none
+    secure: true,
     maxAge: 1000 * 60 * 60 * 24 * 30,
   },
 });

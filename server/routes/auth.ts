@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs";
 import { tiktokEvents } from "../services/tiktok-events";
 import type { CustomerInfo } from "../services/tiktok-events";
+import { generateAuthTokens, refreshAuthTokens, isJwtAuthDisabled } from "../lib/jwt-auth-tokens";
 
 declare module 'express-session' {
   interface SessionData {
@@ -136,7 +137,14 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    // Login attempt - email logging removed for security
+    // Detect client platform and auth mode preference
+    const authMode = req.headers['x-auth-mode'] as string;
+    // SECURITY FIX: Only use token mode when client explicitly sends X-Auth-Mode: token header
+    // This prevents breaking Android Capacitor and iOS Safari users who should use cookies
+    const shouldUseTokenMode = authMode === 'token';
+    const jwtDisabled = isJwtAuthDisabled();
+    
+    console.log(`[HYBRID LOGIN] Login attempt - auth-mode: ${authMode || 'not-specified'}, token mode: ${shouldUseTokenMode}, JWT disabled: ${jwtDisabled}`);
     
     // Find user by email (optionally scoped to org)
     const r: any = await db.execute(sql`
@@ -148,47 +156,141 @@ router.post("/login", async (req, res) => {
       limit 1
     `);
     const user = r[0];
-    // User lookup completed
     
     if (!user) {
+      console.log(`[HYBRID LOGIN] User not found for email: ${email.substring(0, 3)}***`);
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     // Verify password
     const ok = await bcrypt.compare(password, user.password_hash || "");
-    // Password verification completed
     
     if (!ok) {
+      console.log(`[HYBRID LOGIN] Invalid password for user: ${user.id}`);
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Update last login (add column if needed)
+    // Update last login timestamp
     await db.execute(sql`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamp
     `);
     await db.execute(sql`update users set last_login_at = now() where id = ${user.id}`);
 
+    // HYBRID AUTH: Choose authentication method based on explicit client request
+    if (shouldUseTokenMode && !jwtDisabled) {
+      // Token Mode Client - Return JWT tokens (only when explicitly requested)
+      console.log(`[HYBRID LOGIN] Token mode explicitly requested, generating JWT tokens for user ${user.id}`);
+      
+      try {
+        const tokens = await generateAuthTokens(user.id, user.org_id, user.role);
+        
+        console.log(`[HYBRID LOGIN] JWT tokens generated successfully for token mode user ${user.id}`);
+        
+        // Return tokens for token mode clients
+        res.json({
+          ok: true,
+          authMethod: 'jwt',
+          platform: 'token-mode',
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresIn: tokens.expiresIn,
+          orgId: user.org_id,
+          user: { 
+            id: user.id, 
+            name: user.name, 
+            email: user.email, 
+            role: user.role 
+          }
+        });
+        return;
+      } catch (tokenError) {
+        console.error(`[HYBRID LOGIN] JWT token generation failed for user ${user.id}:`, tokenError);
+        // Fall back to session auth if JWT fails
+        console.log(`[HYBRID LOGIN] Falling back to session auth for user ${user.id}`);
+      }
+    }
+
+    // Session Cookie Mode (Default for all clients unless explicitly requesting tokens)
+    console.log(`[HYBRID LOGIN] Using session auth for user ${user.id} (token mode: ${shouldUseTokenMode}, JWT disabled: ${jwtDisabled})`);
+    
     req.session.regenerate((err) => {
-      if (err) return res.status(500).json({ error: "session error" });
+      if (err) {
+        console.error(`[HYBRID LOGIN] Session regeneration error for user ${user.id}:`, err);
+        return res.status(500).json({ error: "session error" });
+      }
+      
       req.session.userId = user.id;
       req.session.orgId = user.org_id;
+      
       req.session.save((err2) => {
-        if (err2) return res.status(500).json({ error: "session save error" });
+        if (err2) {
+          console.error(`[HYBRID LOGIN] Session save error for user ${user.id}:`, err2);
+          return res.status(500).json({ error: "session save error" });
+        }
+        
+        console.log(`[HYBRID LOGIN] Session auth successful for user ${user.id}`);
+        
         res.json({ 
-          ok: true, 
+          ok: true,
+          authMethod: 'session',
+          platform: 'session-cookie',
           orgId: user.org_id, 
-          user: { id: user.id, name: user.name, email: user.email, role: user.role } 
+          user: { 
+            id: user.id, 
+            name: user.name, 
+            email: user.email, 
+            role: user.role 
+          } 
         });
       });
     });
   } catch (error: any) {
-    console.error("Login error:", error);
+    console.error("[HYBRID LOGIN] Login error:", error);
     res.status(500).json({ error: "Login failed" });
   }
 });
 
 router.post("/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
+});
+
+// JWT Token Refresh endpoint for iOS clients
+router.post("/refresh", async (req, res) => {
+  const { refreshToken } = req.body || {};
+  
+  if (!refreshToken) {
+    console.log('[HYBRID REFRESH] No refresh token provided');
+    return res.status(400).json({ error: "Refresh token required" });
+  }
+
+  // Check if JWT auth is disabled
+  if (isJwtAuthDisabled()) {
+    console.log('[HYBRID REFRESH] JWT authentication disabled, refresh not available');
+    return res.status(503).json({ error: "Token refresh unavailable" });
+  }
+
+  try {
+    console.log('[HYBRID REFRESH] Attempting to refresh access token');
+    
+    const newTokens = await refreshAuthTokens(refreshToken);
+    
+    if (!newTokens) {
+      console.log('[HYBRID REFRESH] Refresh token invalid or expired');
+      return res.status(401).json({ error: "Invalid or expired refresh token" });
+    }
+
+    console.log('[HYBRID REFRESH] Token refresh successful');
+    
+    res.json({
+      ok: true,
+      accessToken: newTokens.accessToken,
+      refreshToken: newTokens.refreshToken,
+      expiresIn: newTokens.expiresIn
+    });
+  } catch (error) {
+    console.error('[HYBRID REFRESH] Token refresh error:', error);
+    res.status(500).json({ error: "Token refresh failed" });
+  }
 });
 
 router.get("/me", async (req, res) => {

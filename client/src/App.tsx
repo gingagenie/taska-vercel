@@ -79,6 +79,12 @@ import SupportUsersAdmin from "@/pages/support/admin/users";
 import SupportInvitesAdmin from "@/pages/support/admin/invites";
 import SupportAuditAdmin from "@/pages/support/admin/audit";
 
+// Import business admin components
+import AdminDashboard from "@/pages/admin/dashboard";
+import OrganizationsAdmin from "@/pages/admin/organizations";
+import AnalyticsAdmin from "@/pages/admin/analytics";
+import { AdminLayout } from "@/components/admin/AdminLayout";
+
 // Role-based route protection
 function ProtectedRoute({ 
   component: Component, 
@@ -92,6 +98,35 @@ function ProtectedRoute({
   const { user } = useAuth();
   
   if (!user?.role || !allowedRoles.includes(user.role)) {
+    return <NotFound />;
+  }
+  
+  return <Component {...props> />;
+}
+
+// Business Admin Route Protection - only for keith.richmond@live.com
+function AdminRoute({ 
+  component: Component, 
+  ...props 
+}: { 
+  component: React.ComponentType<any>; 
+  [key: string]: any;
+}) {
+  const { user, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking admin access...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Only allow admin portal access for business owner
+  if (!user || user.email !== 'keith.richmond@live.com') {
     return <NotFound />;
   }
   
@@ -149,6 +184,55 @@ function SupportApp() {
     <SupportAuthProvider>
       <SupportAppContent />
     </SupportAuthProvider>
+  );
+}
+
+// Business Admin Portal App content
+function AdminAppContent() {
+  const { isLoading, isAuthenticated } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading admin portal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/auth/login" component={Login} />
+        <Route path="*" component={Login} />
+      </Switch>
+    );
+  }
+
+  return (
+    <AdminLayout>
+      <Switch>
+        <Route path="/admin/organizations" component={() => <AdminRoute component={OrganizationsAdmin} />} />
+        <Route path="/admin/analytics" component={() => <AdminRoute component={AnalyticsAdmin} />} />
+        
+        {/* Default admin dashboard route - must be last */}
+        <Route path="/admin" component={() => <AdminRoute component={AdminDashboard} />} />
+        <Route component={() => <AdminRoute component={AdminDashboard} />} />
+      </Switch>
+    </AdminLayout>
+  );
+}
+
+// Business Admin Portal App wrapper
+function AdminApp() {
+  return (
+    <AuthProvider>
+      <TooltipProvider>
+        <AdminAppContent />
+      </TooltipProvider>
+    </AuthProvider>
   );
 }
 
@@ -335,6 +419,11 @@ function CustomerApp() {
 // Top-level App Content with route branching BEFORE any hook calls
 function AppContent() {
   const [location] = useLocation();
+  
+  // Business admin portal routes - completely separate app with own auth
+  if (location.startsWith("/admin")) {
+    return <AdminApp />;
+  }
   
   // Support admin portal routes - completely separate app with own auth
   if (location.startsWith("/support-admin")) {

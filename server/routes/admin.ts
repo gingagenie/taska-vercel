@@ -471,13 +471,20 @@ router.put('/organization/:id/subscription', async (req, res) => {
       updates.status = 'trial';
     }
 
-    // Update subscription
-    const updateResult = await db.execute(sql`
-      UPDATE org_subscriptions 
-      SET ${sql.raw(Object.keys(updates).map(key => `${key} = $${Object.keys(updates).indexOf(key) + 2}`).join(', '))}
-      WHERE org_id = $1
-      RETURNING *
-    `.setQueryParams([orgId, ...Object.values(updates)]));
+    // Update subscription using dynamic query construction
+    const updateFields = Object.keys(updates);
+    const updateValues = Object.values(updates);
+    
+    const setClause = updateFields.map((field, index) => `${field} = $${index + 2}`).join(', ');
+    
+    const updateResult = await db.execute(
+      sql.raw(`
+        UPDATE org_subscriptions 
+        SET ${setClause}
+        WHERE org_id = $1
+        RETURNING *
+      `, [orgId, ...updateValues])
+    );
 
     // Log the admin action
     await db.execute(sql`

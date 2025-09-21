@@ -81,7 +81,7 @@ router.get('/dashboard', async (req, res) => {
       SELECT 
         DATE(created_at) as date,
         COUNT(*) as new_orgs
-      FROM organizations 
+      FROM orgs 
       WHERE created_at >= NOW() - INTERVAL '7 days'
       GROUP BY DATE(created_at)
       ORDER BY date DESC
@@ -186,7 +186,7 @@ router.get('/organizations', async (req, res) => {
         -- Usage stats from current period
         uc.sms_sent,
         uc.emails_sent
-      FROM organizations o
+      FROM orgs o
       LEFT JOIN org_subscriptions os ON o.id = os.org_id
       LEFT JOIN subscription_plans sp ON os.plan_id = sp.id
       LEFT JOIN users u ON o.id = u.org_id
@@ -207,7 +207,7 @@ router.get('/organizations', async (req, res) => {
     // Get total count for pagination
     const countResult = await db.execute(sql`
       SELECT COUNT(DISTINCT o.id) as total
-      FROM organizations o
+      FROM orgs o
       LEFT JOIN org_subscriptions os ON o.id = os.org_id
       WHERE ${whereConditions}
     `);
@@ -283,7 +283,7 @@ router.get('/organization/:id', async (req, res) => {
         os.stripe_subscription_id,
         os.created_at as subscription_created_at,
         os.updated_at as subscription_updated_at
-      FROM organizations o
+      FROM orgs o
       LEFT JOIN org_subscriptions os ON o.id = os.org_id
       LEFT JOIN subscription_plans sp ON os.plan_id = sp.id
       WHERE o.id = ${orgId}
@@ -483,7 +483,7 @@ router.put('/organization/:id/subscription', async (req, res) => {
         SET ${setClause}
         WHERE org_id = $1
         RETURNING *
-      `, [orgId, ...updateValues])
+      `)
     );
 
     // Log the admin action
@@ -544,7 +544,7 @@ router.post('/organization/:id/refund', async (req, res) => {
     // Get organization and subscription details
     const orgDetails = await db.execute(sql`
       SELECT o.name, os.stripe_customer_id, os.stripe_subscription_id
-      FROM organizations o
+      FROM orgs o
       LEFT JOIN org_subscriptions os ON o.id = os.org_id
       WHERE o.id = ${orgId}
     `);
@@ -625,7 +625,7 @@ router.post('/organization/:id/suspend', async (req, res) => {
 
     // Update organization suspension status
     await db.execute(sql`
-      UPDATE organizations 
+      UPDATE orgs 
       SET 
         suspended = ${suspend || false},
         suspension_reason = ${suspend ? (reason || 'Admin action') : null},

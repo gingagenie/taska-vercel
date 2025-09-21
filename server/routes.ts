@@ -24,6 +24,7 @@ import { aiSupportRouter } from "./routes/ai-support";
 import supportTickets from "./routes/support-tickets";
 import { publicRouter } from "./routes/public";
 import tiktokTracking from "./routes/tiktok-tracking";
+import adminRoutes from "./routes/admin";
 import { blockSupportStaffFromCustomerData } from "./middleware/access-control";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -76,6 +77,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/support-tickets");
   app.use("/api/tiktok", blockSupportStaffFromCustomerData, tiktokTracking);
   console.log("[mount] /api/tiktok (customer-only)");
+  
+  // Admin routes - requires admin authentication
+  app.use("/api/admin", adminRoutes);
+  console.log("[mount] /api/admin");
   
   // Migration export tool
   app.get("/migration-export.html", (_req, res) => {

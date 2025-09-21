@@ -1,0 +1,29 @@
+Your organisation is using the Facebook pixel to track website activity and run adverts based on that activity.
+
+You must install two kinds of code snippets on the website. This includes pixel base code on every page of your website and event code on specific web pages.
+
+1
+Facebook pixel ID
+Your pixel ID is the unique number assigned to your Facebook pixel. You can use this number in your pixel base code.
+
+Pixel ID: 1508282447028316
+2
+Install pixel base code
+The pixel base code tracks activity on your website, providing a baseline for measuring specific events. Copy the base code below and paste it between the header tags on every page of your website:
+
+<!-- Facebook Pixel Code --><script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init', '1508282447028316'); fbq('track', 'PageView');</script><noscript> <img height="1" width="1" src="https://www.facebook.com/tr?id=1508282447028316&ev=PageView&noscript=1"/></noscript><!-- End Facebook Pixel Code -->
+You can also turn on data matching so that information from your pixel will be used to match website actions with Facebook people. This helps increase the effectiveness of conversion reporting, advert optimisation and targeting. Learn more.
+
+3
+Install event code
+Event code lets your organisation track specific actions that take place and leverage them in advertising. You must install event code on specific pages of your website where the actions will take place.
+
+You can use the nine standard events that Facebook pre-defines to track and optimise adverts for conversions. To measure and optimise for more granular actions, you can add parameters to your events by using recommended or advanced installation options for your event tags. You can also create custom events for actions important to your business that you define. There are three implementation settings: basic, recommended and advanced.
+
+Get event code for conversions
+4
+Check pixel status
+Go to Facebook Adverts Manager and select Pixels from the top menu. If the status is Active, your pixel has been installed correctly. It may take up to 20 minutes for your pixel status to change after installing it.
+
+If your pixel status reports No activity yet, your pixel isn't working. Download the Pixel Helper to get more information, or get guidance on installing your pixel.
+

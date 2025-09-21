@@ -274,12 +274,14 @@ import { members } from "./routes/members";
 import auth from "./routes/auth";
 import supportAuth from "./routes/support-auth";
 import supportAdmin from "./routes/support-admin";
+import adminRoutes from "./routes/admin";
 import { health } from "./routes/health";
 import { debugRouter } from "./routes/debug";
 app.use("/api/me", me);
 app.use("/api/auth", auth);
 app.use("/api/members", members);
 app.use("/api/debug", debugRouter);
+app.use("/api/admin", adminRoutes);
 app.use("/health", health);
 
 // Support staff authentication routes (accessible to unauthenticated support staff for login)

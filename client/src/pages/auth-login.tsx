@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FacebookPixelEvents } from "@/components/tracking/FacebookPixel";
 
 export default function Login() {
   const [, nav] = useLocation();
@@ -23,6 +24,10 @@ export default function Login() {
     
     try {
       await apiRequest("POST", "/api/auth/login", { email, password });
+      
+      // Track successful login as potential lead
+      FacebookPixelEvents.trackLead('login');
+      
       clearDevAuth();     // 👈 nuke dev headers
       await reload();     // Ensure user is set from session cookie
       nav("/");

@@ -1,8 +1,14 @@
 import taskaDemo from '@assets/ezgif.com-effects_1757423433414.gif';
 import taskaLogo from '@assets/Taska_1755842483680.png';
 import taskaVideoDemo from '@assets/WhatsApp Video 2025-08-24 at 15.58.50_1757909355458.mp4';
+import { FacebookPixelEvents } from '@/components/tracking/FacebookPixel';
 
 export default function Landing() {
+  // Handler for CTA button clicks
+  const handleCTAClick = (action: string) => {
+    FacebookPixelEvents.trackLead(`landing_${action}`);
+  };
+
   return (
     <main>
       <style>{`
@@ -126,9 +132,9 @@ export default function Landing() {
             <h1 className="h1">Run your trade business like a pro.</h1>
             <p className="lead">Taska is the fast, simple field‑service platform for jobs, scheduling, customers, equipment, and invoices — all in one place, on desktop and mobile.</p>
             <div className="hero-ctas">
-              <a className="btn primary" href="/auth/register">Start free</a>
-              <a className="btn" href="#pricing">See pricing</a>
-              <a className="btn ghost" href="#demo">Watch demo</a>
+              <a className="btn primary" href="/auth/register" onClick={() => handleCTAClick('start_free')}>Start free</a>
+              <a className="btn" href="#pricing" onClick={() => handleCTAClick('see_pricing')}>See pricing</a>
+              <a className="btn ghost" href="#demo" onClick={() => handleCTAClick('watch_demo')}>Watch demo</a>
             </div>
             <div className="tiny">Set up in minutes. Get paid faster. Less admin, more jobs done.</div>
           </div>
@@ -210,8 +216,8 @@ export default function Landing() {
             <h2 className="section-title" style={{textAlign:'left'}}>See Taska in action</h2>
             <p className="lead">Create a job, assign a tech, capture photos, and turn it into an invoice — all in under a minute. Watch how Taska streamlines your entire workflow from start to finish.</p>
             <div className="hero-ctas">
-              <a className="btn primary" href="/auth/register">Start your free trial</a>
-              <a className="btn" href="/auth/login">Log in</a>
+              <a className="btn primary" href="/auth/register" onClick={() => handleCTAClick('start_trial')}>Start your free trial</a>
+              <a className="btn" href="/auth/login" onClick={() => handleCTAClick('login')}>Log in</a>
             </div>
             <div className="note">No credit card required · Cancel anytime</div>
           </div>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FacebookPixelEvents } from "@/components/tracking/FacebookPixel";
 
 export default function Register() {
   const [, nav] = useLocation();
@@ -25,6 +26,10 @@ export default function Register() {
     
     try {
       await apiRequest("POST", "/api/auth/register", { orgName, name, email, password });
+      
+      // Track successful registration event
+      FacebookPixelEvents.trackRegistration('email');
+      
       clearDevAuth();     // 👈 nuke dev headers
       await reload();     // Ensure user is set from session cookie
       nav("/"); // now logged in via session

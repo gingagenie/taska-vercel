@@ -101,7 +101,7 @@ function ProtectedRoute({
     return <NotFound />;
   }
   
-  return <Component {...props> />;
+  return <Component {...props} />;
 }
 
 // Business Admin Route Protection - only for keith.richmond@live.com

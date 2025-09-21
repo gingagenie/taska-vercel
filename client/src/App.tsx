@@ -63,6 +63,9 @@ import { AIChatWidget } from "@/components/ai-chat/AIChatWidget";
 // Import usage banner
 import { UsageBanner } from "@/components/usage/usage-banner";
 
+// Import Facebook Pixel tracking
+import { FacebookPixel } from "@/components/tracking/FacebookPixel";
+
 // Import support portal components
 import { SupportLayout } from "@/components/support/SupportLayout";
 import SupportDashboard from "@/pages/support/dashboard";
@@ -346,6 +349,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Toaster />
+      <FacebookPixel />
       <AppContent />
     </QueryClientProvider>
   );

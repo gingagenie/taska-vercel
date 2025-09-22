@@ -392,6 +392,7 @@ function CustomerAppContent() {
   if (!isAuthenticated) {
     return (
       <Switch>
+        <Route path="/" component={Landing} />
         <Route path="/auth/register" component={Register} />
         <Route path="/auth/login" component={Login} />
         <Route path="/privacy" component={PrivacyPolicy} />

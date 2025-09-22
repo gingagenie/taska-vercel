@@ -195,7 +195,7 @@ router.get('/organizations', async (req, res) => {
         AND uc.period_end > NOW()
       WHERE ${whereConditions}
       GROUP BY o.id, o.name, o.abn, o.created_at, os.status, os.plan_id, 
-               sp.name, sp.price_monthly_cents, os.trial_end, 
+               sp.name, sp.price_monthly, os.trial_end, 
                os.current_period_start, os.current_period_end,
                os.stripe_customer_id, os.stripe_subscription_id,
                uc.sms_sent, uc.emails_sent

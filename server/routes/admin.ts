@@ -30,7 +30,7 @@ router.get('/dashboard', async (req, res) => {
     // Calculate MRR (Monthly Recurring Revenue)
     const mrrResult = await db.execute(sql`
       SELECT 
-        COALESCE(SUM(sp.price_monthly_cents), 0) as mrr_cents,
+        COALESCE(SUM(sp.price_monthly), 0) as mrr_cents,
         COUNT(*) as active_subscriptions
       FROM org_subscriptions os
       JOIN subscription_plans sp ON os.plan_id = sp.id  
@@ -69,7 +69,7 @@ router.get('/dashboard', async (req, res) => {
       SELECT 
         status,
         COUNT(*) as count,
-        COALESCE(SUM(sp.price_monthly_cents), 0) as revenue_cents
+        COALESCE(SUM(sp.price_monthly), 0) as revenue_cents
       FROM org_subscriptions os
       LEFT JOIN subscription_plans sp ON os.plan_id = sp.id
       WHERE os.status IN ('active', 'trial', 'past_due', 'canceled')
@@ -224,7 +224,7 @@ router.get('/organizations', async (req, res) => {
         status: org.subscription_status,
         plan_id: org.plan_id,
         plan_name: org.plan_name,
-        monthly_revenue_aud: org.price_monthly_cents ? Math.round(Number(org.price_monthly_cents) / 100) : 0,
+        monthly_revenue_aud: org.price_monthly ? Math.round(Number(org.price_monthly) / 100) : 0,
         trial_end: org.trial_end,
         current_period_start: org.current_period_start,
         current_period_end: org.current_period_end,
@@ -361,7 +361,7 @@ router.get('/organization/:id', async (req, res) => {
         status: org.subscription_status,
         plan_id: org.plan_id,
         plan_name: org.plan_name,
-        monthly_revenue_aud: org.price_monthly_cents ? Math.round(Number(org.price_monthly_cents) / 100) : 0,
+        monthly_revenue_aud: org.price_monthly ? Math.round(Number(org.price_monthly) / 100) : 0,
         features: org.features,
         trial_end: org.trial_end,
         current_period_start: org.current_period_start,
@@ -720,7 +720,7 @@ router.get('/analytics/overview', async (req, res) => {
       FROM (
         SELECT 
           os.org_id,
-          SUM(sp.price_monthly_cents * 
+          SUM(sp.price_monthly * 
             EXTRACT(EPOCH FROM (
               COALESCE(os.current_period_end, NOW()) - os.created_at
             )) / (30 * 24 * 3600)
@@ -762,7 +762,7 @@ router.get('/analytics/overview', async (req, res) => {
         sp.name as plan_name,
         DATE_TRUNC('month', os.created_at) as month,
         COUNT(*) as subscriptions,
-        SUM(sp.price_monthly_cents) as monthly_revenue_cents
+        SUM(sp.price_monthly) as monthly_revenue_cents
       FROM org_subscriptions os
       JOIN subscription_plans sp ON os.plan_id = sp.id
       WHERE os.created_at >= NOW() - INTERVAL '6 months'
@@ -823,7 +823,7 @@ router.get('/alerts', async (req, res) => {
     const mrrTrend = await db.execute(sql`
       SELECT 
         DATE_TRUNC('month', updated_at) as month,
-        SUM(sp.price_monthly_cents) as mrr_cents
+        SUM(sp.price_monthly) as mrr_cents
       FROM org_subscriptions os
       JOIN subscription_plans sp ON os.plan_id = sp.id
       WHERE os.status = 'active'

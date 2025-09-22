@@ -285,136 +285,154 @@ export default function OrganizationsAdmin() {
   const pagination = orgData?.pagination;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900" data-testid="title-organizations">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900" data-testid="title-organizations">
           Organization Management
         </h1>
-        <p className="text-gray-600 mt-1">
+        <p className="text-sm sm:text-base text-gray-600 mt-1">
           Manage subscriptions, billing, and account status
         </p>
       </div>
 
       {/* Filters */}
-      <Card className="p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
+      <Card className="p-3 sm:p-4 mb-4 sm:mb-6">
+        <div className="flex flex-col gap-3 sm:gap-4">
+          {/* Search - Full width on mobile */}
+          <div className="w-full">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 placeholder="Search organizations..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
+                className="pl-10 h-11"
                 data-testid="input-search-organizations"
               />
             </div>
           </div>
           
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48" data-testid="select-status-filter">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="trial">Trial</SelectItem>
-              <SelectItem value="past_due">Past Due</SelectItem>
-              <SelectItem value="canceled">Canceled</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select value={planFilter} onValueChange={setPlanFilter}>
-            <SelectTrigger className="w-48" data-testid="select-plan-filter">
-              <SelectValue placeholder="Filter by plan" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Plans</SelectItem>
-              <SelectItem value="solo">Solo ($29)</SelectItem>
-              <SelectItem value="pro">Pro ($49)</SelectItem>
-              <SelectItem value="enterprise">Enterprise ($99)</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Button variant="outline" onClick={() => refetch()} data-testid="button-refresh">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
+          {/* Filters row - stacked on mobile, side by side on larger screens */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-48 h-11" data-testid="select-status-filter">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="trial">Trial</SelectItem>
+                <SelectItem value="past_due">Past Due</SelectItem>
+                <SelectItem value="canceled">Canceled</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={planFilter} onValueChange={setPlanFilter}>
+              <SelectTrigger className="w-full sm:w-48 h-11" data-testid="select-plan-filter">
+                <SelectValue placeholder="Filter by plan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Plans</SelectItem>
+                <SelectItem value="solo">Solo ($29)</SelectItem>
+                <SelectItem value="pro">Pro ($49)</SelectItem>
+                <SelectItem value="enterprise">Enterprise ($99)</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Button 
+              variant="outline" 
+              onClick={() => refetch()} 
+              className="w-full sm:w-auto h-11 px-6"
+              data-testid="button-refresh"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
       </Card>
 
       {/* Organizations List */}
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {organizations.map((org) => (
-          <Card key={org.id} className="p-6">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">{org.name}</h3>
-                  {getStatusBadge(org.subscription.status)}
-                  <Badge variant="outline">{org.subscription.plan_name}</Badge>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <DollarSign className="w-4 h-4" />
-                    <span>{formatCurrency(org.subscription.monthly_revenue_aud)}/month</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-1">
-                    <UsersIcon className="w-4 h-4" />
-                    <span>{org.metrics.user_count} users</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-1">
-                    <MessageCircle className="w-4 h-4" />
-                    <span>{org.metrics.sms_sent} SMS sent</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    <span>Created {formatDate(org.created_at)}</span>
+          <Card key={org.id} className="p-4 sm:p-6">
+            <div className="flex flex-col space-y-4">
+              {/* Header with badges */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">{org.name}</h3>
+                  <div className="flex gap-2">
+                    {getStatusBadge(org.subscription.status)}
+                    <Badge variant="outline" className="text-xs">{org.subscription.plan_name}</Badge>
                   </div>
                 </div>
-                
-                {org.subscription.trial_end && (
-                  <div className="mt-2 text-sm text-orange-600">
-                    Trial ends: {formatDate(org.subscription.trial_end)}
-                  </div>
-                )}
               </div>
               
-              <div className="flex gap-2">
+              {/* Metrics grid - 2 cols on mobile, 4 on larger screens */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-1">
+                  <DollarSign className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{formatCurrency(org.subscription.monthly_revenue_aud)}/mo</span>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <UsersIcon className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{org.metrics.user_count} users</span>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <MessageCircle className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{org.metrics.sms_sent} SMS</span>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">Created {formatDate(org.created_at)}</span>
+                </div>
+              </div>
+              
+              {/* Trial warning */}
+              {org.subscription.trial_end && (
+                <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg">
+                  Trial ends: {formatDate(org.subscription.trial_end)}
+                </div>
+              )}
+              
+              {/* Action buttons - full width on mobile, compact on larger screens */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 pt-2 border-t border-gray-100">
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => handleAction(org, 'subscription')}
+                  className="w-full sm:w-auto justify-center sm:justify-start h-9"
                   data-testid={`button-edit-subscription-${org.id}`}
                 >
-                  <Edit className="w-4 h-4 mr-1" />
-                  Edit
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Subscription
                 </Button>
                 
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => handleAction(org, 'refund')}
+                  className="w-full sm:w-auto justify-center sm:justify-start h-9"
                   data-testid={`button-refund-${org.id}`}
                 >
-                  <CreditCard className="w-4 h-4 mr-1" />
-                  Refund
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Process Refund
                 </Button>
                 
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => handleAction(org, 'suspend')}
+                  className="w-full sm:w-auto justify-center sm:justify-start h-9"
                   data-testid={`button-suspend-${org.id}`}
                 >
-                  <Ban className="w-4 h-4 mr-1" />
-                  Suspend
+                  <Ban className="w-4 h-4 mr-2" />
+                  Suspend Account
                 </Button>
               </div>
             </div>
@@ -424,17 +442,18 @@ export default function OrganizationsAdmin() {
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-2 mt-6 px-4">
           <Button 
             variant="outline" 
             disabled={page === 1}
             onClick={() => setPage(page - 1)}
+            className="w-full sm:w-auto h-10"
             data-testid="button-prev-page"
           >
             Previous
           </Button>
           
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 px-4 py-2 order-first sm:order-none">
             Page {page} of {pagination.totalPages}
           </span>
           
@@ -442,6 +461,7 @@ export default function OrganizationsAdmin() {
             variant="outline" 
             disabled={page === pagination.totalPages}
             onClick={() => setPage(page + 1)}
+            className="w-full sm:w-auto h-10"
             data-testid="button-next-page"
           >
             Next

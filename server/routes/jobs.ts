@@ -919,7 +919,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       SELECT 
         ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
-        je.org_id,
+        ${orgId}::uuid,
         je.equipment_id,
         e.name,
         je.created_at

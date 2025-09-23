@@ -262,12 +262,12 @@ router.get('/quotas', requireAuth, requireOrg, async (req, res) => {
 
 // Pack pricing configuration
 export const PACK_PRODUCTS = {
-  sms_pack_100: { type: 'sms' as const, quantity: 100, priceUsd: 500 }, // $5.00 in cents
-  sms_pack_500: { type: 'sms' as const, quantity: 500, priceUsd: 2000 }, // $20.00 in cents
-  sms_pack_1000: { type: 'sms' as const, quantity: 1000, priceUsd: 3500 }, // $35.00 in cents
-  email_pack_200: { type: 'email' as const, quantity: 200, priceUsd: 300 }, // $3.00 in cents
-  email_pack_500: { type: 'email' as const, quantity: 500, priceUsd: 700 }, // $7.00 in cents
-  email_pack_1000: { type: 'email' as const, quantity: 1000, priceUsd: 1200 }, // $12.00 in cents
+  prod_T3LRPF1hSGF3ya: { type: 'sms' as const, quantity: 100, priceUsd: 500 }, // $5.00 in cents
+  prod_T3LRvcI7quZRJt: { type: 'sms' as const, quantity: 500, priceUsd: 2000 }, // $20.00 in cents
+  prod_T3LT77WnDcdc96: { type: 'sms' as const, quantity: 1000, priceUsd: 3500 }, // $35.00 in cents
+  prod_T3LUS1xJ6MCi7k: { type: 'email' as const, quantity: 200, priceUsd: 300 }, // $3.00 in cents
+  prod_T3LWiTXVFDcW1x: { type: 'email' as const, quantity: 500, priceUsd: 700 }, // $7.00 in cents
+  prod_T3LaJFFqiZ4CNp: { type: 'email' as const, quantity: 1000, priceUsd: 1200 }, // $12.00 in cents
 } as const
 
 // Validation schemas

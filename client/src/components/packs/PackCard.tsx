@@ -55,14 +55,14 @@ export function PackCard({
   const typeLabel = pack.type.toUpperCase();
   const perUnitPrice = getPerUnitPrice(pack.priceUsd, pack.quantity);
   
-  // Mock all packs for savings calculation (in real app this would come from props)
+  // All packs for savings calculation with real Stripe product IDs
   const allPacks: PackOption[] = [
-    { productId: 'sms_pack_100', type: 'sms', quantity: 100, priceUsd: 500, displayPrice: '$5.00', description: '100 SMS pack' },
-    { productId: 'sms_pack_500', type: 'sms', quantity: 500, priceUsd: 2000, displayPrice: '$20.00', description: '500 SMS pack' },
-    { productId: 'sms_pack_1000', type: 'sms', quantity: 1000, priceUsd: 3500, displayPrice: '$35.00', description: '1000 SMS pack' },
-    { productId: 'email_pack_200', type: 'email', quantity: 200, priceUsd: 300, displayPrice: '$3.00', description: '200 Email pack' },
-    { productId: 'email_pack_500', type: 'email', quantity: 500, priceUsd: 700, displayPrice: '$7.00', description: '500 Email pack' },
-    { productId: 'email_pack_1000', type: 'email', quantity: 1000, priceUsd: 1200, displayPrice: '$12.00', description: '1000 Email pack' },
+    { productId: 'prod_T3LRPF1hSGF3ya', type: 'sms', quantity: 100, priceUsd: 500, displayPrice: '$5.00', description: '100 SMS pack' },
+    { productId: 'prod_T3LRvcI7quZRJt', type: 'sms', quantity: 500, priceUsd: 2000, displayPrice: '$20.00', description: '500 SMS pack' },
+    { productId: 'prod_T3LT77WnDcdc96', type: 'sms', quantity: 1000, priceUsd: 3500, displayPrice: '$35.00', description: '1000 SMS pack' },
+    { productId: 'prod_T3LUS1xJ6MCi7k', type: 'email', quantity: 200, priceUsd: 300, displayPrice: '$3.00', description: '200 Email pack' },
+    { productId: 'prod_T3LWiTXVFDcW1x', type: 'email', quantity: 500, priceUsd: 700, displayPrice: '$7.00', description: '500 Email pack' },
+    { productId: 'prod_T3LaJFFqiZ4CNp', type: 'email', quantity: 1000, priceUsd: 1200, displayPrice: '$12.00', description: '1000 Email pack' },
   ];
   
   const savings = getSavings(pack, allPacks);

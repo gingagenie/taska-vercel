@@ -114,6 +114,7 @@ export default function Landing() {
           <nav className="nav-links" aria-label="Primary">
             <a href="#features">Features</a>
             <a href="#pricing">Pricing</a>
+            <a href="/blog">Blog</a>
             <a href="#faq">FAQ</a>
           </nav>
           <div className="cta-row">

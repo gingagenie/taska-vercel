@@ -3,7 +3,7 @@ import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText, MessageSquare, Camera, Wrench } from "lucide-react";
+import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText, MessageSquare, Camera, Wrench, Trash2 } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { useToast } from "@/hooks/use-toast";
 import { trackClickButton } from "@/lib/tiktok-tracking";
@@ -47,6 +47,7 @@ export default function CompletedJobView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [convertingToInvoice, setConvertingToInvoice] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadCompletedJob();
@@ -183,6 +184,43 @@ export default function CompletedJobView() {
     }
   }
 
+  async function handleDeleteJob() {
+    if (!job) return;
+    
+    if (!confirm('Are you sure you want to delete this completed job? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      setDeleting(true);
+      const response = await fetch(`/api/jobs/completed/${job.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete completed job');
+      }
+      
+      toast({
+        title: "Job Deleted",
+        description: "The completed job has been deleted successfully",
+      });
+
+      // Navigate back to completed jobs list
+      navigate('/completed-jobs');
+      
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e.message || 'Failed to delete completed job',
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
       {/* Header */}
@@ -205,12 +243,21 @@ export default function CompletedJobView() {
         <div className="flex items-center gap-2">
           <Button 
             onClick={handleConvertToInvoice}
-            disabled={convertingToInvoice || !job.customer_id}
+            disabled={convertingToInvoice || !job.customer_id || deleting}
             className="bg-blue-600 hover:bg-blue-700"
             data-testid="button-convert-to-invoice"
           >
             <FileText className="h-4 w-4 mr-2" />
             {convertingToInvoice ? "Converting..." : "Convert to Invoice"}
+          </Button>
+          <Button 
+            onClick={handleDeleteJob}
+            disabled={deleting || convertingToInvoice}
+            variant="destructive"
+            data-testid="button-delete-completed-job"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            {deleting ? "Deleting..." : "Delete"}
           </Button>
           <Badge className="bg-green-100 text-green-800 border-green-200">
             <CheckCircle className="h-4 w-4 mr-2" />

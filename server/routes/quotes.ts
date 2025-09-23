@@ -11,6 +11,7 @@ import { trackEmailUsage, checkEmailQuota } from "./job-sms";
 import { finalizePackConsumption, releasePackReservation, durableFinalizePackConsumption } from "../lib/pack-consumption";
 import { tiktokEvents } from "../services/tiktok-events";
 import type { CustomerInfo } from "../services/tiktok-events";
+import { randomBytes } from "crypto";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -431,8 +432,29 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     `);
     const orgName = orgResult[0]?.name || "Your Business";
 
-    // Generate email content
-    const { subject, html, text } = generateQuoteEmailTemplate(quoteData, orgName);
+    // Generate secure confirmation token for accept/decline links
+    const confirmationToken = randomBytes(32).toString('hex');
+
+    // Update quote with confirmation token
+    await db.execute(sql`
+      update quotes 
+      set confirmation_token=${confirmationToken}
+      where id=${id}::uuid and org_id=${orgId}::uuid
+    `);
+
+    // Add confirmation token to quote data
+    const quoteDataWithToken = {
+      ...quoteData,
+      confirmation_token: confirmationToken
+    };
+
+    // Get base URL for email links
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? (process.env.REPLIT_DOMAINS || '').split(',')[0] || 'https://your-domain.com'
+      : 'http://localhost:5000';
+
+    // Generate email content with confirmation token
+    const { subject, html, text } = generateQuoteEmailTemplate(quoteDataWithToken, orgName, baseUrl);
 
     // PHASE 1: Check email quota and reserve pack unit if needed
     const quotaCheck = await checkEmailQuota(orgId);

@@ -41,15 +41,26 @@ export default function JobEdit() {
         // Set equipment from job (take first one if multiple)
         setEquipmentId(j.equipment?.[0]?.id || "");
 
-        const [cs, eq, photosData] = await Promise.all([
+        const [cs, photosData] = await Promise.all([
           api(`/api/jobs/customers`),
-          api(`/api/equipment`),
           photosApi.list(jobId),
         ]);
         if (!alive) return;
         setCustomers(cs || []);
-        setEquipment(eq || []);
         setPhotos(photosData || []);
+        
+        // Load equipment filtered by customer (if customer is selected)
+        if (j.customer_id) {
+          try {
+            const eq = await api(`/api/jobs/equipment?customerId=${encodeURIComponent(j.customer_id)}`);
+            if (alive) setEquipment(eq || []);
+          } catch (equipmentError) {
+            console.error('Failed to load equipment:', equipmentError);
+            if (alive) setEquipment([]);
+          }
+        } else {
+          setEquipment([]); // No customer selected, no equipment
+        }
       } catch (e: any) {
         if (!alive) return;
         setErr(e?.message || "Failed to load");
@@ -59,6 +70,26 @@ export default function JobEdit() {
     })();
     return () => { alive = false; };
   }, [jobId]);
+
+  // Filter equipment when customer changes (like job creation does)
+  useEffect(() => {
+    if (!customerId || customerId === "none") {
+      setEquipment([]);
+      setEquipmentId("");
+      return;
+    }
+    
+    (async () => {
+      try {
+        const eq = await api(`/api/jobs/equipment?customerId=${encodeURIComponent(customerId)}`);
+        setEquipment(eq || []);
+        setEquipmentId(""); // Reset selection when customer changes
+      } catch (e: any) {
+        console.error('Failed to load equipment for customer:', e);
+        setEquipment([]);
+      }
+    })();
+  }, [customerId]);
 
   function normalizeDate(v: string | null | undefined): string | null {
     if (!v) return null;

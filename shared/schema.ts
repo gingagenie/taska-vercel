@@ -197,6 +197,17 @@ export const completedJobParts = pgTable("completed_job_parts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Completed job equipment (preserved when job completed)
+export const completedJobEquipment = pgTable("completed_job_equipment", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  completedJobId: uuid("completed_job_id").notNull(),
+  originalJobId: uuid("original_job_id").notNull(),
+  orgId: uuid("org_id").notNull(),
+  equipmentId: uuid("equipment_id").notNull(), // Keep reference to original equipment
+  equipmentName: varchar("equipment_name", { length: 255 }), // Snapshot of equipment name
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Entitlements (for pro features)
 export const entitlements = pgTable("entitlements", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),

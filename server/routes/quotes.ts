@@ -645,19 +645,34 @@ router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
     
     const jobId = jr[0].id;
 
-    // Copy quote lines to job items if any exist
+    // Convert quote lines to job hours/parts based on content
     for (const line of lines) {
-      await db.execute(sql`
-        insert into job_items (org_id, job_id, description, quantity, unit_price, position)
-        values (
-          ${orgId}::uuid,
-          ${jobId}::uuid,
-          ${line.description},
-          ${line.quantity},
-          ${line.unit_amount},
-          ${line.position}
-        )
-      `);
+      // Check if this is a labour item (case-insensitive)
+      const isLabour = /\b(labour|labor|work|hours?)\b/i.test(line.description);
+      
+      if (isLabour) {
+        // Create job_hours entry for labour items
+        await db.execute(sql`
+          insert into job_hours (org_id, job_id, hours, description)
+          values (
+            ${orgId}::uuid,
+            ${jobId}::uuid,
+            ${line.quantity},
+            ${line.description}
+          )
+        `);
+      } else {
+        // Create job_parts entry for non-labour items
+        await db.execute(sql`
+          insert into job_parts (org_id, job_id, part_name, quantity)
+          values (
+            ${orgId}::uuid,
+            ${jobId}::uuid,
+            ${line.description},
+            ${Math.floor(line.quantity)}
+          )
+        `);
+      }
     }
 
     // Update quote status to converted and link to job

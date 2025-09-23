@@ -632,14 +632,13 @@ router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
 
     // Create job from quote
     const jr: any = await db.execute(sql`
-      insert into jobs (org_id, title, customer_id, description, status, equipment_id)
+      insert into jobs (org_id, title, customer_id, description, status)
       values (
         ${orgId}::uuid, 
         ${quote.title}, 
         ${quote.customer_id}::uuid, 
         ${quote.notes || ''}, 
-        'draft',
-        null
+        'draft'
       )
       returning id
     `);

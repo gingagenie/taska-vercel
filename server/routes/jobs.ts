@@ -183,6 +183,31 @@ jobs.get("/completed/:jobId/photos", requireAuth, requireOrg, async (req, res) =
   }
 });
 
+// GET /completed/:jobId/equipment - Get equipment for completed job
+jobs.get("/completed/:jobId/equipment", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  console.log("[TRACE] GET /api/jobs/completed/%s/equipment org=%s", jobId, orgId);
+  
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
+      return res.status(400).json({ error: "Invalid jobId" });
+    }
+
+    const r: any = await db.execute(sql`
+      SELECT equipment_id, equipment_name, created_at
+      FROM completed_job_equipment
+      WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY equipment_name ASC
+    `);
+    
+    res.json(r);
+  } catch (e: any) {
+    console.error("GET /api/jobs/completed/%s/equipment error:", jobId, e);
+    res.status(500).json({ error: e?.message || "Failed to fetch completed job equipment" });
+  }
+});
+
 /* LIST (now includes description) */
 jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;

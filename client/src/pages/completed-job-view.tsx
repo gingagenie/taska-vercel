@@ -3,7 +3,7 @@ import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText, MessageSquare, Camera } from "lucide-react";
+import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText, MessageSquare, Camera, Wrench } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { useToast } from "@/hooks/use-toast";
 import { trackClickButton } from "@/lib/tiktok-tracking";
@@ -43,6 +43,7 @@ export default function CompletedJobView() {
   const [parts, setParts] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [photos, setPhotos] = useState<any[]>([]);
+  const [equipment, setEquipment] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [convertingToInvoice, setConvertingToInvoice] = useState(false);
@@ -61,14 +62,15 @@ export default function CompletedJobView() {
       const jobData = await response.json();
       setJob(jobData);
       
-      // Load charges, hours, parts, notes, and photos for the completed job
+      // Load charges, hours, parts, notes, photos, and equipment for the completed job
       try {
-        const [chargesResponse, hoursResponse, partsResponse, notesResponse, photosResponse] = await Promise.all([
+        const [chargesResponse, hoursResponse, partsResponse, notesResponse, photosResponse, equipmentResponse] = await Promise.all([
           fetch(`/api/jobs/completed/${jobData.id}/charges`),
           fetch(`/api/jobs/completed/${jobData.id}/hours`),
           fetch(`/api/jobs/completed/${jobData.id}/parts`),
           fetch(`/api/jobs/completed/${jobData.id}/notes`),
-          fetch(`/api/jobs/completed/${jobData.id}/photos`)
+          fetch(`/api/jobs/completed/${jobData.id}/photos`),
+          fetch(`/api/jobs/completed/${jobData.id}/equipment`)
         ]);
         
         if (chargesResponse.ok) {
@@ -94,6 +96,11 @@ export default function CompletedJobView() {
         if (photosResponse.ok) {
           const photosData = await photosResponse.json();
           setPhotos(photosData);
+        }
+        
+        if (equipmentResponse.ok) {
+          const equipmentData = await equipmentResponse.json();
+          setEquipment(equipmentData);
         }
       } catch (e) {
         console.error('Failed to load completed job data:', e);
@@ -320,6 +327,33 @@ export default function CompletedJobView() {
                 <div className="border-t pt-3 flex justify-between items-center font-semibold text-lg">
                   <span>Total Parts:</span>
                   <span>{parts.reduce((sum: number, part: any) => sum + parseInt(part.quantity || 0), 0)} items</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Equipment Used */}
+          {equipment.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <Wrench className="h-4 w-4" />
+                Equipment Used
+              </h3>
+              <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+                {equipment.map((item: any) => (
+                  <div key={item.equipment_id} className="flex justify-between items-center bg-white p-3 rounded border">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{item.equipment_name}</div>
+                      <div className="text-sm text-gray-500">Machine used for this job</div>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {new Date(item.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t pt-3 flex justify-between items-center font-semibold text-lg">
+                  <span>Equipment Count:</span>
+                  <span>{equipment.length} machine{equipment.length !== 1 ? 's' : ''}</span>
                 </div>
               </div>
             </div>

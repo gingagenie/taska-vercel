@@ -886,6 +886,23 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid
     `);
 
+    // Copy equipment to completed job equipment table (so we know what machine to charge against)
+    await db.execute(sql`
+      INSERT INTO completed_job_equipment (
+        completed_job_id, original_job_id, org_id, equipment_id, equipment_name, created_at
+      )
+      SELECT 
+        ${completedResult[0].id}::uuid,
+        ${jobId}::uuid,
+        je.org_id,
+        je.equipment_id,
+        e.name,
+        je.created_at
+      FROM job_equipment je
+      LEFT JOIN equipment e ON je.equipment_id = e.id
+      WHERE je.job_id = ${jobId}::uuid
+    `);
+
     // Delete related records first, but preserve job_charges for the completed job
     await db.execute(sql`
       DELETE FROM job_notifications

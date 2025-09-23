@@ -1090,17 +1090,52 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     }
 
     const completedJob = completedJobResult[0];
+    
+    // Look up equipment associated with the original job to use in invoice title
+    let equipmentInfo = null;
+    if (completedJob.original_job_id) {
+      const equipmentResult: any = await db.execute(sql`
+        SELECT e.name, e.make, e.model, e.serial
+        FROM job_equipment je
+        JOIN equipment e ON e.id = je.equipment_id
+        WHERE je.job_id = ${completedJob.original_job_id}::uuid AND e.org_id = ${orgId}::uuid
+        LIMIT 1
+      `);
+      
+      if (equipmentResult.length > 0) {
+        equipmentInfo = equipmentResult[0];
+      }
+    }
 
     // Check if customer exists
     if (!completedJob.customer_id) {
       return res.status(400).json({ error: "Cannot create invoice: job has no customer" });
     }
 
+    // Generate invoice title based on equipment or job title
+    let invoiceTitle;
+    if (equipmentInfo) {
+      // Use equipment information for the title
+      const equipmentParts = [
+        equipmentInfo.name,
+        equipmentInfo.make,
+        equipmentInfo.model,
+        equipmentInfo.serial
+      ].filter(Boolean); // Remove null/empty values
+      
+      invoiceTitle = equipmentParts.length > 0 
+        ? `Invoice for: ${equipmentParts.join(' - ')}`
+        : `Invoice for: ${completedJob.title}`;
+    } else {
+      // Fallback to job title if no equipment found
+      invoiceTitle = `Invoice for: ${completedJob.title}`;
+    }
+    
     // Check if already converted (idempotency guard) - using title and customer for simpler check
     const existingInvoice: any = await db.execute(sql`
       SELECT id FROM invoices 
       WHERE org_id = ${orgId}::uuid 
-      AND title = ${`Invoice for: ${completedJob.title}`}
+      AND title = ${invoiceTitle}
       AND customer_id = ${completedJob.customer_id}::uuid
     `);
 
@@ -1157,7 +1192,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       VALUES (
         ${orgId}::uuid, 
         ${completedJob.customer_id}::uuid, 
-        ${`Invoice for: ${completedJob.title}`},
+        ${invoiceTitle},
         ${combinedNotes},
         'draft',
         0,

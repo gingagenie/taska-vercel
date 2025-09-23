@@ -678,7 +678,7 @@ router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
     // Update quote status to converted and link to job
     await db.execute(sql`
       update quotes 
-      set status='converted', job_id=${jobId}::uuid, updated_at=now() 
+      set status='converted', job_id=${jobId}::uuid 
       where id=${id}::uuid and org_id=${orgId}::uuid
     `);
 

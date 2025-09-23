@@ -13,92 +13,91 @@ import {
   Smartphone,
   Settings
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { Link } from "wouter";
 
 interface BlogPost {
   id: string;
+  slug: string;
   title: string;
-  excerpt: string;
-  content: string;
-  author: string;
-  publishedAt: string;
-  readTime: number;
-  category: string;
-  tags: string[];
-  featured?: boolean;
+  excerpt?: string;
+  authorName?: string;
+  category?: string;
+  tags?: string[];
+  coverImageUrl?: string;
+  publishedAt?: string;
+  updatedAt?: string;
 }
 
-// Sample blog posts - in a real implementation, these would come from a CMS or database
-const blogPosts: BlogPost[] = [
-  {
-    id: "1",
-    title: "5 Ways Field Service Management Software Boosts Your Bottom Line",
-    excerpt: "Discover how modern field service management tools can transform your business operations and significantly increase profitability through automation, scheduling optimization, and customer satisfaction improvements.",
-    content: "",
-    author: "Sarah Chen",
-    publishedAt: "2025-09-20",
-    readTime: 5,
-    category: "Business Growth",
-    tags: ["ROI", "Efficiency", "Business Strategy"],
-    featured: true
-  },
-  {
-    id: "2", 
-    title: "The Complete Guide to SMS Customer Notifications",
-    excerpt: "Learn best practices for implementing SMS notifications in your service business. From booking confirmations to job updates, discover how text messaging can improve customer communication.",
-    content: "",
-    author: "Mark Rodriguez", 
-    publishedAt: "2025-09-15",
-    readTime: 7,
-    category: "Customer Experience",
-    tags: ["SMS", "Communication", "Customer Service"]
-  },
-  {
-    id: "3",
-    title: "Mobile-First Field Service: Why Your Team Needs Mobile Access",
-    excerpt: "Explore the benefits of mobile field service management and how giving your technicians mobile access to job information, customer details, and reporting tools drives productivity.",
-    content: "",
-    author: "Jessica Wong",
-    publishedAt: "2025-09-10", 
-    readTime: 4,
-    category: "Technology",
-    tags: ["Mobile", "Productivity", "Field Service"]
-  },
-  {
-    id: "4",
-    title: "Streamlining Your Quote-to-Invoice Process",
-    excerpt: "A step-by-step guide to creating efficient workflows from initial quotes through final invoicing. Reduce administrative overhead and get paid faster with these proven strategies.",
-    content: "",
-    author: "David Park",
-    publishedAt: "2025-09-05",
-    readTime: 6, 
-    category: "Operations",
-    tags: ["Quotes", "Invoicing", "Workflow"]
-  },
-  {
-    id: "5",
-    title: "Equipment Management Best Practices for Service Businesses", 
-    excerpt: "Effective equipment tracking and maintenance scheduling can save thousands in replacement costs. Learn how to implement a systematic approach to equipment management.",
-    content: "",
-    author: "Amanda Foster",
-    publishedAt: "2025-09-01",
-    readTime: 8,
-    category: "Equipment",
-    tags: ["Equipment", "Maintenance", "Cost Savings"]
-  }
-];
+interface BlogResponse {
+  posts: BlogPost[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
 
 const categories = ["All", "Business Growth", "Customer Experience", "Technology", "Operations", "Equipment"];
 
 export default function Blog() {
-  const featuredPost = blogPosts.find(post => post.featured);
-  const otherPosts = blogPosts.filter(post => !post.featured);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Build query parameters
+  const queryParams = useMemo(() => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.append('search', searchQuery);
+    if (selectedCategory !== 'All') params.append('category', selectedCategory);
+    params.append('page', currentPage.toString());
+    params.append('limit', '10');
+    return params.toString();
+  }, [searchQuery, selectedCategory, currentPage]);
+  
+  const { data: blogResponse, isLoading, error } = useQuery<BlogResponse>({
+    queryKey: ['/api/public/blog', searchQuery, selectedCategory, currentPage],
+    queryFn: async () => {
+      const response = await fetch(`/api/public/blog?${queryParams}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch blog posts');
+      }
+      return response.json();
+    },
+  });
+  
+  const posts = blogResponse?.posts || [];
+  const pagination = blogResponse?.pagination;
+  const featuredPost = posts.find(post => post.coverImageUrl); // Use cover image as featured indicator
+  const otherPosts = posts.filter(post => post !== featuredPost);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('en-AU', {
       year: 'numeric',
       month: 'long', 
       day: 'numeric'
     });
+  };
+  
+  const calculateReadTime = (content: string) => {
+    const wordsPerMinute = 200;
+    const words = content.replace(/<[^>]*>/g, '').split(/\s+/).length;
+    return Math.ceil(words / wordsPerMinute);
+  };
+  
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1); // Reset to first page on search
+  };
+  
+  const handleCategoryFilter = (category: string) => {
+    setSelectedCategory(category);
+    setCurrentPage(1); // Reset to first page on filter change
   };
 
   const getCategoryIcon = (category: string) => {
@@ -145,6 +144,8 @@ export default function Blog() {
               <Input
                 placeholder="Search articles..."
                 className="pl-10"
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
                 data-testid="input-blog-search"
               />
             </div>
@@ -152,8 +153,9 @@ export default function Blog() {
               {categories.map((category) => (
                 <Badge
                   key={category}
-                  variant={category === "All" ? "default" : "outline"}
+                  variant={selectedCategory === category ? "default" : "outline"}
                   className="cursor-pointer hover:bg-blue-50"
+                  onClick={() => handleCategoryFilter(category)}
                   data-testid={`filter-${category.toLowerCase().replace(' ', '-')}`}
                 >
                   {category}
@@ -178,40 +180,46 @@ export default function Blog() {
                   {featuredPost.excerpt}
                 </p>
                 <div className="flex items-center gap-4 text-sm text-blue-100 mb-6">
-                  <div className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
-                    {featuredPost.author}
-                  </div>
+                  {featuredPost.authorName && (
+                    <div className="flex items-center gap-1">
+                      <User className="w-4 h-4" />
+                      {featuredPost.authorName}
+                    </div>
+                  )}
                   <div className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
-                    {formatDate(featuredPost.publishedAt)}
+                    {formatDate(featuredPost.publishedAt || '')}
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
-                    {featuredPost.readTime} min read
+                    5 min read
                   </div>
                 </div>
-                <Button 
-                  variant="secondary" 
-                  className="group"
-                  data-testid="button-read-featured"
-                >
-                  Read Article
-                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Button>
+                <Link href={`/blog/${featuredPost.slug}`}>
+                  <Button 
+                    variant="secondary" 
+                    className="group"
+                    data-testid="button-read-featured"
+                  >
+                    Read Article
+                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
               </div>
               <div className="md:w-1/2 p-8">
                 <div className="flex flex-wrap gap-2 mb-4">
-                  {featuredPost.tags.map((tag) => (
+                  {featuredPost.tags?.map((tag) => (
                     <Badge key={tag} variant="outline" className="text-xs">
                       {tag}
                     </Badge>
                   ))}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-                  {getCategoryIcon(featuredPost.category)}
-                  <span>{featuredPost.category}</span>
-                </div>
+                {featuredPost.category && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                    {getCategoryIcon(featuredPost.category)}
+                    <span>{featuredPost.category}</span>
+                  </div>
+                )}
                 <div className="prose prose-gray max-w-none">
                   <p className="text-gray-600">
                     Field service management has evolved dramatically in recent years. Modern businesses
@@ -235,10 +243,12 @@ export default function Blog() {
           {otherPosts.map((post) => (
             <Card key={post.id} className="group hover:shadow-lg transition-all duration-300" data-testid={`blog-post-${post.id}`}>
               <div className="p-6">
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
-                  {getCategoryIcon(post.category)}
-                  <span>{post.category}</span>
-                </div>
+                {post.category && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                    {getCategoryIcon(post.category)}
+                    <span>{post.category}</span>
+                  </div>
+                )}
                 
                 <h3 className="text-xl font-semibold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
                   {post.title}
@@ -249,7 +259,7 @@ export default function Blog() {
                 </p>
                 
                 <div className="flex flex-wrap gap-1 mb-4">
-                  {post.tags.map((tag) => (
+                  {post.tags?.map((tag) => (
                     <Badge key={tag} variant="outline" className="text-xs">
                       {tag}
                     </Badge>
@@ -258,29 +268,33 @@ export default function Blog() {
                 
                 <div className="flex items-center justify-between text-sm text-gray-500">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {post.author}
-                    </div>
+                    {post.authorName && (
+                      <div className="flex items-center gap-1">
+                        <User className="w-3 h-3" />
+                        {post.authorName}
+                      </div>
+                    )}
                     <div className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      {post.readTime}m
+                      5m
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    {formatDate(post.publishedAt)}
+                    {formatDate(post.publishedAt || '')}
                   </div>
                 </div>
                 
-                <Button 
-                  variant="ghost" 
-                  className="w-full mt-4 group-hover:bg-blue-50 group-hover:text-blue-600"
-                  data-testid={`button-read-post-${post.id}`}
-                >
-                  Read More
-                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Button>
+                <Link href={`/blog/${post.slug}`}>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full mt-4 group-hover:bg-blue-50 group-hover:text-blue-600"
+                    data-testid={`button-read-post-${post.id}`}
+                  >
+                    Read More
+                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
               </div>
             </Card>
           ))}

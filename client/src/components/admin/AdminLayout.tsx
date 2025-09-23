@@ -8,7 +8,8 @@ import {
   AlertTriangle,
   LogOut,
   Menu,
-  X
+  X,
+  FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       href: '/admin/analytics',
       icon: BarChart3,
       current: location.startsWith('/admin/analytics')
+    },
+    {
+      name: 'Blog Posts',
+      href: '/admin/blog',
+      icon: FileText,
+      current: location.startsWith('/admin/blog')
     },
     {
       name: 'System Settings',

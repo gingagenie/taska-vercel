@@ -609,6 +609,33 @@ export const supportAuditLogs = pgTable("support_audit_logs", {
   targetIdx: index("support_audit_logs_target_idx").on(t.target),
 }));
 
+// Blog posts for marketing content management
+export const blogPosts = pgTable("blog_posts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: varchar("slug", { length: 150 }).notNull().unique(),
+  title: varchar("title", { length: 200 }).notNull(),
+  excerpt: text("excerpt"),
+  content: text("content").notNull(),
+  authorId: uuid("author_id").references(() => users.id),
+  authorName: varchar("author_name", { length: 120 }), // Denormalized for marketing flexibility
+  category: varchar("category", { length: 60 }),
+  tags: text("tags").array().default([]),
+  status: varchar("status", { length: 20 }).notNull().default("draft"), // 'draft', 'published', 'archived'
+  coverImageUrl: varchar("cover_image_url", { length: 500 }),
+  metaTitle: varchar("meta_title", { length: 255 }),
+  metaDescription: varchar("meta_description", { length: 300 }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  // Unique slug constraint for SEO-friendly URLs
+  slugUnique: uniqueIndex("blog_posts_slug_unique").on(t.slug),
+  // Index for published posts ordering
+  statusPublishedIdx: index("blog_posts_status_published_idx").on(t.status, t.publishedAt),
+  // Check constraint for status validation
+  statusValidation: sql`CONSTRAINT blog_posts_status_valid CHECK (status IN ('draft', 'published', 'archived'))`,
+}));
+
 // Create insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -637,6 +664,10 @@ export const insertNotificationHistorySchema = createInsertSchema(notificationHi
 export const insertSupportUserSchema = createInsertSchema(supportUsers).omit({ id: true, createdAt: true });
 export const insertSupportInviteSchema = createInsertSchema(supportInvites).omit({ id: true, createdAt: true });
 export const insertSupportAuditLogSchema = createInsertSchema(supportAuditLogs).omit({ id: true, createdAt: true });
+export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  // Add validation for slug generation - allow empty slug to be auto-generated
+  slug: z.string().min(1).max(150).optional(),
+});
 
 // Create types
 export type Customer = typeof customers.$inferSelect;
@@ -738,3 +769,6 @@ export const supportSessions = pgTable("support_session", {
 
 export type SupportAuditLog = typeof supportAuditLogs.$inferSelect;
 export type InsertSupportAuditLog = z.infer<typeof insertSupportAuditLogSchema>;
+
+export type BlogPost = typeof blogPosts.$inferSelect;
+export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;

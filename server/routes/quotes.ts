@@ -604,4 +604,76 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
   }
 });
 
+/** Convert quote to job */
+router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+
+  try {
+    // Get quote with customer details and items
+    const r: any = await db.execute(sql`
+      select q.*, c.name as customer_name, c.email as customer_email
+      from quotes q join customers c on c.id=q.customer_id
+      where q.id=${id}::uuid and q.org_id=${orgId}::uuid
+    `);
+    const quote = r[0];
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    // Get quote lines
+    const lines: any = await db.execute(sql`
+      select * from quote_lines where quote_id=${id}::uuid order by position asc, created_at asc
+    `);
+
+    // Check if already converted
+    if (quote.status === 'converted') {
+      return res.status(400).json({ error: "Quote already converted to job" });
+    }
+
+    // Create job from quote
+    const jr: any = await db.execute(sql`
+      insert into jobs (org_id, title, customer_id, description, status, equipment_id)
+      values (
+        ${orgId}::uuid, 
+        ${quote.title}, 
+        ${quote.customer_id}::uuid, 
+        ${quote.notes || ''}, 
+        'draft',
+        null
+      )
+      returning id
+    `);
+    
+    const jobId = jr[0].id;
+
+    // Copy quote lines to job items if any exist
+    for (const line of lines) {
+      await db.execute(sql`
+        insert into job_items (org_id, job_id, description, quantity, unit_price, position)
+        values (
+          ${orgId}::uuid,
+          ${jobId}::uuid,
+          ${line.description},
+          ${line.quantity},
+          ${line.unit_amount},
+          ${line.position}
+        )
+      `);
+    }
+
+    // Update quote status to converted and link to job
+    await db.execute(sql`
+      update quotes 
+      set status='converted', job_id=${jobId}::uuid, updated_at=now() 
+      where id=${id}::uuid and org_id=${orgId}::uuid
+    `);
+
+    res.json({ ok: true, jobId });
+
+  } catch (error: any) {
+    console.error("Quote conversion error:", error);
+    res.status(500).json({ error: error?.message || "Failed to convert quote to job" });
+  }
+});
+
 export default router;

@@ -39,6 +39,7 @@ import SettingsPage from "@/pages/settings";
 import MembersPage from "@/pages/members";
 import Landing from "@/pages/landing";
 import Blog from "@/pages/blog";
+import BlogPost from "@/pages/blog-post";
 import Register from "@/pages/auth-register";
 import Login from "@/pages/auth-login";
 import TrialExpired from "@/pages/trial-expired";
@@ -395,6 +396,7 @@ function CustomerAppContent() {
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/blog" component={Blog} />
+        <Route path="/blog/:slug" component={BlogPost} />
         <Route path="/auth/register" component={Register} />
         <Route path="/auth/login" component={Login} />
         <Route path="/privacy" component={PrivacyPolicy} />

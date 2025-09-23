@@ -141,8 +141,9 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
   const response = {
     ...inv,
     items,
-    subtotal: inv.sub_total,
-    total: inv.grand_total
+    subTotal: inv.sub_total,
+    taxTotal: inv.tax_total,
+    grandTotal: inv.grand_total
   };
   
   res.json(response);

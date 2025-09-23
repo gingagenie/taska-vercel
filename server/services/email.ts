@@ -63,7 +63,12 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
   }
 }
 
-export function generateInvoiceEmailTemplate(invoice: any, orgName: string = "Taska"): { subject: string; html: string; text: string } {
+export function generateInvoiceEmailTemplate(
+  invoice: any, 
+  organization: any = {},
+  customer: any = {}
+): { subject: string; html: string; text: string } {
+  const orgName = organization.name || "Your Business";
   const subject = `Invoice ${invoice.title} from ${orgName}`;
   
   const itemsHtml = invoice.items?.map((item: any) => `
@@ -75,6 +80,22 @@ export function generateInvoiceEmailTemplate(invoice: any, orgName: string = "Ta
     </tr>
   `).join('') || '<tr><td colspan="4" style="padding: 16px; text-align: center; color: #666;">No items</td></tr>';
 
+  // Format addresses
+  const formatAddress = (addr: any) => {
+    if (!addr) return '';
+    const parts = [addr.street, addr.suburb, addr.state, addr.postcode].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : (addr.address || '');
+  };
+
+  const businessAddress = formatAddress(organization);
+  const customerAddress = formatAddress(customer);
+
+  // Display status properly
+  const displayStatus = invoice.status === 'draft' ? 'Pending Payment' : 
+                       invoice.status === 'paid' ? 'Paid' :
+                       invoice.status === 'sent' ? 'Sent' :
+                       invoice.status?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Pending Payment';
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -83,31 +104,49 @@ export function generateInvoiceEmailTemplate(invoice: any, orgName: string = "Ta
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>${subject}</title>
     </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-        <h1 style="color: #2563eb; margin: 0;">${orgName}</h1>
-        <h2 style="margin: 8px 0 0 0; color: #666;">Invoice: ${invoice.title}</h2>
-      </div>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
       
-      <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px;">
-        <h3 style="margin-top: 0; color: #333;">Invoice Details</h3>
-        <p><strong>Invoice Number:</strong> ${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'}</p>
-        <p><strong>Date:</strong> ${invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : new Date().toLocaleDateString()}</p>
-        ${invoice.due_at ? `<p><strong>Due Date:</strong> ${new Date(invoice.due_at).toLocaleDateString()}</p>` : ''}
-        <p><strong>Customer:</strong> ${invoice.customer_name}</p>
-        <p><strong>Status:</strong> <span style="text-transform: capitalize;">${invoice.status}</span></p>
-        ${invoice.notes ? `<p><strong>Notes:</strong> ${invoice.notes}</p>` : ''}
+      <!-- Header with Business Details -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2563eb;">
+        <div>
+          <h1 style="color: #2563eb; margin: 0; font-size: 28px;">${orgName}</h1>
+          ${organization.abn ? `<p style="margin: 4px 0; color: #666;"><strong>ABN:</strong> ${organization.abn}</p>` : ''}
+          ${businessAddress ? `<p style="margin: 4px 0; color: #666;">${businessAddress}</p>` : ''}
+        </div>
+        <div style="text-align: right;">
+          <h2 style="margin: 0; color: #333; font-size: 24px;">INVOICE</h2>
+          <p style="margin: 4px 0; color: #666;">Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'}</p>
+        </div>
       </div>
 
-      <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px;">
-        <h3 style="margin-top: 0; color: #333;">Line Items</h3>
-        <table style="width: 100%; border-collapse: collapse;">
+      <!-- Bill To & Invoice Details -->
+      <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+        <div style="width: 48%;">
+          <h3 style="margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Bill To</h3>
+          <p style="margin: 4px 0; font-weight: bold;">${customer.name || invoice.customer_name}</p>
+          ${customer.contact_name ? `<p style="margin: 4px 0;">${customer.contact_name}</p>` : ''}
+          ${customer.email ? `<p style="margin: 4px 0;">${customer.email}</p>` : ''}
+          ${customer.phone ? `<p style="margin: 4px 0;">${customer.phone}</p>` : ''}
+          ${customerAddress ? `<p style="margin: 4px 0;">${customerAddress}</p>` : ''}
+        </div>
+        <div style="width: 48%; text-align: right;">
+          <h3 style="margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Invoice Details</h3>
+          <p style="margin: 4px 0;"><strong>Date:</strong> ${invoice.created_at ? new Date(invoice.created_at).toLocaleDateString('en-AU') : new Date().toLocaleDateString('en-AU')}</p>
+          ${invoice.due_at ? `<p style="margin: 4px 0;"><strong>Due Date:</strong> ${new Date(invoice.due_at).toLocaleDateString('en-AU')}</p>` : ''}
+          <p style="margin: 4px 0;"><strong>Status:</strong> <span style="color: ${invoice.status === 'paid' ? '#16a34a' : '#ea580c'}; font-weight: bold;">${displayStatus}</span></p>
+          ${invoice.title ? `<p style="margin: 4px 0;"><strong>Job:</strong> ${invoice.title}</p>` : ''}
+        </div>
+      </div>
+
+      <!-- Line Items -->
+      <div style="margin-bottom: 30px;">
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
           <thead>
             <tr style="background: #f8f9fa;">
-              <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #ddd;">Description</th>
-              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #ddd;">Qty</th>
-              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #ddd;">Unit</th>
-              <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #ddd;">Total</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: bold;">Description</th>
+              <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd; font-weight: bold;">Qty</th>
+              <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd; font-weight: bold;">Unit Price</th>
+              <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd; font-weight: bold;">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -116,40 +155,103 @@ export function generateInvoiceEmailTemplate(invoice: any, orgName: string = "Ta
         </table>
       </div>
 
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: right;">
-        <div style="font-size: 18px; font-weight: bold; color: #2563eb;">
-          Total: $${Number(invoice.grand_total || invoice.total || 0).toFixed(2)}
+      <!-- Total -->
+      <div style="text-align: right; margin-bottom: 30px;">
+        <div style="display: inline-block; background: #f8f9fa; padding: 15px 20px; border-radius: 8px; border: 1px solid #ddd;">
+          <div style="font-size: 20px; font-weight: bold; color: #2563eb;">
+            Total Amount: $${Number(invoice.grand_total || invoice.total || 0).toFixed(2)} AUD
+          </div>
         </div>
       </div>
 
-      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
+      <!-- Payment Details -->
+      ${organization.account_name || organization.bsb || organization.account_number ? `
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd;">
+        <h3 style="margin: 0 0 15px 0; color: #333;">Payment Details</h3>
+        ${organization.account_name ? `<p style="margin: 4px 0;"><strong>Account Name:</strong> ${organization.account_name}</p>` : ''}
+        ${organization.bsb ? `<p style="margin: 4px 0;"><strong>BSB:</strong> ${organization.bsb}</p>` : ''}
+        ${organization.account_number ? `<p style="margin: 4px 0;"><strong>Account Number:</strong> ${organization.account_number}</p>` : ''}
+        <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">Please use Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'} as payment reference</p>
+      </div>
+      ` : ''}
+
+      <!-- Terms & Notes -->
+      ${invoice.notes || organization.invoice_terms ? `
+      <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px;">
+        ${invoice.notes ? `
+        <h3 style="margin: 0 0 10px 0; color: #333;">Notes</h3>
+        <p style="margin: 0 0 15px 0;">${invoice.notes}</p>
+        ` : ''}
+        ${organization.invoice_terms ? `
+        <h3 style="margin: 0 0 10px 0; color: #333;">Terms & Conditions</h3>
+        <p style="margin: 0; font-size: 14px; color: #666;">${organization.invoice_terms}</p>
+        ` : ''}
+      </div>
+      ` : ''}
+
+      <!-- Footer -->
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px; text-align: center;">
         <p>Thank you for your business!</p>
-        <p>This invoice was sent from ${orgName} via Taska.</p>
+        <p>This invoice was sent from ${orgName} via Taska field service management system.</p>
+        ${organization.abn ? `<p>ABN: ${organization.abn}</p>` : ''}
       </div>
     </body>
     </html>
   `;
 
   const text = `
-Invoice: ${invoice.title}
+INVOICE
+=======
+
 From: ${orgName}
+${organization.abn ? `ABN: ${organization.abn}` : ''}
+${businessAddress ? `Address: ${businessAddress}` : ''}
 
-Invoice Number: ${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'}
-Date: ${invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : new Date().toLocaleDateString()}
-${invoice.due_at ? `Due Date: ${new Date(invoice.due_at).toLocaleDateString()}` : ''}
-Customer: ${invoice.customer_name}
-Status: ${invoice.status}
-${invoice.notes ? `Notes: ${invoice.notes}` : ''}
+Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'}
+Date: ${invoice.created_at ? new Date(invoice.created_at).toLocaleDateString('en-AU') : new Date().toLocaleDateString('en-AU')}
+${invoice.due_at ? `Due Date: ${new Date(invoice.due_at).toLocaleDateString('en-AU')}` : ''}
+Status: ${displayStatus}
 
-Line Items:
+BILL TO:
+--------
+${customer.name || invoice.customer_name}
+${customer.contact_name ? customer.contact_name : ''}
+${customer.email ? customer.email : ''}
+${customer.phone ? customer.phone : ''}
+${customerAddress ? customerAddress : ''}
+
+LINE ITEMS:
+-----------
 ${invoice.items?.map((item: any) => 
   `${item.description} - Qty: ${Number(item.quantity).toFixed(2)} - Unit: $${Number(item.unit_price).toFixed(2)} - Total: $${(Number(item.quantity) * Number(item.unit_price)).toFixed(2)}`
 ).join('\n') || 'No items'}
 
-Total: $${Number(invoice.grand_total || invoice.total || 0).toFixed(2)}
+TOTAL: $${Number(invoice.grand_total || invoice.total || 0).toFixed(2)} AUD
+
+${organization.account_name || organization.bsb || organization.account_number ? `
+PAYMENT DETAILS:
+----------------
+${organization.account_name ? `Account Name: ${organization.account_name}` : ''}
+${organization.bsb ? `BSB: ${organization.bsb}` : ''}
+${organization.account_number ? `Account Number: ${organization.account_number}` : ''}
+Please use Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'} as payment reference
+` : ''}
+
+${invoice.notes ? `
+NOTES:
+------
+${invoice.notes}
+` : ''}
+
+${organization.invoice_terms ? `
+TERMS & CONDITIONS:
+------------------
+${organization.invoice_terms}
+` : ''}
 
 Thank you for your business!
-This invoice was sent from ${orgName} via Taska.
+This invoice was sent from ${orgName} via Taska field service management system.
+${organization.abn ? `ABN: ${organization.abn}` : ''}
   `;
 
   return { subject, html, text };

@@ -390,6 +390,21 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     const invoice = invoiceResult[0];
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
+    // Get complete organization details for email template
+    const orgResult: any = await db.execute(sql`
+      select name, abn, street, suburb, state, postcode, 
+             account_name, bsb, account_number, invoice_terms
+      from orgs where id=${orgId}::uuid
+    `);
+    const organization = orgResult[0] || {};
+
+    // Get complete customer details for email template  
+    const customerResult: any = await db.execute(sql`
+      select name, contact_name, email, phone, street, suburb, state, postcode, address
+      from customers where id=${invoice.customer_id}::uuid and org_id=${orgId}::uuid
+    `);
+    const customer = customerResult[0] || {};
+
     // Get invoice items
     const items: any = await db.execute(sql`
       select * from invoice_lines where invoice_id=${id}::uuid order by created_at nulls last, id
@@ -405,14 +420,8 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       }))
     };
 
-    // Get organization name for branding
-    const orgResult: any = await db.execute(sql`
-      select name from orgs where id=${orgId}::uuid
-    `);
-    const orgName = orgResult[0]?.name || "Your Business";
-
-    // Generate email content
-    const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, orgName);
+    // Generate email content with complete business and customer information
+    const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, organization, customer);
 
     // PHASE 1: Check email quota and reserve pack unit if needed
     const quotaCheck = await checkEmailQuota(orgId);

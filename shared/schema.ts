@@ -220,6 +220,7 @@ export const quotes = pgTable("quotes", {
   taxTotal: decimal("tax_total", { precision: 10, scale: 2 }).default("0"),
   grandTotal: decimal("grand_total", { precision: 10, scale: 2 }).default("0"),
   status: varchar("status", { length: 50 }).default("draft"),
+  confirmationToken: varchar("confirmation_token", { length: 255 }), // For email accept/decline links
   xeroId: varchar("xero_id", { length: 255 }), // Xero Quote ID
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

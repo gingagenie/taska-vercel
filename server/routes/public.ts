@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db/client";
-import { jobs, blogPosts } from "../../shared/schema";
+import { jobs, blogPosts, quotes } from "../../shared/schema";
 import { eq, desc, and, ilike, isNotNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
@@ -181,5 +181,149 @@ publicRouter.get("/blog/:slug", async (req, res) => {
   } catch (error) {
     console.error("[PUBLIC] Blog post error:", error);
     res.status(500).json({ error: "Failed to fetch blog post" });
+  }
+});
+
+// Quote acceptance endpoint - no auth required
+publicRouter.get("/quotes/accept", async (req, res) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ error: "Confirmation token required" });
+    }
+    
+    console.log(`[PUBLIC] Accepting quote with token: ${token}`);
+    
+    // Set service context to bypass RLS
+    await db.execute(sql`select set_config('app.service', 'true', true)`);
+    
+    // Find and update the quote
+    const result = await db
+      .update(quotes)
+      .set({ 
+        status: "accepted"
+      })
+      .where(eq(quotes.confirmationToken, token))
+      .returning({ 
+        id: quotes.id, 
+        title: quotes.title, 
+        grandTotal: quotes.grandTotal,
+        customerId: quotes.customerId 
+      });
+    
+    if (result.length === 0) {
+      console.log(`[PUBLIC] No quote found with token: ${token}`);
+      return res.status(404).json({ error: "Invalid or expired confirmation token" });
+    }
+    
+    const quote = result[0];
+    console.log(`[PUBLIC] Quote accepted: ${quote.id} - ${quote.title}`);
+    
+    // Return simple success page
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Quote Accepted</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+          .container { background: white; border-radius: 10px; padding: 40px; max-width: 400px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .success { color: #22c55e; font-size: 48px; margin-bottom: 20px; }
+          h1 { color: #333; margin-bottom: 10px; }
+          p { color: #666; margin: 10px 0; }
+          .quote-title { font-weight: bold; color: #333; }
+          .quote-total { font-size: 18px; font-weight: bold; color: #2563eb; margin: 15px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="success">✅</div>
+          <h1>Quote Accepted!</h1>
+          <p class="quote-title">"${quote.title}"</p>
+          <p class="quote-total">Total: $${Number(quote.grandTotal || 0).toFixed(2)}</p>
+          <p>Thank you for accepting our quote.</p>
+          <p>We will be in touch shortly to schedule the work.</p>
+          <p style="margin-top: 30px; font-size: 14px; color: #888;">You can close this window.</p>
+        </div>
+      </body>
+      </html>
+    `);
+    
+  } catch (error) {
+    console.error("[PUBLIC] Quote acceptance error:", error);
+    res.status(500).json({ error: "Failed to accept quote" });
+  }
+});
+
+// Quote decline endpoint - no auth required
+publicRouter.get("/quotes/decline", async (req, res) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ error: "Confirmation token required" });
+    }
+    
+    console.log(`[PUBLIC] Declining quote with token: ${token}`);
+    
+    // Set service context to bypass RLS
+    await db.execute(sql`select set_config('app.service', 'true', true)`);
+    
+    // Find and update the quote
+    const result = await db
+      .update(quotes)
+      .set({ 
+        status: "rejected"
+      })
+      .where(eq(quotes.confirmationToken, token))
+      .returning({ 
+        id: quotes.id, 
+        title: quotes.title,
+        customerId: quotes.customerId 
+      });
+    
+    if (result.length === 0) {
+      console.log(`[PUBLIC] No quote found with token: ${token}`);
+      return res.status(404).json({ error: "Invalid or expired confirmation token" });
+    }
+    
+    const quote = result[0];
+    console.log(`[PUBLIC] Quote declined: ${quote.id} - ${quote.title}`);
+    
+    // Return simple decline page
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Quote Declined</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+          .container { background: white; border-radius: 10px; padding: 40px; max-width: 400px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .declined { color: #ef4444; font-size: 48px; margin-bottom: 20px; }
+          h1 { color: #333; margin-bottom: 10px; }
+          p { color: #666; margin: 10px 0; }
+          .quote-title { font-weight: bold; color: #333; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="declined">❌</div>
+          <h1>Quote Declined</h1>
+          <p class="quote-title">"${quote.title}"</p>
+          <p>Thank you for your response.</p>
+          <p>We understand this quote wasn't suitable at this time.</p>
+          <p>Please feel free to contact us if you have any questions or would like to discuss alternatives.</p>
+          <p style="margin-top: 30px; font-size: 14px; color: #888;">You can close this window.</p>
+        </div>
+      </body>
+      </html>
+    `);
+    
+  } catch (error) {
+    console.error("[PUBLIC] Quote decline error:", error);
+    res.status(500).json({ error: "Failed to decline quote" });
   }
 });

@@ -1396,6 +1396,56 @@ jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
   res.json({ ok: true });
 });
 
+/* DELETE COMPLETED JOB */
+jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  console.log("[TRACE] DELETE /api/jobs/completed/%s org=%s", jobId, orgId);
+  
+  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
+
+  try {
+    // Get photos to delete files from filesystem
+    const photosResult: any = await db.execute(sql`
+      SELECT url FROM completed_job_photos 
+      WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+    
+    // Delete photo files from filesystem
+    if (photosResult && photosResult.length > 0) {
+      for (const photo of photosResult) {
+        try {
+          const filePath = path.join(".", photo.url);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        } catch (e) {
+          console.warn("Failed to delete photo file:", photo.url, e);
+        }
+      }
+    }
+
+    // Delete all related completed job records
+    await db.execute(sql`DELETE FROM completed_job_charges WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM completed_job_hours WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM completed_job_parts WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM completed_job_notes WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM completed_job_photos WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM completed_job_equipment WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    
+    // Delete the completed job itself
+    await db.execute(sql`
+      DELETE FROM completed_jobs
+      WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error("DELETE /api/jobs/completed/%s error:", jobId, e);
+    res.status(500).json({ error: e?.message || "Failed to delete completed job" });
+  }
+});
+
 
 
 export default jobs;

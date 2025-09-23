@@ -91,6 +91,9 @@ export function generateInvoiceEmailTemplate(invoice: any, orgName: string = "Ta
       
       <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px;">
         <h3 style="margin-top: 0; color: #333;">Invoice Details</h3>
+        <p><strong>Invoice Number:</strong> ${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'}</p>
+        <p><strong>Date:</strong> ${invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : new Date().toLocaleDateString()}</p>
+        ${invoice.due_at ? `<p><strong>Due Date:</strong> ${new Date(invoice.due_at).toLocaleDateString()}</p>` : ''}
         <p><strong>Customer:</strong> ${invoice.customer_name}</p>
         <p><strong>Status:</strong> <span style="text-transform: capitalize;">${invoice.status}</span></p>
         ${invoice.notes ? `<p><strong>Notes:</strong> ${invoice.notes}</p>` : ''}
@@ -131,6 +134,9 @@ export function generateInvoiceEmailTemplate(invoice: any, orgName: string = "Ta
 Invoice: ${invoice.title}
 From: ${orgName}
 
+Invoice Number: ${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'}
+Date: ${invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : new Date().toLocaleDateString()}
+${invoice.due_at ? `Due Date: ${new Date(invoice.due_at).toLocaleDateString()}` : ''}
 Customer: ${invoice.customer_name}
 Status: ${invoice.status}
 ${invoice.notes ? `Notes: ${invoice.notes}` : ''}

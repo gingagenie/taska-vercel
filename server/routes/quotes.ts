@@ -448,9 +448,9 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       confirmation_token: confirmationToken
     };
 
-    // Get base URL for email links
+    // Get base URL for email links  
     const baseUrl = process.env.NODE_ENV === 'production' 
-      ? (process.env.REPLIT_DOMAINS || '').split(',')[0] || 'https://your-domain.com'
+      ? 'https://taska.info'  // Production domain
       : process.env.REPLIT_DEV_DOMAIN 
         ? `https://${process.env.REPLIT_DEV_DOMAIN}`
         : 'http://localhost:5000';

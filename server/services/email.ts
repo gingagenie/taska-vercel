@@ -155,7 +155,7 @@ This invoice was sent from ${orgName} via Taska.
   return { subject, html, text };
 }
 
-export function generateQuoteEmailTemplate(quote: any, orgName: string = "Taska"): { subject: string; html: string; text: string } {
+export function generateQuoteEmailTemplate(quote: any, orgName: string = "Taska", baseUrl: string = "http://localhost:5000"): { subject: string; html: string; text: string } {
   const subject = `Quote ${quote.title} from ${orgName}`;
   
   const itemsHtml = quote.items?.map((item: any) => `
@@ -211,6 +211,29 @@ export function generateQuoteEmailTemplate(quote: any, orgName: string = "Taska"
         </div>
       </div>
 
+      ${quote.confirmation_token ? `
+      <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center;">
+        <h3 style="margin-top: 0; color: #333;">Please respond to this quote</h3>
+        <p style="color: #666; margin-bottom: 25px;">Click one of the buttons below to accept or decline this quote.</p>
+        <table style="margin: 0 auto; border-spacing: 20px 0;">
+          <tr>
+            <td>
+              <a href="${baseUrl}/api/public/quotes/accept?token=${quote.confirmation_token}" 
+                 style="display: inline-block; padding: 12px 30px; background: #22c55e; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                ✅ Accept Quote
+              </a>
+            </td>
+            <td>
+              <a href="${baseUrl}/api/public/quotes/decline?token=${quote.confirmation_token}" 
+                 style="display: inline-block; padding: 12px 30px; background: #ef4444; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                ❌ Decline Quote
+              </a>
+            </td>
+          </tr>
+        </table>
+      </div>
+      ` : ''}
+
       <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
         <p>We look forward to working with you!</p>
         <p>This quote was sent from ${orgName} via Taska.</p>
@@ -234,7 +257,13 @@ ${quote.items?.map((item: any) =>
 
 Total: $${Number(quote.grand_total || quote.total || 0).toFixed(2)}
 
-We look forward to working with you!
+${quote.confirmation_token ? `
+Please respond to this quote by clicking one of the links below:
+
+Accept Quote: ${baseUrl}/api/public/quotes/accept?token=${quote.confirmation_token}
+Decline Quote: ${baseUrl}/api/public/quotes/decline?token=${quote.confirmation_token}
+
+` : ''}We look forward to working with you!
 This quote was sent from ${orgName} via Taska.
   `;
 

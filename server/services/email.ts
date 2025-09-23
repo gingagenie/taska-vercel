@@ -164,17 +164,6 @@ export function generateInvoiceEmailTemplate(
         </div>
       </div>
 
-      <!-- Payment Details -->
-      ${organization.account_name || organization.bsb || organization.account_number ? `
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd;">
-        <h3 style="margin: 0 0 15px 0; color: #333;">Payment Details</h3>
-        ${organization.account_name ? `<p style="margin: 4px 0;"><strong>Account Name:</strong> ${organization.account_name}</p>` : ''}
-        ${organization.bsb ? `<p style="margin: 4px 0;"><strong>BSB:</strong> ${organization.bsb}</p>` : ''}
-        ${organization.account_number ? `<p style="margin: 4px 0;"><strong>Account Number:</strong> ${organization.account_number}</p>` : ''}
-        <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">Please use Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'} as payment reference</p>
-      </div>
-      ` : ''}
-
       <!-- Terms & Notes -->
       ${invoice.notes || organization.invoice_terms ? `
       <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px;">
@@ -186,6 +175,17 @@ export function generateInvoiceEmailTemplate(
         <h3 style="margin: 0 0 10px 0; color: #333;">Terms & Conditions</h3>
         <p style="margin: 0; font-size: 14px; color: #666;">${organization.invoice_terms}</p>
         ` : ''}
+      </div>
+      ` : ''}
+
+      <!-- Payment Details -->
+      ${organization.account_name || organization.bsb || organization.account_number ? `
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd;">
+        <h3 style="margin: 0 0 15px 0; color: #333;">Payment Details</h3>
+        ${organization.account_name ? `<p style="margin: 4px 0;"><strong>Account Name:</strong> ${organization.account_name}</p>` : ''}
+        ${organization.bsb ? `<p style="margin: 4px 0;"><strong>BSB:</strong> ${organization.bsb}</p>` : ''}
+        ${organization.account_number ? `<p style="margin: 4px 0;"><strong>Account Number:</strong> ${organization.account_number}</p>` : ''}
+        <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">Please use Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'} as payment reference</p>
       </div>
       ` : ''}
 

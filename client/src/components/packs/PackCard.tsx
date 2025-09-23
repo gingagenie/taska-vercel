@@ -9,7 +9,7 @@ export interface PackOption {
   productId: string;
   type: 'sms' | 'email';
   quantity: number;
-  priceUsd: number;
+  priceAud: number;
   displayPrice: string;
   description: string;
 }
@@ -23,8 +23,8 @@ interface PackCardProps {
 }
 
 // Calculate per-unit pricing
-const getPerUnitPrice = (priceUsd: number, quantity: number) => {
-  const pricePerUnit = (priceUsd / 100) / quantity;
+const getPerUnitPrice = (priceAud: number, quantity: number) => {
+  const pricePerUnit = (priceAud / 100) / quantity;
   return pricePerUnit.toFixed(3);
 };
 
@@ -37,8 +37,8 @@ const getSavings = (pack: PackOption, allPacks: PackOption[]) => {
   
   if (pack.productId === smallestPack.productId) return null;
   
-  const smallestPerUnit = parseFloat(getPerUnitPrice(smallestPack.priceUsd, smallestPack.quantity));
-  const currentPerUnit = parseFloat(getPerUnitPrice(pack.priceUsd, pack.quantity));
+  const smallestPerUnit = parseFloat(getPerUnitPrice(smallestPack.priceAud, smallestPack.quantity));
+  const currentPerUnit = parseFloat(getPerUnitPrice(pack.priceAud, pack.quantity));
   const savingsPercent = Math.round(((smallestPerUnit - currentPerUnit) / smallestPerUnit) * 100);
   
   return savingsPercent > 0 ? savingsPercent : null;
@@ -53,16 +53,16 @@ export function PackCard({
 }: PackCardProps) {
   const Icon = pack.type === 'sms' ? MessageCircle : Mail;
   const typeLabel = pack.type.toUpperCase();
-  const perUnitPrice = getPerUnitPrice(pack.priceUsd, pack.quantity);
+  const perUnitPrice = getPerUnitPrice(pack.priceAud, pack.quantity);
   
   // All packs for savings calculation with real Stripe product IDs
   const allPacks: PackOption[] = [
-    { productId: 'prod_T3LRPF1hSGF3ya', type: 'sms', quantity: 100, priceUsd: 500, displayPrice: '$5.00', description: '100 SMS pack' },
-    { productId: 'prod_T3LRvcI7quZRJt', type: 'sms', quantity: 500, priceUsd: 2000, displayPrice: '$20.00', description: '500 SMS pack' },
-    { productId: 'prod_T3LT77WnDcdc96', type: 'sms', quantity: 1000, priceUsd: 3500, displayPrice: '$35.00', description: '1000 SMS pack' },
-    { productId: 'prod_T3LUS1xJ6MCi7k', type: 'email', quantity: 200, priceUsd: 300, displayPrice: '$3.00', description: '200 Email pack' },
-    { productId: 'prod_T3LWiTXVFDcW1x', type: 'email', quantity: 500, priceUsd: 700, displayPrice: '$7.00', description: '500 Email pack' },
-    { productId: 'prod_T3LaJFFqiZ4CNp', type: 'email', quantity: 1000, priceUsd: 1200, displayPrice: '$12.00', description: '1000 Email pack' },
+    { productId: 'prod_T3LRPF1hSGF3ya', type: 'sms', quantity: 100, priceAud: 500, displayPrice: '$5.00', description: '100 SMS pack' },
+    { productId: 'prod_T3LRvcI7quZRJt', type: 'sms', quantity: 500, priceAud: 2000, displayPrice: '$20.00', description: '500 SMS pack' },
+    { productId: 'prod_T3LT77WnDcdc96', type: 'sms', quantity: 1000, priceAud: 3500, displayPrice: '$35.00', description: '1000 SMS pack' },
+    { productId: 'prod_T3LUS1xJ6MCi7k', type: 'email', quantity: 200, priceAud: 300, displayPrice: '$3.00', description: '200 Email pack' },
+    { productId: 'prod_T3LWiTXVFDcW1x', type: 'email', quantity: 500, priceAud: 700, displayPrice: '$7.00', description: '500 Email pack' },
+    { productId: 'prod_T3LaJFFqiZ4CNp', type: 'email', quantity: 1000, priceAud: 1200, displayPrice: '$12.00', description: '1000 Email pack' },
   ];
   
   const savings = getSavings(pack, allPacks);

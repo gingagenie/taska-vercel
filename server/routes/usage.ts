@@ -262,12 +262,12 @@ router.get('/quotas', requireAuth, requireOrg, async (req, res) => {
 
 // Pack pricing configuration
 export const PACK_PRODUCTS = {
-  prod_T3LRPF1hSGF3ya: { type: 'sms' as const, quantity: 100, priceUsd: 500 }, // $5.00 in cents
-  prod_T3LRvcI7quZRJt: { type: 'sms' as const, quantity: 500, priceUsd: 2000 }, // $20.00 in cents
-  prod_T3LT77WnDcdc96: { type: 'sms' as const, quantity: 1000, priceUsd: 3500 }, // $35.00 in cents
-  prod_T3LUS1xJ6MCi7k: { type: 'email' as const, quantity: 200, priceUsd: 300 }, // $3.00 in cents
-  prod_T3LWiTXVFDcW1x: { type: 'email' as const, quantity: 500, priceUsd: 700 }, // $7.00 in cents
-  prod_T3LaJFFqiZ4CNp: { type: 'email' as const, quantity: 1000, priceUsd: 1200 }, // $12.00 in cents
+  prod_T3LRPF1hSGF3ya: { type: 'sms' as const, quantity: 100, priceAud: 500 }, // $5.00 in cents
+  prod_T3LRvcI7quZRJt: { type: 'sms' as const, quantity: 500, priceAud: 2000 }, // $20.00 in cents
+  prod_T3LT77WnDcdc96: { type: 'sms' as const, quantity: 1000, priceAud: 3500 }, // $35.00 in cents
+  prod_T3LUS1xJ6MCi7k: { type: 'email' as const, quantity: 200, priceAud: 300 }, // $3.00 in cents
+  prod_T3LWiTXVFDcW1x: { type: 'email' as const, quantity: 500, priceAud: 700 }, // $7.00 in cents
+  prod_T3LaJFFqiZ4CNp: { type: 'email' as const, quantity: 1000, priceAud: 1200 }, // $12.00 in cents
 } as const
 
 // Validation schemas
@@ -326,8 +326,8 @@ router.get('/packs/available', requireAuth, requireOrg, async (req, res) => {
       productId,
       type: pack.type,
       quantity: pack.quantity,
-      priceUsd: pack.priceUsd,
-      displayPrice: `$${(pack.priceUsd / 100).toFixed(2)}`,
+      priceAud: pack.priceAud,
+      displayPrice: `$${(pack.priceAud / 100).toFixed(2)}`,
       description: `${pack.quantity} ${pack.type.toUpperCase()} pack`,
     }))
 
@@ -392,12 +392,12 @@ router.post('/packs/checkout', requireAuth, requireOrg, async (req, res) => {
       line_items: [
         {
           price_data: {
-            currency: 'usd',
+            currency: 'aud',
             product_data: {
               name: `${packProduct.quantity} ${packProduct.type.toUpperCase()} Pack`,
               description: `Add ${packProduct.quantity} ${packProduct.type} messages to your account`,
             },
-            unit_amount: packProduct.priceUsd,
+            unit_amount: packProduct.priceAud,
           },
           quantity: 1,
         },

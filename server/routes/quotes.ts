@@ -451,7 +451,9 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     // Get base URL for email links
     const baseUrl = process.env.NODE_ENV === 'production' 
       ? (process.env.REPLIT_DOMAINS || '').split(',')[0] || 'https://your-domain.com'
-      : 'http://localhost:5000';
+      : process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : 'http://localhost:5000';
 
     // Generate email content with confirmation token
     const { subject, html, text } = generateQuoteEmailTemplate(quoteDataWithToken, orgName, baseUrl);

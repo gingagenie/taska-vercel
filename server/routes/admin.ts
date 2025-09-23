@@ -10,7 +10,9 @@ import {
   users, 
   usageCounters,
   usagePacks,
-  supportTickets
+  supportTickets,
+  blogPosts,
+  insertBlogPostSchema
 } from '../../shared/schema';
 import { eq, and, gte, lte, desc, count } from 'drizzle-orm';
 
@@ -931,6 +933,300 @@ router.get('/alerts', async (req, res) => {
       error: 'Failed to fetch alerts',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
+  }
+});
+
+// ============================================================================
+// BLOG MANAGEMENT ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/admin/blog
+ * List all blog posts (all statuses) with filtering and pagination
+ */
+router.get('/blog', async (req, res) => {
+  try {
+    const { status, search, page = "1", limit = "10" } = req.query;
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = Math.min(parseInt(limit as string) || 10, 50);
+    const offset = (pageNum - 1) * limitNum;
+    
+    console.log(`[ADMIN] Fetching blog posts - status: ${status}, page: ${pageNum}`);
+    
+    let whereConditions = [];
+    
+    // Filter by status
+    if (status && typeof status === "string" && ["draft", "published", "archived"].includes(status)) {
+      whereConditions.push(eq(blogPosts.status, status));
+    }
+    
+    // Search filter
+    if (search && typeof search === "string") {
+      whereConditions.push(
+        sql`(${blogPosts.title} ILIKE ${`%${search}%`} OR ${blogPosts.excerpt} ILIKE ${`%${search}%`})`
+      );
+    }
+    
+    const posts = await db
+      .select()
+      .from(blogPosts)
+      .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
+      .orderBy(desc(blogPosts.createdAt))
+      .limit(limitNum)
+      .offset(offset);
+    
+    // Get total count
+    const totalCountResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(blogPosts)
+      .where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
+      
+    const totalCount = totalCountResult[0]?.count || 0;
+    const totalPages = Math.ceil(totalCount / limitNum);
+    
+    res.json({
+      posts,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalCount,
+        pages: totalPages
+      }
+    });
+    
+  } catch (error) {
+    console.error('[ADMIN] Error fetching blog posts:', error);
+    res.status(500).json({ error: 'Failed to fetch blog posts' });
+  }
+});
+
+/**
+ * POST /api/admin/blog
+ * Create a new blog post
+ */
+router.post('/blog', async (req, res) => {
+  try {
+    console.log('[ADMIN] Creating new blog post');
+    
+    // Validate request body
+    const validation = insertBlogPostSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: validation.error.issues 
+      });
+    }
+    
+    const data = validation.data;
+    
+    // Generate slug if not provided
+    if (!data.slug) {
+      const baseSlug = data.title
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      
+      // Check for existing slug and add number suffix if needed
+      let slug = baseSlug;
+      let counter = 1;
+      
+      while (true) {
+        const existing = await db
+          .select({ id: blogPosts.id })
+          .from(blogPosts)
+          .where(eq(blogPosts.slug, slug))
+          .limit(1);
+          
+        if (existing.length === 0) break;
+        
+        counter++;
+        slug = `${baseSlug}-${counter}`;
+      }
+      
+      data.slug = slug;
+    }
+    
+    const [post] = await db
+      .insert(blogPosts)
+      .values(data as any)
+      .returning();
+    
+    console.log(`[ADMIN] Blog post created: ${post.id} - ${post.title}`);
+    res.status(201).json(post);
+    
+  } catch (error) {
+    console.error('[ADMIN] Error creating blog post:', error);
+    res.status(500).json({ error: 'Failed to create blog post' });
+  }
+});
+
+/**
+ * PATCH /api/admin/blog/:id
+ * Update an existing blog post
+ */
+router.patch('/blog/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Post ID is required' });
+    }
+    
+    console.log(`[ADMIN] Updating blog post: ${id}`);
+    
+    // Validate request body (partial update)
+    const validation = insertBlogPostSchema.partial().safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: validation.error.issues 
+      });
+    }
+    
+    const data = validation.data;
+    
+    // If slug is being updated, check for conflicts
+    if (data.slug) {
+      const existing = await db
+        .select({ id: blogPosts.id })
+        .from(blogPosts)
+        .where(and(
+          eq(blogPosts.slug, data.slug),
+          sql`${blogPosts.id} != ${id}`
+        ))
+        .limit(1);
+        
+      if (existing.length > 0) {
+        return res.status(400).json({ error: 'Slug already exists' });
+      }
+    }
+    
+    // Update timestamp
+    const updateData = { ...data, updatedAt: new Date() };
+    
+    const [post] = await db
+      .update(blogPosts)
+      .set(updateData)
+      .where(eq(blogPosts.id, id))
+      .returning();
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+    
+    console.log(`[ADMIN] Blog post updated: ${post.id} - ${post.title}`);
+    res.json(post);
+    
+  } catch (error) {
+    console.error('[ADMIN] Error updating blog post:', error);
+    res.status(500).json({ error: 'Failed to update blog post' });
+  }
+});
+
+/**
+ * POST /api/admin/blog/:id/publish
+ * Publish a draft blog post
+ */
+router.post('/blog/:id/publish', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Post ID is required' });
+    }
+    
+    console.log(`[ADMIN] Publishing blog post: ${id}`);
+    
+    const [post] = await db
+      .update(blogPosts)
+      .set({ 
+        status: "published",
+        publishedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(blogPosts.id, id))
+      .returning();
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+    
+    console.log(`[ADMIN] Blog post published: ${post.id} - ${post.title}`);
+    res.json(post);
+    
+  } catch (error) {
+    console.error('[ADMIN] Error publishing blog post:', error);
+    res.status(500).json({ error: 'Failed to publish blog post' });
+  }
+});
+
+/**
+ * POST /api/admin/blog/:id/archive
+ * Archive a blog post (reversible)
+ */
+router.post('/blog/:id/archive', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Post ID is required' });
+    }
+    
+    console.log(`[ADMIN] Archiving blog post: ${id}`);
+    
+    const [post] = await db
+      .update(blogPosts)
+      .set({ 
+        status: "archived",
+        updatedAt: new Date()
+      })
+      .where(eq(blogPosts.id, id))
+      .returning();
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+    
+    console.log(`[ADMIN] Blog post archived: ${post.id} - ${post.title}`);
+    res.json(post);
+    
+  } catch (error) {
+    console.error('[ADMIN] Error archiving blog post:', error);
+    res.status(500).json({ error: 'Failed to archive blog post' });
+  }
+});
+
+/**
+ * DELETE /api/admin/blog/:id
+ * Hard delete a blog post (use carefully)
+ */
+router.delete('/blog/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Post ID is required' });
+    }
+    
+    console.log(`[ADMIN] Deleting blog post: ${id}`);
+    
+    const [post] = await db
+      .delete(blogPosts)
+      .where(eq(blogPosts.id, id))
+      .returning({ id: blogPosts.id, title: blogPosts.title });
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+    
+    console.log(`[ADMIN] Blog post deleted: ${post.id} - ${post.title}`);
+    res.json({ message: 'Blog post deleted successfully', post });
+    
+  } catch (error) {
+    console.error('[ADMIN] Error deleting blog post:', error);
+    res.status(500).json({ error: 'Failed to delete blog post' });
   }
 });
 

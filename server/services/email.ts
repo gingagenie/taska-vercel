@@ -155,11 +155,22 @@ export function generateInvoiceEmailTemplate(
         </table>
       </div>
 
-      <!-- Total -->
+      <!-- Total with GST Breakdown -->
       <div style="text-align: right; margin-bottom: 30px;">
-        <div style="display: inline-block; background: #f8f9fa; padding: 15px 20px; border-radius: 8px; border: 1px solid #ddd;">
-          <div style="font-size: 20px; font-weight: bold; color: #2563eb;">
-            Total Amount: $${Number(invoice.grand_total || invoice.total || 0).toFixed(2)} AUD
+        <div style="display: inline-block; background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #ddd; min-width: 250px;">
+          <div style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>Subtotal:</span>
+              <span>$${(Number(invoice.grand_total || invoice.total || 0) / 1.1).toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>GST (10%):</span>
+              <span>$${(Number(invoice.grand_total || invoice.total || 0) - (Number(invoice.grand_total || invoice.total || 0) / 1.1)).toFixed(2)}</span>
+            </div>
+          </div>
+          <div style="font-size: 18px; font-weight: bold; color: #2563eb; display: flex; justify-content: space-between;">
+            <span>Total Amount:</span>
+            <span>$${Number(invoice.grand_total || invoice.total || 0).toFixed(2)} AUD</span>
           </div>
         </div>
       </div>

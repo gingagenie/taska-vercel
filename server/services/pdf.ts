@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { generateInvoiceEmailTemplate } from './email';
 
 export async function generateInvoicePdf(
@@ -9,19 +10,24 @@ export async function generateInvoicePdf(
   let browser;
   
   try {
-    // Launch Puppeteer with Replit-safe options
+    // Use serverless Chromium for better compatibility in cloud environments
     browser = await puppeteer.launch({
       headless: true,
+      executablePath: await chromium.executablePath(),
       args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--no-first-run'
-      ]
+        ...chromium.args,
+        '--hide-scrollbars',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
+      ],
+      defaultViewport: chromium.defaultViewport,
+      ignoreHTTPSErrors: true
     });
     
     const page = await browser.newPage();
+    
+    // Set proper media type for screen rendering
+    await page.emulateMediaType('screen');
     
     // Generate the invoice HTML using the existing email template
     const { html } = generateInvoiceEmailTemplate(invoice, organization, customer);
@@ -127,9 +133,12 @@ export async function generateInvoicePdf(
     `;
     
     await page.setContent(pdfHtml, { 
-      waitUntil: 'networkidle0',
-      timeout: 30000
+      waitUntil: 'domcontentloaded',
+      timeout: 15000
     });
+    
+    // Wait a bit for fonts and styles to load
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Generate PDF with A4 format and good quality settings
     const pdfBuffer = await page.pdf({

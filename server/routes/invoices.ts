@@ -447,6 +447,8 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
 
     // Generate PDF attachment
     let pdfAttachment = null;
+    let pdfGenerationFailed = false;
+    
     try {
       console.log(`[PDF] Generating PDF attachment for invoice ${invoiceData.number || invoiceData.id}`);
       const pdfBuffer = await generateInvoicePdf(invoiceData, organization, customer);
@@ -459,6 +461,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       console.log(`[PDF] Successfully generated PDF: ${filename} (${Math.round(pdfBuffer.length / 1024)}KB)`);
     } catch (pdfError) {
       console.error(`[PDF] Failed to generate PDF attachment:`, pdfError);
+      pdfGenerationFailed = true;
       // Continue without PDF attachment - don't fail the entire email
     }
 
@@ -595,10 +598,14 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
 
     const response: any = { 
       ok: true, 
-      message: `Invoice sent successfully to ${email}`,
+      message: pdfGenerationFailed 
+        ? `Invoice sent successfully to ${email} (PDF attachment failed - email sent without attachment)`
+        : `Invoice sent successfully to ${email}`,
       email: email,
       packUsed: !!quotaCheck.reservationId,
-      billingStatus: quotaCheck.reservationId ? 'charged' : 'plan_quota'
+      billingStatus: quotaCheck.reservationId ? 'charged' : 'plan_quota',
+      pdfAttached: !pdfGenerationFailed,
+      attachmentStatus: pdfGenerationFailed ? 'failed' : 'attached'
     };
 
     res.json(response);

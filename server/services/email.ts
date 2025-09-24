@@ -196,7 +196,7 @@ export function generateInvoiceEmailTemplate(
         ${organization.account_name ? `<p style="margin: 4px 0;"><strong>Account Name:</strong> ${organization.account_name}</p>` : ''}
         ${organization.bsb ? `<p style="margin: 4px 0;"><strong>BSB:</strong> ${organization.bsb}</p>` : ''}
         ${organization.account_number ? `<p style="margin: 4px 0;"><strong>Account Number:</strong> ${organization.account_number}</p>` : ''}
-        <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">Please use Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'} as payment reference</p>
+        <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">Please use Invoice #${invoice.number || 'inv-0001'} as payment reference</p>
       </div>
       ` : ''}
 
@@ -218,7 +218,7 @@ From: ${orgName}
 ${organization.abn ? `ABN: ${organization.abn}` : ''}
 ${businessAddress ? `Address: ${businessAddress}` : ''}
 
-Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'}
+Invoice #${invoice.number || 'inv-0001'}
 Date: ${invoice.created_at ? new Date(invoice.created_at).toLocaleDateString('en-AU') : new Date().toLocaleDateString('en-AU')}
 ${invoice.due_at ? `Due Date: ${new Date(invoice.due_at).toLocaleDateString('en-AU')}` : ''}
 Status: ${displayStatus}
@@ -245,7 +245,7 @@ PAYMENT DETAILS:
 ${organization.account_name ? `Account Name: ${organization.account_name}` : ''}
 ${organization.bsb ? `BSB: ${organization.bsb}` : ''}
 ${organization.account_number ? `Account Number: ${organization.account_number}` : ''}
-Please use Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'} as payment reference
+Please use Invoice #${invoice.number || 'inv-0001'} as payment reference
 ` : ''}
 
 ${invoice.notes ? `

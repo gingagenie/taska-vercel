@@ -98,7 +98,7 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     // Simple invoice creation with generated number
     const result: any = await db.execute(sql`
       INSERT INTO invoices (org_id, customer_id, title, notes, number, created_by, due_at)
-      VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${invoiceNumber}, ${userId}, ${due_at || null})
+      VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${invoiceNumber}, ${userId}, ${due_at || null}::timestamptz)
       RETURNING id
     `);
     

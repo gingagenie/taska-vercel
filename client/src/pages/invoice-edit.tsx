@@ -40,7 +40,9 @@ export default function InvoiceEdit() {
     customer: { id: (invoice as any).customer_id },
     title: (invoice as any).title,
     notes: (invoice as any).notes,
-    dueDate: (invoice as any).due_at ? new Date((invoice as any).due_at).toISOString().slice(0, 10) : '',
+    header: {
+      dueDate: (invoice as any).due_at ? new Date((invoice as any).due_at).toISOString().slice(0, 10) : '',
+    },
     items: ((invoice as any).items || []).map((l: any) => ({
       id: crypto.randomUUID(),
       itemName: l.description || '',
@@ -63,12 +65,15 @@ export default function InvoiceEdit() {
         tax_rate: item.tax === 'GST' ? 10 : 0,
       }));
 
+      // Convert due date to ISO string if present
+      const due_at = payload.header?.dueDate ? new Date(payload.header.dueDate).toISOString() : null;
+
       if (id) {
         await invoicesApi.update(id, {
           title: payload.title,
           customer_id: payload.customerId,
           notes: payload.notes,
-          due_at: payload.dueDate || null,
+          due_at,
           lines,
         });
         nav(`/invoices/${id}`);
@@ -77,7 +82,7 @@ export default function InvoiceEdit() {
           title: payload.title,
           customerId: payload.customerId,
           notes: payload.notes,
-          due_at: payload.dueDate || null,
+          due_at,
           lines,
         });
         qc.invalidateQueries({ queryKey: ["/api/invoices"] });

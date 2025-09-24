@@ -1228,14 +1228,34 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       combinedNotes = combinedNotes ? `${combinedNotes}\n\n${noteTexts}` : noteTexts;
     }
 
+    // Generate next invoice number for this organization
+    const lastInvoiceResult: any = await db.execute(sql`
+      SELECT number FROM invoices 
+      WHERE org_id = ${orgId}::uuid AND number IS NOT NULL 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `);
+    
+    let nextNumber = 1;
+    if (lastInvoiceResult.length > 0 && lastInvoiceResult[0].number) {
+      // Extract number from format like "inv-0001"
+      const match = lastInvoiceResult[0].number.match(/inv-(\d+)/i);
+      if (match) {
+        nextNumber = parseInt(match[1]) + 1;
+      }
+    }
+    
+    const invoiceNumber = `inv-${nextNumber.toString().padStart(4, '0')}`;
+
     // Create invoice from completed job (notes go into invoice notes, not line items)
     const invoiceResult: any = await db.execute(sql`
-      INSERT INTO invoices (org_id, customer_id, title, notes, status, sub_total, tax_total, grand_total)
+      INSERT INTO invoices (org_id, customer_id, title, notes, number, status, sub_total, tax_total, grand_total)
       VALUES (
         ${orgId}::uuid, 
         ${completedJob.customer_id}::uuid, 
         ${invoiceTitle},
         ${combinedNotes},
+        ${invoiceNumber},
         'draft',
         0,
         0,

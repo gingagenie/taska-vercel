@@ -67,6 +67,7 @@ export default function InvoiceEdit() {
           title: payload.title,
           customer_id: payload.customerId,
           notes: payload.notes,
+          due_at: payload.dueDate || null,
           lines,
         });
         nav(`/invoices/${id}`);
@@ -75,6 +76,7 @@ export default function InvoiceEdit() {
           title: payload.title,
           customerId: payload.customerId,
           notes: payload.notes,
+          due_at: payload.dueDate || null,
           lines,
         });
         qc.invalidateQueries({ queryKey: ["/api/invoices"] });

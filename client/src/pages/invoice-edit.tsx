@@ -40,6 +40,7 @@ export default function InvoiceEdit() {
     customer: { id: (invoice as any).customer_id },
     title: (invoice as any).title,
     notes: (invoice as any).notes,
+    dueDate: (invoice as any).due_at ? new Date((invoice as any).due_at).toISOString().slice(0, 10) : '',
     items: ((invoice as any).items || []).map((l: any) => ({
       id: crypto.randomUUID(),
       itemName: l.description || '',

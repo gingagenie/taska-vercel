@@ -173,14 +173,15 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
 router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params; const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
-  const { title, customer_id, notes, lines = [] } = req.body || {};
+  const { title, customer_id, notes, lines = [], due_at } = req.body || {};
   
   // Update header
   await db.execute(sql`
     update invoices set
       title=coalesce(${title}, title),
       customer_id=coalesce(${customer_id}::uuid, customer_id),
-      notes=coalesce(${notes}, notes)
+      notes=coalesce(${notes}, notes),
+      due_at=coalesce(${due_at}::timestamp, due_at)
     where id=${id}::uuid and org_id=${orgId}::uuid
   `);
   

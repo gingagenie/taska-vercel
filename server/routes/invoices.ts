@@ -7,6 +7,7 @@ import { checkSubscription, requireActiveSubscription } from "../middleware/subs
 import { xeroService } from "../services/xero";
 import { sumLines } from "../lib/totals";
 import { sendEmail, generateInvoiceEmailTemplate } from "../services/email";
+import { generateInvoicePdf, generateInvoicePdfFilename } from "../services/pdf";
 import { trackEmailUsage, checkEmailQuota } from "./job-sms";
 import { finalizePackConsumption, releasePackReservation, durableFinalizePackConsumption } from "../lib/pack-consumption";
 
@@ -444,6 +445,23 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     // Generate email content with complete business and customer information
     const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, organization, customer);
 
+    // Generate PDF attachment
+    let pdfAttachment = null;
+    try {
+      console.log(`[PDF] Generating PDF attachment for invoice ${invoiceData.number || invoiceData.id}`);
+      const pdfBuffer = await generateInvoicePdf(invoiceData, organization, customer);
+      const filename = await generateInvoicePdfFilename(invoiceData);
+      
+      pdfAttachment = {
+        filename,
+        content: pdfBuffer.toString('base64')
+      };
+      console.log(`[PDF] Successfully generated PDF: ${filename} (${Math.round(pdfBuffer.length / 1024)}KB)`);
+    } catch (pdfError) {
+      console.error(`[PDF] Failed to generate PDF attachment:`, pdfError);
+      // Continue without PDF attachment - don't fail the entire email
+    }
+
     // PHASE 1: Check email quota and reserve pack unit if needed
     const quotaCheck = await checkEmailQuota(orgId);
     if (!quotaCheck.canSend) {
@@ -487,7 +505,8 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       from: `${fromName} <${fromEmail}>`,
       subject,
       html,
-      text
+      text,
+      ...(pdfAttachment && { attachments: [pdfAttachment] })
     });
 
     if (!emailSent) {

@@ -70,7 +70,7 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   try {
     const orgId = (req as any).orgId;
     const userId = (req as any).user?.id;
-    const { title, customerId, notes, lines = [] } = req.body;
+    const { title, customerId, notes, lines = [], due_at } = req.body;
     
     if (!title || !customerId) {
       return res.status(400).json({ error: "title & customerId required" });
@@ -97,8 +97,8 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
     
     // Simple invoice creation with generated number
     const result: any = await db.execute(sql`
-      INSERT INTO invoices (org_id, customer_id, title, notes, number, created_by)
-      VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${invoiceNumber}, ${userId})
+      INSERT INTO invoices (org_id, customer_id, title, notes, number, created_by, due_at)
+      VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${invoiceNumber}, ${userId}, ${due_at || null})
       RETURNING id
     `);
     

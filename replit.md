@@ -124,6 +124,7 @@ Taska is a comprehensive field service management application designed for servi
 Preferred communication style: Simple, everyday language.
 Development workflow: Check all changes on preview screen first, then deploy to production once verified working.
 Deployment preference: All changes should go to production after preview verification.
+Problem-solving approach: Thorough analysis and comprehensive solutions on the first attempt rather than iterative fixes. Take time upfront for proper investigation, architect analysis, and complete implementation to avoid multiple attempts that risk breaking existing functionality.
 
 ## System Architecture
 

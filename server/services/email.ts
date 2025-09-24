@@ -115,7 +115,7 @@ export function generateInvoiceEmailTemplate(
         </div>
         <div style="text-align: right;">
           <h2 style="margin: 0; color: #333; font-size: 24px;">INVOICE</h2>
-          <p style="margin: 4px 0; color: #666;">Invoice #${invoice.id ? invoice.id.substring(0, 8).toUpperCase() : 'INV-001'}</p>
+          <p style="margin: 4px 0; color: #666;">Invoice #${invoice.number || 'inv-0001'}</p>
         </div>
       </div>
 

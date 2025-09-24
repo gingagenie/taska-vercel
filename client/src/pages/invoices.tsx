@@ -131,8 +131,13 @@ export default function InvoicesPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start gap-3">
-                      <div className="font-semibold text-lg group-hover:text-financial transition-colors">
-                        {invoice.title || "Untitled Invoice"}
+                      <div className="space-y-1">
+                        <div className="font-semibold text-lg group-hover:text-financial transition-colors">
+                          {invoice.title || "Untitled Invoice"}
+                        </div>
+                        <div className="text-sm text-gray-500 font-medium">
+                          {invoice.number || 'inv-0001'}
+                        </div>
                       </div>
                       <Badge className={getStatusBadgeClass(invoice.status)}>
                         {(invoice.status || "draft").replace("_", " ")}

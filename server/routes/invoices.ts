@@ -50,6 +50,7 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
     select 
       i.id, 
       i.title, 
+      i.number,
       i.status, 
       i.created_at, 
       i.customer_id, 
@@ -75,10 +76,29 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
       return res.status(400).json({ error: "title & customerId required" });
     }
     
-    // Simple invoice creation
+    // Generate next invoice number for this organization
+    const lastInvoiceResult: any = await db.execute(sql`
+      SELECT number FROM invoices 
+      WHERE org_id = ${orgId}::uuid AND number IS NOT NULL 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `);
+    
+    let nextNumber = 1;
+    if (lastInvoiceResult.length > 0 && lastInvoiceResult[0].number) {
+      // Extract number from format like "inv-0001"
+      const match = lastInvoiceResult[0].number.match(/inv-(\d+)/i);
+      if (match) {
+        nextNumber = parseInt(match[1]) + 1;
+      }
+    }
+    
+    const invoiceNumber = `inv-${nextNumber.toString().padStart(4, '0')}`;
+    
+    // Simple invoice creation with generated number
     const result: any = await db.execute(sql`
-      INSERT INTO invoices (org_id, customer_id, title, notes, created_by)
-      VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${userId})
+      INSERT INTO invoices (org_id, customer_id, title, notes, number, created_by)
+      VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${invoiceNumber}, ${userId})
       RETURNING id
     `);
     

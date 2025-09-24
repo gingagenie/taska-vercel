@@ -10,6 +10,10 @@ interface EmailParams {
   subject: string;
   text?: string;
   html?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string; // Base64 encoded content
+  }>;
 }
 
 export async function sendEmail(params: EmailParams): Promise<boolean> {
@@ -42,7 +46,13 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
         ],
         subject: params.subject,
         text: params.text || '',
-        html: params.html || ''
+        html: params.html || '',
+        ...(params.attachments && params.attachments.length > 0 && {
+          attachments: params.attachments.map(att => ({
+            filename: att.filename,
+            content: att.content
+          }))
+        })
       })
     });
 

@@ -11,7 +11,7 @@ export async function generateInvoicePdf(
   try {
     // Launch Puppeteer with Replit-safe options
     browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -144,11 +144,11 @@ export async function generateInvoicePdf(
       preferCSSPageSize: true
     });
     
-    return pdfBuffer;
+    return Buffer.from(pdfBuffer);
     
   } catch (error) {
     console.error('PDF generation error:', error);
-    throw new Error(`Failed to generate PDF: ${error.message}`);
+    throw new Error(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
   } finally {
     if (browser) {
       await browser.close();

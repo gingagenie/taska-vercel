@@ -9,7 +9,8 @@ import {
   LogOut,
   Menu,
   X,
-  FileText
+  FileText,
+  LifeBuoy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +66,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       href: '/admin/blog',
       icon: FileText,
       current: location.startsWith('/admin/blog')
+    },
+    {
+      name: 'Support',
+      href: '/admin/support',
+      icon: LifeBuoy,
+      current: location.startsWith('/admin/support')
     },
     {
       name: 'System Settings',

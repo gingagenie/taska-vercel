@@ -86,6 +86,7 @@ import AdminDashboard from "@/pages/admin/dashboard";
 import OrganizationsAdmin from "@/pages/admin/organizations";
 import AnalyticsAdmin from "@/pages/admin/analytics";
 import BlogAdmin from "@/pages/admin/blog";
+import AdminSupportPage from "@/pages/admin/support";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 
 // Role-based route protection
@@ -220,6 +221,7 @@ function AdminAppContent() {
         <Route path="/admin/organizations" component={() => <AdminRoute component={OrganizationsAdmin} />} />
         <Route path="/admin/analytics" component={() => <AdminRoute component={AnalyticsAdmin} />} />
         <Route path="/admin/blog" component={() => <AdminRoute component={BlogAdmin} />} />
+        <Route path="/admin/support" component={() => <AdminRoute component={AdminSupportPage} />} />
         
         {/* Default admin dashboard route - must be last */}
         <Route path="/admin" component={() => <AdminRoute component={AdminDashboard} />} />

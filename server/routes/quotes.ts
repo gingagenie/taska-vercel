@@ -483,7 +483,8 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
           packAvailable: quotaCheck.packAvailable || false
         },
         upgradeOptions: {
-          pro: { quota: 500, price: "$29/month" },
+          solo: { quota: 100, price: "$29/month" },
+          pro: { quota: 500, price: "$49/month" },
           enterprise: { quota: 2000, price: "$99/month" }
         }
       });

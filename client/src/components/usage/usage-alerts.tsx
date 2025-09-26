@@ -258,18 +258,17 @@ const getRecommendedPlan = (type: AlertType, data: any, currentPlan: string) => 
   
   switch (type) {
     case 'users':
-      if (currentPlan === 'free' || currentPlan === 'solo') return 'starter'; // 3 users
-      if (currentPlan === 'starter') return 'pro'; // 10 users
-      return 'enterprise'; // 50 users
+      if (currentPlan === 'free' || currentPlan === 'solo') return 'pro'; // 5 users
+      return 'enterprise'; // 12 users
       
     case 'sms':
-      if (currentPlan === 'free') return 'starter'; // 50 SMS
-      if (currentPlan === 'starter' || currentPlan === 'solo') return 'pro'; // 200 SMS
-      return 'enterprise'; // 1000 SMS
+      if (currentPlan === 'free') return 'solo'; // 100 SMS
+      if (currentPlan === 'solo') return 'pro'; // 500 SMS
+      return 'enterprise'; // 2000 SMS
       
     case 'email':
-      if (currentPlan === 'free') return 'starter'; // 100 emails
-      if (currentPlan === 'starter' || currentPlan === 'solo') return 'pro'; // 500 emails
+      if (currentPlan === 'free') return 'solo'; // 100 emails
+      if (currentPlan === 'solo') return 'pro'; // 500 emails
       return 'enterprise'; // 2000 emails
       
     default:
@@ -280,14 +279,14 @@ const getRecommendedPlan = (type: AlertType, data: any, currentPlan: string) => 
 // Get plan details for recommendations
 const getPlanDetails = (planId: string) => {
   switch (planId) {
-    case 'starter': 
-      return { name: 'Starter', price: '$19/month', icon: Star, users: 3, sms: 50, email: 100 };
+    case 'solo': 
+      return { name: 'Taska Solo', price: '$29/month', icon: Star, users: 1, sms: 100, email: 100 };
     case 'pro': 
-      return { name: 'Pro', price: '$29/month', icon: Zap, users: 10, sms: 200, email: 500 };
+      return { name: 'Taska Pro', price: '$49/month', icon: Zap, users: 5, sms: 500, email: 500 };
     case 'enterprise': 
-      return { name: 'Enterprise', price: '$99/month', icon: Crown, users: 50, sms: 1000, email: 2000 };
+      return { name: 'Taska Enterprise', price: '$99/month', icon: Crown, users: 12, sms: 2000, email: 2000 };
     default: 
-      return { name: 'Pro', price: '$29/month', icon: Zap, users: 10, sms: 200, email: 500 };
+      return { name: 'Taska Pro', price: '$49/month', icon: Zap, users: 5, sms: 500, email: 500 };
   }
 };
 

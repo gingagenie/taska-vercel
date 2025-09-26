@@ -367,8 +367,9 @@ jobSms.post("/:jobId/sms/confirm", requireAuth, requireOrg, async (req, res) => 
           sms_pack_1000: { quantity: 1000, price: "$35.00" }
         },
         upgrade: {
-          pro: { quota: 200, price: "$29/month" },
-          enterprise: { quota: 1000, price: "$99/month" }
+          solo: { quota: 100, price: "$29/month" },
+          pro: { quota: 500, price: "$49/month" },
+          enterprise: { quota: 2000, price: "$99/month" }
         }
       }
     };

@@ -54,12 +54,12 @@ export default function Landing() {
     <main>
       <Head 
         title="Taska | Field Service Management App for Tradies – Job Scheduling, Quotes & Invoicing"
-        description="Taska is the all-in-one field service app for tradies. Schedule jobs, send quotes & invoices, and get paid faster with simple software built for Aussie businesses."
-        canonical="https://taska.replit.app/"
+        description="Taska is the all-in-one tradie app for job scheduling, quotes, invoices & equipment tracking. Built in Australia for field service businesses."
+        canonical="https://www.taska.info"
         ogTitle="Taska | Field Service Management App for Tradies"
-        ogDescription="Schedule jobs, send quotes & invoices, and get paid faster with simple software built for Aussie businesses."
-        ogImage="https://taska.replit.app/og-image.png"
-        ogUrl="https://taska.replit.app/"
+        ogDescription="Job scheduling, quotes & invoices made simple. Try Taska – Aussie-built field service software for tradies."
+        ogImage="https://www.taska.info/path-to-your-cover-image.jpg"
+        ogUrl="https://www.taska.info"
         structuredData={faqStructuredData}
       />
       <style>{`

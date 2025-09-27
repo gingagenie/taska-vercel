@@ -28,7 +28,7 @@ export default function Landing() {
         "name": "How can tradies send invoices without paperwork?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "With Taska's invoice app, tradies can convert completed jobs to invoices with one click, send them via email or SMS, and get paid faster through integrated Stripe payments."
+          "text": "With Taska's invoice app, tradies can convert completed jobs to invoices with one click, send them via email."
         }
       },
       {
@@ -410,7 +410,7 @@ export default function Landing() {
           </details>
           <details>
             <summary>How can tradies send invoices without paperwork?</summary>
-            <p>With Taska's invoice app, tradies can convert completed jobs to invoices with one click, send them via email or SMS, and get paid faster through integrated Stripe payments. No more paper invoices or manual data entry required.</p>
+            <p>With Taska's invoice app, tradies can convert completed jobs to invoices with one click, send them via email. No more paper invoices or manual data entry required.</p>
           </details>
           <details>
             <summary>What is field service management software?</summary>

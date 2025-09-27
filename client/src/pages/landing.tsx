@@ -195,11 +195,16 @@ export default function Landing() {
             <div className="bar">
               <span className="dot" /><span className="dot" /><span className="dot" />
             </div>
-            {/* Taska Demo GIF */}
+            {/* Taska Demo Screenshot - Optimized for LCP */}
             <img 
               src={taskaDemo} 
               alt="Taska job scheduling app dashboard showing tradie workflow management"
               className="demo-gif"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              width="1400"
+              height="900"
             />
           </div>
         </div>
@@ -255,9 +260,10 @@ export default function Landing() {
             <video 
               src={taskaVideoDemo} 
               controls 
-              autoPlay 
               muted 
               loop
+              preload="none"
+              poster={taskaDemo}
               style={{width: '100%', display: 'block', aspectRatio: '16/10', objectFit: 'cover'}}
               aria-label="Taska invoice app for Australian service businesses"
             >

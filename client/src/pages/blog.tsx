@@ -13,9 +13,10 @@ import {
   Smartphone,
   Settings
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 interface BlogPost {
   id: string;
@@ -48,6 +49,8 @@ export default function Blog() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
+  const [email, setEmail] = useState("");
+  const { toast } = useToast();
   
   // Build query parameters
   const queryParams = useMemo(() => {
@@ -74,6 +77,56 @@ export default function Blog() {
   const pagination = blogResponse?.pagination;
   const featuredPost = posts.find(post => post.coverImageUrl); // Use cover image as featured indicator
   const otherPosts = posts.filter(post => post !== featuredPost);
+
+  // Newsletter subscription mutation
+  const subscriptionMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const response = await fetch('/api/public/newsletter/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, source: 'blog' }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to subscribe');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setEmail(''); // Clear the email input
+      toast({
+        title: "Successfully subscribed!",
+        description: "Thank you for subscribing to our newsletter. You'll receive the latest field service insights directly in your inbox.",
+        variant: "default",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Subscription failed",
+        description: error.message || "There was an issue subscribing to our newsletter. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleNewsletterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email.trim()) {
+      toast({
+        title: "Email required",
+        description: "Please enter your email address to subscribe.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    subscriptionMutation.mutate(email.trim());
+  };
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
@@ -310,16 +363,25 @@ export default function Blog() {
               Get the latest tips, best practices, and industry insights delivered to your inbox. 
               Join thousands of field service professionals who rely on our expert guidance.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+            <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
               <Input 
+                type="email"
                 placeholder="Enter your email"
                 className="flex-1"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={subscriptionMutation.isPending}
                 data-testid="input-newsletter-email"
               />
-              <Button className="px-8" data-testid="button-newsletter-subscribe">
-                Subscribe
+              <Button 
+                type="submit" 
+                className="px-8" 
+                disabled={subscriptionMutation.isPending}
+                data-testid="button-newsletter-subscribe"
+              >
+                {subscriptionMutation.isPending ? "Subscribing..." : "Subscribe"}
               </Button>
-            </div>
+            </form>
             <p className="text-xs text-gray-500 mt-3">
               No spam, unsubscribe anytime. Privacy policy applies.
             </p>

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db/client";
-import { jobs, blogPosts, quotes } from "../../shared/schema";
+import { jobs, blogPosts, quotes, newsletterSubscribers, insertNewsletterSubscriberSchema } from "../../shared/schema";
 import { eq, desc, and, ilike, isNotNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
@@ -325,5 +325,167 @@ publicRouter.get("/quotes/decline", async (req, res) => {
   } catch (error) {
     console.error("[PUBLIC] Quote decline error:", error);
     res.status(500).json({ error: "Failed to decline quote" });
+  }
+});
+
+// Newsletter subscription endpoint - no auth required
+publicRouter.post("/newsletter/subscribe", async (req, res) => {
+  try {
+    const { email, source = "blog" } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    
+    // Validate email using Zod schema
+    const validationResult = insertNewsletterSubscriberSchema.safeParse({ email, source });
+    
+    if (!validationResult.success) {
+      const errorMessage = validationResult.error.errors[0]?.message || "Invalid email address";
+      return res.status(400).json({ error: errorMessage });
+    }
+    
+    console.log(`[PUBLIC] Newsletter subscription request: ${email} from ${source}`);
+    
+    // Check if email already exists
+    const existingSubscriber = await db
+      .select()
+      .from(newsletterSubscribers)
+      .where(eq(newsletterSubscribers.email, email))
+      .limit(1);
+    
+    if (existingSubscriber.length > 0) {
+      const subscriber = existingSubscriber[0];
+      
+      // If already active, just return success
+      if (subscriber.status === "active") {
+        console.log(`[PUBLIC] Email already subscribed: ${email}`);
+        return res.json({ 
+          message: "Successfully subscribed!", 
+          status: "already_subscribed" 
+        });
+      }
+      
+      // If unsubscribed, reactivate the subscription
+      if (subscriber.status === "unsubscribed") {
+        await db
+          .update(newsletterSubscribers)
+          .set({ 
+            status: "active",
+            unsubscribedAt: null,
+            updatedAt: new Date()
+          })
+          .where(eq(newsletterSubscribers.id, subscriber.id));
+        
+        console.log(`[PUBLIC] Newsletter subscription reactivated: ${email}`);
+        return res.json({ 
+          message: "Successfully resubscribed!", 
+          status: "resubscribed" 
+        });
+      }
+    }
+    
+    // Create new subscription
+    const result = await db
+      .insert(newsletterSubscribers)
+      .values({
+        email,
+        source,
+        status: "active",
+        confirmedAt: new Date(), // Auto-confirm for now (can add double opt-in later)
+      })
+      .returning({ id: newsletterSubscribers.id, email: newsletterSubscribers.email });
+    
+    const newSubscriber = result[0];
+    console.log(`[PUBLIC] Newsletter subscription created: ${newSubscriber.id} - ${newSubscriber.email}`);
+    
+    res.json({ 
+      message: "Successfully subscribed to our newsletter!", 
+      status: "subscribed",
+      subscriber: newSubscriber
+    });
+    
+  } catch (error) {
+    console.error("[PUBLIC] Newsletter subscription error:", error);
+    res.status(500).json({ error: "Failed to subscribe to newsletter" });
+  }
+});
+
+// Newsletter unsubscribe endpoint - no auth required
+publicRouter.get("/newsletter/unsubscribe", async (req, res) => {
+  try {
+    const { email, token } = req.query;
+    
+    if (!email && !token) {
+      return res.status(400).json({ error: "Email or unsubscribe token required" });
+    }
+    
+    console.log(`[PUBLIC] Newsletter unsubscribe request: ${email || token}`);
+    
+    let whereCondition;
+    if (token && typeof token === "string") {
+      // Use token if provided (for email links)
+      whereCondition = eq(newsletterSubscribers.confirmationToken, token);
+    } else if (email && typeof email === "string") {
+      // Use email if provided (for direct unsubscribe)
+      whereCondition = eq(newsletterSubscribers.email, email);
+    } else {
+      return res.status(400).json({ error: "Valid email or token required" });
+    }
+    
+    // Find and update the subscriber
+    const result = await db
+      .update(newsletterSubscribers)
+      .set({ 
+        status: "unsubscribed",
+        unsubscribedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(whereCondition)
+      .returning({ 
+        id: newsletterSubscribers.id, 
+        email: newsletterSubscribers.email 
+      });
+    
+    if (result.length === 0) {
+      console.log(`[PUBLIC] No subscriber found for unsubscribe: ${email || token}`);
+      return res.status(404).json({ error: "Subscription not found" });
+    }
+    
+    const subscriber = result[0];
+    console.log(`[PUBLIC] Newsletter unsubscribed: ${subscriber.id} - ${subscriber.email}`);
+    
+    // Return simple unsubscribe confirmation page
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Unsubscribed</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+          .container { background: white; border-radius: 10px; padding: 40px; max-width: 400px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .success { color: #22c55e; font-size: 48px; margin-bottom: 20px; }
+          h1 { color: #333; margin-bottom: 10px; }
+          p { color: #666; margin: 10px 0; }
+          .email { font-weight: bold; color: #333; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="success">✓</div>
+          <h1>Successfully Unsubscribed</h1>
+          <p class="email">${subscriber.email}</p>
+          <p>You have been unsubscribed from our newsletter.</p>
+          <p>We're sorry to see you go! If you change your mind, you can always subscribe again from our blog.</p>
+          <p style="margin-top: 30px; font-size: 14px; color: #888;">You can close this window.</p>
+        </div>
+      </body>
+      </html>
+    `);
+    
+  } catch (error) {
+    console.error("[PUBLIC] Newsletter unsubscribe error:", error);
+    res.status(500).json({ error: "Failed to unsubscribe from newsletter" });
   }
 });

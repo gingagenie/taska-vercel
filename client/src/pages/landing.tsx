@@ -1,4 +1,4 @@
-import taskaDemo from '@assets/ChatGPT Image Sep 14, 2025, 10_29_54 PM_1758979586399.png';
+import taskaDemo from '@assets/ChatGPT Image Sep 14, 2025, 10_29_54 PM_1758980230668.jpg';
 import taskaLogo from '@assets/Taska_1755842483680.png';
 import taskaVideoDemo from '@assets/WhatsApp Video 2025-08-24 at 15.58.50_1757909355458.mp4';
 import { FacebookPixelEvents } from '@/components/tracking/FacebookPixel';

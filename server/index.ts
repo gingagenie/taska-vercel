@@ -15,8 +15,31 @@ import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
 
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 
 const app = express();
+
+// Performance optimizations - enable compression
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress responses with this request header
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    // Use compression defaults
+    return compression.filter(req, res);
+  },
+  level: 6, // Good balance of compression vs CPU
+  threshold: 1024, // Only compress if response > 1KB
+}));
+
+// Set cache headers for static assets
+app.use('/assets', (req, res, next) => {
+  // Cache static assets for 1 year with immutable flag
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.setHeader('Vary', 'Accept-Encoding');
+  next();
+});
 
 // 1) TRUST the Replit/Proxy so secure cookies survive
 app.set("trust proxy", 1);

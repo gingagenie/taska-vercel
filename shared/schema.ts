@@ -785,3 +785,35 @@ export type InsertSupportAuditLog = z.infer<typeof insertSupportAuditLogSchema>;
 
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
+
+// Newsletter subscribers - for marketing emails and blog updates
+export const newsletterSubscribers = pgTable("newsletter_subscribers", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  status: varchar("status", { length: 20 }).notNull().default("active"), // 'active', 'unsubscribed'
+  source: varchar("source", { length: 50 }).default("blog"), // 'blog', 'landing', 'popup'
+  confirmationToken: varchar("confirmation_token", { length: 255 }), // For double opt-in
+  confirmedAt: timestamp("confirmed_at"),
+  unsubscribedAt: timestamp("unsubscribed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // Index for efficient lookups by status
+  statusIdx: index("newsletter_subscribers_status_idx").on(t.status),
+  // Index for email lookups
+  emailIdx: index("newsletter_subscribers_email_idx").on(t.email),
+  // Check constraint for status validation
+  statusValidation: sql`CONSTRAINT newsletter_subscribers_status_valid CHECK (status IN ('active', 'unsubscribed'))`,
+}));
+
+// Newsletter subscriber Zod schemas
+export const insertNewsletterSubscriberSchema = createInsertSchema(newsletterSubscribers, {
+  email: z.string().email("Please enter a valid email address"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
+export type InsertNewsletterSubscriber = z.infer<typeof insertNewsletterSubscriberSchema>;

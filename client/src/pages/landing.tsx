@@ -160,7 +160,7 @@ export default function Landing() {
       <header className="header">
         <div className="container nav">
           <a href="/" className="brand" aria-label="Taska home">
-            <img src={taskaLogo} alt="Taska Logo" className="logo" /> <span>Taska</span>
+            <img src={taskaLogo} alt="Taska field service management app logo" className="logo" /> <span>Taska</span>
           </a>
           <nav className="nav-links" aria-label="Primary">
             <a href="#features">Features</a>
@@ -217,7 +217,7 @@ export default function Landing() {
           <article className="card">
             <div className="icon">📋</div>
             <h3>Job Scheduling App</h3>
-            <p>Schedule, track, and complete jobs with our powerful job scheduling app. Real‑time updates and photo attachments keep your team connected.</p>
+            <p>Schedule, track, and complete jobs with our powerful job scheduling app. Real‑time updates and photo attachments keep your team connected. <a href="/blog" style={{color:'#2563eb', textDecoration:'underline'}}>Learn more</a> about job management.</p>
           </article>
           <article className="card">
             <div className="icon">👤</div>
@@ -227,7 +227,7 @@ export default function Landing() {
           <article className="card">
             <div className="icon">💸</div>
             <h3>Invoice App Australia</h3>
-            <p>Generate quotes and invoices in seconds with our invoice app. Convert completed jobs to invoices with one click and get paid faster.</p>
+            <p>Generate quotes and invoices in seconds with our invoice app. Convert completed jobs to invoices with one click and get paid faster. <a href="/blog" style={{color:'#2563eb', textDecoration:'underline'}}>Read tips</a> on faster invoicing.</p>
           </article>
           <article className="card">
             <div className="icon">🗓️</div>
@@ -237,7 +237,7 @@ export default function Landing() {
           <article className="card">
             <div className="icon">🛠️</div>
             <h3>Equipment Tracking</h3>
-            <p>Track machines, serial numbers, and service history. Perfect for field service management across multiple job sites.</p>
+            <p>Track machines, serial numbers, and service history. Perfect for field service management across multiple job sites. <a href="/blog" style={{color:'#2563eb', textDecoration:'underline'}}>Discover</a> equipment tracking best practices.</p>
           </article>
           <article className="card">
             <div className="icon">🧾</div>
@@ -259,7 +259,7 @@ export default function Landing() {
               muted 
               loop
               style={{width: '100%', display: 'block', aspectRatio: '16/10', objectFit: 'cover'}}
-              aria-label="Taska tradie invoice software and mobile app demonstration"
+              aria-label="Taska invoice app for Australian service businesses"
             >
               Your browser does not support the video tag.
             </video>

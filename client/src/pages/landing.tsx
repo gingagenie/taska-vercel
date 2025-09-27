@@ -195,13 +195,12 @@ export default function Landing() {
             <div className="bar">
               <span className="dot" /><span className="dot" /><span className="dot" />
             </div>
-            {/* Taska Demo Screenshot - Optimized for LCP */}
+            {/* Taska Demo Screenshot - Mobile optimized loading */}
             <img 
               src={taskaDemo} 
               alt="Taska job scheduling app dashboard showing tradie workflow management"
               className="demo-gif"
-              loading="eager"
-              fetchPriority="high"
+              loading="lazy"
               decoding="async"
               width="1400"
               height="900"

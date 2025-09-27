@@ -103,7 +103,7 @@ export default function Landing() {
         .mock .bar { height: 38px; background: #0b0f18; display:flex; gap:8px; align-items:center; padding:0 10px; border-bottom:1px solid var(--border); }
         .dot { width: 10px; height: 10px; border-radius: 50%; background: #374151; }
         .mock img, .mock video { width: 100%; display:block; aspect-ratio: 16/10; object-fit: cover; }
-        .demo-gif { object-fit: contain !important; background: #0f1420; max-width: 100%; height: auto; }
+        .demo-gif { object-fit: contain !important; background: #0f1420; }
         .mock .placeholder { display:grid; place-items:center; aspect-ratio:16/10; background: repeating-linear-gradient(135deg, #0e1320, #0e1320 12px, #0f172a 12px, #0f172a 24px); color:#93c5fd; font-weight:700; letter-spacing:.2px; }
 
         .strip { padding: 46px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); color: var(--muted); text-align:center; }
@@ -205,13 +205,6 @@ export default function Landing() {
               decoding="async"
               width="1400"
               height="900"
-              sizes="(max-width: 768px) 90vw, (max-width: 1200px) 50vw, 700px"
-              style={{
-                maxWidth: '100%',
-                height: 'auto',
-                objectFit: 'contain',
-                background: '#0f1420'
-              }}
             />
           </div>
         </div>

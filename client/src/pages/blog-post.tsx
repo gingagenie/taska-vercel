@@ -95,6 +95,28 @@ export default function BlogPostPage() {
     return Math.ceil(words / wordsPerMinute);
   };
 
+  const formatContent = (content: string) => {
+    // Check if content already contains HTML tags
+    const hasHtmlTags = /<[a-z][\s\S]*>/i.test(content);
+    
+    if (hasHtmlTags) {
+      // Content already has HTML formatting, return as is
+      return content;
+    }
+    
+    // Convert plain text with line breaks to HTML paragraphs
+    return content
+      .split('\n\n') // Split on double line breaks (paragraph breaks)
+      .map(paragraph => paragraph.trim())
+      .filter(paragraph => paragraph.length > 0) // Remove empty paragraphs
+      .map(paragraph => {
+        // Convert single line breaks within paragraphs to <br> tags
+        const withBreaks = paragraph.replace(/\n/g, '<br>');
+        return `<p>${withBreaks}</p>`;
+      })
+      .join('');
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -246,7 +268,7 @@ export default function BlogPostPage() {
 
         {/* Content */}
         <div className="prose prose-lg prose-gray max-w-none mb-12" data-testid="post-content">
-          <div dangerouslySetInnerHTML={{ __html: post.content }} />
+          <div dangerouslySetInnerHTML={{ __html: formatContent(post.content) }} />
         </div>
 
         {/* Footer */}

@@ -1,0 +1,60 @@
+Nice one, mate — thanks for dropping the raw landing page text. This gives me a proper look at how your SEO foundation is set up. You’ve already got a lot of the right ingredients, but here’s how to tighten it for Google without killing the flow for humans.
+
+🔑 Quick Wins (Do These First)
+
+Meta Title + Description
+Make sure your CMS lets you add these separately (not visible in the page text you sent). Use:
+
+Title:
+
+Taska | Field Service Management App for Tradies – Job Scheduling, Quotes & Invoicing
+
+
+Description:
+
+Taska is the all-in-one tradie app for job scheduling, quotes, invoices & equipment tracking. Built in Australia for field service businesses.
+
+🏗️ H1 + H2 Structure
+
+Right now your first line is:
+“Field Service Management App for Tradies” → Perfect for H1. Leave it.
+
+Rework the H2s so they’re more search-friendly:
+
+Job Scheduling, Quotes & Invoicing Made Simple ✅ (already good)
+
+Change “Affordable Pricing for Tradies” → “Pricing for Job Scheduling Software & Tradie Apps”
+
+Change “Taska vs Other Job Scheduling Apps” → “Taska vs Tradify, ServiceM8 & Other Job Scheduling Apps”
+
+📋 Content Tweaks
+
+In your opening section, drop in the main keyword once more:
+“Taska is the fast, simple tradie software and job scheduling app for managing customers, equipment, quotes and invoices — all in one place, on desktop and mobile.”
+
+In your FAQs (already brilliant 👌), just bold the main keyword in each Q:
+
+What is the best job scheduling app for tradies?
+
+How can tradies send invoices without paperwork?
+
+What is field service management software?
+
+👉 This signals to Google the page is tightly relevant.
+
+🖼️ Image Alt Text
+
+Every image/screenshot needs descriptive alt text. Examples:
+
+“Taska job scheduling app dashboard for tradies”
+
+“Taska invoice app for Australian service businesses”
+
+“Taska equipment tracking feature”
+
+🚀 Extra Push
+
+Add internal links: where you mention quotes, invoices, scheduling, link to relevant blog posts.
+
+Consider a short “customer testimonials” section with headings like:
+“Why Aussie Tradies Choose Taska” → Google eats that up.

@@ -188,6 +188,45 @@ export default function Landing() {
               <a className="btn" href="#pricing" onClick={() => handleCTAClick('see_pricing')}>See pricing</a>
               <a className="btn ghost" href="#demo" onClick={() => handleCTAClick('watch_demo')}>Watch demo</a>
             </div>
+            <div style={{ marginTop: '16px' }}>
+              <a 
+                href="https://play.google.com/store/apps/details?id=info.taska.app" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                onClick={() => handleCTAClick('play_store')}
+                data-testid="button-play-store"
+                style={{
+                  display: 'inline-block',
+                  backgroundColor: '#000',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  border: '1px solid #333',
+                  transition: 'all 0.2s ease',
+                  textDecoration: 'none'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#1a1a1a';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#000';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 20.5v-17c0-.46.37-.83.83-.83.17 0 .33.05.47.14L20.5 12 4.3 21.36c-.14.09-.3.14-.47.14-.46 0-.83-.37-.83-.83v-.17z" fill="#34A853"/>
+                    <path d="M20.5 12L15.6 7.1c-.39-.39-1.02-.39-1.41 0L4.3 2.64c.14-.09.3-.14.47-.14.46 0 .83.37.83.83v17c0 .46-.37.83-.83.83-.17 0-.33-.05-.47-.14L14.19 12.9c.39-.39 1.02-.39 1.41 0z" fill="#EA4335"/>
+                    <path d="M20.5 12l-5.9 4.9c-.39.39-1.02.39-1.41 0L4.3 21.36c.14.09.3.14.47.14.46 0 .83-.37.83-.83v-17c0-.46-.37-.83-.83-.83-.17 0-.33.05-.47.14L13.19 11.1c.39.39 1.02.39 1.41 0z" fill="#FBBC04"/>
+                    <path d="M13.19 11.1l-.9.9c-.39.39-1.02.39-1.41 0L4.3 2.64 4.3 21.36l6.58-9.46c.39-.39 1.02-.39 1.41 0l.9-.9z" fill="#4285F4"/>
+                  </svg>
+                  <div style={{ color: '#fff', fontSize: '14px', fontWeight: '600' }}>
+                    <div style={{ fontSize: '10px', opacity: 0.7 }}>GET IT ON</div>
+                    <div>Google Play</div>
+                  </div>
+                </div>
+              </a>
+            </div>
             <div className="tiny">Set up in minutes. Get paid faster. Less admin, more jobs done.</div>
           </div>
 

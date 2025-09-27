@@ -337,47 +337,48 @@ publicRouter.post("/newsletter/subscribe", async (req, res) => {
       return res.status(400).json({ error: "Email is required" });
     }
     
-    // Validate email using Zod schema
-    const validationResult = insertNewsletterSubscriberSchema.safeParse({ email, source });
-    
-    if (!validationResult.success) {
-      const errorMessage = validationResult.error.errors[0]?.message || "Invalid email address";
-      return res.status(400).json({ error: errorMessage });
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Please enter a valid email address" });
     }
     
-    console.log(`[PUBLIC] Newsletter subscription request: ${email} from ${source}`);
+    const emailLower = email.toLowerCase().trim();
+    console.log(`[PUBLIC] Newsletter subscription request: ${emailLower} from ${source}`);
     
-    // Check if email already exists
-    const existingSubscriber = await db
-      .select()
-      .from(newsletterSubscribers)
-      .where(eq(newsletterSubscribers.email, email))
-      .limit(1);
+    // Check if email already exists (case-insensitive) - using SQL for now to avoid ORM issues
+    const existingSubscriber = await db.execute(sql`
+      SELECT * FROM newsletter_subscribers 
+      WHERE email_lower = ${emailLower} 
+      LIMIT 1
+    `);
     
     if (existingSubscriber.length > 0) {
       const subscriber = existingSubscriber[0];
       
-      // If already active, just return success
+      // If already active, just return success (idempotent)
       if (subscriber.status === "active") {
-        console.log(`[PUBLIC] Email already subscribed: ${email}`);
+        console.log(`[PUBLIC] Email already subscribed: ${emailLower}`);
         return res.json({ 
           message: "Successfully subscribed!", 
           status: "already_subscribed" 
         });
       }
       
-      // If unsubscribed, reactivate the subscription
+      // If unsubscribed, reactivate the subscription with new unsubscribe token
       if (subscriber.status === "unsubscribed") {
-        await db
-          .update(newsletterSubscribers)
-          .set({ 
-            status: "active",
-            unsubscribedAt: null,
-            updatedAt: new Date()
-          })
-          .where(eq(newsletterSubscribers.id, subscriber.id));
+        const newUnsubscribeToken = `unsub_${Date.now()}_${Math.random().toString(36).substring(2)}`;
         
-        console.log(`[PUBLIC] Newsletter subscription reactivated: ${email}`);
+        await db.execute(sql`
+          UPDATE newsletter_subscribers 
+          SET status = 'active', 
+              unsubscribed_at = NULL, 
+              unsubscribe_token = ${newUnsubscribeToken}, 
+              updated_at = NOW()
+          WHERE id = ${subscriber.id}
+        `);
+        
+        console.log(`[PUBLIC] Newsletter subscription reactivated: ${emailLower}`);
         return res.json({ 
           message: "Successfully resubscribed!", 
           status: "resubscribed" 
@@ -385,19 +386,17 @@ publicRouter.post("/newsletter/subscribe", async (req, res) => {
       }
     }
     
-    // Create new subscription
-    const result = await db
-      .insert(newsletterSubscribers)
-      .values({
-        email,
-        source,
-        status: "active",
-        confirmedAt: new Date(), // Auto-confirm for now (can add double opt-in later)
-      })
-      .returning({ id: newsletterSubscribers.id, email: newsletterSubscribers.email });
+    // Create new subscription with secure unsubscribe token
+    const unsubscribeToken = `unsub_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    
+    const result = await db.execute(sql`
+      INSERT INTO newsletter_subscribers (email, email_lower, source, status, unsubscribe_token, confirmed_at)
+      VALUES (${email}, ${emailLower}, ${source}, 'active', ${unsubscribeToken}, NOW())
+      RETURNING id, email
+    `);
     
     const newSubscriber = result[0];
-    console.log(`[PUBLIC] Newsletter subscription created: ${newSubscriber.id} - ${newSubscriber.email}`);
+    console.log(`[PUBLIC] Newsletter subscription created: ${newSubscriber.id} - ${emailLower}`);
     
     res.json({ 
       message: "Successfully subscribed to our newsletter!", 
@@ -424,13 +423,14 @@ publicRouter.get("/newsletter/unsubscribe", async (req, res) => {
     
     let whereCondition;
     if (token && typeof token === "string") {
-      // Use token if provided (for email links)
-      whereCondition = eq(newsletterSubscribers.confirmationToken, token);
+      // Use unsubscribe token if provided (secure method for email links)
+      whereCondition = eq(newsletterSubscribers.unsubscribeToken, token);
     } else if (email && typeof email === "string") {
-      // Use email if provided (for direct unsubscribe)
-      whereCondition = eq(newsletterSubscribers.email, email);
+      // Use lowercased email if provided (for direct unsubscribe)
+      const emailLower = email.toLowerCase().trim();
+      whereCondition = eq(newsletterSubscribers.emailLower, emailLower);
     } else {
-      return res.status(400).json({ error: "Valid email or token required" });
+      return res.status(400).json({ error: "Valid email or unsubscribe token required" });
     }
     
     // Find and update the subscriber

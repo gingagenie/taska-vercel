@@ -1,4 +1,4 @@
-import taskaDemo from '@assets/ezgif.com-effects_1757423433414.gif';
+import taskaDemo from '@assets/ChatGPT Image Sep 14, 2025, 10_29_54 PM_1758979586399.png';
 import taskaLogo from '@assets/Taska_1755842483680.png';
 import taskaVideoDemo from '@assets/WhatsApp Video 2025-08-24 at 15.58.50_1757909355458.mp4';
 import { FacebookPixelEvents } from '@/components/tracking/FacebookPixel';
@@ -195,12 +195,13 @@ export default function Landing() {
             <div className="bar">
               <span className="dot" /><span className="dot" /><span className="dot" />
             </div>
-            {/* Taska Demo Screenshot - Mobile optimized loading */}
+            {/* Taska Hero Image - Optimized for performance */}
             <img 
               src={taskaDemo} 
-              alt="Taska job scheduling app dashboard showing tradie workflow management"
+              alt="Power up your workflow - Taska field service management dashboard"
               className="demo-gif"
-              loading="lazy"
+              loading="eager"
+              fetchPriority="high"
               decoding="async"
               width="1400"
               height="900"

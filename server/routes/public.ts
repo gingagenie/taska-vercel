@@ -344,7 +344,6 @@ publicRouter.post("/newsletter/subscribe", async (req, res) => {
     }
     
     const emailLower = email.toLowerCase().trim();
-    console.log(`[PUBLIC] Newsletter subscription request: ${emailLower} from ${source}`);
     
     // Check if email already exists (case-insensitive) - using SQL for now to avoid ORM issues
     const existingSubscriber = await db.execute(sql`
@@ -358,7 +357,6 @@ publicRouter.post("/newsletter/subscribe", async (req, res) => {
       
       // If already active, just return success (idempotent)
       if (subscriber.status === "active") {
-        console.log(`[PUBLIC] Email already subscribed: ${emailLower}`);
         return res.json({ 
           message: "Successfully subscribed!", 
           status: "already_subscribed" 
@@ -396,7 +394,6 @@ publicRouter.post("/newsletter/subscribe", async (req, res) => {
     `);
     
     const newSubscriber = result[0];
-    console.log(`[PUBLIC] Newsletter subscription created: ${newSubscriber.id} - ${emailLower}`);
     
     res.json({ 
       message: "Successfully subscribed to our newsletter!", 

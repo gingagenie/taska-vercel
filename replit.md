@@ -6,6 +6,22 @@ Taska is a comprehensive field service management application designed for servi
 
 ## Recent Changes (September 2025)
 
+**Blog Post Formatting Fix - Complete:**
+- Fixed blog post display rendering issue where published posts appeared as solid blocks of text
+- Implemented smart content formatting that detects HTML vs plain text content
+- Converts plain text with line breaks to proper HTML paragraphs automatically
+- Preserves existing HTML formatting while enhancing plain text display
+- Blog posts now display with proper paragraph spacing and line breaks as intended
+- Maintains backward compatibility with existing posts containing HTML markup
+
+**Newsletter Subscription System - Production Ready:**
+- Complete newsletter subscription functionality integrated into blog pages
+- Secure email collection with normalization and duplicate prevention
+- Database schema with unique constraints and unsubscribe token security
+- Frontend form with validation, loading states, and user feedback
+- API endpoints support both new subscriptions and graceful duplicate handling
+- Ready for email marketing campaigns with subscriber management foundation
+
 **Customer-Facing Support Integration - Complete:**
 - Integrated customer support ticket system into main Taska interface
 - Created complete customer support workflow with 4 new pages:

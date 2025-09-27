@@ -2,6 +2,7 @@ import taskaDemo from '@assets/ezgif.com-effects_1757423433414.gif';
 import taskaLogo from '@assets/Taska_1755842483680.png';
 import taskaVideoDemo from '@assets/WhatsApp Video 2025-08-24 at 15.58.50_1757909355458.mp4';
 import { FacebookPixelEvents } from '@/components/tracking/FacebookPixel';
+import { Head } from '@/components/seo/Head';
 
 export default function Landing() {
   // Handler for CTA button clicks
@@ -9,8 +10,58 @@ export default function Landing() {
     FacebookPixelEvents.trackLead(`landing_${action}`);
   };
 
+  // FAQ structured data for Google rich snippets
+  const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is the best job scheduling app for tradies?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Taska is a top-rated job scheduling app designed specifically for Australian tradies. It includes mobile scheduling, drag-and-drop calendar, SMS confirmations, and integrates quotes and invoicing in one platform."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How can tradies send invoices without paperwork?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "With Taska's invoice app, tradies can convert completed jobs to invoices with one click, send them via email or SMS, and get paid faster through integrated Stripe payments."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What is field service management software?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Field service management software like Taska helps service businesses manage their entire workflow - from job scheduling and customer management to equipment tracking, quotes, invoices, and payments - all in one centralized platform."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Taska work for Australian tradie businesses?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, Taska is built specifically for Australian service businesses with local features including Xero integration, Australian phone number formatting, and pricing in AUD."
+        }
+      }
+    ]
+  };
+
   return (
     <main>
+      <Head 
+        title="Taska | Field Service Management App for Tradies – Job Scheduling, Quotes & Invoicing"
+        description="Taska is the all-in-one field service app for tradies. Schedule jobs, send quotes & invoices, and get paid faster with simple software built for Aussie businesses."
+        canonical="https://taska.replit.app/"
+        ogTitle="Taska | Field Service Management App for Tradies"
+        ogDescription="Schedule jobs, send quotes & invoices, and get paid faster with simple software built for Aussie businesses."
+        ogImage="https://taska.replit.app/og-image.png"
+        ogUrl="https://taska.replit.app/"
+        structuredData={faqStructuredData}
+      />
       <style>{`
         :root {
           --bg: #0b0c0f;            /* near-black for subtle contrast */
@@ -130,8 +181,8 @@ export default function Landing() {
         <div className="container hero-grid">
           <div>
             <span className="eyebrow">14‑day free trial · No credit card · Cancel anytime</span>
-            <h1 className="h1">Run your trade business like a pro.</h1>
-            <p className="lead">Taska is the fast, simple field‑service platform for jobs, scheduling, customers, equipment, and invoices — all in one place, on desktop and mobile.</p>
+            <h1 className="h1">Field Service Management App for Tradies</h1>
+            <p className="lead">Taska is the fast, simple tradie software for job scheduling, customers, equipment, quotes and invoices — all in one place, on desktop and mobile. Built for Australian service businesses.</p>
             <div className="hero-ctas">
               <a className="btn primary" href="/auth/register" onClick={() => handleCTAClick('start_free')}>Start free</a>
               <a className="btn" href="#pricing" onClick={() => handleCTAClick('see_pricing')}>See pricing</a>
@@ -147,7 +198,7 @@ export default function Landing() {
             {/* Taska Demo GIF */}
             <img 
               src={taskaDemo} 
-              alt="Taska dashboard showing job scheduling, customer management, and business features"
+              alt="Taska job scheduling app dashboard showing tradie workflow management"
               className="demo-gif"
             />
           </div>
@@ -161,37 +212,37 @@ export default function Landing() {
 
       {/* Features */}
       <section id="features" className="features container">
-        <h2 className="section-title">Everything you need to run your field service business</h2>
+        <h2 className="section-title">Job Scheduling, Quotes & Invoicing Made Simple</h2>
         <div className="feature-grid">
           <article className="card">
             <div className="icon">📋</div>
-            <h3>Job Management</h3>
-            <p>Schedule, track, and complete jobs with real‑time updates and photo attachments.</p>
+            <h3>Job Scheduling App</h3>
+            <p>Schedule, track, and complete jobs with our powerful job scheduling app. Real‑time updates and photo attachments keep your team connected.</p>
           </article>
           <article className="card">
             <div className="icon">👤</div>
-            <h3>Customer Portal</h3>
-            <p>History, notes, and equipment — everything in one place so you look pro and move fast.</p>
+            <h3>Customer Management</h3>
+            <p>Customer history, notes, and equipment tracking — everything in one place so you look professional and work efficiently.</p>
           </article>
           <article className="card">
             <div className="icon">💸</div>
-            <h3>Invoicing & Quotes</h3>
-            <p>Generate quotes and invoices in seconds. Convert jobs to invoices with one click.</p>
+            <h3>Invoice App Australia</h3>
+            <p>Generate quotes and invoices in seconds with our invoice app. Convert completed jobs to invoices with one click and get paid faster.</p>
           </article>
           <article className="card">
             <div className="icon">🗓️</div>
-            <h3>Scheduling</h3>
-            <p>Drag‑and‑drop calendar and a clean mobile schedule so your crew always knows what's next.</p>
+            <h3>Tradie Software</h3>
+            <p>Drag‑and‑drop calendar and clean mobile schedule designed specifically for Australian tradies and field service teams.</p>
           </article>
           <article className="card">
             <div className="icon">🛠️</div>
-            <h3>Equipment</h3>
-            <p>Track machines, serials, and service history. Scan and go when you're on site.</p>
+            <h3>Equipment Tracking</h3>
+            <p>Track machines, serial numbers, and service history. Perfect for field service management across multiple job sites.</p>
           </article>
           <article className="card">
             <div className="icon">🧾</div>
-            <h3>Payments & Xero</h3>
-            <p>Stripe payments and Xero integration so you get paid faster and reconcile without pain.</p>
+            <h3>Payments & Xero Integration</h3>
+            <p>Stripe payments and Xero integration built for Australian businesses. Get paid faster and reconcile your books without the hassle.</p>
           </article>
         </div>
       </section>
@@ -208,14 +259,14 @@ export default function Landing() {
               muted 
               loop
               style={{width: '100%', display: 'block', aspectRatio: '16/10', objectFit: 'cover'}}
-              aria-label="Taska in action - demonstration video showing field service management features"
+              aria-label="Taska tradie invoice software and mobile app demonstration"
             >
               Your browser does not support the video tag.
             </video>
           </div>
           <div>
             <h2 className="section-title" style={{textAlign:'left'}}>See Taska in action</h2>
-            <p className="lead">Create a job, assign a tech, capture photos, and turn it into an invoice — all in under a minute. Watch how Taska streamlines your entire workflow from start to finish.</p>
+            <p className="lead">Create a job, assign a tech, capture photos, and turn it into an invoice — all in under a minute. Watch how our field service management software streamlines your entire tradie workflow from start to finish. <a href="/blog/best-job-scheduling-apps-tradies-australia-2025" style={{color:'#2563eb', textDecoration:'underline'}}>Looking for the best job scheduling app?</a> See why Australian tradies choose Taska.</p>
             <div className="hero-ctas">
               <a className="btn primary" href="/auth/register" onClick={() => handleCTAClick('start_trial')}>Start your free trial</a>
               <a className="btn" href="/auth/login" onClick={() => handleCTAClick('login')}>Log in</a>
@@ -227,8 +278,8 @@ export default function Landing() {
 
       {/* Pricing */}
       <section id="pricing" className="pricing container">
-        <h2 className="section-title">Choose your plan</h2>
-        <p className="strip" style={{marginTop:12, marginBottom:22, background:'transparent', border:'none'}}>Start on any plan and upgrade as you grow</p>
+        <h2 className="section-title">Affordable Pricing for Tradies</h2>
+        <p className="strip" style={{marginTop:12, marginBottom:22, background:'transparent', border:'none'}}>Transparent pricing designed for Australian service businesses. Start on any plan and upgrade as you grow. <a href="/blog" style={{color:'#2563eb', textDecoration:'underline'}}>Read our latest tradie tips</a> on our blog.</p>
         <div className="price-grid">
           <div className="price">
             <div>
@@ -347,6 +398,29 @@ export default function Landing() {
         </div>
         
         <p className="tiny container" style={{textAlign:'center', marginTop:20}}>Add-on packs are available inside the app when you reach your monthly limits · Credits expire after 6 months</p>
+      </section>
+
+      {/* SEO FAQ for Tradies */}
+      <section className="faq container" style={{paddingTop: '30px'}}>
+        <h2 className="section-title">Taska vs Other Job Scheduling Apps</h2>
+        <div className="faq-grid">
+          <details>
+            <summary>What is the best job scheduling app for tradies?</summary>
+            <p>Taska is a top-rated job scheduling app designed specifically for Australian tradies. It includes mobile scheduling, drag-and-drop calendar, SMS confirmations, and integrates quotes and invoicing in one platform - making it the complete field service management solution.</p>
+          </details>
+          <details>
+            <summary>How can tradies send invoices without paperwork?</summary>
+            <p>With Taska's invoice app, tradies can convert completed jobs to invoices with one click, send them via email or SMS, and get paid faster through integrated Stripe payments. No more paper invoices or manual data entry required.</p>
+          </details>
+          <details>
+            <summary>What is field service management software?</summary>
+            <p>Field service management software like Taska helps service businesses manage their entire workflow - from job scheduling and customer management to equipment tracking, quotes, invoices, and payments - all in one centralized platform designed for mobile teams.</p>
+          </details>
+          <details>
+            <summary>Does Taska work for Australian tradie businesses?</summary>
+            <p>Yes, Taska is built specifically for Australian service businesses with local features including Xero integration, Australian phone number formatting, AUD pricing, and timezone support for Australia/Melbourne operations.</p>
+          </details>
+        </div>
       </section>
 
       {/* FAQ */}

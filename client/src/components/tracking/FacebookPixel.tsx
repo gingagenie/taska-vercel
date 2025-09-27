@@ -15,7 +15,7 @@ export function FacebookPixel({ pixelId }: FacebookPixelProps) {
   const [location] = useLocation();
   const fbPixelId = pixelId || import.meta.env.VITE_FB_PIXEL_ID;
 
-  // Initialize Facebook Pixel on component mount
+  // Initialize Facebook Pixel with performance optimization
   useEffect(() => {
     if (!fbPixelId) {
       console.warn('[Facebook Pixel] No pixel ID provided. Skipping initialization.');
@@ -28,8 +28,14 @@ export function FacebookPixel({ pixelId }: FacebookPixelProps) {
       return;
     }
 
+    let noscript: HTMLElement | null = null;
+    let isInitialized = false;
+
     // Facebook Pixel base code (from Meta setup instructions)
     const initPixel = () => {
+      if (isInitialized) return;
+      isInitialized = true;
+
       // Initialize the fbq function if not already present
       if (!window.fbq) {
         (function(f: any, b: any, e: any, v: any, n: any, t: any, s: any) {
@@ -56,24 +62,50 @@ export function FacebookPixel({ pixelId }: FacebookPixelProps) {
       // Track initial page view
       window.fbq('track', 'PageView');
       
-      console.log(`[Facebook Pixel] Initialized with ID: ${fbPixelId}`);
+      console.log(`[Facebook Pixel] Initialized with ID: ${fbPixelId} (deferred)`);
+
+      // Add noscript fallback image to document head
+      const noscriptImg = document.createElement('img');
+      noscriptImg.height = 1;
+      noscriptImg.width = 1;
+      noscriptImg.style.display = 'none';
+      noscriptImg.src = `https://www.facebook.com/tr?id=${fbPixelId}&ev=PageView&noscript=1`;
+      noscriptImg.alt = 'Facebook Pixel';
+      
+      // Add to a noscript tag in head
+      noscript = document.createElement('noscript');
+      noscript.appendChild(noscriptImg);
+      document.head.appendChild(noscript);
     };
 
-    // Initialize pixel
-    initPixel();
+    // Performance optimization: defer loading until user interaction or idle
+    const deferredInit = () => {
+      // Try requestIdleCallback first (supported in modern browsers)
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(initPixel, { timeout: 5000 });
+      } else {
+        // Fallback for older browsers - delay with setTimeout
+        setTimeout(initPixel, 2000);
+      }
+    };
 
-    // Add noscript fallback image to document head
-    const noscriptImg = document.createElement('img');
-    noscriptImg.height = 1;
-    noscriptImg.width = 1;
-    noscriptImg.style.display = 'none';
-    noscriptImg.src = `https://www.facebook.com/tr?id=${fbPixelId}&ev=PageView&noscript=1`;
-    noscriptImg.alt = 'Facebook Pixel';
-    
-    // Add to a noscript tag in head
-    const noscript = document.createElement('noscript');
-    noscript.appendChild(noscriptImg);
-    document.head.appendChild(noscript);
+    // Also initialize on first user interaction for immediate attribution
+    const interactionEvents = ['click', 'scroll', 'keydown', 'touchstart'];
+    const handleFirstInteraction = () => {
+      initPixel();
+      // Remove event listeners after first interaction
+      interactionEvents.forEach(event => {
+        document.removeEventListener(event, handleFirstInteraction);
+      });
+    };
+
+    // Set up interaction listeners
+    interactionEvents.forEach(event => {
+      document.addEventListener(event, handleFirstInteraction, { once: true, passive: true });
+    });
+
+    // Start deferred initialization
+    deferredInit();
 
     // Cleanup function
     return () => {
@@ -81,6 +113,10 @@ export function FacebookPixel({ pixelId }: FacebookPixelProps) {
       if (noscript && noscript.parentNode) {
         noscript.parentNode.removeChild(noscript);
       }
+      // Remove any remaining event listeners
+      interactionEvents.forEach(event => {
+        document.removeEventListener(event, handleFirstInteraction);
+      });
     };
   }, [fbPixelId]);
 

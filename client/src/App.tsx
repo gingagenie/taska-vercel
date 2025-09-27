@@ -11,7 +11,7 @@ import { TopBar } from "@/components/layout/top-bar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileDrawer } from "@/components/layout/mobile-drawer";
 import { SubscriptionErrorModalProvider } from "@/components/modals/subscription-error-modal";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 
 // Import pages
 import Dashboard from "@/pages/dashboard";
@@ -35,8 +35,9 @@ import CompletedJobView from "./pages/completed-job-view";
 import CustomerView from "./pages/customer-view";
 import CustomerNew from "./pages/customers-new";
 import EquipmentView from "./pages/equipment-view";
-import SettingsPage from "@/pages/settings";
-import MembersPage from "@/pages/members";
+// Lazy load heavy settings pages
+const SettingsPage = lazy(() => import("@/pages/settings"));
+const MembersPage = lazy(() => import("@/pages/members"));
 import Landing from "@/pages/landing";
 import Blog from "@/pages/blog";
 import BlogPost from "@/pages/blog-post";
@@ -45,11 +46,11 @@ import Login from "@/pages/auth-login";
 import TrialExpired from "@/pages/trial-expired";
 import PrivacyPolicy from "@/pages/privacy";
 
-// Import customer support pages
-import CustomerSupportDashboard from "@/pages/support";
-import CreateSupportTicket from "@/pages/support-new";
-import SupportTicketDetail from "@/pages/support-ticket";
-import SupportTicketsList from "@/pages/support-tickets";
+// Lazy load customer support pages for performance
+const CustomerSupportDashboard = lazy(() => import("@/pages/support"));
+const CreateSupportTicket = lazy(() => import("@/pages/support-new"));
+const SupportTicketDetail = lazy(() => import("@/pages/support-ticket"));
+const SupportTicketsList = lazy(() => import("@/pages/support-tickets"));
 
 // Import support admin pages
 import SupportLogin from "@/pages/support-login";
@@ -75,18 +76,18 @@ import TicketQueue from "@/pages/support/tickets";
 import TicketDetail from "@/pages/support/ticket-detail";
 import MyTickets from "@/pages/support/my-tickets";
 
-// Import support admin components
-import SupportAdminDashboard from "@/pages/support/admin/dashboard";
-import SupportUsersAdmin from "@/pages/support/admin/users";
-import SupportInvitesAdmin from "@/pages/support/admin/invites";
-import SupportAuditAdmin from "@/pages/support/admin/audit";
+// Lazy load support admin components for performance
+const SupportAdminDashboard = lazy(() => import("@/pages/support/admin/dashboard"));
+const SupportUsersAdmin = lazy(() => import("@/pages/support/admin/users"));
+const SupportInvitesAdmin = lazy(() => import("@/pages/support/admin/invites"));
+const SupportAuditAdmin = lazy(() => import("@/pages/support/admin/audit"));
 
-// Import business admin components
-import AdminDashboard from "@/pages/admin/dashboard";
-import OrganizationsAdmin from "@/pages/admin/organizations";
-import AnalyticsAdmin from "@/pages/admin/analytics";
-import BlogAdmin from "@/pages/admin/blog";
-import AdminSupportPage from "@/pages/admin/support";
+// Lazy load business admin components for performance
+const AdminDashboard = lazy(() => import("@/pages/admin/dashboard"));
+const OrganizationsAdmin = lazy(() => import("@/pages/admin/organizations"));
+const AnalyticsAdmin = lazy(() => import("@/pages/admin/analytics"));
+const BlogAdmin = lazy(() => import("@/pages/admin/blog"));
+const AdminSupportPage = lazy(() => import("@/pages/admin/support"));
 import { AdminLayout } from "@/components/admin/AdminLayout";
 
 // Role-based route protection
@@ -163,21 +164,23 @@ function SupportAppContent() {
 
   return (
     <SupportLayout>
-      <Switch>
-        <Route path="/support-admin/tickets" component={TicketQueue} />
-        <Route path="/support-admin/tickets/:id" component={TicketDetail} />
-        <Route path="/support-admin/my-tickets" component={MyTickets} />
-        
-        {/* Admin Routes - Only accessible to support_admin role */}
-        <Route path="/support-admin/admin" component={SupportAdminDashboard} />
-        <Route path="/support-admin/users" component={SupportUsersAdmin} />
-        <Route path="/support-admin/invites" component={SupportInvitesAdmin} />
-        <Route path="/support-admin/audit" component={SupportAuditAdmin} />
-        
-        {/* Default dashboard route - must be last */}
-        <Route path="/support-admin" component={SupportDashboard} />
-        <Route component={SupportDashboard} />
-      </Switch>
+      <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+        <Switch>
+          <Route path="/support-admin/tickets" component={TicketQueue} />
+          <Route path="/support-admin/tickets/:id" component={TicketDetail} />
+          <Route path="/support-admin/my-tickets" component={MyTickets} />
+          
+          {/* Admin Routes - Only accessible to support_admin role */}
+          <Route path="/support-admin/admin" component={SupportAdminDashboard} />
+          <Route path="/support-admin/users" component={SupportUsersAdmin} />
+          <Route path="/support-admin/invites" component={SupportInvitesAdmin} />
+          <Route path="/support-admin/audit" component={SupportAuditAdmin} />
+          
+          {/* Default dashboard route - must be last */}
+          <Route path="/support-admin" component={SupportDashboard} />
+          <Route component={SupportDashboard} />
+        </Switch>
+      </Suspense>
     </SupportLayout>
   );
 }
@@ -217,16 +220,18 @@ function AdminAppContent() {
 
   return (
     <AdminLayout>
-      <Switch>
-        <Route path="/admin/organizations" component={() => <AdminRoute component={OrganizationsAdmin} />} />
-        <Route path="/admin/analytics" component={() => <AdminRoute component={AnalyticsAdmin} />} />
-        <Route path="/admin/blog" component={() => <AdminRoute component={BlogAdmin} />} />
-        <Route path="/admin/support" component={() => <AdminRoute component={AdminSupportPage} />} />
-        
-        {/* Default admin dashboard route - must be last */}
-        <Route path="/admin" component={() => <AdminRoute component={AdminDashboard} />} />
-        <Route component={() => <AdminRoute component={AdminDashboard} />} />
-      </Switch>
+      <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+        <Switch>
+          <Route path="/admin/organizations" component={() => <AdminRoute component={OrganizationsAdmin} />} />
+          <Route path="/admin/analytics" component={() => <AdminRoute component={AnalyticsAdmin} />} />
+          <Route path="/admin/blog" component={() => <AdminRoute component={BlogAdmin} />} />
+          <Route path="/admin/support" component={() => <AdminRoute component={AdminSupportPage} />} />
+          
+          {/* Default admin dashboard route - must be last */}
+          <Route path="/admin" component={() => <AdminRoute component={AdminDashboard} />} />
+          <Route component={() => <AdminRoute component={AdminDashboard} />} />
+        </Switch>
+      </Suspense>
     </AdminLayout>
   );
 }
@@ -351,17 +356,17 @@ function AuthenticatedApp() {
           <Route path="/invoices/new">{() => <ProtectedRoute component={InvoiceEdit} allowedRoles={["admin", "manager"]} />}</Route>
           <Route path="/invoices/:id">{() => <ProtectedRoute component={InvoiceView} allowedRoles={["admin", "manager"]} />}</Route>
           <Route path="/invoices/:id/edit">{() => <ProtectedRoute component={InvoiceEdit} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/settings">{() => <ProtectedRoute component={SettingsPage} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/members">{() => <ProtectedRoute component={MembersPage} allowedRoles={["admin", "manager"]} />}</Route>
+          <Route path="/settings">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><ProtectedRoute component={SettingsPage} allowedRoles={["admin", "manager"]} /></Suspense>}</Route>
+          <Route path="/members">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><ProtectedRoute component={MembersPage} allowedRoles={["admin", "manager"]} /></Suspense>}</Route>
           <Route path="/jobs/:id">{() => <JobView />}</Route>
           <Route path="/jobs/:id/edit">{() => <JobEdit />}</Route>
           <Route path="/jobs/:id/notes">{() => <JobNotesCharges />}</Route>
           <Route path="/customers/:id">{() => <CustomerView />}</Route>
           <Route path="/equipment/:id">{() => <EquipmentView />}</Route>
-          <Route path="/support" component={CustomerSupportDashboard} />
-          <Route path="/support/new" component={CreateSupportTicket} />
-          <Route path="/support/tickets" component={SupportTicketsList} />
-          <Route path="/support/ticket/:id" component={SupportTicketDetail} />
+          <Route path="/support">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><CustomerSupportDashboard /></Suspense>}</Route>
+          <Route path="/support/new">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><CreateSupportTicket /></Suspense>}</Route>
+          <Route path="/support/tickets">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><SupportTicketsList /></Suspense>}</Route>
+          <Route path="/support/ticket/:id">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><SupportTicketDetail /></Suspense>}</Route>
           <Route path="/privacy" component={PrivacyPolicy} />
           <Route path="/trial-expired" component={TrialExpired} />
           <Route component={NotFound} />

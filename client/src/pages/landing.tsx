@@ -263,7 +263,6 @@ export default function Landing() {
               muted 
               loop
               preload="none"
-              poster={taskaDemo}
               style={{width: '100%', display: 'block', aspectRatio: '16/10', objectFit: 'cover'}}
               aria-label="Taska invoice app for Australian service businesses"
             >

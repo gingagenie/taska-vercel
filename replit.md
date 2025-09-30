@@ -6,6 +6,29 @@ Taska is a comprehensive field service management application designed for servi
 
 ## Recent Changes (September 2025)
 
+**Stripe Subscription System Safeguards - Production Ready (September 30, 2025):**
+- Implemented comprehensive safeguards to prevent subscription system configuration issues
+- **Startup Validation**: Automatic checks on server start for critical environment variables
+  - Validates STRIPE_WEBHOOK_SECRET, STRIPE_SECRET_KEY, DATABASE_URL presence
+  - Clear error messages if configuration is missing or incorrect
+  - Server logs show validation results on every startup
+- **Webhook Failure Monitoring**: Enhanced webhook handler with detailed logging
+  - Tracks consecutive webhook failures with counter and timestamps
+  - Provides diagnostic information when webhooks fail (signature verification, missing secrets)
+  - Automatic reset of failure counter when webhook succeeds
+  - Clear error messages explaining common issues (secret not linked, wrong URL, etc.)
+- **Health Check Endpoint**: `/api/subscriptions/health` provides real-time system status
+  - Shows configuration status for Stripe, webhooks, and database
+  - Reports webhook failure counts and last failure timestamp
+  - Provides actionable recommendations when issues detected
+  - Useful for monitoring and debugging subscription system health
+- **Critical Configuration Requirements**:
+  - STRIPE_WEBHOOK_SECRET must be linked to the Replit app (not just exist in account)
+  - Stripe webhook URL must point to correct production domain (www.taska.info)
+  - All subscription plans configured with AUD currency (not USD)
+- System prevents repeat of previous issues where webhook secret wasn't linked properly
+- All safeguards tested and working in production environment
+
 **Photo Upload & Object Storage Integration - Production Ready (September 30, 2025):**
 - Fixed critical photo upload bug by switching multer from disk storage to memoryStorage
 - Implemented reliable Object Storage integration for all photo uploads

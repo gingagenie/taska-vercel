@@ -211,19 +211,46 @@ router.get('/health', async (req, res) => {
   // Get webhook monitoring data from database
   const monitoringRecord = await getOrCreateMonitoringRecord()
   
+  // Check for active subscriptions
+  const [activeSubCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(orgSubscriptions)
+    .where(eq(orgSubscriptions.status, 'active'))
+  const hasActiveSubscriptions = (activeSubCount?.count || 0) > 0
+  
+  // Detect stale webhooks (no webhooks received when subscriptions exist)
+  const now = new Date()
+  const lastSuccessTime = monitoringRecord.lastSuccessfulWebhook
+  const daysSinceLastWebhook = lastSuccessTime 
+    ? Math.floor((now.getTime() - lastSuccessTime.getTime()) / (1000 * 60 * 60 * 24))
+    : null
+  
+  // Determine if webhooks are stale
+  const webhooksAreStale = hasActiveSubscriptions && (
+    !lastSuccessTime || // Never received a webhook
+    daysSinceLastWebhook! > 35 // No webhook in over 35 days (subscriptions renew monthly)
+  )
+  
   const webhookHealth = {
     secretConfigured: hasWebhookSecret,
     failureCount: monitoringRecord.consecutiveFailures || 0,
     lastSuccess: monitoringRecord.lastSuccessfulWebhook ? monitoringRecord.lastSuccessfulWebhook.toISOString() : null,
     lastFailure: monitoringRecord.lastFailureTimestamp ? monitoringRecord.lastFailureTimestamp.toISOString() : null,
+    daysSinceLastWebhook: daysSinceLastWebhook,
     totalReceived: monitoringRecord.totalWebhooksReceived || 0,
     totalFailed: monitoringRecord.totalWebhooksFailed || 0,
+    hasActiveSubscriptions: hasActiveSubscriptions,
+    isStale: webhooksAreStale,
     status: hasWebhookSecret ? 
-      (monitoringRecord.consecutiveFailures === 0 ? '✅ Healthy' : `⚠️ ${monitoringRecord.consecutiveFailures} consecutive failures`) : 
+      (webhooksAreStale ? '⚠️ Stale - no recent webhooks detected' :
+       monitoringRecord.consecutiveFailures === 0 ? '✅ Healthy' : 
+       `⚠️ ${monitoringRecord.consecutiveFailures} consecutive failures`) : 
       '❌ Not configured'
   }
   
-  const overallStatus = hasStripeKey && hasWebhookSecret && hasDatabaseUrl && (monitoringRecord.consecutiveFailures || 0) === 0
+  const overallStatus = hasStripeKey && hasWebhookSecret && hasDatabaseUrl && 
+                        (monitoringRecord.consecutiveFailures || 0) === 0 && 
+                        !webhooksAreStale
   
   res.json({
     status: overallStatus ? '✅ All systems operational' : '⚠️ Configuration issues detected',
@@ -243,7 +270,8 @@ router.get('/health', async (req, res) => {
       !hasStripeKey && 'Add STRIPE_SECRET_KEY to secrets',
       !hasWebhookSecret && 'Link STRIPE_WEBHOOK_SECRET to this Replit app',
       !hasDatabaseUrl && 'Configure DATABASE_URL',
-      (monitoringRecord.consecutiveFailures || 0) > 0 && 'Check Stripe webhook URL matches production domain'
+      (monitoringRecord.consecutiveFailures || 0) > 0 && 'Check Stripe webhook URL matches production domain',
+      webhooksAreStale && hasActiveSubscriptions && 'Verify webhook endpoint URL in Stripe dashboard - webhooks may not be reaching your app'
     ].filter(Boolean) : []
   })
 })

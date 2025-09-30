@@ -4,8 +4,13 @@ import { db } from '../db/client'
 import { subscriptionPlans, orgSubscriptions, organizations, stripeWebhookMonitoring } from '../../shared/schema'
 import { eq, and, sql } from 'drizzle-orm'
 import { requireAuth, requireOrg } from '../middleware/auth'
+import { sendEmail } from '../services/email'
 
 const router = Router()
+
+// Configuration for webhook failure alerts
+const WEBHOOK_FAILURE_ALERT_THRESHOLD = 5
+const WEBHOOK_ALERT_EMAIL = 'keith.richmond@live.com'
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY')
@@ -189,17 +194,91 @@ async function recordSuccessfulWebhook(eventId: string) {
 // Helper function to record webhook failure
 async function recordWebhookFailure(reason: string) {
   const record = await getOrCreateMonitoringRecord()
+  const newFailureCount = (record.consecutiveFailures || 0) + 1
   
   await db
     .update(stripeWebhookMonitoring)
     .set({
-      consecutiveFailures: (record.consecutiveFailures || 0) + 1,
+      consecutiveFailures: newFailureCount,
       lastFailureTimestamp: new Date(),
       lastFailureReason: reason,
       totalWebhooksFailed: (record.totalWebhooksFailed || 0) + 1,
       updatedAt: new Date(),
     })
     .where(eq(stripeWebhookMonitoring.id, record.id))
+  
+  // Send alert email if threshold is reached (non-blocking)
+  if (newFailureCount === WEBHOOK_FAILURE_ALERT_THRESHOLD) {
+    // Fire-and-forget: don't await to avoid blocking webhook response
+    void sendWebhookFailureAlert(newFailureCount, reason)
+  }
+}
+
+// Helper function to send webhook failure alert email
+async function sendWebhookFailureAlert(failureCount: number, lastReason: string) {
+  try {
+    console.log(`[WEBHOOK ALERT] Sending alert email - ${failureCount} consecutive failures`)
+    
+    const subject = `🚨 Stripe Webhook Alert: ${failureCount} Consecutive Failures`
+    const html = `
+      <h2>Stripe Webhook Failure Alert</h2>
+      <p>The Taska subscription system has detected <strong>${failureCount} consecutive webhook failures</strong>.</p>
+      
+      <h3>Details:</h3>
+      <ul>
+        <li><strong>Consecutive Failures:</strong> ${failureCount}</li>
+        <li><strong>Last Failure Reason:</strong> ${lastReason}</li>
+        <li><strong>Timestamp:</strong> ${new Date().toISOString()}</li>
+      </ul>
+      
+      <h3>Recommended Actions:</h3>
+      <ol>
+        <li>Check the health endpoint: <a href="https://www.taska.info/api/subscriptions/health">https://www.taska.info/api/subscriptions/health</a></li>
+        <li>Verify webhook endpoint URL in Stripe dashboard: <a href="https://dashboard.stripe.com/webhooks">https://dashboard.stripe.com/webhooks</a></li>
+        <li>Ensure webhook URL matches production domain (www.taska.info)</li>
+        <li>Verify STRIPE_WEBHOOK_SECRET is linked to the Replit app</li>
+        <li>Check server logs for detailed error messages</li>
+      </ol>
+      
+      <p><strong>This alert is sent when the failure threshold is reached to prevent silent subscription system failures.</strong></p>
+    `
+    
+    const text = `
+Stripe Webhook Failure Alert
+
+The Taska subscription system has detected ${failureCount} consecutive webhook failures.
+
+Details:
+- Consecutive Failures: ${failureCount}
+- Last Failure Reason: ${lastReason}
+- Timestamp: ${new Date().toISOString()}
+
+Recommended Actions:
+1. Check the health endpoint: https://www.taska.info/api/subscriptions/health
+2. Verify webhook endpoint URL in Stripe dashboard: https://dashboard.stripe.com/webhooks
+3. Ensure webhook URL matches production domain (www.taska.info)
+4. Verify STRIPE_WEBHOOK_SECRET is linked to the Replit app
+5. Check server logs for detailed error messages
+
+This alert is sent when the failure threshold is reached to prevent silent subscription system failures.
+    `
+    
+    const emailSent = await sendEmail({
+      to: WEBHOOK_ALERT_EMAIL,
+      from: 'noreply@taska.info',
+      subject,
+      html,
+      text
+    })
+    
+    if (emailSent) {
+      console.log('[WEBHOOK ALERT] ✅ Alert email sent successfully')
+    } else {
+      console.error('[WEBHOOK ALERT] ❌ Failed to send alert email')
+    }
+  } catch (error) {
+    console.error('[WEBHOOK ALERT] ❌ Error sending alert email:', error)
+  }
 }
 
 // Comprehensive subscription system health check

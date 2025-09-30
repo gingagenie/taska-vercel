@@ -415,6 +415,46 @@ app.use((req, res, next) => {
     // DON'T: throw err;
   });
 
+  // Validate critical configuration before starting server
+  console.log("[STARTUP] 🔒 Validating critical configuration...");
+  const configWarnings: string[] = [];
+  const configErrors: string[] = [];
+  
+  // Check Stripe configuration
+  if (!process.env.STRIPE_SECRET_KEY) {
+    configErrors.push("STRIPE_SECRET_KEY is not configured");
+  }
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    configErrors.push("STRIPE_WEBHOOK_SECRET is not configured - webhooks will fail!");
+  } else {
+    console.log("[STARTUP] ✅ STRIPE_WEBHOOK_SECRET is configured");
+  }
+  
+  // Check database
+  if (!process.env.DATABASE_URL) {
+    configErrors.push("DATABASE_URL is not configured");
+  }
+  
+  // Warn about webhook URL in production
+  if (isProd && !process.env.WEBHOOK_URL_CONFIRMED) {
+    configWarnings.push("WEBHOOK_URL_CONFIRMED not set - ensure Stripe webhook points to correct domain");
+  }
+  
+  // Log warnings
+  if (configWarnings.length > 0) {
+    console.warn("[STARTUP] ⚠️ Configuration warnings:");
+    configWarnings.forEach(warning => console.warn(`  - ${warning}`));
+  }
+  
+  // Log errors and continue (don't crash to prevent deploy loops)
+  if (configErrors.length > 0) {
+    console.error("[STARTUP] ❌ Configuration errors detected:");
+    configErrors.forEach(error => console.error(`  - ${error}`));
+    console.error("[STARTUP] ⚠️ Server will start but may not function correctly!");
+  } else {
+    console.log("[STARTUP] ✅ All critical configuration validated successfully");
+  }
+
   // Always bind to PORT (Replit requirement) with explicit host binding
   const port = parseInt(process.env.PORT || "5000", 10);
   

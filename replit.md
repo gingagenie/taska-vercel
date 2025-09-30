@@ -6,6 +6,21 @@ Taska is a comprehensive field service management application designed for servi
 
 ## Recent Changes (September 2025)
 
+**Photo Upload & Object Storage Integration - Production Ready (September 30, 2025):**
+- Fixed critical photo upload bug by switching multer from disk storage to memoryStorage
+- Implemented reliable Object Storage integration for all photo uploads
+- Photos uploaded directly to GCS bucket with proper namespacing (job-photos/{orgId}/{jobId}/)
+- Added photo count badges with camera icons to completed jobs cards
+- Complete photo deletion removes files from Object Storage to prevent orphaned data
+- Full HEIF/HEIC support for iOS photos
+- UUID validation on all photo endpoints returning 400 for invalid formats
+- Job ownership verification before upload prevents orphaned objects
+- Automatic cleanup: uploaded objects deleted if DB insert fails
+- PRIVATE_OBJECT_DIR normalization applied consistently across all upload/delete endpoints
+- Architect confirmed production-ready: zero reliability, data integrity, or configuration issues
+- Completed jobs API correctly queries completed_job_photos table with accurate photo counts
+- Frontend displays camera badge when photos exist on completed jobs
+
 **Blog Post Formatting Fix - Complete:**
 - Fixed blog post display rendering issue where published posts appeared as solid blocks of text
 - Implemented smart content formatting that detects HTML vs plain text content

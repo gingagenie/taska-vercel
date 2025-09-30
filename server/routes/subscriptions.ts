@@ -163,24 +163,54 @@ router.get('/webhook/test', (req, res) => {
   })
 })
 
+// Track webhook failures for monitoring
+let webhookFailureCount = 0
+let lastWebhookFailure: Date | null = null
+
 // Stripe webhook handler
 router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'] as string
   let event: Stripe.Event
   
-  console.log('[WEBHOOK] Received webhook request')
+  console.log('[WEBHOOK] ================================================')
+  console.log('[WEBHOOK] Received webhook request at:', new Date().toISOString())
   console.log('[WEBHOOK] Has secret:', !!process.env.STRIPE_WEBHOOK_SECRET)
   console.log('[WEBHOOK] Has signature:', !!sig)
   
+  // Verify webhook secret is configured
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error('[WEBHOOK] ❌ CRITICAL: STRIPE_WEBHOOK_SECRET is not configured!')
+    console.error('[WEBHOOK] ❌ This means the webhook secret is not linked to this Replit app')
+    console.error('[WEBHOOK] ❌ Please check Replit secrets and ensure STRIPE_WEBHOOK_SECRET is linked')
+    webhookFailureCount++
+    lastWebhookFailure = new Date()
+    return res.status(500).send('Webhook secret not configured')
+  }
+  
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET || '')
-    console.log('[WEBHOOK] ✅ Signature verified successfully! Event type:', event.type)
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET)
+    console.log('[WEBHOOK] ✅ Signature verified successfully!')
+    console.log('[WEBHOOK] Event type:', event.type)
+    console.log('[WEBHOOK] Event ID:', event.id)
   } catch (err: any) {
-    console.error(`[WEBHOOK] ❌ Signature verification failed: ${err.message}`)
+    console.error('[WEBHOOK] ================================================')
+    console.error(`[WEBHOOK] ❌ SIGNATURE VERIFICATION FAILED`)
+    console.error(`[WEBHOOK] Error: ${err.message}`)
+    console.error(`[WEBHOOK] This usually means:`)
+    console.error(`[WEBHOOK]   1. STRIPE_WEBHOOK_SECRET is wrong/outdated`)
+    console.error(`[WEBHOOK]   2. Webhook URL in Stripe doesn't match this endpoint`)
+    console.error(`[WEBHOOK]   3. Secret not linked to this Replit app`)
+    console.error('[WEBHOOK] ================================================')
+    webhookFailureCount++
+    lastWebhookFailure = new Date()
+    if (webhookFailureCount > 5) {
+      console.error(`[WEBHOOK] ⚠️ WARNING: ${webhookFailureCount} consecutive webhook failures detected!`)
+    }
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
   
   try {
+    console.log('[WEBHOOK] Processing event:', event.type)
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
@@ -247,9 +277,25 @@ router.post('/webhook', async (req, res) => {
       }
     }
     
+    // Webhook processed successfully - reset failure counter
+    if (webhookFailureCount > 0) {
+      console.log(`[WEBHOOK] ✅ Webhook processed successfully after ${webhookFailureCount} previous failures`)
+      webhookFailureCount = 0
+      lastWebhookFailure = null
+    } else {
+      console.log('[WEBHOOK] ✅ Webhook processed successfully')
+    }
+    console.log('[WEBHOOK] ================================================')
+    
     res.json({ received: true })
   } catch (error) {
-    console.error('Error processing webhook:', error)
+    console.error('[WEBHOOK] ================================================')
+    console.error('[WEBHOOK] ❌ ERROR PROCESSING WEBHOOK:', error)
+    console.error('[WEBHOOK] Event type:', event?.type)
+    console.error('[WEBHOOK] Event ID:', event?.id)
+    console.error('[WEBHOOK] ================================================')
+    webhookFailureCount++
+    lastWebhookFailure = new Date()
     res.status(500).json({ error: 'Webhook processing failed' })
   }
 })

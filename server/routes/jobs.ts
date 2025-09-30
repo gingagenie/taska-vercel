@@ -33,8 +33,22 @@ function normalizeScheduledAt(raw: any): string|null {
   return raw;
 }
 
-// Configure multer for file uploads
-const upload = multer({ dest: "uploads/" });
+// Configure multer for file uploads with memory storage
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max file size
+  },
+  fileFilter: (_req, file, cb) => {
+    // Accept only image files including HEIF/HEIC variants from iOS devices
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif', 'image/heic-sequence'];
+    if (allowedMimeTypes.includes(file.mimetype.toLowerCase())) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed (JPEG, PNG, GIF, WebP, HEIC/HEIF)'));
+    }
+  },
+});
 
 // Add ping endpoint for health check
 jobs.get("/ping", (_req, res) => {
@@ -70,21 +84,26 @@ jobs.get("/completed", requireAuth, requireOrg, checkSubscription, requireActive
   try {
     const r: any = await db.execute(sql`
       SELECT 
-        id,
-        original_job_id,
-        customer_id,
-        customer_name,
-        title,
-        description,
-        notes,
-        scheduled_at,
-        completed_at,
-        completed_by,
-        original_created_by,
-        original_created_at
-      FROM completed_jobs
-      WHERE org_id = ${orgId}::uuid
-      ORDER BY completed_at DESC
+        cj.id,
+        cj.original_job_id,
+        cj.customer_id,
+        cj.customer_name,
+        cj.title,
+        cj.description,
+        cj.notes,
+        cj.scheduled_at,
+        cj.completed_at,
+        cj.completed_by,
+        cj.original_created_by,
+        cj.original_created_at,
+        COALESCE(COUNT(cjp.id), 0)::int as photo_count
+      FROM completed_jobs cj
+      LEFT JOIN completed_job_photos cjp ON cjp.completed_job_id = cj.id AND cjp.org_id = cj.org_id
+      WHERE cj.org_id = ${orgId}::uuid
+      GROUP BY cj.id, cj.original_job_id, cj.customer_id, cj.customer_name, cj.title, 
+               cj.description, cj.notes, cj.scheduled_at, cj.completed_at, cj.completed_by,
+               cj.original_created_by, cj.original_created_at
+      ORDER BY cj.completed_at DESC
     `);
     res.json(r);
   } catch (e: any) {
@@ -591,6 +610,11 @@ jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
     const { jobId } = req.params;
     const orgId = (req as any).orgId;
     
+    // Validate jobId format
+    if (!isUuid(jobId)) {
+      return res.status(400).json({ error: "Invalid job ID format" });
+    }
+    
     console.log("[TRACE] GET /api/jobs/%s/photos org=%s", jobId, orgId);
     
     // Query photos from database
@@ -609,36 +633,135 @@ jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
 });
 
 // POST /:jobId/photos - Upload photo for a job
-jobs.post("/:jobId/photos", requireAuth, requireOrg, upload.single("photo"), async (req, res) => {
+jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
+  upload.single("photo")(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: "File size exceeds 10MB limit" });
+        }
+        return res.status(400).json({ error: `Upload error: ${err.message}` });
+      } else if (err) {
+        return res.status(400).json({ error: err.message || "Invalid file type" });
+      }
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const { jobId } = req.params;
     const orgId = (req as any).orgId;
+    
+    // Validate jobId format
+    if (!isUuid(jobId)) {
+      return res.status(400).json({ error: "Invalid job ID format" });
+    }
+    
     const file = req.file;
     
     if (!file) {
       return res.status(400).json({ error: "No file provided" });
     }
     
-    // Create unique filename
-    const filename = `${Date.now()}-${file.originalname}`;
-    const destPath = path.join("uploads", filename);
+    if (!file.buffer) {
+      return res.status(500).json({ error: "File buffer not available" });
+    }
     
-    // Move file from temp location to uploads folder
-    fs.renameSync(file.path, destPath);
+    // Create unique filename for object storage with sanitized extension
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substring(7);
     
-    const url = `/uploads/${filename}`;
+    // Sanitize and validate file extension
+    let ext = 'jpg'; // default
+    if (file.originalname && file.originalname.includes('.')) {
+      const parts = file.originalname.split('.');
+      const rawExt = parts[parts.length - 1].toLowerCase().replace(/[^a-z0-9]/g, '');
+      // Map MIME type to extension if needed
+      const mimeToExt: Record<string, string> = {
+        'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp',
+        'image/heic': 'heic',
+        'image/heif': 'heif',
+        'image/heic-sequence': 'heic',
+      };
+      ext = mimeToExt[file.mimetype] || rawExt || 'jpg';
+    }
     
-    console.log("[TRACE] POST /api/jobs/%s/photos org=%s file=%s", jobId, orgId, filename);
+    const objectName = `job-photos/${orgId}/${jobId}/${timestamp}-${randomId}.${ext}`;
     
-    // Insert into database
-    const result = await db.execute(sql`
-      INSERT INTO job_photos (job_id, org_id, url)
-      VALUES (${jobId}::uuid, ${orgId}::uuid, ${url})
-      RETURNING id, url, created_at
+    // Verify job exists and belongs to org before uploading
+    const jobCheck: any = await db.execute(sql`
+      SELECT id FROM jobs WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
+    if (jobCheck.length === 0) {
+      return res.status(404).json({ error: "Job not found" });
+    }
     
-    const photo = result[0];
-    res.json(photo);
+    // Get private directory from env and normalize
+    let privateDir = process.env.PRIVATE_OBJECT_DIR;
+    if (!privateDir) {
+      return res.status(500).json({ error: "Object storage not configured. Please set PRIVATE_OBJECT_DIR environment variable." });
+    }
+    
+    // Normalize to ensure leading slash
+    if (!privateDir.startsWith('/')) {
+      privateDir = `/${privateDir}`;
+    }
+    
+    // Parse the bucket name from private directory
+    const bucketMatch = privateDir.match(/^\/([^\/]+)/);
+    if (!bucketMatch) {
+      return res.status(500).json({ error: "Invalid PRIVATE_OBJECT_DIR format. Expected: /bucket-name/path" });
+    }
+    const bucketName = bucketMatch[1];
+    
+    // Upload to object storage
+    const { objectStorageClient } = await import("../objectStorage");
+    const bucket = objectStorageClient.bucket(bucketName);
+    const fileObj = bucket.file(objectName);
+    
+    let uploadedSuccessfully = false;
+    
+    try {
+      await fileObj.save(file.buffer, {
+        metadata: {
+          contentType: file.mimetype || 'image/jpeg',
+        },
+      });
+      uploadedSuccessfully = true;
+      
+      // Generate the object path URL
+      const url = `/objects/${objectName}`;
+      
+      console.log("[TRACE] POST /api/jobs/%s/photos org=%s object=%s", jobId, orgId, objectName);
+      
+      // Insert into database
+      const result = await db.execute(sql`
+        INSERT INTO job_photos (job_id, org_id, url)
+        VALUES (${jobId}::uuid, ${orgId}::uuid, ${url})
+        RETURNING id, url, created_at
+      `);
+      
+      const photo = result[0];
+      res.json(photo);
+    } catch (dbError: any) {
+      // If DB insert fails, clean up the uploaded object
+      if (uploadedSuccessfully) {
+        try {
+          const [exists] = await fileObj.exists();
+          if (exists) {
+            await fileObj.delete();
+            console.log("[TRACE] Cleaned up orphaned object after DB failure: %s", objectName);
+          }
+        } catch (cleanupError: any) {
+          console.error("Failed to clean up object after DB error:", cleanupError);
+        }
+      }
+      throw dbError;
+    }
   } catch (error: any) {
     console.error("POST /api/jobs/%s/photos error:", req.params.jobId, error);
     res.status(500).json({ error: error?.message || "Failed to upload photo" });
@@ -651,21 +774,53 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
     const { jobId, photoId } = req.params;
     const orgId = (req as any).orgId;
     
+    // Validate UUIDs format
+    if (!isUuid(jobId) || !isUuid(photoId)) {
+      return res.status(400).json({ error: "Invalid job or photo ID format" });
+    }
+    
     console.log("[TRACE] DELETE /api/jobs/%s/photos/%s org=%s", jobId, photoId, orgId);
     
-    // Get photo info before deleting to remove file
+    // Get photo info before deleting to remove from object storage
     const photoResult = await db.execute(sql`
       SELECT url FROM job_photos 
       WHERE id = ${photoId}::uuid AND job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
     
-    const photos = (photoResult as any).rows || [];
-    if (photos.length > 0) {
-      const photoUrl = photos[0].url;
-      // Remove file from filesystem if it exists
-      const filePath = path.join(".", photoUrl);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+    if (photoResult.length > 0) {
+      const photoUrl = (photoResult[0] as any).url;
+      
+      // Delete from object storage if it's an object storage URL
+      if (photoUrl.startsWith('/objects/')) {
+        try {
+          const objectName = photoUrl.replace('/objects/', '');
+          let privateDir = process.env.PRIVATE_OBJECT_DIR;
+          
+          if (privateDir) {
+            // Normalize to ensure leading slash
+            if (!privateDir.startsWith('/')) {
+              privateDir = `/${privateDir}`;
+            }
+            
+            const bucketMatch = privateDir.match(/^\/([^\/]+)/);
+            if (bucketMatch) {
+              const bucketName = bucketMatch[1];
+              const { objectStorageClient } = await import("../objectStorage");
+              const bucket = objectStorageClient.bucket(bucketName);
+              const fileObj = bucket.file(objectName);
+              
+              // Check if file exists before deleting
+              const [exists] = await fileObj.exists();
+              if (exists) {
+                await fileObj.delete();
+                console.log("[TRACE] Deleted object from storage: %s", objectName);
+              }
+            }
+          }
+        } catch (storageError: any) {
+          console.error("Error deleting from object storage:", storageError);
+          // Continue with database deletion even if storage deletion fails
+        }
       }
     }
     
@@ -1425,22 +1580,48 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
   if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
   try {
-    // Get photos to delete files from filesystem
+    // Get photos to delete from object storage
     const photosResult: any = await db.execute(sql`
       SELECT url FROM completed_job_photos 
       WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
     
-    // Delete photo files from filesystem
+    // Delete photos from object storage
     if (photosResult && photosResult.length > 0) {
       for (const photo of photosResult) {
-        try {
-          const filePath = path.join(".", photo.url);
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        const photoUrl = photo.url;
+        
+        // Delete from object storage if it's an object storage URL
+        if (photoUrl && photoUrl.startsWith('/objects/')) {
+          try {
+            const objectName = photoUrl.replace('/objects/', '');
+            let privateDir = process.env.PRIVATE_OBJECT_DIR;
+            
+            if (privateDir) {
+              // Normalize to ensure leading slash
+              if (!privateDir.startsWith('/')) {
+                privateDir = `/${privateDir}`;
+              }
+              
+              const bucketMatch = privateDir.match(/^\/([^\/]+)/);
+              if (bucketMatch) {
+                const bucketName = bucketMatch[1];
+                const { objectStorageClient } = await import("../objectStorage");
+                const bucket = objectStorageClient.bucket(bucketName);
+                const fileObj = bucket.file(objectName);
+                
+                // Check if file exists before deleting
+                const [exists] = await fileObj.exists();
+                if (exists) {
+                  await fileObj.delete();
+                  console.log("[TRACE] Deleted object from storage during completed job deletion: %s", objectName);
+                }
+              }
+            }
+          } catch (storageError: any) {
+            console.error("Error deleting photo from object storage:", photoUrl, storageError);
+            // Continue with other deletions even if one fails
           }
-        } catch (e) {
-          console.warn("Failed to delete photo file:", photo.url, e);
         }
       }
     }

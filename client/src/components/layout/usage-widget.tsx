@@ -7,8 +7,26 @@ import { useUsageAlerts, UsageAlert } from "@/components/usage/usage-alerts";
 
 interface UsageData {
   users: { used: number; quota: number; percent: number };
-  sms: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
-  email: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
+  sms: { 
+    used: number; 
+    quota: number; 
+    remaining: number; 
+    percent: number; 
+    quotaExceeded: boolean; 
+    packCredits: number; 
+    totalAvailable: number; 
+    allExhausted: boolean;
+  };
+  email: { 
+    used: number; 
+    quota: number; 
+    remaining: number; 
+    percent: number; 
+    quotaExceeded: boolean; 
+    packCredits: number; 
+    totalAvailable: number; 
+    allExhausted: boolean;
+  };
   periodEnd: string;
   planId: string;
   subscriptionStatus: string;
@@ -103,17 +121,26 @@ export function UsageWidget({ variant = "desktop", showText = true }: UsageWidge
               asChild
               variant="ghost"
               size="sm"
-              className={`p-1 h-8 hover:bg-gray-100 ${hasCriticalAlerts ? 'ring-1 ring-red-300' : hasWarningAlerts ? 'ring-1 ring-orange-300' : ''}`}
+              className="p-1 h-8 hover:bg-gray-100 relative"
             >
               <Link href="/settings?tab=usage">
                 <a data-testid="button-usage-widget-mobile">
                   <div className="flex items-center gap-1">
-                    {hasCriticalAlerts && <AlertTriangle className="w-3 h-3 text-red-600" />}
-                    {!hasCriticalAlerts && hasWarningAlerts && <AlertTriangle className="w-3 h-3 text-orange-500" />}
                     <span className="text-xs">{getStatusIcon(users.percent)}</span>
                     <span className="text-xs">{getStatusIcon(sms.percent, sms.quotaExceeded)}</span>
                     <span className="text-xs">{getStatusIcon(email.percent, email.quotaExceeded)}</span>
                   </div>
+                  {hasCriticalAlerts && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                  )}
+                  {!hasCriticalAlerts && hasWarningAlerts && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                    </span>
+                  )}
                 </a>
               </Link>
             </Button>
@@ -154,13 +181,11 @@ export function UsageWidget({ variant = "desktop", showText = true }: UsageWidge
             asChild
             variant="ghost"
             size="sm"
-            className={`px-3 py-1 h-8 hover:bg-gray-100 transition-colors ${hasCriticalAlerts ? 'ring-1 ring-red-300' : hasWarningAlerts ? 'ring-1 ring-orange-300' : ''}`}
+            className="px-3 py-1 h-8 hover:bg-gray-100 transition-colors relative"
           >
             <Link href="/settings?tab=usage">
               <a data-testid="button-usage-widget-desktop">
                 <div className="flex items-center gap-3 text-xs">
-                  {hasCriticalAlerts && <AlertTriangle className="w-3 h-3 text-red-600" />}
-                  {!hasCriticalAlerts && hasWarningAlerts && <AlertTriangle className="w-3 h-3 text-orange-500" />}
                   <div className="flex items-center gap-1">
                     <Users className="w-3 h-3 text-blue-500" />
                     <span className={getUsageColor(users.percent)}>{users.used}/{users.quota}</span>
@@ -174,6 +199,17 @@ export function UsageWidget({ variant = "desktop", showText = true }: UsageWidge
                     <span className={getUsageColor(email.percent, email.quotaExceeded)}>{email.used}/{email.quota}</span>
                   </div>
                 </div>
+                {hasCriticalAlerts && (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                  </span>
+                )}
+                {!hasCriticalAlerts && hasWarningAlerts && (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                  </span>
+                )}
               </a>
             </Link>
           </Button>

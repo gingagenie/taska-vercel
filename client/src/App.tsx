@@ -63,9 +63,6 @@ import { UpgradeModal } from "@/components/modals/upgrade-modal";
 // Import AI chat widget
 import { AIChatWidget } from "@/components/ai-chat/AIChatWidget";
 
-// Import usage banner
-import { UsageBanner } from "@/components/usage/usage-banner";
-
 // Import Facebook Pixel tracking
 import { FacebookPixel } from "@/components/tracking/FacebookPixel";
 
@@ -331,9 +328,6 @@ function AuthenticatedApp() {
       <div className="flex-1 sm:ml-64 flex flex-col min-h-0">
         {/* Mobile header */}
         <MobileHeader />
-        
-        {/* Global Usage Banner for Critical Alerts */}
-        <UsageBanner />
         
         {/* Page container - scrollable content */}
         <main className="flex-1 overflow-y-auto page">

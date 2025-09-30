@@ -1,180 +1,9 @@
 # Replit.md
 
 ## Overview
-
-Taska is a comprehensive field service management application designed for service businesses. It provides tools to manage jobs, customers, equipment, teams, quotes, and invoices through a responsive web interface. The project aims to deliver an intuitive solution for streamlining field service operations.
-
-## Recent Changes (September 2025)
-
-**Stripe Subscription System Safeguards - Production Ready (September 30, 2025):**
-- Implemented comprehensive safeguards to prevent subscription system configuration issues
-- **Startup Validation**: Automatic checks on server start for critical environment variables
-  - Validates STRIPE_WEBHOOK_SECRET, STRIPE_SECRET_KEY, DATABASE_URL presence
-  - Clear error messages if configuration is missing or incorrect
-  - Server logs show validation results on every startup
-- **Webhook Failure Monitoring**: Enhanced webhook handler with detailed logging
-  - Tracks consecutive webhook failures with counter and timestamps
-  - Provides diagnostic information when webhooks fail (signature verification, missing secrets)
-  - Automatic reset of failure counter when webhook succeeds
-  - Clear error messages explaining common issues (secret not linked, wrong URL, etc.)
-- **Health Check Endpoint**: `/api/subscriptions/health` provides real-time system status
-  - Shows configuration status for Stripe, webhooks, and database
-  - Reports webhook failure counts and last failure timestamp
-  - Provides actionable recommendations when issues detected
-  - Useful for monitoring and debugging subscription system health
-- **Critical Configuration Requirements**:
-  - STRIPE_WEBHOOK_SECRET must be linked to the Replit app (not just exist in account)
-  - Stripe webhook URL must point to correct production domain (www.taska.info)
-  - All subscription plans configured with AUD currency (not USD)
-- System prevents repeat of previous issues where webhook secret wasn't linked properly
-- All safeguards tested and working in production environment
-
-**Photo Upload & Object Storage Integration - Production Ready (September 30, 2025):**
-- Fixed critical photo upload bug by switching multer from disk storage to memoryStorage
-- Implemented reliable Object Storage integration for all photo uploads
-- Photos uploaded directly to GCS bucket with proper namespacing (job-photos/{orgId}/{jobId}/)
-- Added photo count badges with camera icons to completed jobs cards
-- Complete photo deletion removes files from Object Storage to prevent orphaned data
-- Full HEIF/HEIC support for iOS photos
-- UUID validation on all photo endpoints returning 400 for invalid formats
-- Job ownership verification before upload prevents orphaned objects
-- Automatic cleanup: uploaded objects deleted if DB insert fails
-- PRIVATE_OBJECT_DIR normalization applied consistently across all upload/delete endpoints
-- Architect confirmed production-ready: zero reliability, data integrity, or configuration issues
-- Completed jobs API correctly queries completed_job_photos table with accurate photo counts
-- Frontend displays camera badge when photos exist on completed jobs
-
-**Blog Post Formatting Fix - Complete:**
-- Fixed blog post display rendering issue where published posts appeared as solid blocks of text
-- Implemented smart content formatting that detects HTML vs plain text content
-- Converts plain text with line breaks to proper HTML paragraphs automatically
-- Preserves existing HTML formatting while enhancing plain text display
-- Blog posts now display with proper paragraph spacing and line breaks as intended
-- Maintains backward compatibility with existing posts containing HTML markup
-
-**Newsletter Subscription System - Production Ready:**
-- Complete newsletter subscription functionality integrated into blog pages
-- Secure email collection with normalization and duplicate prevention
-- Database schema with unique constraints and unsubscribe token security
-- Frontend form with validation, loading states, and user feedback
-- API endpoints support both new subscriptions and graceful duplicate handling
-- Ready for email marketing campaigns with subscriber management foundation
-
-**Customer-Facing Support Integration - Complete:**
-- Integrated customer support ticket system into main Taska interface
-- Created complete customer support workflow with 4 new pages:
-  - Support Dashboard (`/support`) - Overview with stats and recent tickets
-  - Create Ticket (`/support/new`) - User-friendly ticket creation form
-  - Ticket Details (`/support/ticket/:id`) - Full conversation view with reply functionality
-  - Tickets List (`/support/tickets`) - Comprehensive ticket management with filtering/search
-- Added Support navigation link to main sidebar with LifeBuoy icon
-- Implemented customer support API wrapper with full CRUD operations
-- Customer-scoped ticket access using existing org-based authentication
-- Professional UI using existing Shadcn/ui components and Taska design patterns
-- Complete separation from support staff portal while using same backend APIs
-- Ready for production deployment with proper error handling and loading states
-
-**Xero Integration - Production Ready:**
-- Complete OAuth2 integration with Xero accounting software
-- New "Integrations" tab in Settings page for managing connections
-- "Create in Xero" functionality for quotes and invoices (one-way push)
-- Automatic creation of quotes and invoices in Xero as drafts
-- Secure token storage and automatic refresh mechanism
-- Mobile-responsive settings interface with proper tab layout
-- Graceful error handling and user feedback system
-- Ready for production deployment with environment variable configuration
-
-**Bidirectional SMS Confirmation System - Production Ready:**
-- Integrated Twilio SMS service for automated job confirmation messages to customers
-- Added "Send SMS" button on job view pages with customizable message preview
-- Implemented automatic Australian phone number formatting (+61 country code)
-- Customer phone numbers auto-populate from database records
-- Timezone-aware message formatting using Australia/Melbourne time
-- **NEW: SMS Reply Processing** - Customers can reply "YES" or "Y" to automatically confirm jobs
-- **NEW: Webhook Handler** - `/api/twilio/webhook/sms` processes inbound SMS replies
-- **NEW: Job Status Updates** - Automatic status change to "confirmed" with visual indicators
-- **NEW: SMS Logging** - Complete audit trail in `job_notifications` table
-- Complete bidirectional SMS workflow: outbound notification → customer reply → automatic confirmation
-- **PRODUCTION DEPLOYMENT SUCCESS**: Fixed Twilio webhook URL configuration issue
-- Feature fully tested and working in production (August 2025)
-- Complete workflow confirmed: SMS sent → customer replies "YES" → job automatically confirmed with ✓ badge
-
-**Clickable Cards UX Enhancement - Deployed:**
-- Replaced separate "View" buttons with intuitive clickable card interfaces across Jobs, Customers, and Equipment pages
-- Cards now have hover effects and visual feedback with "Click for details →" indicators
-- Navigation works seamlessly between list views and detail pages
-- Enhanced user experience with more modern, touch-friendly interface design
-- Feature successfully deployed to production and working correctly
-
-**Timezone Bug - Known Issue:**
-- Database uses `timestamptz` column type for proper timezone-aware storage
-- Backend timezone conversion confirmed working via debug endpoints  
-- Multiple frontend conversion attempts made but displays still showing UTC times
-- Issue affects job scheduling displays across mobile schedule, desktop schedule, and datetime inputs
-- Backend stores and converts times correctly, frontend display conversion needs further investigation
-
-**Production Deployment Success:**
-- Successfully deployed to production after resolving FK constraint conflicts
-- Implemented bulletproof safety measures with session-only authentication in production
-- Added double-validation for org existence at both middleware and endpoint levels
-- Enhanced logging for 400/401 errors with org/user ID tracking for monitoring
-
-**Production Environment Separation:**
-- Created debug endpoint `/api/debug/env` for environment verification
-- Proper development vs production configuration separation
-- Session-based authentication in production, header-based auth in development
-- Environment-specific CORS and cookie configurations
-- Complete production setup guide (PRODUCTION_ENV_SETUP.md)
-
-**Production Ready Features:**
-- Job assignments table with FK constraints (PRODUCTION_JOB_ASSIGNMENTS.sql)
-- Mobile schedule timezone fix for Australia/Melbourne filtering
-- Authentication system compatible with both development and production
-- All database migrations tested and verified as idempotent
-
-**Database Schema & Safety:**
-- Removed problematic FK constraint that caused deployment loops, replaced with application-level validation
-- Production uses NOT VALID FK constraint approach for zero-downtime data integrity
-- Added comprehensive cleanup scripts for production database hygiene
-- Session-based authentication in production, header-based auth only for development
-
-**Mobile Schedule Timezone Fix:**
-- Implemented timezone-aware schedule endpoint supporting Australia/Melbourne timezone
-- Fixed mobile schedule blank issue caused by UTC vs local time mismatch
-- Mobile app now requests jobs filtered by Australian local time
-- Server converts timestamps to specified timezone before date filtering
-- Desktop schedule continues working unchanged
-
-**Equipment-Customer Relationship Feature:**
-- Added `equipment.customer_id` foreign key relationship to customers table
-- Created equipment filtering API endpoint `/api/jobs/equipment?customerId=uuid`
-- Enhanced job creation modal to filter equipment by selected customer
-- Equipment dropdown disabled until customer is selected to prevent cross-customer equipment assignments
-- Equipment creation/editing forms support customer assignment
-- Complete customer-equipment relationship system working in development
-
-**Customer Notes Feature:**
-- Added `notes` text field to customers table with safe migration
-- Enhanced customer modal UI with notes textarea input
-- Added notes display in customer cards and search functionality
-- Complete CRUD operations for customer notes working in development and production
-
-**Job Assignments Feature:**
-- Created `job_assignments` table with proper FK constraints to jobs and users tables
-- Implemented technician assignment workflow for job creation and scheduling
-- Enhanced schedule API to display assigned technicians with job details
-- Fixed timezone-aware filtering to work with job assignment queries
-- Complete CRUD operations for job-technician relationships working in development and production
-
-**Technology Stack:**
-- **Frontend**: React 18 + TypeScript + Tailwind CSS (responsive web)
-- **Backend**: Express.js + TypeScript with RESTful API
-- **Database**: PostgreSQL with Drizzle ORM
-- **Authentication**: Session-based with email/password login
-- **Mobile Support**: Responsive web design optimized for mobile browsers
+Taska is a comprehensive field service management application designed for service businesses. It provides tools to manage jobs, customers, equipment, teams, quotes, and invoices through a responsive web interface. The project aims to deliver an intuitive solution for streamlining field service operations, with a strong focus on reliability, data integrity, and a seamless user experience. Key capabilities include job management, customer relationship management, equipment tracking, quoting, invoicing, photo uploads, and a bidirectional SMS confirmation system.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 Development workflow: Check all changes on preview screen first, then deploy to production once verified working.
 Deployment preference: All changes should go to production after preview verification.
@@ -182,37 +11,56 @@ Problem-solving approach: Thorough analysis and comprehensive solutions on the f
 
 ## System Architecture
 
-### Frontend Architecture
-The client is built using React 18 with TypeScript and a component-based architecture. It uses Wouter for routing, React Query for server state management, and Tailwind CSS with Shadcn/ui for styling. Vite is used for builds.
+### UI/UX Decisions
+The application utilizes a responsive, mobile-first design leveraging Tailwind CSS and Shadcn/ui for a professional and intuitive user experience. Key UX enhancements include clickable cards for navigation, camera badges for jobs with photos, and smart content formatting for blog posts. Dark mode support is integrated through CSS custom properties.
 
-### Backend Architecture
-The server uses Express.js with TypeScript, following a RESTful API pattern. It includes multi-tenancy for organization-based data isolation and comprehensive error handling. Authentication supports both session-based and header-based methods for development convenience.
+### Technical Implementations
+*   **Photo Uploads**: Reliable object storage integration (GCS) for all photo uploads with proper namespacing, HEIF/HEIC support, UUID validation, and automatic cleanup.
 
-### Data Storage
-PostgreSQL is used as the database, managed with Drizzle ORM for type-safe operations. Neon Database provides serverless PostgreSQL hosting, and Drizzle Kit is used for migrations.
+*   **Stripe Subscription System**: Comprehensive webhook monitoring and alerting system to prevent silent subscription failures.
+    *   **Database-Backed Monitoring** (`stripe_webhook_monitoring` table): Persistent tracking of webhook health (consecutive failures, timestamps, totals) across server restarts with automatic record creation.
+    *   **Startup Validation** (Production Only): Automatic verification of critical environment variables (STRIPE_WEBHOOK_SECRET, STRIPE_SECRET_KEY, DATABASE_URL). Queries Stripe API to confirm webhook endpoints exist for production domains with status validation.
+    *   **Enhanced Webhook Handler**: Detailed logging for all webhook events, records successes/failures to database, automatic failure counter reset on success, clear diagnostic messages for common issues (secret not linked, signature verification failures, wrong URL).
+    *   **Health Check Endpoint** (`/api/subscriptions/health`): Real-time system status across all monitoring components, stale webhook detection (alerts if no webhooks received when active subscriptions exist), returns comprehensive status with actionable recommendations.
+    *   **Email Alert System** (MailerSend): Automatic non-blocking alerts sent when consecutive failures reach threshold (5 failures). Includes failure count, last error, timestamp, troubleshooting guide, and links to health check endpoint and Stripe dashboard. Alerts sent to business owner email.
+    *   **Configuration Requirements**: STRIPE_WEBHOOK_SECRET (linked to Replit app), STRIPE_SECRET_KEY, DATABASE_URL, MAILERSEND_API_KEY. Webhook URL must point to production domain (https://www.taska.info/api/subscriptions/webhook). All plans configured with AUD currency.
+    *   **Monitoring Workflow**: Server startup validates configuration and checks Stripe API → webhooks received/failed are recorded to database → at failure threshold, email alert sent automatically → health check available anytime for current status.
+    *   **Troubleshooting**: Stale webhooks = verify URL in Stripe dashboard matches production domain and endpoint is enabled. Consecutive failures = check server logs, verify secret matches Stripe dashboard, test webhook in Stripe. No webhooks received = check startup logs for endpoint verification, confirm production URL matches Stripe config.
 
-### Authentication and Authorization
-The system employs session-based authentication with email/password login and bcrypt hashing. Sessions are securely stored in PostgreSQL using `connect-pg-simple` and are organization-scoped for multi-tenancy. Role-based access control is implemented, supporting both session and header authentication for flexibility.
+*   **Bidirectional SMS**: Twilio integration for automated job confirmation SMS, including inbound reply processing for automatic job status updates and comprehensive logging.
+*   **Xero Integration**: OAuth2 integration for one-way push of quotes and invoices to Xero as drafts, with secure token storage and refresh.
+*   **Customer Support**: Integrated customer-facing support ticket system with dedicated pages for dashboard, ticket creation, details, and listing, scoped by organization.
+*   **Newsletter Subscription**: Secure email collection, normalization, duplicate prevention, and unsubscribe token security for blog pages.
+*   **Customer/Job Management**: Features include customer notes, equipment-customer relationships (filtering equipment by customer), and job assignments to technicians.
 
-### Component Design System
-The application leverages the Shadcn/ui component library, built on Radix UI primitives and styled with Tailwind CSS. It uses CSS custom properties for theming, including dark mode support, and features a responsive, mobile-first design.
+### System Design Choices
+*   **Multi-tenancy**: Organization-based data isolation is implemented across the system.
+*   **Authentication**: Session-based authentication using email/password with bcrypt hashing, secured in PostgreSQL. Supports both session-based (production) and header-based (development) authentication.
+*   **Database**: PostgreSQL with Drizzle ORM for type-safe operations and Drizzle Kit for migrations. Neon Database is used for hosting.
+*   **Error Handling**: Comprehensive error handling and logging, particularly for critical integrations like Stripe webhooks.
+*   **Timezone Management**: Backend handles `timestamptz` for timezone-aware storage and conversion, with ongoing efforts to resolve frontend display issues.
+*   **Deployment Safety**: Production deployments include measures like session-only authentication, double-validation for organization existence, and careful FK constraint management for zero-downtime data integrity.
 
 ## External Dependencies
-
-- **React 18**: Frontend framework
-- **TypeScript**: Type safety across the stack
-- **Express.js**: Backend web framework
-- **Drizzle ORM**: Type-safe database toolkit
-- **Vite**: Build tool and development server
-- **PostgreSQL**: Primary database
-- **Neon Database**: Serverless PostgreSQL hosting
-- **Tailwind CSS**: Utility-first CSS framework
-- **Shadcn/ui**: Component library
-- **Radix UI**: Headless component primitives
-- **Lucide React**: Icon library
-- **React Hook Form**: Form handling
-- **TanStack React Query**: Server state management and caching
-- **Wouter**: Client-side routing
-- **Zod**: Runtime type validation
-- **connect-pg-simple**: PostgreSQL session store
-- **bcrypt**: Password hashing
+*   **React 18**: Frontend framework
+*   **TypeScript**: Type safety
+*   **Express.js**: Backend web framework
+*   **Drizzle ORM**: Database toolkit
+*   **Vite**: Build tool
+*   **PostgreSQL**: Primary database
+*   **Neon Database**: Serverless PostgreSQL hosting
+*   **Tailwind CSS**: CSS framework
+*   **Shadcn/ui**: Component library
+*   **Radix UI**: Headless component primitives
+*   **Lucide React**: Icon library
+*   **React Hook Form**: Form handling
+*   **TanStack React Query**: Server state management
+*   **Wouter**: Client-side routing
+*   **Zod**: Runtime type validation
+*   **connect-pg-simple**: PostgreSQL session store
+*   **bcrypt**: Password hashing
+*   **Stripe**: Payment processing and subscription management
+*   **Google Cloud Storage (GCS)**: Object storage for photo uploads
+*   **Twilio**: SMS service for bidirectional communication
+*   **Xero**: Accounting software integration
+*   **MailerSend**: Email alert system

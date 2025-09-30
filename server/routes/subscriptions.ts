@@ -120,7 +120,7 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
       line_items: [
         {
           price_data: {
-            currency: 'usd',
+            currency: 'aud',
             product_data: {
               name: plan.name,
               description: `${plan.name} subscription for ${org.name}`,

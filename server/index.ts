@@ -430,6 +430,47 @@ app.use((req, res, next) => {
     console.log("[STARTUP] ✅ STRIPE_WEBHOOK_SECRET is configured");
   }
   
+  // Verify webhook endpoint exists in Stripe (production only)
+  if (isProd && process.env.STRIPE_SECRET_KEY) {
+    try {
+      const Stripe = (await import('stripe')).default;
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+        apiVersion: '2025-08-27.basil',
+      });
+      
+      console.log("[STARTUP] 🔍 Verifying webhook endpoint in Stripe...");
+      const webhookEndpoints = await stripe.webhookEndpoints.list({ limit: 100 });
+      
+      const productionDomains = [
+        'www.taska.info',
+        'taska.info',
+        'taska-gingagenie.replit.app'
+      ];
+      
+      const matchingEndpoints = webhookEndpoints.data.filter(endpoint => 
+        productionDomains.some(domain => endpoint.url.includes(domain))
+      );
+      
+      if (matchingEndpoints.length === 0) {
+        configWarnings.push("No webhook endpoint found in Stripe for production domains (www.taska.info, taska.info)");
+        console.warn("[STARTUP] ⚠️ No webhook endpoint found in Stripe for production domains");
+        console.warn("[STARTUP] ⚠️ This means webhooks will NOT reach your app!");
+        console.warn("[STARTUP] ⚠️ Please add webhook endpoint in Stripe dashboard: https://dashboard.stripe.com/webhooks");
+      } else {
+        console.log(`[STARTUP] ✅ Found ${matchingEndpoints.length} webhook endpoint(s) for production domains:`);
+        matchingEndpoints.forEach(endpoint => {
+          console.log(`[STARTUP]    - ${endpoint.url} (status: ${endpoint.status})`);
+          if (endpoint.status !== 'enabled') {
+            configWarnings.push(`Webhook endpoint ${endpoint.url} is ${endpoint.status} - webhooks may not work`);
+          }
+        });
+      }
+    } catch (error: any) {
+      console.error("[STARTUP] ⚠️ Failed to verify webhook endpoint in Stripe:", error.message);
+      configWarnings.push("Could not verify webhook endpoint in Stripe - check API key permissions");
+    }
+  }
+  
   // Check database
   if (!process.env.DATABASE_URL) {
     configErrors.push("DATABASE_URL is not configured");

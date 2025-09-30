@@ -149,7 +149,47 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
   }
 })
 
-// Test webhook configuration
+// Comprehensive subscription system health check
+router.get('/health', (req, res) => {
+  const hasStripeKey = !!process.env.STRIPE_SECRET_KEY
+  const hasWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET
+  const hasDatabaseUrl = !!process.env.DATABASE_URL
+  
+  const webhookHealth = {
+    secretConfigured: hasWebhookSecret,
+    failureCount: webhookFailureCount,
+    lastFailure: lastWebhookFailure ? lastWebhookFailure.toISOString() : null,
+    status: hasWebhookSecret ? 
+      (webhookFailureCount === 0 ? '✅ Healthy' : `⚠️ ${webhookFailureCount} failures`) : 
+      '❌ Not configured'
+  }
+  
+  const overallStatus = hasStripeKey && hasWebhookSecret && hasDatabaseUrl && webhookFailureCount === 0
+  
+  res.json({
+    status: overallStatus ? '✅ All systems operational' : '⚠️ Configuration issues detected',
+    timestamp: new Date().toISOString(),
+    components: {
+      stripe: {
+        configured: hasStripeKey,
+        status: hasStripeKey ? '✅ Configured' : '❌ STRIPE_SECRET_KEY not configured'
+      },
+      webhook: webhookHealth,
+      database: {
+        configured: hasDatabaseUrl,
+        status: hasDatabaseUrl ? '✅ Configured' : '❌ DATABASE_URL not configured'
+      }
+    },
+    actions: !overallStatus ? [
+      !hasStripeKey && 'Add STRIPE_SECRET_KEY to secrets',
+      !hasWebhookSecret && 'Link STRIPE_WEBHOOK_SECRET to this Replit app',
+      !hasDatabaseUrl && 'Configure DATABASE_URL',
+      webhookFailureCount > 0 && 'Check Stripe webhook URL matches production domain'
+    ].filter(Boolean) : []
+  })
+})
+
+// Test webhook configuration (legacy endpoint)
 router.get('/webhook/test', (req, res) => {
   const hasSecret = !!process.env.STRIPE_WEBHOOK_SECRET
   const secretLength = process.env.STRIPE_WEBHOOK_SECRET?.length || 0
@@ -159,6 +199,8 @@ router.get('/webhook/test', (req, res) => {
     configured: hasSecret,
     secretLength: secretLength,
     secretPrefix: secretPrefix,
+    failureCount: webhookFailureCount,
+    lastFailure: lastWebhookFailure ? lastWebhookFailure.toISOString() : null,
     status: hasSecret ? '✅ Webhook secret is configured and accessible' : '❌ Webhook secret is NOT configured'
   })
 })

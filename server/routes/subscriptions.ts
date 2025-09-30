@@ -1,8 +1,8 @@
 import { Router } from 'express'
 import Stripe from 'stripe'
 import { db } from '../db/client'
-import { subscriptionPlans, orgSubscriptions, organizations } from '../../shared/schema'
-import { eq, and } from 'drizzle-orm'
+import { subscriptionPlans, orgSubscriptions, organizations, stripeWebhookMonitoring } from '../../shared/schema'
+import { eq, and, sql } from 'drizzle-orm'
 import { requireAuth, requireOrg } from '../middleware/auth'
 
 const router = Router()
@@ -149,22 +149,81 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
   }
 })
 
+// Helper function to get or create webhook monitoring record
+async function getOrCreateMonitoringRecord() {
+  const [existing] = await db.select().from(stripeWebhookMonitoring).limit(1)
+  
+  if (existing) {
+    return existing
+  }
+  
+  // Create initial monitoring record
+  const [newRecord] = await db
+    .insert(stripeWebhookMonitoring)
+    .values({
+      consecutiveFailures: 0,
+      totalWebhooksReceived: 0,
+      totalWebhooksFailed: 0,
+    })
+    .returning()
+  
+  return newRecord
+}
+
+// Helper function to record successful webhook
+async function recordSuccessfulWebhook(eventId: string) {
+  const record = await getOrCreateMonitoringRecord()
+  
+  await db
+    .update(stripeWebhookMonitoring)
+    .set({
+      lastSuccessfulWebhook: new Date(),
+      lastWebhookEventId: eventId,
+      consecutiveFailures: 0,
+      totalWebhooksReceived: (record.totalWebhooksReceived || 0) + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(stripeWebhookMonitoring.id, record.id))
+}
+
+// Helper function to record webhook failure
+async function recordWebhookFailure(reason: string) {
+  const record = await getOrCreateMonitoringRecord()
+  
+  await db
+    .update(stripeWebhookMonitoring)
+    .set({
+      consecutiveFailures: (record.consecutiveFailures || 0) + 1,
+      lastFailureTimestamp: new Date(),
+      lastFailureReason: reason,
+      totalWebhooksFailed: (record.totalWebhooksFailed || 0) + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(stripeWebhookMonitoring.id, record.id))
+}
+
 // Comprehensive subscription system health check
-router.get('/health', (req, res) => {
+router.get('/health', async (req, res) => {
   const hasStripeKey = !!process.env.STRIPE_SECRET_KEY
   const hasWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET
   const hasDatabaseUrl = !!process.env.DATABASE_URL
   
+  // Get webhook monitoring data from database
+  const monitoringRecord = await getOrCreateMonitoringRecord()
+  
   const webhookHealth = {
     secretConfigured: hasWebhookSecret,
-    failureCount: webhookFailureCount,
-    lastFailure: lastWebhookFailure ? lastWebhookFailure.toISOString() : null,
+    failureCount: monitoringRecord.consecutiveFailures || 0,
+    lastSuccess: monitoringRecord.lastSuccessfulWebhook ? monitoringRecord.lastSuccessfulWebhook.toISOString() : null,
+    lastFailure: monitoringRecord.lastFailureTimestamp ? monitoringRecord.lastFailureTimestamp.toISOString() : null,
+    totalReceived: monitoringRecord.totalWebhooksReceived || 0,
+    totalFailed: monitoringRecord.totalWebhooksFailed || 0,
     status: hasWebhookSecret ? 
-      (webhookFailureCount === 0 ? '✅ Healthy' : `⚠️ ${webhookFailureCount} failures`) : 
+      (monitoringRecord.consecutiveFailures === 0 ? '✅ Healthy' : `⚠️ ${monitoringRecord.consecutiveFailures} consecutive failures`) : 
       '❌ Not configured'
   }
   
-  const overallStatus = hasStripeKey && hasWebhookSecret && hasDatabaseUrl && webhookFailureCount === 0
+  const overallStatus = hasStripeKey && hasWebhookSecret && hasDatabaseUrl && (monitoringRecord.consecutiveFailures || 0) === 0
   
   res.json({
     status: overallStatus ? '✅ All systems operational' : '⚠️ Configuration issues detected',
@@ -184,30 +243,28 @@ router.get('/health', (req, res) => {
       !hasStripeKey && 'Add STRIPE_SECRET_KEY to secrets',
       !hasWebhookSecret && 'Link STRIPE_WEBHOOK_SECRET to this Replit app',
       !hasDatabaseUrl && 'Configure DATABASE_URL',
-      webhookFailureCount > 0 && 'Check Stripe webhook URL matches production domain'
+      (monitoringRecord.consecutiveFailures || 0) > 0 && 'Check Stripe webhook URL matches production domain'
     ].filter(Boolean) : []
   })
 })
 
 // Test webhook configuration (legacy endpoint)
-router.get('/webhook/test', (req, res) => {
+router.get('/webhook/test', async (req, res) => {
   const hasSecret = !!process.env.STRIPE_WEBHOOK_SECRET
   const secretLength = process.env.STRIPE_WEBHOOK_SECRET?.length || 0
   const secretPrefix = process.env.STRIPE_WEBHOOK_SECRET?.substring(0, 10) || 'not set'
+  
+  const monitoringRecord = await getOrCreateMonitoringRecord()
   
   res.json({
     configured: hasSecret,
     secretLength: secretLength,
     secretPrefix: secretPrefix,
-    failureCount: webhookFailureCount,
-    lastFailure: lastWebhookFailure ? lastWebhookFailure.toISOString() : null,
+    failureCount: monitoringRecord.consecutiveFailures || 0,
+    lastFailure: monitoringRecord.lastFailureTimestamp ? monitoringRecord.lastFailureTimestamp.toISOString() : null,
     status: hasSecret ? '✅ Webhook secret is configured and accessible' : '❌ Webhook secret is NOT configured'
   })
 })
-
-// Track webhook failures for monitoring
-let webhookFailureCount = 0
-let lastWebhookFailure: Date | null = null
 
 // Stripe webhook handler
 router.post('/webhook', async (req, res) => {
@@ -224,8 +281,7 @@ router.post('/webhook', async (req, res) => {
     console.error('[WEBHOOK] ❌ CRITICAL: STRIPE_WEBHOOK_SECRET is not configured!')
     console.error('[WEBHOOK] ❌ This means the webhook secret is not linked to this Replit app')
     console.error('[WEBHOOK] ❌ Please check Replit secrets and ensure STRIPE_WEBHOOK_SECRET is linked')
-    webhookFailureCount++
-    lastWebhookFailure = new Date()
+    await recordWebhookFailure('STRIPE_WEBHOOK_SECRET not configured')
     return res.status(500).send('Webhook secret not configured')
   }
   
@@ -243,10 +299,12 @@ router.post('/webhook', async (req, res) => {
     console.error(`[WEBHOOK]   2. Webhook URL in Stripe doesn't match this endpoint`)
     console.error(`[WEBHOOK]   3. Secret not linked to this Replit app`)
     console.error('[WEBHOOK] ================================================')
-    webhookFailureCount++
-    lastWebhookFailure = new Date()
-    if (webhookFailureCount > 5) {
-      console.error(`[WEBHOOK] ⚠️ WARNING: ${webhookFailureCount} consecutive webhook failures detected!`)
+    
+    await recordWebhookFailure(`Signature verification failed: ${err.message}`)
+    const monitoringRecord = await getOrCreateMonitoringRecord()
+    
+    if ((monitoringRecord.consecutiveFailures || 0) > 5) {
+      console.error(`[WEBHOOK] ⚠️ WARNING: ${monitoringRecord.consecutiveFailures} consecutive webhook failures detected!`)
     }
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
@@ -319,14 +377,15 @@ router.post('/webhook', async (req, res) => {
       }
     }
     
-    // Webhook processed successfully - reset failure counter
-    if (webhookFailureCount > 0) {
-      console.log(`[WEBHOOK] ✅ Webhook processed successfully after ${webhookFailureCount} previous failures`)
-      webhookFailureCount = 0
-      lastWebhookFailure = null
+    // Webhook processed successfully - reset failure counter and record success
+    const monitoringRecord = await getOrCreateMonitoringRecord()
+    if ((monitoringRecord.consecutiveFailures || 0) > 0) {
+      console.log(`[WEBHOOK] ✅ Webhook processed successfully after ${monitoringRecord.consecutiveFailures} previous failures`)
     } else {
       console.log('[WEBHOOK] ✅ Webhook processed successfully')
     }
+    
+    await recordSuccessfulWebhook(event.id)
     console.log('[WEBHOOK] ================================================')
     
     res.json({ received: true })
@@ -336,8 +395,8 @@ router.post('/webhook', async (req, res) => {
     console.error('[WEBHOOK] Event type:', event?.type)
     console.error('[WEBHOOK] Event ID:', event?.id)
     console.error('[WEBHOOK] ================================================')
-    webhookFailureCount++
-    lastWebhookFailure = new Date()
+    
+    await recordWebhookFailure(`Processing error: ${error}`)
     res.status(500).json({ error: 'Webhook processing failed' })
   }
 })

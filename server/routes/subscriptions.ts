@@ -149,15 +149,34 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
   }
 })
 
+// Test webhook configuration
+router.get('/webhook/test', (req, res) => {
+  const hasSecret = !!process.env.STRIPE_WEBHOOK_SECRET
+  const secretLength = process.env.STRIPE_WEBHOOK_SECRET?.length || 0
+  const secretPrefix = process.env.STRIPE_WEBHOOK_SECRET?.substring(0, 10) || 'not set'
+  
+  res.json({
+    configured: hasSecret,
+    secretLength: secretLength,
+    secretPrefix: secretPrefix,
+    status: hasSecret ? '✅ Webhook secret is configured and accessible' : '❌ Webhook secret is NOT configured'
+  })
+})
+
 // Stripe webhook handler
 router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'] as string
   let event: Stripe.Event
   
+  console.log('[WEBHOOK] Received webhook request')
+  console.log('[WEBHOOK] Has secret:', !!process.env.STRIPE_WEBHOOK_SECRET)
+  console.log('[WEBHOOK] Has signature:', !!sig)
+  
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET || '')
+    console.log('[WEBHOOK] ✅ Signature verified successfully! Event type:', event.type)
   } catch (err: any) {
-    console.error(`Webhook signature verification failed: ${err.message}`)
+    console.error(`[WEBHOOK] ❌ Signature verification failed: ${err.message}`)
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
   

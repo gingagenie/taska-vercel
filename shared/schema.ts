@@ -786,6 +786,20 @@ export type InsertSupportAuditLog = z.infer<typeof insertSupportAuditLogSchema>;
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
 
+// Stripe webhook monitoring - tracks webhook health and delivery status
+export const stripeWebhookMonitoring = pgTable("stripe_webhook_monitoring", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  lastSuccessfulWebhook: timestamp("last_successful_webhook"),
+  lastWebhookEventId: varchar("last_webhook_event_id", { length: 255 }),
+  consecutiveFailures: integer("consecutive_failures").default(0),
+  lastFailureTimestamp: timestamp("last_failure_timestamp"),
+  lastFailureReason: text("last_failure_reason"),
+  totalWebhooksReceived: integer("total_webhooks_received").default(0),
+  totalWebhooksFailed: integer("total_webhooks_failed").default(0),
+  alertSentAt: timestamp("alert_sent_at"), // Track when we last sent an alert email
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Newsletter subscribers - for marketing emails and blog updates
 export const newsletterSubscribers = pgTable("newsletter_subscribers", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -825,3 +839,5 @@ export const insertNewsletterSubscriberSchema = createInsertSchema(newsletterSub
 
 export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
 export type InsertNewsletterSubscriber = z.infer<typeof insertNewsletterSubscriberSchema>;
+
+export type StripeWebhookMonitoring = typeof stripeWebhookMonitoring.$inferSelect;

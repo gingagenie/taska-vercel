@@ -109,26 +109,28 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      <Tabs value={currentTab} onValueChange={handleTabChange}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1">
-          <TabsTrigger value="all" className="gap-1 sm:gap-2" data-testid="tab-all">
-            <span className="text-xs sm:text-sm">All</span>
-            <Badge variant="secondary" className="text-xs" data-testid="count-all">{counts.all}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="unpaid" className="gap-1 sm:gap-2" data-testid="tab-unpaid">
-            <span className="text-xs sm:text-sm">Unpaid</span>
-            <Badge variant="secondary" className="text-xs" data-testid="count-unpaid">{counts.unpaid}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="paid" className="gap-1 sm:gap-2" data-testid="tab-paid">
-            <span className="text-xs sm:text-sm">Paid</span>
-            <Badge variant="secondary" className="text-xs" data-testid="count-paid">{counts.paid}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="overdue" className="gap-1 sm:gap-2" data-testid="tab-overdue">
-            <span className="text-xs sm:text-sm">Overdue</span>
-            <Badge variant="secondary" className="text-xs" data-testid="count-overdue">{counts.overdue}</Badge>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="mb-6">
+        <Tabs value={currentTab} onValueChange={handleTabChange}>
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1">
+            <TabsTrigger value="all" className="gap-1 sm:gap-2" data-testid="tab-all">
+              <span className="text-xs sm:text-sm">All</span>
+              <Badge variant="secondary" className="text-xs" data-testid="count-all">{counts.all}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="unpaid" className="gap-1 sm:gap-2" data-testid="tab-unpaid">
+              <span className="text-xs sm:text-sm">Unpaid</span>
+              <Badge variant="secondary" className="text-xs" data-testid="count-unpaid">{counts.unpaid}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="paid" className="gap-1 sm:gap-2" data-testid="tab-paid">
+              <span className="text-xs sm:text-sm">Paid</span>
+              <Badge variant="secondary" className="text-xs" data-testid="count-paid">{counts.paid}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="overdue" className="gap-1 sm:gap-2" data-testid="tab-overdue">
+              <span className="text-xs sm:text-sm">Overdue</span>
+              <Badge variant="secondary" className="text-xs" data-testid="count-overdue">{counts.overdue}</Badge>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
       {isLoading ? (
         <div className="text-center py-8 text-gray-500">Loading invoices…</div>

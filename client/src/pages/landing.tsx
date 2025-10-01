@@ -336,7 +336,11 @@ export default function Landing() {
                 <li><span className="tick">✓</span> Jobs, customers, equipment</li>
                 <li><span className="tick">✓</span> Quotes & invoices</li>
                 <li><span className="tick">✓</span> Mobile scheduling</li>
+                <li><span className="tick">✓</span> Advanced scheduling</li>
                 <li><span className="tick">✓</span> Email support</li>
+                <li><span className="tick">✓</span> AI and Chat support</li>
+                <li><span className="tick">✓</span> Xero integration</li>
+                <li><span className="tick">✓</span> SMS job confirmations</li>
               </ul>
             </div>
             <a className="btn cta" href="/auth/register?plan=solo">Choose Solo</a>
@@ -351,9 +355,13 @@ export default function Landing() {
               <ul>
                 <li><span className="tick">✓</span> Up to 5 users</li>
                 <li><span className="tick">✓</span> 500 SMS & emails monthly</li>
+                <li><span className="tick">✓</span> Jobs, customers, equipment</li>
+                <li><span className="tick">✓</span> Quotes & invoices</li>
+                <li><span className="tick">✓</span> Mobile scheduling</li>
                 <li><span className="tick">✓</span> Advanced scheduling</li>
-                <li><span className="tick">✓</span> Customer portal & file uploads</li>
-                <li><span className="tick">✓</span> Xero & Stripe integration</li>
+                <li><span className="tick">✓</span> Email support</li>
+                <li><span className="tick">✓</span> AI and Chat support</li>
+                <li><span className="tick">✓</span> Xero integration</li>
                 <li><span className="tick">✓</span> SMS job confirmations</li>
               </ul>
             </div>
@@ -368,10 +376,14 @@ export default function Landing() {
               <ul>
                 <li><span className="tick">✓</span> Up to 12 users</li>
                 <li><span className="tick">✓</span> 2,000 SMS & emails monthly</li>
-                <li><span className="tick">✓</span> Advanced permissions</li>
-                <li><span className="tick">✓</span> Priority support</li>
-                <li><span className="tick">✓</span> Dedicated onboarding</li>
-                <li><span className="tick">✓</span> Usage analytics</li>
+                <li><span className="tick">✓</span> Jobs, customers, equipment</li>
+                <li><span className="tick">✓</span> Quotes & invoices</li>
+                <li><span className="tick">✓</span> Mobile scheduling</li>
+                <li><span className="tick">✓</span> Advanced scheduling</li>
+                <li><span className="tick">✓</span> Email support</li>
+                <li><span className="tick">✓</span> AI and Chat support</li>
+                <li><span className="tick">✓</span> Xero integration</li>
+                <li><span className="tick">✓</span> SMS job confirmations</li>
               </ul>
             </div>
             <a className="btn cta" href="/auth/register?plan=enterprise">Choose Enterprise</a>

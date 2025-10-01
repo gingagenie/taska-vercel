@@ -32,20 +32,20 @@ export const PLAN_QUOTAS = {
     emailsMonthly: 100,
   },
   pro: {
-    users: 10,
-    smsMonthly: 200,
+    users: 5,
+    smsMonthly: 500,
     emailsMonthly: 500,
   },
   enterprise: {
-    users: 50,
-    smsMonthly: 1000,
+    users: 12,
+    smsMonthly: 2000,
     emailsMonthly: 2000,
   },
   // Legacy plan support
   solo: {
     users: 1,
-    smsMonthly: 25,
-    emailsMonthly: 50,
+    smsMonthly: 100,
+    emailsMonthly: 100,
   },
 } as const
 

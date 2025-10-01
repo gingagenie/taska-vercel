@@ -110,22 +110,22 @@ export default function InvoicesPage() {
       </div>
 
       <Tabs value={currentTab} onValueChange={handleTabChange}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all" className="gap-2" data-testid="tab-all">
-            All
-            <Badge variant="secondary" className="ml-1" data-testid="count-all">{counts.all}</Badge>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1">
+          <TabsTrigger value="all" className="gap-1 sm:gap-2" data-testid="tab-all">
+            <span className="text-xs sm:text-sm">All</span>
+            <Badge variant="secondary" className="text-xs" data-testid="count-all">{counts.all}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="unpaid" className="gap-2" data-testid="tab-unpaid">
-            Unpaid
-            <Badge variant="secondary" className="ml-1" data-testid="count-unpaid">{counts.unpaid}</Badge>
+          <TabsTrigger value="unpaid" className="gap-1 sm:gap-2" data-testid="tab-unpaid">
+            <span className="text-xs sm:text-sm">Unpaid</span>
+            <Badge variant="secondary" className="text-xs" data-testid="count-unpaid">{counts.unpaid}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="paid" className="gap-2" data-testid="tab-paid">
-            Paid
-            <Badge variant="secondary" className="ml-1" data-testid="count-paid">{counts.paid}</Badge>
+          <TabsTrigger value="paid" className="gap-1 sm:gap-2" data-testid="tab-paid">
+            <span className="text-xs sm:text-sm">Paid</span>
+            <Badge variant="secondary" className="text-xs" data-testid="count-paid">{counts.paid}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="overdue" className="gap-2" data-testid="tab-overdue">
-            Overdue
-            <Badge variant="secondary" className="ml-1" data-testid="count-overdue">{counts.overdue}</Badge>
+          <TabsTrigger value="overdue" className="gap-1 sm:gap-2" data-testid="tab-overdue">
+            <span className="text-xs sm:text-sm">Overdue</span>
+            <Badge variant="secondary" className="text-xs" data-testid="count-overdue">{counts.overdue}</Badge>
           </TabsTrigger>
         </TabsList>
       </Tabs>

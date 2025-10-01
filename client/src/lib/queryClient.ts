@@ -178,7 +178,26 @@ export const getQueryFn: <T>(options: {
     // Get auth headers (Authorization for iOS, empty for web/Android)
     const authHeaders = await getAuthHeaders();
     
-    const url = queryKey.join("/") as string;
+    // Build URL from queryKey - handle both string arrays and objects with params
+    let url: string;
+    if (queryKey.length === 1) {
+      url = queryKey[0] as string;
+    } else if (queryKey.length === 2 && typeof queryKey[1] === 'object') {
+      // Handle ['/api/endpoint', { param: value }] format
+      const baseUrl = queryKey[0] as string;
+      const params = queryKey[1] as Record<string, any>;
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, String(value));
+        }
+      });
+      url = searchParams.toString() ? `${baseUrl}?${searchParams.toString()}` : baseUrl;
+    } else {
+      // Fallback to join for nested paths
+      url = queryKey.join("/") as string;
+    }
+    
     console.log(`[HYBRID API] Query ${url} with auth mode: ${shouldUseTokenAuth() ? 'token' : 'cookie'}`);
     
     const res = await fetch(url, {

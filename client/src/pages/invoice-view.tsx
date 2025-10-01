@@ -9,7 +9,7 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { ExternalLink, Mail, Eye } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
 
@@ -26,6 +26,7 @@ export default function InvoiceView() {
   const [emailAddress, setEmailAddress] = useState("");
   const [sending, setSending] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch customers and user data for preview
   const { data: customers = [] } = useQuery({
@@ -33,6 +34,21 @@ export default function InvoiceView() {
   });
 
   const { data: meData } = useQuery({ queryKey: ["/api/me"] });
+
+  const markPaidMutation = useMutation({
+    mutationFn: (invoiceId: string) => invoicesApi.markPaid(invoiceId),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices/counts"] });
+      if (id) {
+        const i = await invoicesApi.get(id);
+        setInvoice(i);
+      }
+    },
+    onError: (error: any) => {
+      setErr(error.message);
+    },
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -81,13 +97,7 @@ export default function InvoiceView() {
       contentCategory: "conversion",
     });
     
-    try {
-      await invoicesApi.markPaid(id);
-      const i = await invoicesApi.get(id);
-      setInvoice(i);
-    } catch (e: any) {
-      setErr(e.message);
-    }
+    markPaidMutation.mutate(id);
   }
 
   // Calculate totals from invoice items (consistent with quotes)

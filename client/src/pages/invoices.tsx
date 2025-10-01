@@ -5,7 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Link, useLocation } from "wouter";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Link, useLocation, useSearch } from "wouter";
 import { FileText, User, ArrowRight, Edit, Trash } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
@@ -15,14 +16,31 @@ import { trackClickButton } from "@/lib/tiktok-tracking";
 export default function InvoicesPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: list = [], isLoading } = useQuery({ queryKey:["/api/invoices"], queryFn: invoicesApi.getAll });
-  const [q, setQ] = useState("");
   const [, navigate] = useLocation();
+  const searchString = useSearch();
+  const params = new URLSearchParams(searchString);
+  const currentTab = (params.get('tab') || 'all') as 'all' | 'paid' | 'unpaid' | 'overdue';
+  
+  const { data: counts = { all: 0, paid: 0, unpaid: 0, overdue: 0 } } = useQuery<{
+    all: number;
+    paid: number;
+    unpaid: number;
+    overdue: number;
+  }>({ 
+    queryKey: ["/api/invoices/counts"],
+  });
+  
+  const { data: list = [], isLoading } = useQuery<any[]>({ 
+    queryKey: ["/api/invoices", { tab: currentTab }],
+  });
+  
+  const [q, setQ] = useState("");
 
   const deleteInvoiceMutation = useMutation({
     mutationFn: (invoiceId: string) => invoicesApi.delete(invoiceId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      qc.invalidateQueries({ queryKey: ["/api/invoices/counts"] });
       toast({
         title: "Invoice deleted",
         description: "The invoice has been successfully deleted.",
@@ -36,6 +54,10 @@ export default function InvoicesPage() {
       });
     },
   });
+  
+  const handleTabChange = (tab: string) => {
+    navigate(`/invoices?tab=${tab}`);
+  };
 
   const handleDeleteInvoice = (invoice: any) => {
     if (window.confirm(`Are you sure you want to delete "${invoice.title}"? This action cannot be undone.`)) {
@@ -43,7 +65,7 @@ export default function InvoicesPage() {
     }
   };
 
-  const filtered = (list || []).filter(x => [x.title,x.customer_name,x.status].join(" ").toLowerCase().includes(q.toLowerCase()));
+  const filtered = (list || []).filter((x: any) => [x.title,x.customer_name,x.status].join(" ").toLowerCase().includes(q.toLowerCase()));
 
   function getStatusBadgeClass(status: string) {
     switch (status) {
@@ -86,6 +108,27 @@ export default function InvoicesPage() {
           </Link>
         </div>
       </div>
+
+      <Tabs value={currentTab} onValueChange={handleTabChange}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="all" className="gap-2" data-testid="tab-all">
+            All
+            <Badge variant="secondary" className="ml-1" data-testid="count-all">{counts.all}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="unpaid" className="gap-2" data-testid="tab-unpaid">
+            Unpaid
+            <Badge variant="secondary" className="ml-1" data-testid="count-unpaid">{counts.unpaid}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="paid" className="gap-2" data-testid="tab-paid">
+            Paid
+            <Badge variant="secondary" className="ml-1" data-testid="count-paid">{counts.paid}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="overdue" className="gap-2" data-testid="tab-overdue">
+            Overdue
+            <Badge variant="secondary" className="ml-1" data-testid="count-overdue">{counts.overdue}</Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {isLoading ? (
         <div className="text-center py-8 text-gray-500">Loading invoices…</div>

@@ -18,9 +18,11 @@ export default function JobEdit() {
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
   const [equipmentId, setEquipmentId] = useState<string>("");
+  const [assignedUserId, setAssignedUserId] = useState<string>("");
 
   const [customers, setCustomers] = useState<any[]>([]);
   const [equipment, setEquipment] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -40,14 +42,18 @@ export default function JobEdit() {
         setCustomerId(j.customer_id || "");
         // Set equipment from job (take first one if multiple)
         setEquipmentId(j.equipment?.[0]?.id || "");
+        // Set assigned user from job (take first technician if multiple)
+        setAssignedUserId(j.technicians?.[0]?.id || "");
 
-        const [cs, photosData] = await Promise.all([
+        const [cs, photosData, membersData] = await Promise.all([
           api(`/api/jobs/customers`),
           photosApi.list(jobId),
+          api(`/api/members`),
         ]);
         if (!alive) return;
         setCustomers(cs || []);
         setPhotos(photosData || []);
+        setMembers(membersData || []);
         
         // Load equipment filtered by customer (if customer is selected)
         if (j.customer_id) {
@@ -118,6 +124,7 @@ export default function JobEdit() {
           scheduledAt: isoFromLocalInput(scheduledAt),
           customerId: customerId || null,
           equipmentId: equipmentId || null,
+          assignedUserId: assignedUserId || null,
         }),
       });
       navigate(`/jobs/${jobId}`);
@@ -209,6 +216,23 @@ export default function JobEdit() {
               {equipment.map((eq) => (
                 <option key={eq.id} value={eq.id}>
                   {eq.name} {eq.make && `(${eq.make})`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Assigned To</label>
+            <select
+              className="w-full border rounded p-2"
+              value={assignedUserId}
+              onChange={(e) => setAssignedUserId(e.target.value)}
+              data-testid="select-assigned-user"
+            >
+              <option value="">— Unassigned —</option>
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
                 </option>
               ))}
             </select>

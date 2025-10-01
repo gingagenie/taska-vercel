@@ -565,15 +565,16 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
     return res.status(400).json({ error: "Invalid jobId" });
   }
 
-  let { title, description, status, scheduledAt, customerId } = req.body || {};
+  let { title, description, status, scheduledAt, customerId, assignedUserId } = req.body || {};
   if (customerId === "") customerId = null;
+  if (assignedUserId === "") assignedUserId = null;
 
   // Use the new timezone normalization function
   const scheduled = normalizeScheduledAt(scheduledAt);
 
   // Always log what we received (so we know the route is hit)
   console.log("PUT /api/jobs/%s org=%s body=%o", jobId, orgId, {
-    title, description, status, scheduledAt: scheduled, customerId
+    title, description, status, scheduledAt: scheduled, customerId, assignedUserId
   });
 
   try {
@@ -594,7 +595,41 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    console.log("PUT /api/jobs/%s -> ok", jobId);
+    // Handle assignment update
+    // Validate assignedUserId format and org membership if provided
+    if (assignedUserId) {
+      // Check UUID format
+      if (!isUuid(assignedUserId)) {
+        return res.status(400).json({ error: "Invalid assignedUserId format" });
+      }
+      
+      // Validate that user belongs to the same org
+      const userCheck: any = await db.execute(sql`
+        SELECT 1 FROM users 
+        WHERE id = ${assignedUserId}::uuid AND org_id = ${orgId}::uuid
+      `);
+      
+      if (!userCheck.length) {
+        return res.status(400).json({ error: "Invalid user assignment - user not found in organization" });
+      }
+    }
+
+    // Delete all existing assignments for this job
+    await db.execute(sql`
+      DELETE FROM job_assignments
+      WHERE job_id = ${jobId}::uuid
+    `);
+
+    // Create new assignment if provided
+    if (assignedUserId) {
+      await db.execute(sql`
+        INSERT INTO job_assignments (job_id, user_id)
+        VALUES (${jobId}::uuid, ${assignedUserId}::uuid)
+        ON CONFLICT DO NOTHING
+      `);
+    }
+
+    console.log("PUT /api/jobs/%s -> ok (assignment updated)", jobId);
     res.json({ ok: true });
   } catch (error: any) {
     console.error("PUT /api/jobs/%s error:", jobId, error);

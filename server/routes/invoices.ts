@@ -271,7 +271,24 @@ router.delete("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) =>
 /** Mark paid */
 router.post("/:id/pay", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params;
-  await db.execute(sql`update invoices set status='paid', updated_at=now() where id=${id}::uuid`);
+  const orgId = (req as any).orgId;
+  
+  // Validate UUID format
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+  
+  // Update with org scoping and prevent paying void invoices
+  const r: any = await db.execute(sql`
+    update invoices
+    set status = 'paid', updated_at = now()
+    where id = ${id}::uuid
+      and org_id = ${orgId}::uuid
+      and status <> 'void'
+    returning id, status
+  `);
+  
+  // Return 404 if invoice not found or doesn't belong to org
+  if (!r?.length) return res.status(404).json({ error: "not found" });
+  
   res.json({ ok: true });
 });
 

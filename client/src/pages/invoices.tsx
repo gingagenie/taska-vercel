@@ -111,7 +111,7 @@ export default function InvoicesPage() {
 
       <div className="mb-6">
         <Tabs value={currentTab} onValueChange={handleTabChange}>
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2 h-auto p-1">
             <TabsTrigger value="all" className="gap-1 sm:gap-2" data-testid="tab-all">
               <span className="text-xs sm:text-sm">All</span>
               <Badge variant="secondary" className="text-xs" data-testid="count-all">{counts.all}</Badge>

@@ -44,25 +44,57 @@ router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+/** Get counts for all tabs */
+router.get("/counts", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const r: any = await db.execute(sql`
+    SELECT
+      count(*) FILTER (WHERE true) as all,
+      count(*) FILTER (WHERE status='paid') as paid,
+      count(*) FILTER (WHERE status <> 'paid' AND status <> 'void') as unpaid,
+      count(*) FILTER (WHERE due_at IS NOT NULL AND due_at < (now() at time zone 'UTC') AND status <> 'paid') as overdue
+    FROM invoices 
+    WHERE org_id = ${orgId}::uuid
+  `);
+  res.json(r[0] || { all: 0, paid: 0, unpaid: 0, overdue: 0 });
+});
+
 /** List */
 router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
+  const tab = req.query.tab as string || 'all';
+  const page = parseInt(req.query.page as string) || 1;
+  const pageSize = parseInt(req.query.pageSize as string) || 20;
+  const offset = (page - 1) * pageSize;
+  
+  // Build WHERE clause based on tab
+  let tabFilter = sql``;
+  if (tab === 'paid') {
+    tabFilter = sql`AND i.status = 'paid'`;
+  } else if (tab === 'unpaid') {
+    tabFilter = sql`AND i.status <> 'paid' AND i.status <> 'void'`;
+  } else if (tab === 'overdue') {
+    tabFilter = sql`AND i.due_at IS NOT NULL AND i.due_at < (now() at time zone 'UTC') AND i.status <> 'paid'`;
+  }
+  
   const r: any = await db.execute(sql`
     select 
       i.id, 
       i.title, 
       i.number,
       i.status, 
-      i.created_at, 
+      i.created_at,
+      i.due_at,
       i.customer_id, 
       c.name as customer_name,
       COALESCE(i.grand_total, 0) as total_amount
     from invoices i 
     join customers c on c.id = i.customer_id
-    where i.org_id=${orgId}::uuid
+    where i.org_id=${orgId}::uuid ${tabFilter}
     order by i.created_at desc
+    limit ${pageSize} offset ${offset}
   `);
-  console.log(`[DEBUG] Invoice list query result:`, r.map((inv: any) => ({ id: inv.id, title: inv.title, total_amount: inv.total_amount })));
+  console.log(`[DEBUG] Invoice list query result (tab=${tab}):`, r.map((inv: any) => ({ id: inv.id, title: inv.title, total_amount: inv.total_amount })));
   res.json(r);  // Match the working pattern from jobs.ts
 });
 

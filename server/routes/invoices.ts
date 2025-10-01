@@ -279,7 +279,7 @@ router.post("/:id/pay", requireAuth, requireOrg, async (req, res) => {
   // Update with org scoping and prevent paying void invoices
   const r: any = await db.execute(sql`
     update invoices
-    set status = 'paid', updated_at = now()
+    set status = 'paid'
     where id = ${id}::uuid
       and org_id = ${orgId}::uuid
       and status <> 'void'

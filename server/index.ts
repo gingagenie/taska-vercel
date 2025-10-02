@@ -143,6 +143,28 @@ app.use("/support", supportSessionConfig);
   }
 })();
 
+// Validate object storage configuration and run self-test
+(async () => {
+  try {
+    const { assertStorageEnv } = await import("./storage/paths");
+    const { storageSelfTest } = await import("./storage/selftest");
+    
+    console.log("[STARTUP] 🗄️ Validating object storage configuration...");
+    assertStorageEnv();
+    console.log("[STARTUP] ✅ Object storage environment validated");
+    
+    console.log("[STARTUP] 🧪 Running storage self-test...");
+    await storageSelfTest();
+    console.log("[STARTUP] ✅ Storage self-test passed - object storage ready");
+  } catch (error: any) {
+    console.error("[STARTUP] ❌ CRITICAL: Object storage validation failed:", error?.message || error);
+    console.error("[STARTUP] Photo uploads will not work until storage is properly configured");
+    console.error("[STARTUP] Check that PRIVATE_OBJECT_DIR is set and ends with '/.private'");
+    // Don't exit - allow app to run but log the critical issue
+    console.error("[STARTUP] Continuing startup despite storage issues...");
+  }
+})();
+
 // Ensure uploads dir exists and serve statically
 const uploadsDir = path.join(process.cwd(), "uploads");
 const avatarsDir = path.join(uploadsDir, "avatars");

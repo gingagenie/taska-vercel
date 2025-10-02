@@ -135,6 +135,7 @@ export const jobPhotos = pgTable("job_photos", {
   jobId: uuid("job_id").references(() => jobs.id, { onDelete: "cascade" }).notNull(),
   orgId: uuid("org_id").references(() => organizations.id).notNull(),
   url: text("url").notNull(),
+  objectKey: text("object_key"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

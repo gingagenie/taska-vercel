@@ -24,21 +24,73 @@ router.get("/public-objects/:filePath(*)", async (req, res) => {
   }
 });
 
-// This endpoint is used to serve private objects that can be accessed publicly
-// (i.e.: without authentication and ACL check).
-router.get("/objects/:objectPath(*)", async (req, res) => {
-  const objectStorageService = new ObjectStorageService();
+// This endpoint serves private objects with org-based authentication
+router.get("/objects/:objectPath(*)", requireAuth, requireOrg, async (req, res) => {
   try {
-    const objectFile = await objectStorageService.getObjectEntityFile(
-      req.path,
-    );
-    objectStorageService.downloadObject(objectFile, res);
-  } catch (error) {
-    console.error("Error checking object access:", error);
-    if (error instanceof ObjectNotFoundError) {
-      return res.sendStatus(404);
+    const requestedPath = req.params.objectPath;
+    const userOrgId = (req as any).orgId;
+    const userId = (req as any).user?.id;
+    
+    // Extract orgId from path (format: job-photos/{orgId}/{jobId}/{file})
+    const pathSegments = requestedPath.split('/');
+    if (pathSegments.length < 2) {
+      return res.status(400).json({ error: "Invalid object path" });
     }
-    return res.sendStatus(500);
+    
+    // For job-photos, the orgId is the second segment
+    const pathOrgId = pathSegments[1];
+    
+    // Strict org check - user can only access their org's photos
+    if (userOrgId !== pathOrgId) {
+      const { logStorage } = await import("../storage/log");
+      logStorage("VIEW_FORBIDDEN", { who: userId, key: requestedPath, userOrg: userOrgId, pathOrg: pathOrgId });
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    
+    // Import storage modules
+    const { absolutePathForKey, disableObjectStorage } = await import("../storage/paths");
+    const { logStorage } = await import("../storage/log");
+    const fs = await import("node:fs");
+    
+    // Get absolute path for the key
+    const key = requestedPath;
+    let absolutePath = absolutePathForKey(key);
+    
+    // Try to check if file exists before streaming
+    try {
+      await fs.promises.access(absolutePath, fs.constants.R_OK);
+    } catch (accessError: any) {
+      if (accessError?.code === "ENOENT" || accessError?.code === "EACCES") {
+        // Try with fallback
+        disableObjectStorage();
+        absolutePath = absolutePathForKey(key);
+        
+        try {
+          await fs.promises.access(absolutePath, fs.constants.R_OK);
+        } catch (fallbackError: any) {
+          logStorage("VIEW_NOT_FOUND", { who: userId, key });
+          return res.status(404).json({ error: "Not found" });
+        }
+      } else {
+        logStorage("VIEW_ERROR", { who: userId, key, msg: accessError?.message });
+        return res.status(500).json({ error: "Read error" });
+      }
+    }
+    
+    // Stream the file
+    const stream = fs.createReadStream(absolutePath);
+    
+    stream.on("error", (e: any) => {
+      logStorage("VIEW_ERROR", { who: userId, key, msg: e?.message });
+      return res.status(500).json({ error: "Read error" });
+    });
+    
+    res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+    stream.pipe(res);
+    logStorage("VIEW_OK", { who: userId, key });
+  } catch (error: any) {
+    console.error("Error serving object:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 

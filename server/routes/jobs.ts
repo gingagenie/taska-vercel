@@ -654,7 +654,7 @@ jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
     
     // Query photos from database
     const result = await db.execute(sql`
-      SELECT id, url, created_at 
+      SELECT id, url, object_key, created_at 
       FROM job_photos 
       WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
@@ -686,6 +686,7 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
   try {
     const { jobId } = req.params;
     const orgId = (req as any).orgId;
+    const userId = (req as any).user?.id;
     
     // Validate jobId format
     if (!isUuid(jobId)) {
@@ -701,10 +702,6 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
     if (!file.buffer) {
       return res.status(500).json({ error: "File buffer not available" });
     }
-    
-    // Create unique filename for object storage with sanitized extension
-    const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(7);
     
     // Sanitize and validate file extension
     let ext = 'jpg'; // default
@@ -733,84 +730,57 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
       return res.status(404).json({ error: "Job not found" });
     }
     
-    // Get private directory from env and normalize
-    let privateDir = process.env.PRIVATE_OBJECT_DIR;
-    if (!privateDir) {
-      return res.status(500).json({ error: "Object storage not configured. Please set PRIVATE_OBJECT_DIR environment variable." });
+    // Import storage modules
+    const { jobPhotoKey, absolutePathForKey, PRIVATE_OBJECT_DIR, disableObjectStorage } = await import("../storage/paths");
+    const { logStorage } = await import("../storage/log");
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    
+    // Create unique filename
+    const timestamp = Date.now();
+    const safeName = `${timestamp}-${file.originalname?.replace(/\s+/g, "_") || 'upload'}.${ext}`;
+    
+    // Generate key (canonical identifier stored in DB)
+    const key = jobPhotoKey(orgId, jobId, safeName);
+    let absolutePath = absolutePathForKey(key);
+    
+    // Upload to file system with fallback retry
+    try {
+      await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+      await fs.writeFile(absolutePath, file.buffer);
+      logStorage("UPLOAD", { who: userId, key });
+    } catch (uploadError: any) {
+      if (uploadError?.code === "ENOENT" || uploadError?.code === "EACCES") {
+        // Object storage unavailable - disable and retry with fallback
+        disableObjectStorage();
+        absolutePath = absolutePathForKey(key);
+        
+        await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+        await fs.writeFile(absolutePath, file.buffer);
+        logStorage("UPLOAD", { who: userId, key, storage: "local fallback (after failure)" });
+      } else {
+        throw uploadError;
+      }
     }
-    
-    // Normalize to ensure leading slash
-    if (!privateDir.startsWith('/')) {
-      privateDir = `/${privateDir}`;
-    }
-    
-    // Parse the bucket name and directory path from PRIVATE_OBJECT_DIR
-    // Format: /bucket-name/path/to/dir
-    const pathParts = privateDir.split("/").filter(p => p);
-    if (pathParts.length < 2) {
-      return res.status(500).json({ error: "Invalid PRIVATE_OBJECT_DIR format. Expected: /bucket-name/path" });
-    }
-    const bucketName = pathParts[0];
-    const privatePath = pathParts.slice(1).join("/");
-    
-    // Create full object path including the private directory
-    const photoFileName = `job-photos/${orgId}/${jobId}/${timestamp}-${randomId}.${ext}`;
-    const fullObjectName = `${privatePath}/${photoFileName}`;
-    
-    // CRITICAL PATH LOGGING - DO NOT REMOVE
-    // This logging helps diagnose the recurring photo upload bug
-    console.log("[PHOTO UPLOAD PATH TRACE]", {
-      PRIVATE_OBJECT_DIR: privateDir,
-      bucketName,
-      privatePath,
-      photoFileName,
-      fullObjectName,
-      urlToSaveInDB: `/objects/${photoFileName}`,
-      howViewingWorks: `GET /objects/${photoFileName} -> getObjectEntityFile adds privatePath -> looks for ${fullObjectName}`
-    });
-    
-    // Upload to object storage
-    const { objectStorageClient } = await import("../objectStorage");
-    const bucket = objectStorageClient.bucket(bucketName);
-    const fileObj = bucket.file(fullObjectName);
-    
-    let uploadedSuccessfully = false;
     
     try {
-      await fileObj.save(file.buffer, {
-        metadata: {
-          contentType: file.mimetype || 'image/jpeg',
-        },
-      });
-      uploadedSuccessfully = true;
-      
-      // Generate the object path URL (uses photoFileName, not fullObjectName)
-      // IMPORTANT: This URL must NOT include privatePath because getObjectEntityFile will add it
-      const url = `/objects/${photoFileName}`;
-      
-      console.log("[PHOTO UPLOAD SUCCESS] Saved to bucket: %s, file: %s, DB URL: %s", bucketName, fullObjectName, url);
-      
-      // Insert into database
+      // Insert into database with both URL (for compatibility) and key
+      const url = `/objects/${key}`;
       const result = await db.execute(sql`
-        INSERT INTO job_photos (job_id, org_id, url)
-        VALUES (${jobId}::uuid, ${orgId}::uuid, ${url})
-        RETURNING id, url, created_at
+        INSERT INTO job_photos (job_id, org_id, url, object_key)
+        VALUES (${jobId}::uuid, ${orgId}::uuid, ${url}, ${key})
+        RETURNING id, url, object_key, created_at
       `);
       
       const photo = result[0];
       res.json(photo);
     } catch (dbError: any) {
-      // If DB insert fails, clean up the uploaded object
-      if (uploadedSuccessfully) {
-        try {
-          const [exists] = await fileObj.exists();
-          if (exists) {
-            await fileObj.delete();
-            console.log("[TRACE] Cleaned up orphaned object after DB failure: %s", fullObjectName);
-          }
-        } catch (cleanupError: any) {
-          console.error("Failed to clean up object after DB error:", cleanupError);
-        }
+      // If DB insert fails, clean up the uploaded file
+      try {
+        await fs.unlink(absolutePath);
+        logStorage("UPLOAD_ROLLBACK", { key });
+      } catch (cleanupError: any) {
+        console.error("Failed to clean up file after DB error:", cleanupError);
       }
       throw dbError;
     }
@@ -825,56 +795,50 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
   try {
     const { jobId, photoId } = req.params;
     const orgId = (req as any).orgId;
+    const userId = (req as any).user?.id;
     
     // Validate UUIDs format
     if (!isUuid(jobId) || !isUuid(photoId)) {
       return res.status(400).json({ error: "Invalid job or photo ID format" });
     }
     
-    console.log("[TRACE] DELETE /api/jobs/%s/photos/%s org=%s", jobId, photoId, orgId);
-    
-    // Get photo info before deleting to remove from object storage
+    // Get photo info before deleting
     const photoResult = await db.execute(sql`
-      SELECT url FROM job_photos 
+      SELECT object_key, url FROM job_photos 
       WHERE id = ${photoId}::uuid AND job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
     
     if (photoResult.length > 0) {
-      const photoUrl = (photoResult[0] as any).url;
+      const photo = photoResult[0] as any;
+      // Prefer object_key, fallback to extracting from url
+      const key = photo.object_key || photo.url?.replace('/objects/', '');
       
-      // Delete from object storage if it's an object storage URL
-      if (photoUrl.startsWith('/objects/')) {
+      if (key) {
         try {
-          const photoFileName = photoUrl.replace('/objects/', '');
-          let privateDir = process.env.PRIVATE_OBJECT_DIR;
+          // Import storage modules
+          const { absolutePathForKey, disableObjectStorage } = await import("../storage/paths");
+          const { logStorage } = await import("../storage/log");
+          const fs = await import("node:fs/promises");
           
-          if (privateDir) {
-            // Normalize to ensure leading slash
-            if (!privateDir.startsWith('/')) {
-              privateDir = `/${privateDir}`;
-            }
-            
-            // Parse the bucket name and directory path from PRIVATE_OBJECT_DIR
-            const pathParts = privateDir.split("/").filter(p => p);
-            if (pathParts.length >= 2) {
-              const bucketName = pathParts[0];
-              const privatePath = pathParts.slice(1).join("/");
-              const fullObjectName = `${privatePath}/${photoFileName}`;
-              
-              const { objectStorageClient } = await import("../objectStorage");
-              const bucket = objectStorageClient.bucket(bucketName);
-              const fileObj = bucket.file(fullObjectName);
-            
-              // Check if file exists before deleting
-              const [exists] = await fileObj.exists();
-              if (exists) {
-                await fileObj.delete();
-                console.log("[TRACE] Deleted object from storage: %s", fullObjectName);
-              }
+          let absolutePath = absolutePathForKey(key);
+          
+          // Delete file from storage with fallback retry
+          try {
+            await fs.unlink(absolutePath);
+            logStorage("DELETE", { who: userId, key });
+          } catch (deleteError: any) {
+            if (deleteError?.code === "ENOENT" || deleteError?.code === "EACCES") {
+              // Try with fallback
+              disableObjectStorage();
+              absolutePath = absolutePathForKey(key);
+              await fs.unlink(absolutePath);
+              logStorage("DELETE", { who: userId, key, storage: "local fallback (after failure)" });
+            } else {
+              throw deleteError;
             }
           }
         } catch (storageError: any) {
-          console.error("Error deleting from object storage:", storageError);
+          console.error("Error deleting from storage:", storageError);
           // Continue with database deletion even if storage deletion fails
         }
       }

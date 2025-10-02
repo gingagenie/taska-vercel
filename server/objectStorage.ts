@@ -160,13 +160,28 @@ export class ObjectStorageService {
       entityDir = `${entityDir}/`;
     }
     const objectEntityPath = `${entityDir}${entityId}`;
+    
+    // CRITICAL PATH LOGGING - DO NOT REMOVE
+    console.log("[PHOTO RETRIEVAL PATH TRACE]", {
+      requestedPath: objectPath,
+      entityId,
+      PRIVATE_OBJECT_DIR: entityDir,
+      fullPathToLookFor: objectEntityPath
+    });
+    
     const { bucketName, objectName } = parseObjectPath(objectEntityPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const objectFile = bucket.file(objectName);
     const [exists] = await objectFile.exists();
     if (!exists) {
+      console.log("[PHOTO RETRIEVAL FAILED] File not found in storage:", {
+        bucketName,
+        objectName,
+        fullPath: objectEntityPath
+      });
       throw new ObjectNotFoundError();
     }
+    console.log("[PHOTO RETRIEVAL SUCCESS] Found file:", { bucketName, objectName });
     return objectFile;
   }
 

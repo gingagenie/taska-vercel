@@ -16,6 +16,15 @@ The application utilizes a responsive, mobile-first design leveraging Tailwind C
 
 ### Technical Implementations
 *   **Photo Uploads**: Reliable object storage integration (GCS) for all photo uploads with proper namespacing, HEIF/HEIC support, UUID validation, and automatic cleanup.
+    *   **RECURRING ISSUE - READ BEFORE MODIFYING**: Photo uploads have been "fixed" 5+ times in git history but keep breaking. The issue is a path mismatch between upload and retrieval.
+    *   **How it MUST work**:
+        1. `PRIVATE_OBJECT_DIR` env var = `/bucket-name/.private` (e.g., `/replit-objstore-xyz/.private`)
+        2. Upload saves to: `.private/job-photos/{orgId}/{jobId}/timestamp.jpg` (FULL path in storage)
+        3. Database URL: `/objects/job-photos/{orgId}/{jobId}/timestamp.jpg` (WITHOUT .private prefix)
+        4. Retrieval: `GET /objects/...` → `getObjectEntityFile()` adds `.private/` prefix → looks for `.private/job-photos/...`
+    *   **Critical files**: `server/routes/jobs.ts` (photo upload/delete), `server/objectStorage.ts` (getObjectEntityFile)
+    *   **Verification**: Both files have `[PHOTO UPLOAD PATH TRACE]` and `[PHOTO RETRIEVAL PATH TRACE]` logging that shows the full path flow. Check these logs when debugging.
+    *   **DO NOT REMOVE**: The logging statements marked "CRITICAL PATH LOGGING - DO NOT REMOVE" are essential for diagnosing future breakage.
 
 *   **Stripe Subscription System**: Comprehensive webhook monitoring and alerting system to prevent silent subscription failures.
     *   **Database-Backed Monitoring** (`stripe_webhook_monitoring` table): Persistent tracking of webhook health (consecutive failures, timestamps, totals) across server restarts with automatic record creation.

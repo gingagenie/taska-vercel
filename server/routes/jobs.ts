@@ -757,6 +757,18 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
     const photoFileName = `job-photos/${orgId}/${jobId}/${timestamp}-${randomId}.${ext}`;
     const fullObjectName = `${privatePath}/${photoFileName}`;
     
+    // CRITICAL PATH LOGGING - DO NOT REMOVE
+    // This logging helps diagnose the recurring photo upload bug
+    console.log("[PHOTO UPLOAD PATH TRACE]", {
+      PRIVATE_OBJECT_DIR: privateDir,
+      bucketName,
+      privatePath,
+      photoFileName,
+      fullObjectName,
+      urlToSaveInDB: `/objects/${photoFileName}`,
+      howViewingWorks: `GET /objects/${photoFileName} -> getObjectEntityFile adds privatePath -> looks for ${fullObjectName}`
+    });
+    
     // Upload to object storage
     const { objectStorageClient } = await import("../objectStorage");
     const bucket = objectStorageClient.bucket(bucketName);
@@ -773,9 +785,10 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
       uploadedSuccessfully = true;
       
       // Generate the object path URL (uses photoFileName, not fullObjectName)
+      // IMPORTANT: This URL must NOT include privatePath because getObjectEntityFile will add it
       const url = `/objects/${photoFileName}`;
       
-      console.log("[TRACE] POST /api/jobs/%s/photos org=%s object=%s", jobId, orgId, fullObjectName);
+      console.log("[PHOTO UPLOAD SUCCESS] Saved to bucket: %s, file: %s, DB URL: %s", bucketName, fullObjectName, url);
       
       // Insert into database
       const result = await db.execute(sql`

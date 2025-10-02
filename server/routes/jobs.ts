@@ -202,6 +202,69 @@ jobs.get("/completed/:jobId/photos", requireAuth, requireOrg, async (req, res) =
   }
 });
 
+// DELETE /completed/:jobId/photos/:photoId - Delete a photo from completed job
+jobs.delete("/completed/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res) => {
+  try {
+    const { jobId, photoId } = req.params;
+    const orgId = (req as any).orgId;
+    const userId = (req as any).user?.id;
+    
+    if (!/^[0-9a-f-]{36}$/i.test(jobId) || !/^[0-9a-f-]{36}$/i.test(photoId)) {
+      return res.status(400).json({ error: "Invalid job or photo ID format" });
+    }
+    
+    // Get photo info before deleting
+    const photoResult = await db.execute(sql`
+      SELECT object_key, url FROM completed_job_photos 
+      WHERE id = ${photoId}::uuid AND completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+    
+    if (photoResult.length > 0) {
+      const photo = photoResult[0] as any;
+      // Prefer object_key, fallback to extracting from url
+      const key = photo.object_key || photo.url?.replace('/api/objects/', '');
+      
+      if (key) {
+        try {
+          const { absolutePathForKey, disableObjectStorage } = await import("../storage/paths");
+          const { logStorage } = await import("../storage/log");
+          const fs = await import("node:fs/promises");
+          
+          let absolutePath = absolutePathForKey(key);
+          
+          // Delete file from storage with fallback retry
+          try {
+            await fs.unlink(absolutePath);
+            logStorage("DELETE", { who: userId, key });
+          } catch (deleteError: any) {
+            if (deleteError?.code === "ENOENT" || deleteError?.code === "EACCES") {
+              disableObjectStorage();
+              absolutePath = absolutePathForKey(key);
+              await fs.unlink(absolutePath);
+              logStorage("DELETE", { who: userId, key, storage: "local fallback (after failure)" });
+            } else {
+              throw deleteError;
+            }
+          }
+        } catch (storageError: any) {
+          console.error("Error deleting from storage:", storageError);
+        }
+      }
+    }
+    
+    // Delete from database
+    await db.execute(sql`
+      DELETE FROM completed_job_photos 
+      WHERE id = ${photoId}::uuid AND completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+    
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("DELETE /api/jobs/completed/%s/photos/%s error:", req.params.jobId, req.params.photoId, error);
+    res.status(500).json({ error: error?.message || "Failed to delete photo" });
+  }
+});
+
 // GET /completed/:jobId/equipment - Get equipment for completed job
 jobs.get("/completed/:jobId/equipment", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;

@@ -48,6 +48,7 @@ export default function JobView() {
   
   // Photo viewer state
   const [viewingPhoto, setViewingPhoto] = useState<any>(null);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
 
   // Fetch organization data for SMS
   const { data: meData } = useQuery<{
@@ -638,6 +639,31 @@ export default function JobView() {
                 className="w-full h-auto max-h-[85vh] object-contain"
                 data-testid="img-photo-viewer"
               />
+              <Button
+                variant="destructive"
+                size="sm"
+                className="absolute top-4 right-4"
+                disabled={deletingPhoto}
+                onClick={async () => {
+                  if (!confirm("Delete this photo?")) return;
+                  setDeletingPhoto(true);
+                  try {
+                    await photosApi.remove(jobId, viewingPhoto.id);
+                    setPhotos(prev => prev.filter(p => p.id !== viewingPhoto.id));
+                    setViewingPhoto(null);
+                    setToast("Photo deleted");
+                    setTimeout(() => setToast(null), 3000);
+                  } catch (error: any) {
+                    setToast(error.message || "Failed to delete photo");
+                    setTimeout(() => setToast(null), 3000);
+                  } finally {
+                    setDeletingPhoto(false);
+                  }
+                }}
+                data-testid="button-delete-photo"
+              >
+                <Trash className="h-4 w-4" />
+              </Button>
               <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-4">
                 <p className="text-sm">
                   {new Date(viewingPhoto.created_at).toLocaleString()}

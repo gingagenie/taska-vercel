@@ -50,6 +50,7 @@ export default function CompletedJobView() {
   const [convertingToInvoice, setConvertingToInvoice] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState<any>(null);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
 
   useEffect(() => {
     loadCompletedJob();
@@ -508,6 +509,32 @@ export default function CompletedJobView() {
                 className="w-full h-auto max-h-[85vh] object-contain"
                 data-testid="img-photo-viewer"
               />
+              <Button
+                variant="destructive"
+                size="sm"
+                className="absolute top-4 right-4"
+                disabled={deletingPhoto}
+                onClick={async () => {
+                  if (!confirm("Delete this photo?")) return;
+                  setDeletingPhoto(true);
+                  try {
+                    const response = await fetch(`/api/jobs/completed/${id}/photos/${viewingPhoto.id}`, {
+                      method: 'DELETE',
+                    });
+                    if (!response.ok) throw new Error('Failed to delete photo');
+                    setPhotos(prev => prev.filter(p => p.id !== viewingPhoto.id));
+                    setViewingPhoto(null);
+                    toast({ title: "Photo deleted" });
+                  } catch (error: any) {
+                    toast({ title: error.message || "Failed to delete photo", variant: "destructive" });
+                  } finally {
+                    setDeletingPhoto(false);
+                  }
+                }}
+                data-testid="button-delete-photo"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
               <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-4">
                 <p className="text-sm">
                   {new Date(viewingPhoto.created_at).toLocaleString()}

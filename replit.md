@@ -15,16 +15,17 @@ Problem-solving approach: Thorough analysis and comprehensive solutions on the f
 The application utilizes a responsive, mobile-first design leveraging Tailwind CSS and Shadcn/ui for a professional and intuitive user experience. Key UX enhancements include clickable cards for navigation, camera badges for jobs with photos, and smart content formatting for blog posts. Dark mode support is integrated through CSS custom properties.
 
 ### Technical Implementations
-*   **Photo Uploads**: Reliable object storage integration (GCS) for all photo uploads with proper namespacing, HEIF/HEIC support, UUID validation, and automatic cleanup.
-    *   **RECURRING ISSUE - READ BEFORE MODIFYING**: Photo uploads have been "fixed" 5+ times in git history but keep breaking. The issue is a path mismatch between upload and retrieval.
-    *   **How it MUST work**:
-        1. `PRIVATE_OBJECT_DIR` env var = `/bucket-name/.private` (e.g., `/replit-objstore-xyz/.private`)
-        2. Upload saves to: `.private/job-photos/{orgId}/{jobId}/timestamp.jpg` (FULL path in storage)
-        3. Database URL: `/objects/job-photos/{orgId}/{jobId}/timestamp.jpg` (WITHOUT .private prefix)
-        4. Retrieval: `GET /objects/...` → `getObjectEntityFile()` adds `.private/` prefix → looks for `.private/job-photos/...`
-    *   **Critical files**: `server/routes/jobs.ts` (photo upload/delete), `server/objectStorage.ts` (getObjectEntityFile)
-    *   **Verification**: Both files have `[PHOTO UPLOAD PATH TRACE]` and `[PHOTO RETRIEVAL PATH TRACE]` logging that shows the full path flow. Check these logs when debugging.
-    *   **DO NOT REMOVE**: The logging statements marked "CRITICAL PATH LOGGING - DO NOT REMOVE" are essential for diagnosing future breakage.
+*   **Photo Storage System**: Centralized storage architecture with automatic fallback (October 2025 refactor).
+    *   **Architecture**: Single source of truth pattern preventing path drift between upload/retrieval/delete operations.
+    *   **Storage Modules** (`server/storage/`):
+        1. `paths.ts`: Runtime flag `useObjectStorage` controls storage location. Provides `absolutePathForKey()` for all path resolution, `jobPhotoKey()` for canonical key generation, and `disableObjectStorage()` to switch to fallback.
+        2. `log.ts`: Consistent structured logging for all storage events (UPLOAD, VIEW, DELETE, etc.).
+        3. `selftest.ts`: Boot validation that tests write→read cycle, automatically switches to local fallback if object storage unavailable.
+    *   **Database Schema**: `job_photos.object_key` stores canonical keys (e.g., `job-photos/{orgId}/{jobId}/file.jpg`). URLs built at runtime via `/objects/{key}`.
+    *   **Automatic Fallback**: When object storage unavailable (ENOENT/EACCES), system disables object storage flag and switches to local `uploads/.private` directory. All operations (upload/retrieval/delete) have retry logic to ensure graceful degradation.
+    *   **Critical Files**: `server/storage/paths.ts` (MUST be single source for ALL path logic), `server/routes/jobs.ts` (upload/delete with retry), `server/routes/objects.ts` (retrieval with retry).
+    *   **Security**: Organization-based isolation - users from Org A cannot access Org B photos even if they know the URLs (403 on cross-org, 404 on missing).
+    *   **Verification**: Check startup logs for `SELFTEST_OK` showing which storage is active. Storage events logged with UPLOAD/VIEW/DELETE prefix.
 
 *   **Stripe Subscription System**: Comprehensive webhook monitoring and alerting system to prevent silent subscription failures.
     *   **Database-Backed Monitoring** (`stripe_webhook_monitoring` table): Persistent tracking of webhook health (consecutive failures, timestamps, totals) across server restarts with automatic record creation.

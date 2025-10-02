@@ -765,7 +765,7 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
     
     try {
       // Insert into database with both URL (for compatibility) and key
-      const url = `/objects/${key}`;
+      const url = `/api/objects/${key}`;
       const result = await db.execute(sql`
         INSERT INTO job_photos (job_id, org_id, url, object_key)
         VALUES (${jobId}::uuid, ${orgId}::uuid, ${url}, ${key})

@@ -25,7 +25,7 @@ router.get("/public-objects/:filePath(*)", async (req, res) => {
 });
 
 // This endpoint serves private objects with org-based authentication
-router.get("/objects/:objectPath(*)", requireAuth, requireOrg, async (req, res) => {
+router.get("/:objectPath(*)", requireAuth, requireOrg, async (req, res) => {
   try {
     const requestedPath = req.params.objectPath;
     const userOrgId = (req as any).orgId;

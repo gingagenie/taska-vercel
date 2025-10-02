@@ -1,0 +1,245 @@
+Yep — you can absolutely hand this to the Replit Agent and make it do the lifting. Here’s a clean, copy-paste brief it can follow end-to-end.
+
+
+---
+
+Paste this to your Replit Agent
+
+Goal: Make photo uploads reliable by centralising storage paths, storing object keys (not URLs), adding a boot self-test, and standardising auth/403 vs 404 behavior.
+
+1) Create a single source of truth for storage paths
+
+File: server/storage/paths.ts
+
+// server/storage/paths.ts
+import path from "node:path";
+
+export const PRIVATE_OBJECT_DIR =
+  process.env.PRIVATE_OBJECT_DIR || ""; // e.g. "/replit-objstore-xxx/.private"
+
+export function assertStorageEnv() {
+  if (!PRIVATE_OBJECT_DIR) {
+    throw new Error("PRIVATE_OBJECT_DIR not set");
+  }
+  if (!PRIVATE_OBJECT_DIR.endsWith("/.private")) {
+    throw new Error(
+      `PRIVATE_OBJECT_DIR must end with "/.private". Got: ${PRIVATE_OBJECT_DIR}`
+    );
+  }
+}
+
+// Canonical logical key stored in DB (no leading slash, no ".private")
+export function jobPhotoKey(orgId: string, jobId: string, fileName: string) {
+  return `job-photos/${orgId}/${jobId}/${fileName}`;
+}
+
+// Turn logical key into absolute FS path inside the .private dir
+export function absolutePathForKey(key: string) {
+  assertStorageEnv();
+  return path.join(PRIVATE_OBJECT_DIR, key);
+}
+
+2) Minimal storage logger
+
+File: server/storage/log.ts
+
+// server/storage/log.ts
+export function logStorage(event: string, data: Record<string, any>) {
+  try {
+    console.log(`[STORAGE] ${event} ${JSON.stringify(data)}`);
+  } catch {
+    console.log(`[STORAGE] ${event} <unserializable>`);
+  }
+}
+
+3) Boot self-test (write→read)
+
+File: server/storage/selftest.ts
+
+// server/storage/selftest.ts
+import fs from "node:fs/promises";
+import path from "node:path";
+import { absolutePathForKey } from "./paths";
+import { logStorage } from "./log";
+
+export async function storageSelfTest() {
+  const key = `self-test/${Date.now()}-ping.txt`;
+  const abs = absolutePathForKey(key);
+
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  await fs.writeFile(abs, "pong", "utf8");
+  const got = await fs.readFile(abs, "utf8");
+
+  if (got !== "pong") {
+    logStorage("SELFTEST_FAIL", { key });
+    throw new Error("Storage self-test mismatch");
+  }
+  logStorage("SELFTEST_OK", { key });
+}
+
+Hook it at server start (typically in server/index.ts or wherever your app boots):
+
+// near the top-level startup
+import { storageSelfTest } from "./storage/selftest";
+import { assertStorageEnv } from "./storage/paths";
+
+(async () => {
+  assertStorageEnv();
+  await storageSelfTest();
+  console.log("[STORAGE] OK");
+})().catch((e) => {
+  console.error("[STORAGE] FAILED", e);
+  process.exit(1);
+});
+
+4) Update the upload route to store keys (not URLs)
+
+Find your photo upload endpoint (e.g., server/routes/jobs.ts). Replace the path building with this pattern:
+
+// inside POST /api/jobs/:jobId/photos
+import path from "node:path";
+import fs from "node:fs/promises";
+import { jobPhotoKey, absolutePathForKey } from "../storage/paths";
+import { logStorage } from "../storage/log";
+
+// assume: req.user.orgId, req.params.jobId, req.file via multer/busboy
+const { orgId } = req.user;
+const { jobId } = req.params;
+
+const original = req.file?.originalname || "upload.bin";
+const safeName = `${Date.now()}-${original.replace(/\s+/g, "_")}`;
+const key = jobPhotoKey(orgId, jobId, safeName);
+const abs = absolutePathForKey(key);
+
+await fs.mkdir(path.dirname(abs), { recursive: true });
+await fs.writeFile(abs, req.file.buffer);
+
+await db.insert("job_photos", {
+  org_id: orgId,
+  job_id: jobId,
+  object_key: key,                // <-- store key ONLY
+  mime: req.file.mimetype ?? null // optional
+});
+
+logStorage("UPLOAD", { who: req.user.id, key });
+
+return res.json({ ok: true, object_key: key });
+
+5) Standardise the view route (auth → 403, missing → 404)
+
+Create or update your objects route (e.g., server/routes/objects.ts):
+
+import fs from "node:fs";
+import { absolutePathForKey } from "../storage/paths";
+import { logStorage } from "../storage/log";
+
+// GET /objects/:type/:orgId/:jobId/:fileName
+app.get("/objects/:type/:orgId/:jobId/:fileName", auth, async (req, res) => {
+  const { type, orgId, jobId, fileName } = req.params;
+
+  // Strict org check first
+  if (req.user.orgId !== orgId) {
+    logStorage("VIEW_FORBIDDEN", { who: req.user.id, key: `${type}/${orgId}/${jobId}/${fileName}` });
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  // Recreate logical key and absolute path
+  const key = `${type}/${orgId}/${jobId}/${fileName}`;
+  const abs = absolutePathForKey(key);
+
+  const stream = fs.createReadStream(abs);
+  stream.on("error", (e: any) => {
+    if (e?.code === "ENOENT") {
+      logStorage("VIEW_NOT_FOUND", { who: req.user.id, key });
+      return res.status(404).json({ error: "Not found" });
+    }
+    logStorage("VIEW_ERROR", { who: req.user.id, key, msg: e?.message });
+    return res.status(500).json({ error: "Read error" });
+  });
+
+  res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+  stream.pipe(res);
+  logStorage("VIEW_OK", { who: req.user.id, key });
+});
+
+6) DB migration: add object_key and backfill once
+
+Create a migration file (e.g., migrations/2025-10-02_add_object_key.sql):
+
+ALTER TABLE job_photos ADD COLUMN IF NOT EXISTS object_key TEXT;
+
+-- Backfill from old url (if urls looked like "/objects/job-photos/{org}/{job}/{file}")
+UPDATE job_photos
+SET object_key = regexp_replace(url, '^/objects/', '')
+WHERE object_key IS NULL AND url LIKE '/objects/%';
+
+Update any code that previously used photo.url to instead build it on the fly:
+
+function publicLinkFromKey(object_key: string) {
+  return `/objects/${object_key}`;
+}
+
+7) Frontend: use object_key when rendering images
+
+Where image URLs are shown:
+
+// before: <img src={photo.url} ... />
+// after:
+<img src={`/objects/${photo.object_key}`} alt="" />
+
+8) Add a quick canary log on every upload & view
+
+Upload already logs UPLOAD.
+
+View logs VIEW_OK, VIEW_FORBIDDEN, VIEW_NOT_FOUND, VIEW_ERROR.
+
+
+9) Acceptance test (please run now)
+
+1. Restart server (self-test should log [STORAGE] OK).
+
+
+2. Upload one photo to a job on mobile and one on desktop.
+
+
+3. Confirm you can view both; check logs show UPLOAD then VIEW_OK.
+
+
+4. Reload app after redeploy — photos still render (no code path drift).
+
+
+
+If any step fails, show me the exact [STORAGE] ... log lines.
+
+
+---
+
+What to tell the Agent if it argues back
+
+“Don’t store absolute URLs in DB — store only object_key and build the URL at render time.”
+
+“All path building must go through server/storage/paths.ts — do not duplicate logic.”
+
+“403 is only for auth mismatch; if the file is missing it’s 404.”
+
+“Fail startup if the self-test can’t write/read.”
+
+
+
+---
+
+Quick reality check
+
+This removes the “works today, breaks tomorrow” loop by eliminating drift:
+
+One module for paths/env
+
+Keys in DB, not URLs
+
+Boot self-test blocks bad deploys
+
+Clear logging breadcrumbs
+
+
+If you want, after the Agent makes the changes, I’ll skim your upload/view routes and confirm they match this pattern. But yes — copy/paste the brief above and you’re off to the races. 💪
+

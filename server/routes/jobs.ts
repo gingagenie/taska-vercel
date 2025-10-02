@@ -725,8 +725,6 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
       ext = mimeToExt[file.mimetype] || rawExt || 'jpg';
     }
     
-    const objectName = `job-photos/${orgId}/${jobId}/${timestamp}-${randomId}.${ext}`;
-    
     // Verify job exists and belongs to org before uploading
     const jobCheck: any = await db.execute(sql`
       SELECT id FROM jobs WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
@@ -746,17 +744,23 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
       privateDir = `/${privateDir}`;
     }
     
-    // Parse the bucket name from private directory
-    const bucketMatch = privateDir.match(/^\/([^\/]+)/);
-    if (!bucketMatch) {
+    // Parse the bucket name and directory path from PRIVATE_OBJECT_DIR
+    // Format: /bucket-name/path/to/dir
+    const pathParts = privateDir.split("/").filter(p => p);
+    if (pathParts.length < 2) {
       return res.status(500).json({ error: "Invalid PRIVATE_OBJECT_DIR format. Expected: /bucket-name/path" });
     }
-    const bucketName = bucketMatch[1];
+    const bucketName = pathParts[0];
+    const privatePath = pathParts.slice(1).join("/");
+    
+    // Create full object path including the private directory
+    const photoFileName = `job-photos/${orgId}/${jobId}/${timestamp}-${randomId}.${ext}`;
+    const fullObjectName = `${privatePath}/${photoFileName}`;
     
     // Upload to object storage
     const { objectStorageClient } = await import("../objectStorage");
     const bucket = objectStorageClient.bucket(bucketName);
-    const fileObj = bucket.file(objectName);
+    const fileObj = bucket.file(fullObjectName);
     
     let uploadedSuccessfully = false;
     
@@ -768,10 +772,10 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
       });
       uploadedSuccessfully = true;
       
-      // Generate the object path URL
-      const url = `/objects/${objectName}`;
+      // Generate the object path URL (uses photoFileName, not fullObjectName)
+      const url = `/objects/${photoFileName}`;
       
-      console.log("[TRACE] POST /api/jobs/%s/photos org=%s object=%s", jobId, orgId, objectName);
+      console.log("[TRACE] POST /api/jobs/%s/photos org=%s object=%s", jobId, orgId, fullObjectName);
       
       // Insert into database
       const result = await db.execute(sql`
@@ -789,7 +793,7 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
           const [exists] = await fileObj.exists();
           if (exists) {
             await fileObj.delete();
-            console.log("[TRACE] Cleaned up orphaned object after DB failure: %s", objectName);
+            console.log("[TRACE] Cleaned up orphaned object after DB failure: %s", fullObjectName);
           }
         } catch (cleanupError: any) {
           console.error("Failed to clean up object after DB error:", cleanupError);
@@ -828,7 +832,7 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
       // Delete from object storage if it's an object storage URL
       if (photoUrl.startsWith('/objects/')) {
         try {
-          const objectName = photoUrl.replace('/objects/', '');
+          const photoFileName = photoUrl.replace('/objects/', '');
           let privateDir = process.env.PRIVATE_OBJECT_DIR;
           
           if (privateDir) {
@@ -837,18 +841,22 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
               privateDir = `/${privateDir}`;
             }
             
-            const bucketMatch = privateDir.match(/^\/([^\/]+)/);
-            if (bucketMatch) {
-              const bucketName = bucketMatch[1];
+            // Parse the bucket name and directory path from PRIVATE_OBJECT_DIR
+            const pathParts = privateDir.split("/").filter(p => p);
+            if (pathParts.length >= 2) {
+              const bucketName = pathParts[0];
+              const privatePath = pathParts.slice(1).join("/");
+              const fullObjectName = `${privatePath}/${photoFileName}`;
+              
               const { objectStorageClient } = await import("../objectStorage");
               const bucket = objectStorageClient.bucket(bucketName);
-              const fileObj = bucket.file(objectName);
-              
+              const fileObj = bucket.file(fullObjectName);
+            
               // Check if file exists before deleting
               const [exists] = await fileObj.exists();
               if (exists) {
                 await fileObj.delete();
-                console.log("[TRACE] Deleted object from storage: %s", objectName);
+                console.log("[TRACE] Deleted object from storage: %s", fullObjectName);
               }
             }
           }

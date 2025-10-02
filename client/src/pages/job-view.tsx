@@ -45,6 +45,9 @@ export default function JobView() {
   const [confirmJobDialog, setConfirmJobDialog] = useState(false);
   const [confirmingJob, setConfirmingJob] = useState(false);
   const [errConfirmJob, setErrConfirmJob] = useState<string | null>(null);
+  
+  // Photo viewer state
+  const [viewingPhoto, setViewingPhoto] = useState<any>(null);
 
   // Fetch organization data for SMS
   const { data: meData } = useQuery<{
@@ -478,7 +481,8 @@ export default function JobView() {
                     src={photo.url} 
                     alt="Job photo" 
                     className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity" 
-                    onClick={() => window.open(photo.url, '_blank')}
+                    onClick={() => setViewingPhoto(photo)}
+                    data-testid={`img-photo-${photo.id}`}
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b text-center">
                     {new Date(photo.created_at).toLocaleDateString()}
@@ -620,6 +624,27 @@ export default function JobView() {
             </SmsLimitWarning>
             <Button variant="ghost" onClick={() => setSmsOpen(false)}>Cancel</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Viewer Dialog */}
+      <Dialog open={!!viewingPhoto} onOpenChange={(open) => !open && setViewingPhoto(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+          {viewingPhoto && (
+            <div className="relative">
+              <img 
+                src={viewingPhoto.url} 
+                alt="Job photo" 
+                className="w-full h-auto max-h-[85vh] object-contain"
+                data-testid="img-photo-viewer"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-4">
+                <p className="text-sm">
+                  {new Date(viewingPhoto.created_at).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

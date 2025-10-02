@@ -21,9 +21,10 @@ The application utilizes a responsive, mobile-first design leveraging Tailwind C
         1. `paths.ts`: Runtime flag `useObjectStorage` controls storage location. Provides `absolutePathForKey()` for all path resolution, `jobPhotoKey()` for canonical key generation, and `disableObjectStorage()` to switch to fallback.
         2. `log.ts`: Consistent structured logging for all storage events (UPLOAD, VIEW, DELETE, etc.).
         3. `selftest.ts`: Boot validation that tests write→read cycle, automatically switches to local fallback if object storage unavailable.
-    *   **Database Schema**: `job_photos.object_key` stores canonical keys (e.g., `job-photos/{orgId}/{jobId}/file.jpg`). URLs built at runtime via `/objects/{key}`.
+    *   **Database Schema**: `job_photos.object_key` stores canonical keys (e.g., `job-photos/{orgId}/{jobId}/file.jpg`). URLs built at runtime via `/api/objects/{key}` (note: `/api/objects/` prefix is critical).
     *   **Automatic Fallback**: When object storage unavailable (ENOENT/EACCES), system disables object storage flag and switches to local `uploads/.private` directory. All operations (upload/retrieval/delete) have retry logic to ensure graceful degradation.
-    *   **Critical Files**: `server/storage/paths.ts` (MUST be single source for ALL path logic), `server/routes/jobs.ts` (upload/delete with retry), `server/routes/objects.ts` (retrieval with retry).
+    *   **Critical Files**: `server/storage/paths.ts` (MUST be single source for ALL path logic), `server/routes/jobs.ts` (upload/delete with retry), `server/routes/objects.ts` (retrieval with retry, route pattern `/:objectPath(*)` mounts at `/api/objects`).
+    *   **Photo Viewer**: Modal-based viewer in `job-view.tsx` and `completed-job-view.tsx` displays photos within app (maintains authentication context). Clicking photo thumbnails opens full-size image in dialog, preventing authentication failures from opening in new tabs.
     *   **Security**: Organization-based isolation - users from Org A cannot access Org B photos even if they know the URLs (403 on cross-org, 404 on missing).
     *   **Verification**: Check startup logs for `SELFTEST_OK` showing which storage is active. Storage events logged with UPLOAD/VIEW/DELETE prefix.
 

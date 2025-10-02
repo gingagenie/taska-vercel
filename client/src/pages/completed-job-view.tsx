@@ -3,6 +3,7 @@ import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText, MessageSquare, Camera, Wrench, Trash2 } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +49,7 @@ export default function CompletedJobView() {
   const [error, setError] = useState<string | null>(null);
   const [convertingToInvoice, setConvertingToInvoice] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [viewingPhoto, setViewingPhoto] = useState<any>(null);
 
   useEffect(() => {
     loadCompletedJob();
@@ -473,7 +475,7 @@ export default function CompletedJobView() {
                       src={photo.url}
                       alt="Job photo"
                       className="w-full h-32 object-cover rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => window.open(photo.url, '_blank')}
+                      onClick={() => setViewingPhoto(photo)}
                       data-testid={`img-photo-${photo.id}`}
                     />
                     <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2 rounded-b-lg">
@@ -494,6 +496,27 @@ export default function CompletedJobView() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Photo Viewer Dialog */}
+      <Dialog open={!!viewingPhoto} onOpenChange={(open) => !open && setViewingPhoto(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+          {viewingPhoto && (
+            <div className="relative">
+              <img 
+                src={viewingPhoto.url} 
+                alt="Job photo" 
+                className="w-full h-auto max-h-[85vh] object-contain"
+                data-testid="img-photo-viewer"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-4">
+                <p className="text-sm">
+                  {new Date(viewingPhoto.created_at).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

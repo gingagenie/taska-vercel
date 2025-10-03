@@ -212,7 +212,7 @@ export const invoicesApi = {
   deleteItem: (id: string, itemId: string) => 
     api(`/api/invoices/${id}/items/${itemId}`, { method: "DELETE" }),
   markPaid: (id: string) => api(`/api/invoices/${id}/pay`, { method: "POST" }),
-  sendEmail: (id: string, body: { email: string; fromEmail?: string; fromName?: string }) =>
+  sendEmail: (id: string, body: { email?: string; emails?: string[]; fromEmail?: string; fromName?: string }) =>
     api(`/api/invoices/${id}/email`, { method: "POST", body: JSON.stringify(body) }),
 };
 

@@ -446,10 +446,28 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
 router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const { id } = req.params;
   const orgId = (req as any).orgId;
-  const { email, fromEmail = "noreply@taska.info", fromName = "Taska" } = req.body;
+  const { email, emails, fromEmail = "noreply@taska.info", fromName = "Taska" } = req.body;
+  
+  // Support both single email (legacy) and multiple emails (new)
+  let recipientEmails = emails || (email ? [email] : []);
+  
+  // Trim whitespace from all email addresses
+  recipientEmails = recipientEmails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
   
   if (!isUuid(id)) return res.status(400).json({ error: "Invalid invoice ID" });
-  if (!email) return res.status(400).json({ error: "Customer email is required" });
+  if (!recipientEmails || recipientEmails.length === 0) {
+    return res.status(400).json({ error: "At least one recipient email is required" });
+  }
+  
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const invalidEmails = recipientEmails.filter((e: string) => !emailRegex.test(e));
+  if (invalidEmails.length > 0) {
+    return res.status(400).json({ 
+      error: "Invalid email address(es)", 
+      invalidEmails 
+    });
+  }
   
   try {
     // Get invoice with customer details and items
@@ -551,10 +569,10 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       console.log(`[EMAIL] Pack reserved for org ${orgId}: ${quotaCheck.packType} pack reserved, ${quotaCheck.remainingPacks} packs remaining after send`);
     }
 
-    // PHASE 2: Attempt to send email
+    // PHASE 2: Attempt to send email (to all recipients)
     let finalizeSuccess = true;
     const emailSent = await sendEmail({
-      to: email,
+      to: recipientEmails,
       from: `${fromName} <${fromEmail}>`,
       subject,
       html,
@@ -605,7 +623,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
         console.log(`[EMAIL] Pack consumption finalized successfully after ${finalizeResult.attemptCount} attempts`);
       } catch (error) {
         // CRITICAL BILLING ERROR: Email was delivered but we cannot charge for it
-        console.error(`[EMAIL] CRITICAL BILLING ERROR: Invoice email sent to ${email} but pack finalization failed:`, error);
+        console.error(`[EMAIL] CRITICAL BILLING ERROR: Invoice email sent to ${recipientEmails.join(', ')} but pack finalization failed:`, error);
         
         // Log the critical billing error for manual intervention
         await db.execute(sql`
@@ -646,12 +664,18 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       `);
     }
 
+    const recipientText = recipientEmails.length === 1 
+      ? recipientEmails[0] 
+      : `${recipientEmails.length} recipients`;
+    
     const response: any = { 
       ok: true, 
       message: pdfGenerationFailed 
-        ? `Invoice sent successfully to ${email} (PDF attachment failed - email sent without attachment)`
-        : `Invoice sent successfully to ${email}`,
-      email: email,
+        ? `Invoice sent successfully to ${recipientText} (PDF attachment failed - email sent without attachment)`
+        : `Invoice sent successfully to ${recipientText}`,
+      email: recipientEmails[0], // Backward compatibility: first recipient
+      recipients: recipientEmails,
+      recipientCount: recipientEmails.length,
       packUsed: !!quotaCheck.reservationId,
       billingStatus: quotaCheck.reservationId ? 'charged' : 'plan_quota',
       pdfAttached: !pdfGenerationFailed,

@@ -5,7 +5,7 @@ if (!MAILERSEND_API_KEY) {
 }
 
 interface EmailParams {
-  to: string;
+  to: string | string[];
   from: string;
   subject: string;
   text?: string;
@@ -26,6 +26,9 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
   console.log('MailerSend - API Key prefix:', MAILERSEND_API_KEY?.substring(0, 10) + '...');
   
   try {
+    // Convert single email to array for consistent handling
+    const recipients = Array.isArray(params.to) ? params.to : [params.to];
+    
     const response = await fetch('https://api.mailersend.com/v1/email', {
       method: 'POST',
       headers: {
@@ -38,12 +41,10 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
           email: params.from.includes('<') ? params.from.match(/<(.+)>/)?.[1] || params.from : params.from,
           name: params.from.includes('<') ? params.from.split('<')[0].trim() : 'Taska'
         },
-        to: [
-          {
-            email: params.to,
-            name: params.to.split('@')[0]
-          }
-        ],
+        to: recipients.map(email => ({
+          email: email,
+          name: email.split('@')[0]
+        })),
         subject: params.subject,
         text: params.text || '',
         html: params.html || '',

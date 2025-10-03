@@ -170,6 +170,14 @@ export default function InvoiceView() {
   async function sendEmail() {
     if (!id || !emailAddress.trim()) return;
     
+    // Parse comma-separated email addresses
+    const emails = emailAddress
+      .split(',')
+      .map(e => e.trim())
+      .filter(e => e.length > 0);
+    
+    if (emails.length === 0) return;
+    
     // Track the Send Invoice button click
     const items = invoice?.items || [];
     const { total } = calculateTotals(items);
@@ -180,10 +188,13 @@ export default function InvoiceView() {
     
     setSending(true);
     try {
-      await invoicesApi.sendEmail(id, { email: emailAddress.trim() });
+      await invoicesApi.sendEmail(id, { emails });
+      const recipientText = emails.length === 1 
+        ? emails[0] 
+        : `${emails.length} recipients`;
       toast({
         title: "Invoice sent",
-        description: `Invoice sent successfully to ${emailAddress}`,
+        description: `Invoice sent successfully to ${recipientText}`,
       });
       setEmailOpen(false);
       // Refresh invoice to potentially update status
@@ -491,15 +502,18 @@ export default function InvoiceView() {
             <div>
               <label className="text-sm text-gray-600">To (email address)</label>
               <Input 
-                type="email"
+                type="text"
                 value={emailAddress} 
                 onChange={(e) => setEmailAddress(e.target.value)} 
-                placeholder="customer@example.com"
+                placeholder="customer@example.com, other@example.com"
                 data-testid="input-email-address"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Tip: Separate multiple email addresses with commas
+              </p>
             </div>
             <div className="text-sm text-gray-500">
-              This will send the invoice "{invoice?.title || 'Invoice'}" to the specified email address.
+              This will send the invoice "{invoice?.title || 'Invoice'}" to the specified email address(es).
             </div>
           </div>
 

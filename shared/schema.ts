@@ -243,7 +243,7 @@ export const invoices = pgTable("invoices", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   orgId: uuid("org_id").references(() => organizations.id).notNull(),
   number: varchar("number", { length: 50 }), // Invoice number like inv-0001
-  jobId: uuid("job_id").references(() => jobs.id),
+  jobId: uuid("job_id"), // References original job ID (may be from completed job, not constrained)
   customerId: uuid("customer_id").references(() => customers.id),
   title: varchar("title", { length: 255 }).notNull(),
   notes: text("notes"),

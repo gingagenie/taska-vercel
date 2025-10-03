@@ -1443,6 +1443,35 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     let position = 0;
     const lineItems = [];
 
+    // Add equipment as first line item if available
+    if (equipmentInfo) {
+      const equipmentParts = [
+        equipmentInfo.name,
+        equipmentInfo.make,
+        equipmentInfo.model,
+        equipmentInfo.serial
+      ].filter(Boolean);
+      
+      const equipmentDescription = equipmentParts.join(' - ');
+      
+      // Add equipment line item with quantity 1, unit amount 0, and 10% tax
+      await db.execute(sql`
+        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
+        VALUES (
+          ${orgId}::uuid,
+          ${invoiceId}::uuid,
+          ${position},
+          ${equipmentDescription},
+          1,
+          0,
+          0
+        )
+      `);
+      
+      lineItems.push({ quantity: 1, unit_amount: 0, tax_rate: 0 });
+      position++;
+    }
+
     // Get job charges and add them as line items
     const charges: any = await db.execute(sql`
       SELECT kind, description, quantity, unit_price, total

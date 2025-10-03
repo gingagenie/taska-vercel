@@ -1308,9 +1308,22 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 
     const completedJob = completedJobResult[0];
     
-    // Look up equipment associated with the original job to use in invoice title
+    // Look up equipment from completed_job_equipment (where it's stored after job completion)
     let equipmentInfo = null;
-    if (completedJob.original_job_id) {
+    
+    // First try: Query completed_job_equipment (primary source after job completion)
+    const completedEquipmentResult: any = await db.execute(sql`
+      SELECT cje.equipment_name as name, e.make, e.model, e.serial
+      FROM completed_job_equipment cje
+      JOIN equipment e ON e.id = cje.equipment_id
+      WHERE cje.completed_job_id = ${completedJobId}::uuid AND e.org_id = ${orgId}::uuid
+      LIMIT 1
+    `);
+    
+    if (completedEquipmentResult.length > 0) {
+      equipmentInfo = completedEquipmentResult[0];
+    } else if (completedJob.original_job_id) {
+      // Fallback: Try job_equipment (for backward compatibility with older completed jobs)
       const equipmentResult: any = await db.execute(sql`
         SELECT e.name, e.make, e.model, e.serial
         FROM job_equipment je

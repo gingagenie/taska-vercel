@@ -148,6 +148,14 @@ export function generateInvoiceEmailTemplate(
         </div>
       </div>
 
+      <!-- Notes -->
+      ${invoice.notes ? `
+      <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px;">
+        <h3 style="margin: 0 0 10px 0; color: #333;">Notes</h3>
+        <p style="margin: 0;">${invoice.notes}</p>
+      </div>
+      ` : ''}
+
       <!-- Line Items -->
       <div style="margin-bottom: 30px;">
         <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
@@ -185,17 +193,11 @@ export function generateInvoiceEmailTemplate(
         </div>
       </div>
 
-      <!-- Terms & Notes -->
-      ${invoice.notes || organization.invoice_terms ? `
+      <!-- Terms & Conditions -->
+      ${organization.invoice_terms ? `
       <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px;">
-        ${invoice.notes ? `
-        <h3 style="margin: 0 0 10px 0; color: #333;">Notes</h3>
-        <p style="margin: 0 0 15px 0;">${invoice.notes}</p>
-        ` : ''}
-        ${organization.invoice_terms ? `
         <h3 style="margin: 0 0 10px 0; color: #333;">Terms & Conditions</h3>
         <p style="margin: 0; font-size: 14px; color: #666;">${organization.invoice_terms}</p>
-        ` : ''}
       </div>
       ` : ''}
 

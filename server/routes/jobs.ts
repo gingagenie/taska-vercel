@@ -1443,15 +1443,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     
     const invoiceNumber = `inv-${nextNumber.toString().padStart(4, '0')}`;
 
-    // Debug logging
-    console.log("[CONVERT-TO-INVOICE] Creating invoice with job_id:", completedJob.original_job_id);
-    console.log("[CONVERT-TO-INVOICE] completedJob data:", {
-      id: completedJob.id,
-      original_job_id: completedJob.original_job_id,
-      customer_id: completedJob.customer_id,
-      title: completedJob.title
-    });
-
     // Create invoice from completed job (notes go into invoice notes, not line items)
     const invoiceResult: any = await db.execute(sql`
       INSERT INTO invoices (org_id, customer_id, job_id, title, notes, number, status, sub_total, tax_total, grand_total)
@@ -1469,14 +1460,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       )
       RETURNING id
     `);
-    
-    console.log("[CONVERT-TO-INVOICE] Invoice created with ID:", invoiceResult[0].id);
-    
-    // Verify the job_id was saved
-    const verifyResult: any = await db.execute(sql`
-      SELECT job_id FROM invoices WHERE id = ${invoiceResult[0].id}::uuid
-    `);
-    console.log("[CONVERT-TO-INVOICE] Verification - job_id in DB:", verifyResult[0]?.job_id);
 
     const invoiceId = invoiceResult[0].id;
     let position = 0;

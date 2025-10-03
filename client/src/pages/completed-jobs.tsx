@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Calendar, User, Clock, ArrowRight, Camera } from "lucide-react";
+import { CheckCircle, Calendar, User, Clock, ArrowRight, Camera, FileText } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 
 interface CompletedJob {
@@ -20,6 +20,7 @@ interface CompletedJob {
   original_created_by: string | null;
   original_created_at: string | null;
   photo_count: number;
+  has_invoice: boolean;
 }
 
 export default function CompletedJobsPage() {
@@ -113,10 +114,17 @@ export default function CompletedJobsPage() {
                         {job.title || "Untitled Job"}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className="bg-green-100 text-green-800 border-green-200">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Completed
-                        </Badge>
+                        {job.has_invoice ? (
+                          <Badge className="bg-purple-100 text-purple-800 border-purple-200">
+                            <FileText className="h-3 w-3 mr-1" />
+                            Invoiced
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-green-100 text-green-800 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Completed
+                          </Badge>
+                        )}
                         {job.photo_count > 0 && (
                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                             <Camera className="h-3 w-3 mr-1" />

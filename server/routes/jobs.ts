@@ -96,13 +96,15 @@ jobs.get("/completed", requireAuth, requireOrg, checkSubscription, requireActive
         cj.completed_by,
         cj.original_created_by,
         cj.original_created_at,
-        COALESCE(COUNT(cjp.id), 0)::int as photo_count
+        COALESCE(COUNT(DISTINCT cjp.id), 0)::int as photo_count,
+        CASE WHEN inv.id IS NOT NULL THEN true ELSE false END as has_invoice
       FROM completed_jobs cj
       LEFT JOIN completed_job_photos cjp ON cjp.completed_job_id = cj.id AND cjp.org_id = cj.org_id
+      LEFT JOIN invoices inv ON inv.job_id = cj.original_job_id AND inv.org_id = cj.org_id
       WHERE cj.org_id = ${orgId}::uuid
       GROUP BY cj.id, cj.original_job_id, cj.customer_id, cj.customer_name, cj.title, 
                cj.description, cj.notes, cj.scheduled_at, cj.completed_at, cj.completed_by,
-               cj.original_created_by, cj.original_created_at
+               cj.original_created_by, cj.original_created_at, inv.id
       ORDER BY cj.completed_at DESC
     `);
     res.json(r);

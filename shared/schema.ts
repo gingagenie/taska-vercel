@@ -842,3 +842,33 @@ export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
 export type InsertNewsletterSubscriber = z.infer<typeof insertNewsletterSubscriberSchema>;
 
 export type StripeWebhookMonitoring = typeof stripeWebhookMonitoring.$inferSelect;
+
+// Media - tracks photos stored in Supabase Storage
+export const media = pgTable("media", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: uuid("org_id").notNull(),
+  jobId: uuid("job_id"), // Links to either jobs.id or completed_jobs.original_job_id
+  key: text("key").notNull(), // Supabase Storage key: org/{orgId}/{yyyy}/{mm}/{dd}/{jobId}/{uuid}.{ext}
+  kind: varchar("kind", { length: 50 }).default("photo"),
+  ext: varchar("ext", { length: 10 }),
+  bytes: integer("bytes"),
+  width: integer("width"),
+  height: integer("height"),
+  sha256: varchar("sha256", { length: 64 }),
+  isPublic: boolean("is_public").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: uuid("created_by").references(() => users.id),
+}, (t) => ({
+  // Unique constraint on org + key
+  orgKeyUnique: uniqueIndex("media_org_key_unique").on(t.orgId, t.key),
+  // Index for efficient job photo lookups
+  orgJobIdx: index("media_org_job_idx").on(t.orgId, t.jobId),
+}));
+
+export const insertMediaSchema = createInsertSchema(media).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Media = typeof media.$inferSelect;
+export type InsertMedia = z.infer<typeof insertMediaSchema>;

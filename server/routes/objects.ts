@@ -5,8 +5,26 @@ import {
   ObjectStorageService,
   ObjectNotFoundError,
 } from "../objectStorage";
+import { Client } from "@replit/object-storage";
 
 const router = Router();
+
+// Initialize Replit storage client lazily
+let replitStorage: Client | null = null;
+function getReplitStorage(): Client | null {
+  if (!process.env.REPLIT_DB_ID) {
+    return null;
+  }
+  if (!replitStorage) {
+    try {
+      replitStorage = new Client();
+    } catch (e) {
+      console.error("[REPLIT_STORAGE] Failed to initialize client:", e);
+      return null;
+    }
+  }
+  return replitStorage;
+}
 
 // This endpoint is used to serve public objects.
 router.get("/public-objects/:filePath(*)", async (req, res) => {
@@ -56,19 +74,67 @@ router.get("/:objectPath(*)", requireAuth, requireOrg, async (req, res) => {
     const key = requestedPath;
     let absolutePath = absolutePathForKey(key);
     
-    // Try to check if file exists before streaming
+    // Try filesystem first (fast path when mount works)
     try {
       await fs.promises.access(absolutePath, fs.constants.R_OK);
+      const stream = fs.createReadStream(absolutePath);
+      
+      stream.on("error", (e: any) => {
+        logStorage("VIEW_ERROR", { who: userId, key, msg: e?.message });
+        return res.status(500).json({ error: "Read error" });
+      });
+      
+      res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+      stream.pipe(res);
+      logStorage("VIEW_OK", { who: userId, key, source: "filesystem" });
+      return;
     } catch (accessError: any) {
+      // Filesystem failed - try Replit HTTP API as fallback
       if (accessError?.code === "ENOENT" || accessError?.code === "EACCES") {
-        // Try with fallback
+        console.log(`[PHOTO_RETRIEVAL] Filesystem mount unavailable for ${key}, trying Replit HTTP API...`);
+        
+        try {
+          // Try Replit object storage HTTP API
+          const client = getReplitStorage();
+          const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
+          if (client && privateDir) {
+            const fullKey = `${privateDir}/${key}`;
+            const result = await client.downloadAsBytes(fullKey);
+            
+            if (result.ok) {
+              const [objectData] = result.value;
+              res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+              res.setHeader("Content-Type", "image/jpeg");
+              res.send(objectData);
+              logStorage("VIEW_OK", { who: userId, key, source: "replit-http-api" });
+              console.log(`[PHOTO_RETRIEVAL] Successfully retrieved ${key} via Replit HTTP API`);
+              return;
+            }
+          }
+        } catch (httpError: any) {
+          console.error(`[PHOTO_RETRIEVAL] Replit HTTP API also failed for ${key}:`, httpError.message);
+        }
+        
+        // Last resort: try local fallback
         disableObjectStorage();
         absolutePath = absolutePathForKey(key);
         
         try {
           await fs.promises.access(absolutePath, fs.constants.R_OK);
+          const stream = fs.createReadStream(absolutePath);
+          
+          stream.on("error", (e: any) => {
+            logStorage("VIEW_ERROR", { who: userId, key, msg: e?.message });
+            return res.status(500).json({ error: "Read error" });
+          });
+          
+          res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+          stream.pipe(res);
+          logStorage("VIEW_OK", { who: userId, key, source: "local-fallback" });
+          return;
         } catch (fallbackError: any) {
           logStorage("VIEW_NOT_FOUND", { who: userId, key });
+          console.error(`[PHOTO_RETRIEVAL] All retrieval methods failed for ${key}`);
           return res.status(404).json({ error: "Not found" });
         }
       } else {
@@ -76,18 +142,6 @@ router.get("/:objectPath(*)", requireAuth, requireOrg, async (req, res) => {
         return res.status(500).json({ error: "Read error" });
       }
     }
-    
-    // Stream the file
-    const stream = fs.createReadStream(absolutePath);
-    
-    stream.on("error", (e: any) => {
-      logStorage("VIEW_ERROR", { who: userId, key, msg: e?.message });
-      return res.status(500).json({ error: "Read error" });
-    });
-    
-    res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
-    stream.pipe(res);
-    logStorage("VIEW_OK", { who: userId, key });
   } catch (error: any) {
     console.error("Error serving object:", error);
     return res.status(500).json({ error: "Internal server error" });

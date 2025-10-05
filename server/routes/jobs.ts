@@ -203,7 +203,22 @@ jobs.get("/completed/:jobId/photos", requireAuth, requireOrg, async (req, res) =
       ORDER BY created_at DESC
     `);
     
-    res.json(r);
+    // Transform Supabase keys to signed URLs
+    const { createSignedViewUrl } = await import("../services/supabase-storage");
+    
+    const photos = await Promise.all(r.map(async (photo: any) => {
+      // Check if URL is a Supabase key (starts with org/)
+      if (photo.url && photo.url.startsWith('org/')) {
+        const signedUrl = await createSignedViewUrl(photo.url, 900); // 15 min expiry
+        return {
+          ...photo,
+          url: signedUrl || photo.url, // Fallback to original if signing fails
+        };
+      }
+      return photo;
+    }));
+    
+    res.json(photos);
   } catch (e: any) {
     console.error("GET /api/jobs/completed/%s/photos error:", jobId, e);
     res.status(500).json({ error: e?.message || "Failed to fetch completed job photos" });

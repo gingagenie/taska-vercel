@@ -15,21 +15,20 @@ Problem-solving approach: Thorough analysis and comprehensive solutions on the f
 The application utilizes a responsive, mobile-first design leveraging Tailwind CSS and Shadcn/ui for a professional and intuitive user experience. Key UX enhancements include clickable cards for navigation, camera badges for jobs with photos, and smart content formatting for blog posts. Dark mode support is integrated through CSS custom properties.
 
 ### Technical Implementations
-*   **Photo Storage System**: Migrating from Replit Object Storage to Supabase Storage (October 2025).
-    *   **Current State**: Hybrid storage during migration period. Legacy photos remain in Replit storage, new photos go to Supabase Storage.
-    *   **Supabase Storage** (New Photos):
+*   **Photo Storage System**: Successfully migrated from Replit Object Storage to Supabase Storage (October 2025).
+    *   **Current State**: All photos now stored in and served from Supabase Storage. Migration complete as of October 5, 2025.
+    *   **Supabase Storage**:
         1. `server/services/supabase-storage.ts`: Supabase Storage client with signed URL generation for uploads/downloads.
-        2. `server/routes/media.ts`: Photo upload/retrieval endpoints using Supabase Storage.
-        3. `media` table: Tracks photo metadata (key, size, SHA-256, dimensions) with org/job isolation.
-        4. Key pattern: `org/{orgId}/{yyyy}/{mm}/{dd}/{jobId}/{uuid}.{ext}` for hierarchical organization.
-        5. Direct client uploads: Client requests signed upload URL, uploads directly to Supabase, commits metadata to DB.
-    *   **Replit Storage** (Legacy Photos):
-        1. Triple-fallback retrieval in `server/routes/objects.ts`: filesystem mount → Replit HTTP API → local uploads directory.
-        2. When Replit mount fails, `@replit/object-storage` Client fetches via HTTP API as failsafe.
-        3. All legacy photos remain accessible even when object storage mount fails.
-    *   **Migration Path**: Script pending to copy all Replit photos to Supabase, preserving keys and updating DB references.
-    *   **Security**: Organization-based isolation enforced at both API and storage levels. Signed URLs expire after configurable time (default 15 min).
-    *   **Critical Files**: `server/services/supabase-storage.ts` (Supabase client), `server/routes/media.ts` (new photo endpoints), `server/routes/objects.ts` (legacy retrieval with HTTP fallback).
+        2. `server/routes/jobs.ts`: Job photo upload endpoint (POST /:jobId/photos) uses Supabase with automatic fallback to local storage if Supabase unavailable.
+        3. `server/routes/jobs.ts`: Completed job photos endpoint (GET /completed/:jobId/photos) transforms Supabase keys into signed URLs for secure viewing.
+        4. `media` table: Tracks photo metadata (key, size, dimensions) with org/job isolation.
+        5. Key pattern: `org/{orgId}/{yyyy}/{mm}/{dd}/{jobId}/{uuid}.{ext}` for hierarchical organization.
+    *   **Legacy Migration** (October 5, 2025):
+        1. Migration script `server/scripts/migrate-replit-photos-to-supabase.ts` successfully copied all 10 legacy photos from Replit GCS to Supabase Storage.
+        2. Uses Google Cloud Storage client to access Replit bucket (replit-objstore-43849873-2f8f-4b8d-a84d-7997bd426a6a) as data source.
+        3. Database URLs updated from `/api/objects/...` format to Supabase keys (`org/...` format).
+        4. All historical photos now permanently accessible via Supabase signed URLs.
+    *   **Security**: Organization-based isolation enforced at both API and storage levels. Signed URLs expire after 15 minutes.
     *   **Photo Viewer**: Modal-based viewer in `job-view.tsx` and `completed-job-view.tsx` displays photos within app (maintains authentication context).
     *   **Environment Variables**: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY for Supabase Storage access.
 

@@ -21,32 +21,37 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 
-// Import storage modules for Replit retrieval
+// Import Google Cloud Storage client for Replit retrieval
 async function getPhotoBuffer(objectKey: string): Promise<Buffer | null> {
   try {
-    // Try to read from Replit Object Storage mount
-    const { absolutePathForKey } = await import("../storage/paths");
-    const absolutePath = absolutePathForKey(objectKey);
+    const { objectStorageClient } = await import("../objectStorage");
     
-    try {
-      const buffer = await fs.readFile(absolutePath);
-      console.log(`✅ Read from filesystem: ${objectKey}`);
-      return buffer;
-    } catch (fsError: any) {
-      console.log(`⚠️  Filesystem read failed: ${fsError.message}, trying HTTP API...`);
-      
-      // Fallback to HTTP API
-      const Client = (await import("@replit/object-storage")).Client;
-      const client = new Client();
-      const downloadResult = await client.downloadAsBytes(objectKey);
-      
-      if (downloadResult.ok && downloadResult.value) {
-        console.log(`✅ Read via HTTP API: ${objectKey}`);
-        return Buffer.from(downloadResult.value[0]);
-      }
-      
-      throw new Error("Both filesystem and HTTP API failed");
+    // Extract bucket ID from PRIVATE_OBJECT_DIR
+    const privateDir = process.env.PRIVATE_OBJECT_DIR;
+    if (!privateDir) {
+      throw new Error("PRIVATE_OBJECT_DIR not set");
     }
+    
+    const match = privateDir.match(/\/(replit-objstore-[a-f0-9-]+)/);
+    if (!match) {
+      throw new Error(`Could not extract bucket ID from: ${privateDir}`);
+    }
+    
+    const bucketId = match[1];
+    const bucket = objectStorageClient.bucket(bucketId);
+    const file = bucket.file(objectKey);
+    
+    // Check if file exists
+    const [exists] = await file.exists();
+    if (!exists) {
+      console.error(`❌ File not found in GCS: ${objectKey}`);
+      return null;
+    }
+    
+    // Download the file
+    const [buffer] = await file.download();
+    console.log(`✅ Downloaded from GCS: ${objectKey} (${buffer.length} bytes)`);
+    return buffer;
   } catch (error: any) {
     console.error(`❌ Failed to read photo ${objectKey}:`, error.message);
     return null;

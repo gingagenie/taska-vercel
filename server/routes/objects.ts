@@ -4,20 +4,40 @@ import { requireOrg } from "../middleware/tenancy";
 import {
   ObjectStorageService,
   ObjectNotFoundError,
+  objectStorageClient,
 } from "../objectStorage";
 import { Client } from "@replit/object-storage";
 
 const router = Router();
 
+// Extract bucket ID from PRIVATE_OBJECT_DIR
+function getBucketId(): string | null {
+  const privateDir = process.env.PRIVATE_OBJECT_DIR;
+  if (!privateDir) {
+    console.error("[REPLIT_STORAGE] PRIVATE_OBJECT_DIR not set");
+    return null;
+  }
+  // Format: /replit-objstore-{uuid}/.private
+  // Extract: replit-objstore-{uuid}
+  const match = privateDir.match(/\/(replit-objstore-[a-f0-9-]+)/);
+  if (!match) {
+    console.error("[REPLIT_STORAGE] Could not extract bucket ID from:", privateDir);
+    return null;
+  }
+  return match[1];
+}
+
 // Initialize Replit storage client lazily
 let replitStorage: Client | null = null;
 function getReplitStorage(): Client | null {
-  if (!process.env.REPLIT_DB_ID) {
-    return null;
-  }
   if (!replitStorage) {
     try {
-      replitStorage = new Client();
+      const bucketId = getBucketId();
+      if (!bucketId) {
+        return null;
+      }
+      replitStorage = new Client(bucketId);
+      console.log(`[REPLIT_STORAGE] ✅ Client initialized with bucket: ${bucketId}`);
     } catch (e) {
       console.error("[REPLIT_STORAGE] Failed to initialize client:", e);
       return null;
@@ -94,34 +114,34 @@ router.get("/:objectPath(*)", requireAuth, requireOrg, async (req, res) => {
         console.log(`[PHOTO_RETRIEVAL] Filesystem mount unavailable for ${key}, trying Replit HTTP API...`);
         
         try {
-          // Try Replit object storage HTTP API
-          const client = getReplitStorage();
-          if (client) {
-            console.log(`[PHOTO_RETRIEVAL] Calling Replit HTTP API for key: ${key}`);
-            // Use the key directly - don't prepend privateDir for HTTP API
-            const result = await client.downloadAsBytes(key);
+          // Try Google Cloud Storage client directly
+          console.log(`[PHOTO_RETRIEVAL] Trying GCS client for key: ${key}`);
+          
+          const bucketId = getBucketId();
+          if (!bucketId) {
+            console.error(`[PHOTO_RETRIEVAL] Could not get bucket ID`);
+          } else {
+            const bucket = objectStorageClient.bucket(bucketId);
+            const file = bucket.file(key);
             
-            console.log(`[PHOTO_RETRIEVAL] HTTP API result:`, { ok: result.ok, hasValue: !!result.value, hasError: !!result.error });
-            
-            if (result.ok && result.value) {
-              const [objectData] = result.value;
-              console.log(`[PHOTO_RETRIEVAL] Successfully retrieved ${objectData.length} bytes`);
+            const [exists] = await file.exists();
+            if (exists) {
+              console.log(`[PHOTO_RETRIEVAL] File exists in GCS, downloading...`);
+              const [buffer] = await file.download();
+              
+              console.log(`[PHOTO_RETRIEVAL] Successfully retrieved ${buffer.length} bytes from GCS`);
               res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
               res.setHeader("Content-Type", "image/jpeg");
-              res.send(objectData);
-              logStorage("VIEW_OK", { who: userId, key, source: "replit-http-api" });
-              console.log(`[PHOTO_RETRIEVAL] Successfully sent photo via Replit HTTP API`);
+              res.send(buffer);
+              logStorage("VIEW_OK", { who: userId, key, source: "gcs-client" });
+              console.log(`[PHOTO_RETRIEVAL] Successfully sent photo via GCS client`);
               return;
-            } else if (result.error) {
-              console.error(`[PHOTO_RETRIEVAL] Replit HTTP API error for ${key}:`, JSON.stringify(result.error, null, 2));
             } else {
-              console.error(`[PHOTO_RETRIEVAL] Replit HTTP API returned no data and no error for ${key}`);
+              console.error(`[PHOTO_RETRIEVAL] File does not exist in GCS: ${key}`);
             }
-          } else {
-            console.error(`[PHOTO_RETRIEVAL] Replit storage client not available (no REPLIT_DB_ID)`);
           }
-        } catch (httpError: any) {
-          console.error(`[PHOTO_RETRIEVAL] Replit HTTP API exception for ${key}:`, httpError.message, httpError.stack);
+        } catch (gcsError: any) {
+          console.error(`[PHOTO_RETRIEVAL] GCS client exception for ${key}:`, gcsError.message, gcsError.stack);
         }
         
         // Last resort: try local fallback

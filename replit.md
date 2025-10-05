@@ -15,18 +15,23 @@ Problem-solving approach: Thorough analysis and comprehensive solutions on the f
 The application utilizes a responsive, mobile-first design leveraging Tailwind CSS and Shadcn/ui for a professional and intuitive user experience. Key UX enhancements include clickable cards for navigation, camera badges for jobs with photos, and smart content formatting for blog posts. Dark mode support is integrated through CSS custom properties.
 
 ### Technical Implementations
-*   **Photo Storage System**: Centralized storage architecture with automatic fallback (October 2025 refactor).
-    *   **Architecture**: Single source of truth pattern preventing path drift between upload/retrieval/delete operations.
-    *   **Storage Modules** (`server/storage/`):
-        1. `paths.ts`: Runtime flag `useObjectStorage` controls storage location. Provides `absolutePathForKey()` for all path resolution, `jobPhotoKey()` for canonical key generation, and `disableObjectStorage()` to switch to fallback.
-        2. `log.ts`: Consistent structured logging for all storage events (UPLOAD, VIEW, DELETE, etc.).
-        3. `selftest.ts`: Boot validation that tests write→read cycle, automatically switches to local fallback if object storage unavailable.
-    *   **Database Schema**: `job_photos.object_key` stores canonical keys (e.g., `job-photos/{orgId}/{jobId}/file.jpg`). URLs built at runtime via `/api/objects/{key}` (note: `/api/objects/` prefix is critical).
-    *   **Automatic Fallback**: When object storage unavailable (ENOENT/EACCES), system disables object storage flag and switches to local `uploads/.private` directory. All operations (upload/retrieval/delete) have retry logic to ensure graceful degradation.
-    *   **Critical Files**: `server/storage/paths.ts` (MUST be single source for ALL path logic), `server/routes/jobs.ts` (upload/delete with retry), `server/routes/objects.ts` (retrieval with retry, route pattern `/:objectPath(*)` mounts at `/api/objects`).
-    *   **Photo Viewer**: Modal-based viewer in `job-view.tsx` and `completed-job-view.tsx` displays photos within app (maintains authentication context). Clicking photo thumbnails opens full-size image in dialog, preventing authentication failures from opening in new tabs.
-    *   **Security**: Organization-based isolation - users from Org A cannot access Org B photos even if they know the URLs (403 on cross-org, 404 on missing).
-    *   **Verification**: Check startup logs for `SELFTEST_OK` showing which storage is active. Storage events logged with UPLOAD/VIEW/DELETE prefix.
+*   **Photo Storage System**: Migrating from Replit Object Storage to Supabase Storage (October 2025).
+    *   **Current State**: Hybrid storage during migration period. Legacy photos remain in Replit storage, new photos go to Supabase Storage.
+    *   **Supabase Storage** (New Photos):
+        1. `server/services/supabase-storage.ts`: Supabase Storage client with signed URL generation for uploads/downloads.
+        2. `server/routes/media.ts`: Photo upload/retrieval endpoints using Supabase Storage.
+        3. `media` table: Tracks photo metadata (key, size, SHA-256, dimensions) with org/job isolation.
+        4. Key pattern: `org/{orgId}/{yyyy}/{mm}/{dd}/{jobId}/{uuid}.{ext}` for hierarchical organization.
+        5. Direct client uploads: Client requests signed upload URL, uploads directly to Supabase, commits metadata to DB.
+    *   **Replit Storage** (Legacy Photos):
+        1. Triple-fallback retrieval in `server/routes/objects.ts`: filesystem mount → Replit HTTP API → local uploads directory.
+        2. When Replit mount fails, `@replit/object-storage` Client fetches via HTTP API as failsafe.
+        3. All legacy photos remain accessible even when object storage mount fails.
+    *   **Migration Path**: Script pending to copy all Replit photos to Supabase, preserving keys and updating DB references.
+    *   **Security**: Organization-based isolation enforced at both API and storage levels. Signed URLs expire after configurable time (default 15 min).
+    *   **Critical Files**: `server/services/supabase-storage.ts` (Supabase client), `server/routes/media.ts` (new photo endpoints), `server/routes/objects.ts` (legacy retrieval with HTTP fallback).
+    *   **Photo Viewer**: Modal-based viewer in `job-view.tsx` and `completed-job-view.tsx` displays photos within app (maintains authentication context).
+    *   **Environment Variables**: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY for Supabase Storage access.
 
 *   **Stripe Subscription System**: Comprehensive webhook monitoring and alerting system to prevent silent subscription failures.
     *   **Database-Backed Monitoring** (`stripe_webhook_monitoring` table): Persistent tracking of webhook health (consecutive failures, timestamps, totals) across server restarts with automatic record creation.

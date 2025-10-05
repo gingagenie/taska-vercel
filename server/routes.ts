@@ -25,6 +25,7 @@ import supportTickets from "./routes/support-tickets";
 import { publicRouter } from "./routes/public";
 import tiktokTracking from "./routes/tiktok-tracking";
 import adminRoutes from "./routes/admin";
+import mediaRouter from "./routes/media";
 import { blockSupportStaffFromCustomerData } from "./middleware/access-control";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -65,6 +66,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/_tz");
   app.use("/api/objects", objectsRouter);
   console.log("[mount] /api/objects");
+  app.use("/api/media", blockSupportStaffFromCustomerData, mediaRouter);
+  console.log("[mount] /api/media (customer-only)");
   app.use("/api/subscriptions", subscriptions);
   console.log("[mount] /api/subscriptions");
   app.use("/api/usage", usage);

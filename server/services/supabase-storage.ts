@@ -90,6 +90,43 @@ export async function createSignedViewUrl(key: string, expiresIn: number = 900):
 }
 
 /**
+ * Upload a photo directly from server (for job photo uploads)
+ */
+export interface DirectUploadParams {
+  tenantId: string;
+  jobId?: string;
+  ext: string;
+  fileBuffer: Buffer;
+  contentType?: string;
+}
+
+export interface DirectUploadResult {
+  key: string;
+}
+
+export async function uploadPhotoToSupabase(params: DirectUploadParams): Promise<DirectUploadResult> {
+  const key = generatePhotoKey({
+    tenantId: params.tenantId,
+    jobId: params.jobId,
+    ext: params.ext,
+  });
+  
+  const { error } = await storageClient
+    .from(BUCKET_NAME)
+    .upload(key, params.fileBuffer, {
+      contentType: params.contentType || "image/jpeg",
+      upsert: false,
+    });
+  
+  if (error) {
+    console.error("[SUPABASE_STORAGE] Failed to upload photo:", error);
+    throw new Error(`Failed to upload photo: ${error.message}`);
+  }
+  
+  return { key };
+}
+
+/**
  * Upload a file directly from server (for migration purposes)
  */
 export async function uploadFile(key: string, fileBuffer: Buffer, contentType: string = "image/jpeg"): Promise<boolean> {

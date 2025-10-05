@@ -136,6 +136,7 @@ export const jobPhotos = pgTable("job_photos", {
   orgId: uuid("org_id").references(() => organizations.id).notNull(),
   url: text("url").notNull(),
   objectKey: text("object_key"),
+  mediaId: uuid("media_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

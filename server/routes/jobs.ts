@@ -738,59 +738,104 @@ jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
       return res.status(404).json({ error: "Job not found" });
     }
     
-    // Import storage modules
-    const { jobPhotoKey, absolutePathForKey, PRIVATE_OBJECT_DIR, disableObjectStorage } = await import("../storage/paths");
-    const { logStorage } = await import("../storage/log");
-    const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    
-    // Create unique filename
-    const timestamp = Date.now();
-    const safeName = `${timestamp}-${file.originalname?.replace(/\s+/g, "_") || 'upload'}.${ext}`;
-    
-    // Generate key (canonical identifier stored in DB)
-    const key = jobPhotoKey(orgId, jobId, safeName);
-    let absolutePath = absolutePathForKey(key);
-    
-    // Upload to file system with fallback retry
+    // Try Supabase Storage first, fall back to Replit/local if it fails
     try {
-      await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-      await fs.writeFile(absolutePath, file.buffer);
-      logStorage("UPLOAD", { who: userId, key });
-    } catch (uploadError: any) {
-      if (uploadError?.code === "ENOENT" || uploadError?.code === "EACCES") {
-        // Object storage unavailable - disable and retry with fallback
-        disableObjectStorage();
-        absolutePath = absolutePathForKey(key);
-        
-        await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-        await fs.writeFile(absolutePath, file.buffer);
-        logStorage("UPLOAD", { who: userId, key, storage: "local fallback (after failure)" });
-      } else {
-        throw uploadError;
-      }
-    }
-    
-    try {
-      // Insert into database with both URL (for compatibility) and key
-      const url = `/api/objects/${key}`;
+      const { uploadPhotoToSupabase } = await import("../services/supabase-storage");
+      const { media } = await import("../../shared/schema");
+      
+      console.log(`[PHOTO_UPLOAD] Attempting Supabase upload for job=${jobId}`);
+      
+      // Upload to Supabase Storage
+      const uploadResult = await uploadPhotoToSupabase({
+        tenantId: orgId,
+        jobId,
+        ext,
+        fileBuffer: file.buffer,
+        contentType: file.mimetype,
+      });
+      
+      // Store in media table
+      const [mediaRecord] = await db.insert(media).values({
+        orgId,
+        jobId,
+        key: uploadResult.key,
+        kind: "photo",
+        ext,
+        bytes: file.size,
+        isPublic: false,
+        createdBy: userId,
+      }).returning();
+      
+      // Also create job_photos record for backward compatibility
+      const url = `/api/media/${mediaRecord.id}/url`;
       const result = await db.execute(sql`
-        INSERT INTO job_photos (job_id, org_id, url, object_key)
-        VALUES (${jobId}::uuid, ${orgId}::uuid, ${url}, ${key})
+        INSERT INTO job_photos (job_id, org_id, url, object_key, media_id)
+        VALUES (${jobId}::uuid, ${orgId}::uuid, ${url}, ${uploadResult.key}, ${mediaRecord.id})
         RETURNING id, url, object_key, created_at
       `);
       
+      console.log(`[PHOTO_UPLOAD] Supabase upload success: mediaId=${mediaRecord.id}, key=${uploadResult.key}`);
+      
       const photo = result[0];
       res.json(photo);
-    } catch (dbError: any) {
-      // If DB insert fails, clean up the uploaded file
+      return;
+    } catch (supabaseError: any) {
+      console.warn(`[PHOTO_UPLOAD] Supabase upload failed, falling back to Replit storage:`, supabaseError.message);
+      
+      // Fall back to Replit/local storage
+      const { jobPhotoKey, absolutePathForKey, disableObjectStorage } = await import("../storage/paths");
+      const { logStorage } = await import("../storage/log");
+      const fs = await import("node:fs/promises");
+      const path = await import("node:path");
+      
+      // Create unique filename
+      const timestamp = Date.now();
+      const safeName = `${timestamp}-${file.originalname?.replace(/\s+/g, "_") || 'upload'}.${ext}`;
+      
+      // Generate key (canonical identifier stored in DB)
+      const key = jobPhotoKey(orgId, jobId, safeName);
+      let absolutePath = absolutePathForKey(key);
+      
+      // Upload to file system with fallback retry
       try {
-        await fs.unlink(absolutePath);
-        logStorage("UPLOAD_ROLLBACK", { key });
-      } catch (cleanupError: any) {
-        console.error("Failed to clean up file after DB error:", cleanupError);
+        await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+        await fs.writeFile(absolutePath, file.buffer);
+        logStorage("UPLOAD", { who: userId, key });
+      } catch (uploadError: any) {
+        if (uploadError?.code === "ENOENT" || uploadError?.code === "EACCES") {
+          // Object storage unavailable - disable and retry with fallback
+          disableObjectStorage();
+          absolutePath = absolutePathForKey(key);
+          
+          await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+          await fs.writeFile(absolutePath, file.buffer);
+          logStorage("UPLOAD", { who: userId, key, storage: "local fallback (after failure)" });
+        } else {
+          throw uploadError;
+        }
       }
-      throw dbError;
+      
+      try {
+        // Insert into database with both URL (for compatibility) and key
+        const url = `/api/objects/${key}`;
+        const result = await db.execute(sql`
+          INSERT INTO job_photos (job_id, org_id, url, object_key)
+          VALUES (${jobId}::uuid, ${orgId}::uuid, ${url}, ${key})
+          RETURNING id, url, object_key, created_at
+        `);
+        
+        const photo = result[0];
+        res.json(photo);
+      } catch (dbError: any) {
+        // If DB insert fails, clean up the uploaded file
+        try {
+          await fs.unlink(absolutePath);
+          logStorage("UPLOAD_ROLLBACK", { key });
+        } catch (cleanupError: any) {
+          console.error("Failed to clean up file after DB error:", cleanupError);
+        }
+        throw dbError;
+      }
     }
   } catch (error: any) {
     console.error("POST /api/jobs/%s/photos error:", req.params.jobId, error);

@@ -1,0 +1,178 @@
+Legend — thanks for pasting that. It’s solid, but here’s the straight-talk:
+
+Best move: skip the fancy dual-reader and cut directly to Supabase Storage.
+
+Why: the “immediate fix” adds tech debt you’ll rip out in a week. Every extra codepath for Replit’s mount increases bugs, cache weirdness, and permission drift.
+
+What we do instead: a thin compatibility shim that can still serve legacy Replit files during migration, while all new uploads go to Supabase on day one. Clean, controlled, forward-only. ✅
+
+If you really want the dual-reader, I’ll build it — but you’ll pay for it twice (now and when we remove it). Your call… my vote is go straight to Supabase.
+
+The clean plan (recommended)
+0) One-time switch
+
+New uploads: Supabase Storage immediately.
+
+Reads: Try Supabase first; if object missing → fallback handler hits your old Replit endpoint (HTTP, not the mount) just for legacy objects. That’s your temporary lifeline without full dual-reader complexity.
+
+1) Minimal schema (DB = metadata only)
+create table media (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  job_id uuid,
+  key text not null,                -- e.g. tenant/abc/2025/10/05/uuid.jpg
+  kind text default 'photo',
+  ext text,
+  bytes int,
+  width int,
+  height int,
+  sha256 text,
+  is_public boolean default false,
+  created_at timestamptz default now(),
+  created_by uuid,
+  unique (tenant_id, key)
+);
+create index on media (tenant_id, job_id);
+
+2) Buckets & keys
+
+Bucket per env: photos-prod, photos-staging.
+
+Key pattern: tenant/{tenantId}/{yyyy}/{mm}/{dd}/{jobId}/{uuid}.{ext}.
+
+Private by default; use signed URLs for viewing.
+
+3) Upload flow (Next.js / API route shape)
+
+Client asks your API for a signed upload URL.
+
+Client uploads direct to Supabase Storage (bypasses Replit).
+
+API writes media row.
+
+/api/media/sign-upload.ts
+
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'node:crypto';
+
+export async function POST(req: Request) {
+  const { tenantId, ext = 'jpg', jobId } = await req.json();
+
+  // auth/tenant checks here...
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
+
+  const key = [
+    'tenant', tenantId,
+    new Date().getFullYear(),
+    String(new Date().getMonth()+1).padStart(2,'0'),
+    String(new Date().getDate()).padStart(2,'0'),
+    jobId || 'misc',
+    crypto.randomUUID() + '.' + ext.replace('.','')
+  ].join('/');
+
+  // Use the new upload URLs (v2) if enabled on your project, else presigned POST
+  const { data, error } = await supabase
+    .storage.from(process.env.SB_BUCKET!)
+    .createSignedUploadUrl(key);
+
+  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+
+  return Response.json({ key, uploadUrl: data.signedUrl, token: data.token });
+}
+
+
+Client upload (direct)
+
+export async function uploadToSupabase({ file, tenantId, jobId }: { file: File; tenantId: string; jobId?: string }) {
+  const r = await fetch('/api/media/sign-upload', { method: 'POST', body: JSON.stringify({ tenantId, jobId, ext: file.name.split('.').pop() }) });
+  const { uploadUrl, token, key } = await r.json();
+
+  const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'x-upsert': 'true', 'Authorization': `Bearer ${token}` }, body: file });
+  if (!put.ok) throw new Error('Upload failed');
+
+  // optional: call /api/media/commit to insert metadata row with size/hash
+  return { key };
+}
+
+
+/api/media/url/[id].ts – viewer with fallback
+
+import { createClient } from '@supabase/supabase-js';
+
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const id = params.id;
+  // lookup media by id -> { key, is_public }
+  // auth/tenant checks here...
+  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
+
+  // Try Supabase
+  const expires = 60 * 15;
+  const { data, error } = await sb.storage
+    .from(process.env.SB_BUCKET!)
+    .createSignedUrl(/* key from DB */, expires);
+
+  if (!error && data?.signedUrl) return Response.json({ url: data.signedUrl });
+
+  // Fallback: legacy Replit HTTP (NOT the mount)
+  // Example: `https://legacy-files.example.com/<legacyPath>`
+  // You can proxy it to avoid CORS leaks:
+  const legacyUrl = await getLegacyUrlFor(id); // your mapping logic
+  if (legacyUrl) return Response.json({ url: legacyUrl, legacy: true });
+
+  return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+}
+
+4) Health “circuit breaker” (tiny, not a science project)
+
+Server cron/interval (or Edge schedule) does a HEAD on health/pixel.png in Supabase every 30–60s.
+
+If N failures in a row, set a flag in Redis/DB (media_service = 'degraded') so the UI shows a soft banner and backs off retries.
+
+When healthy again, flip back. That’s your predictable auto-recovery.
+
+5) Migration script (stream from Replit → Supabase)
+
+Run once when the Replit mount/API is responding.
+
+For each legacy record/path:
+
+stream bytes from Replit HTTP
+
+upload to Supabase with final key
+
+compute SHA-256, write/update media row
+
+mark legacy pointer as migrated
+
+Skeleton:
+
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'node:crypto';
+const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
+const bucket = process.env.SB_BUCKET!;
+
+async function migrateOne({ legacyUrl, tenantId, key }: { legacyUrl: string; tenantId: string; key: string }) {
+  const res = await fetch(legacyUrl);
+  if (!res.ok) throw new Error(`Fetch failed ${legacyUrl}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+
+  const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+
+  const { error: upErr } = await sb.storage.from(bucket).upload(key, buf, { upsert: true, contentType: res.headers.get('content-type') ?? 'application/octet-stream' });
+  if (upErr) throw upErr;
+
+  // write DB row (idempotent upsert)
+  // ...drizzle/sql upsert by (tenant_id, key)
+}
+
+6) Security & performance tips
+
+Private by default + short-lived signed URLs for originals.
+
+Use Supabase Image Transform for webp/thumbs (cheaper bandwidth, faster UI).
+
+Add Cache-Control on public thumbnails (e.g., max-age=31536000, immutable).
+
+Keep DB backups tiny by never storing blobs in Postgres.
+
+Store content hash to de-dup uploads.

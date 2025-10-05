@@ -91,7 +91,7 @@ router.post("/commit", requireAuth, requireOrg, async (req, res) => {
 
 /**
  * GET /api/media/:id/url
- * Get a signed viewing URL for a media item
+ * Redirect to signed viewing URL for a media item (for use in <img> tags)
  */
 router.get("/:id/url", requireAuth, requireOrg, async (req, res) => {
   try {
@@ -116,9 +116,10 @@ router.get("/:id/url", requireAuth, requireOrg, async (req, res) => {
       return res.status(500).json({ error: "Failed to create signed URL" });
     }
     
-    console.log(`[MEDIA_VIEW] Signed view URL created for media=${id}, key=${mediaRecord.key}`);
+    console.log(`[MEDIA_VIEW] Redirecting to signed URL for media=${id}, key=${mediaRecord.key}`);
     
-    res.json({ url: signedUrl });
+    // Redirect to the signed Supabase Storage URL
+    res.redirect(signedUrl);
   } catch (error: any) {
     console.error("[MEDIA_VIEW] Failed to get media URL:", error);
     res.status(500).json({ error: error.message || "Failed to get media URL" });

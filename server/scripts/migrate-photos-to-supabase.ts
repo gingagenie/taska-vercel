@@ -144,14 +144,16 @@ async function migratePhotos() {
       
       console.log(`✅ Created media record: ${mediaRecord.id}`);
       
-      // Update job_photos with media_id
+      // Update job_photos with media_id AND new Supabase URL
+      const newUrl = `/api/media/${mediaRecord.id}/url`;
       await db.execute(sql`
         UPDATE job_photos 
-        SET media_id = ${mediaRecord.id}
+        SET media_id = ${mediaRecord.id},
+            url = ${newUrl}
         WHERE id = ${photo.id}
       `);
       
-      console.log(`✅ Updated job_photos record`);
+      console.log(`✅ Updated job_photos record with Supabase URL: ${newUrl}`);
       
       successCount++;
       

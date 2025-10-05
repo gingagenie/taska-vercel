@@ -96,23 +96,32 @@ router.get("/:objectPath(*)", requireAuth, requireOrg, async (req, res) => {
         try {
           // Try Replit object storage HTTP API
           const client = getReplitStorage();
-          const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
-          if (client && privateDir) {
-            const fullKey = `${privateDir}/${key}`;
-            const result = await client.downloadAsBytes(fullKey);
+          if (client) {
+            console.log(`[PHOTO_RETRIEVAL] Calling Replit HTTP API for key: ${key}`);
+            // Use the key directly - don't prepend privateDir for HTTP API
+            const result = await client.downloadAsBytes(key);
             
-            if (result.ok) {
+            console.log(`[PHOTO_RETRIEVAL] HTTP API result:`, { ok: result.ok, hasValue: !!result.value, hasError: !!result.error });
+            
+            if (result.ok && result.value) {
               const [objectData] = result.value;
+              console.log(`[PHOTO_RETRIEVAL] Successfully retrieved ${objectData.length} bytes`);
               res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
               res.setHeader("Content-Type", "image/jpeg");
               res.send(objectData);
               logStorage("VIEW_OK", { who: userId, key, source: "replit-http-api" });
-              console.log(`[PHOTO_RETRIEVAL] Successfully retrieved ${key} via Replit HTTP API`);
+              console.log(`[PHOTO_RETRIEVAL] Successfully sent photo via Replit HTTP API`);
               return;
+            } else if (result.error) {
+              console.error(`[PHOTO_RETRIEVAL] Replit HTTP API error for ${key}:`, JSON.stringify(result.error, null, 2));
+            } else {
+              console.error(`[PHOTO_RETRIEVAL] Replit HTTP API returned no data and no error for ${key}`);
             }
+          } else {
+            console.error(`[PHOTO_RETRIEVAL] Replit storage client not available (no REPLIT_DB_ID)`);
           }
         } catch (httpError: any) {
-          console.error(`[PHOTO_RETRIEVAL] Replit HTTP API also failed for ${key}:`, httpError.message);
+          console.error(`[PHOTO_RETRIEVAL] Replit HTTP API exception for ${key}:`, httpError.message, httpError.stack);
         }
         
         // Last resort: try local fallback

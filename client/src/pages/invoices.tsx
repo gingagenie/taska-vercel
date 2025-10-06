@@ -67,6 +67,31 @@ export default function InvoicesPage() {
 
   const filtered = (list || []).filter((x: any) => [x.title,x.customer_name,x.status].join(" ").toLowerCase().includes(q.toLowerCase()));
 
+  // Calculate totals based on current tab
+  const calculateTotal = () => {
+    const invoices = filtered || [];
+    
+    // For "All" tab, only include unpaid and overdue (Outstanding)
+    const invoicesToSum = currentTab === 'all' 
+      ? invoices.filter((inv: any) => inv.status !== 'paid' && inv.status !== 'void')
+      : invoices;
+    
+    const sum = invoicesToSum.reduce((acc: number, inv: any) => {
+      return acc + (Number(inv.total_amount) || 0);
+    }, 0);
+    return sum;
+  };
+
+  const getTabTitle = () => {
+    switch(currentTab) {
+      case 'unpaid': return 'Unpaid Total';
+      case 'paid': return 'Paid Total';
+      case 'overdue': return 'Overdue Total';
+      case 'all': return 'Outstanding';
+      default: return 'Total';
+    }
+  };
+
   function getStatusBadgeClass(status: string) {
     switch (status) {
       case 'sent': return 'bg-blue-100 text-blue-800';
@@ -131,6 +156,21 @@ export default function InvoicesPage() {
           </TabsList>
         </Tabs>
       </div>
+
+      {!isLoading && filtered.length > 0 && (
+        <Card className="bg-financial/5 border-financial/20">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-600" data-testid="text-total-label">
+                {getTabTitle()}
+              </span>
+              <span className="text-2xl font-bold text-financial" data-testid="text-total-amount">
+                ${calculateTotal().toFixed(2)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? (
         <div className="text-center py-8 text-gray-500">Loading invoices…</div>

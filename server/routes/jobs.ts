@@ -1429,12 +1429,11 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       invoiceTitle = `Invoice for: ${completedJob.title}`;
     }
     
-    // Check if already converted (idempotency guard) - using title and customer for simpler check
+    // Check if already converted (idempotency guard) - check by job_id to allow multiple invoices for same equipment
     const existingInvoice: any = await db.execute(sql`
       SELECT id FROM invoices 
       WHERE org_id = ${orgId}::uuid 
-      AND title = ${invoiceTitle}
-      AND customer_id = ${completedJob.customer_id}::uuid
+      AND job_id = ${completedJob.original_job_id}::uuid
     `);
 
     if (existingInvoice.length > 0) {

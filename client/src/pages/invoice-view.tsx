@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { ExternalLink, Mail, Eye } from "lucide-react";
+import { ExternalLink, Mail, Eye, ArrowLeft } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
@@ -373,6 +373,16 @@ export default function InvoiceView() {
 
   return (
     <div className="page space-y-6">
+      <Button 
+        variant="ghost" 
+        onClick={() => nav('/invoices')}
+        className="mb-4"
+        data-testid="button-back-to-invoices"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Back to Invoices
+      </Button>
+      
       <div className="header-row">
         <h1 className="text-2xl font-bold">{invoice.title}</h1>
         <div className="header-actions">

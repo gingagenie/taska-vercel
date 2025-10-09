@@ -58,7 +58,7 @@ function getCurrentPeriodBoundaries() {
 }
 
 // Helper to get plan quota with fallback to database values
-async function getPlanQuotas(planId: string) {
+export async function getPlanQuotas(planId: string) {
   // First try static mapping
   const staticQuota = PLAN_QUOTAS[planId as keyof typeof PLAN_QUOTAS]
   if (staticQuota) {

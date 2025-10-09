@@ -34,6 +34,32 @@ members.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubsc
   if (!password || password.length < 6) return res.status(400).json({ error: "password must be at least 6 chars" });
 
   try {
+    // Check user limit for subscription plan
+    const subscription = (req as any).subscription;
+    const planId = subscription?.planId || 'free';
+    
+    // Get plan quotas from usage.ts helper
+    const { getPlanQuotas } = await import('./usage');
+    const quotas = await getPlanQuotas(planId);
+    const userLimit = quotas.users;
+    
+    // Count current users in org
+    const currentUsers: any = await db.execute(sql`
+      SELECT COUNT(*)::int as count FROM users WHERE org_id = ${orgId}::uuid
+    `);
+    const currentUserCount = currentUsers[0]?.count || 0;
+    
+    // Enforce user limit
+    if (currentUserCount >= userLimit) {
+      return res.status(402).json({ 
+        error: `User limit reached. Your ${planId} plan allows ${userLimit} user${userLimit === 1 ? '' : 's'}.`,
+        message: `You currently have ${currentUserCount} user${currentUserCount === 1 ? '' : 's'}. Upgrade your plan to add more team members.`,
+        currentUsers: currentUserCount,
+        userLimit: userLimit,
+        planId: planId
+      });
+    }
+
     const existing: any = await db.execute(sql`
       select 1 from users
       where org_id=${orgId}::uuid and lower(email)=lower(${email})

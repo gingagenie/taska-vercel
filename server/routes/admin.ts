@@ -686,24 +686,15 @@ router.get('/analytics/overview', async (req, res) => {
   try {
     const timeframe = req.query.timeframe as string || '30d';
     
-    // Calculate date range based on timeframe
-    let dateFilter = '';
-    switch (timeframe) {
-      case '7d':
-        dateFilter = "AND created_at >= NOW() - INTERVAL '7 days'";
-        break;
-      case '30d':
-        dateFilter = "AND created_at >= NOW() - INTERVAL '30 days'";
-        break;
-      case '90d':
-        dateFilter = "AND created_at >= NOW() - INTERVAL '90 days'";
-        break;
-      case '1y':
-        dateFilter = "AND created_at >= NOW() - INTERVAL '1 year'";
-        break;
-      default:
-        dateFilter = "AND created_at >= NOW() - INTERVAL '30 days'";
-    }
+    // Safe interval mapping - whitelist approach prevents SQL injection
+    const intervalMap = {
+      '7d': sql`INTERVAL '7 days'`,
+      '30d': sql`INTERVAL '30 days'`,
+      '90d': sql`INTERVAL '90 days'`,
+      '1y': sql`INTERVAL '1 year'`
+    } as const;
+    
+    const intervalFragment = intervalMap[timeframe as keyof typeof intervalMap] || sql`INTERVAL '30 days'`;
 
     // Customer Lifetime Value (CLV) calculation
     const clvData = await db.execute(sql`
@@ -720,7 +711,8 @@ router.get('/analytics/overview', async (req, res) => {
           ) as revenue_per_org
         FROM org_subscriptions os
         JOIN subscription_plans sp ON os.plan_id = sp.id
-        WHERE os.status IN ('active', 'canceled') ${sql.raw(dateFilter)}
+        WHERE os.status IN ('active', 'canceled') 
+          AND os.created_at >= NOW() - ${intervalFragment}
         GROUP BY os.org_id
       ) org_revenues
     `);

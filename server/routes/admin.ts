@@ -730,7 +730,7 @@ router.get('/analytics/overview', async (req, res) => {
       ORDER BY week DESC
     `);
 
-    // Support ticket correlation with churn
+    // Support ticket correlation with churn (open tickets only)
     const supportCorrelation = await db.execute(sql`
       SELECT 
         COUNT(st.id) as ticket_count,
@@ -739,6 +739,7 @@ router.get('/analytics/overview', async (req, res) => {
       FROM support_tickets st
       LEFT JOIN org_subscriptions os ON st.org_id = os.org_id
       WHERE st.created_at >= NOW() - INTERVAL '90 days'
+        AND st.status = 'open'
     `);
 
     // Revenue by plan over time

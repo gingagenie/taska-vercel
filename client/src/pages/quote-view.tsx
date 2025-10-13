@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { ExternalLink, Mail, Eye } from "lucide-react";
+import { ExternalLink, Mail, Eye, ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
@@ -374,7 +374,17 @@ export default function QuoteView() {
   return (
     <div className="page space-y-6">
       <div className="header-row">
-        <h1 className="text-2xl font-bold">{quote.title}</h1>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => nav('/quotes')}
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold">{quote.title}</h1>
+        </div>
         <div className="header-actions">
           <Button asChild variant="outline">
             <Link href={`/quotes/${id}/edit`}><a>Edit</a></Link>

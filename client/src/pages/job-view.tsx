@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle, Check } from "lucide-react";
+import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle, Check, ArrowLeft } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { SmsLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
@@ -208,7 +208,7 @@ export default function JobView() {
       // Success - refresh the page or redirect
       queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/schedule'] });
-      navigate('/schedule');
+      navigate('/jobs');
     } catch (e: any) {
       setErrComplete(e.message || 'Failed to complete job');
     } finally {
@@ -308,6 +308,14 @@ export default function JobView() {
     <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
       <div className="header-row">
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/jobs')}
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
           <h1 className="text-2xl font-bold text-jobs">{job.title}</h1>
           {job.status === 'confirmed' && (
             <span className="status-badge status-confirmed flex items-center gap-1">

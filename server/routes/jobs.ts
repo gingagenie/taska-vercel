@@ -1191,6 +1191,21 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       DELETE FROM job_photos
       WHERE job_id = ${jobId}::uuid
     `);
+    
+    await db.execute(sql`
+      DELETE FROM job_hours
+      WHERE job_id = ${jobId}::uuid
+    `);
+    
+    await db.execute(sql`
+      DELETE FROM job_notes
+      WHERE job_id = ${jobId}::uuid
+    `);
+    
+    await db.execute(sql`
+      DELETE FROM job_parts
+      WHERE job_id = ${jobId}::uuid
+    `);
 
     // NOTE: We don't delete job_charges here so they remain accessible via original_job_id
     // Finally delete the job from the jobs table

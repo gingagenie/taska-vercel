@@ -20,6 +20,7 @@ type Props = {
 export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: Props) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
+  const [jobType, setJobType] = useState<string>("");
   const [description, setDescription] = useState("");
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
@@ -98,6 +99,7 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
     try {
       const body = {
         title,
+        jobType: jobType || null,
         description,
         customerId: customerId || null,
         scheduledAt: isoFromLocalInput(scheduledAt),
@@ -111,7 +113,7 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
       onOpenChange(false);
       onCreated?.(r?.id);
       // reset
-      setTitle(""); setDescription(""); setScheduledAt("");
+      setTitle(""); setJobType(""); setDescription(""); setScheduledAt("");
       setCustomerId(""); setEquipmentId(""); setAssignedTechIds([]);
     } catch (e: any) {
       setErr(e?.message || "Failed to create job");
@@ -138,6 +140,25 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
               placeholder="Job title" 
               data-testid="input-job-title"
             />
+          </div>
+
+          <div>
+            <Label>Job Type</Label>
+            <Select value={jobType} onValueChange={setJobType}>
+              <SelectTrigger data-testid="select-job-type">
+                <SelectValue placeholder="Select job type (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                <SelectItem value="Service">Service</SelectItem>
+                <SelectItem value="Repair">Repair</SelectItem>
+                <SelectItem value="Installation">Installation</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground mt-1">
+              Service jobs will auto-create follow-up jobs based on equipment service intervals.
+            </p>
           </div>
 
           <div>

@@ -27,6 +27,9 @@ equipment.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubs
         coalesce(e.serial, e.serial_number) as serial, 
         e.notes,
         e.customer_id,
+        e.service_interval_months,
+        e.last_service_date,
+        e.next_service_date,
         coalesce(c.name,'—') as customer_name,
         -- one-line address from customer
         nullif(trim(concat_ws(', ',
@@ -59,6 +62,9 @@ equipment.get("/:id", requireAuth, requireOrg, checkSubscription, requireActiveS
         e.id, e.name, e.make, e.model, 
         coalesce(e.serial, e.serial_number) as serial, 
         e.notes, e.customer_id,
+        e.service_interval_months,
+        e.last_service_date,
+        e.next_service_date,
         coalesce(c.name,'—') as customer_name,
         nullif(trim(concat_ws(', ',
           nullif(c.street,''),
@@ -95,12 +101,12 @@ equipment.post("/", requireAuth, requireOrg, async (req, res) => {
     return res.status(500).json({ error: "Database connection error" });
   }
   
-  let { name, make, model, serial, notes, customerId } = req.body || {};
+  let { name, make, model, serial, notes, customerId, serviceIntervalMonths } = req.body || {};
   if (customerId === "") customerId = null;
 
   try {
     const r: any = await db.execute(sql`
-      insert into equipment (org_id, name, make, model, serial_number, notes, customer_id)
+      insert into equipment (org_id, name, make, model, serial_number, notes, customer_id, service_interval_months)
       values (
         ${orgId},
         ${name || null},
@@ -108,7 +114,8 @@ equipment.post("/", requireAuth, requireOrg, async (req, res) => {
         ${model || null},
         ${serial || null},
         ${notes || null},
-        ${customerId || null}
+        ${customerId || null},
+        ${serviceIntervalMonths || null}
       )
       returning id
     `);
@@ -125,7 +132,7 @@ equipment.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
 
-  let { name, make, model, serial, notes, customerId } = req.body || {};
+  let { name, make, model, serial, notes, customerId, serviceIntervalMonths } = req.body || {};
   if (customerId === "") customerId = null;
 
   await db.execute(sql`
@@ -135,7 +142,8 @@ equipment.put("/:id", requireAuth, requireOrg, async (req, res) => {
       model        = coalesce(${model}, model),
       serial_number = coalesce(${serial}, serial_number),
       notes        = coalesce(${notes}, notes),
-      customer_id  = ${customerId ? sql`${customerId}::uuid` : null}
+      customer_id  = ${customerId ? sql`${customerId}::uuid` : null},
+      service_interval_months = ${serviceIntervalMonths !== undefined ? serviceIntervalMonths : sql`service_interval_months`}
     where id=${id}::uuid and org_id=${orgId}::uuid
   `);
   res.json({ ok: true });

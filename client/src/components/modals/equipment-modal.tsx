@@ -25,6 +25,7 @@ export function EquipmentModal({ open, onOpenChange, equipment, onSaved }: Props
   const [serial, setSerial] = useState("");
   const [notes, setNotes] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
+  const [serviceInterval, setServiceInterval] = useState<string>("none");
 
   const [customerList, setCustomerList] = useState<any[]>([]);
   const [customerAddress, setCustomerAddress] = useState<string>("");
@@ -47,10 +48,14 @@ export function EquipmentModal({ open, onOpenChange, equipment, onSaved }: Props
       setNotes(equipment.notes || "");
       setCustomerId(equipment.customer_id || "none");
       setCustomerAddress(equipment.customer_address || "");
+      setServiceInterval(
+        equipment.service_interval_months === 6 ? "6" :
+        equipment.service_interval_months === 12 ? "12" : "none"
+      );
     }
     if (open && !isEdit) {
       setName(""); setMake(""); setModel(""); setSerial(""); setNotes("");
-      setCustomerId("none"); setCustomerAddress(""); setErr(null);
+      setCustomerId("none"); setCustomerAddress(""); setServiceInterval("none"); setErr(null);
     }
   }, [open, isEdit, equipment]);
 
@@ -72,14 +77,28 @@ export function EquipmentModal({ open, onOpenChange, equipment, onSaved }: Props
     setSaving(true); setErr(null);
     try {
       const finalCustomerId = customerId === "none" ? null : customerId;
+      const finalServiceInterval = serviceInterval === "none" ? null : parseInt(serviceInterval);
       if (isEdit) {
-        await equipmentApi.update(equipment.id, { name, make, model, serial, notes, customerId: finalCustomerId });
+        await equipmentApi.update(equipment.id, { 
+          name, make, model, serial, notes, 
+          customerId: finalCustomerId,
+          serviceIntervalMonths: finalServiceInterval
+        });
         // keep detail pages fresh if any
         qc.invalidateQueries({ queryKey: ["/api/equipment"] });
         qc.invalidateQueries({ queryKey: [`/api/equipment/${equipment.id}`] });
-        onSaved?.({ ...equipment, name, make, model, serial, notes, customer_id: finalCustomerId, customer_address: customerAddress });
+        onSaved?.({ 
+          ...equipment, name, make, model, serial, notes, 
+          customer_id: finalCustomerId, 
+          customer_address: customerAddress,
+          service_interval_months: finalServiceInterval
+        });
       } else {
-        const res = await equipmentApi.create({ name, make, model, serial, notes, customerId: finalCustomerId });
+        const res = await equipmentApi.create({ 
+          name, make, model, serial, notes, 
+          customerId: finalCustomerId,
+          serviceIntervalMonths: finalServiceInterval
+        });
         qc.invalidateQueries({ queryKey: ["/api/equipment"] });
       }
       onOpenChange(false);
@@ -172,6 +191,23 @@ export function EquipmentModal({ open, onOpenChange, equipment, onSaved }: Props
               placeholder="Any relevant details…" 
               data-testid="textarea-notes"
             />
+          </div>
+
+          <div className="md:col-span-2">
+            <Label>Service Interval</Label>
+            <Select value={serviceInterval} onValueChange={setServiceInterval}>
+              <SelectTrigger data-testid="select-service-interval">
+                <SelectValue placeholder="Select service interval..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None (no auto-scheduling)</SelectItem>
+                <SelectItem value="6">Every 6 months</SelectItem>
+                <SelectItem value="12">Every 12 months</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground mt-1">
+              When a service job is completed, a follow-up job will be auto-created for this interval.
+            </p>
           </div>
         </div>
 

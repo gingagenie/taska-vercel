@@ -498,12 +498,13 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   const userId = (req as any).user?.id || null;
 
-  let { title, description, customerId, scheduledAt, equipmentId, assignedTechIds } = req.body || {};
+  let { title, description, jobType, customerId, scheduledAt, equipmentId, assignedTechIds } = req.body || {};
   if (!title) return res.status(400).json({ error: "title required" });
 
   // normalize inputs
   if (customerId === "") customerId = null;
   if (equipmentId === "") equipmentId = null;
+  if (jobType === "") jobType = null;
 
   // Use the new timezone normalization function
   const scheduled = normalizeScheduledAt(scheduledAt);
@@ -514,18 +515,20 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
       customerId: customerId || null,
       title: title,
       description: description || null,
+      jobType: jobType || null,
       scheduledAt: scheduledAt,
       status: 'new',
       createdBy: userId || null,
     });
     
     const result = await db.execute(sql`
-      INSERT INTO jobs (org_id, customer_id, title, description, scheduled_at, status, created_by)
+      INSERT INTO jobs (org_id, customer_id, title, description, job_type, scheduled_at, status, created_by)
       VALUES (
         ${orgId},
         ${customerId || null},
         ${title},
         ${description || null},
+        ${jobType || null},
         ${scheduled || null},
         'new',
         ${userId || null}
@@ -1045,12 +1048,12 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     // Insert into completed_jobs table
     const completedResult: any = await db.execute(sql`
       INSERT INTO completed_jobs (
-        org_id, original_job_id, customer_id, customer_name, title, description, notes,
+        org_id, original_job_id, customer_id, customer_name, title, description, job_type, notes,
         scheduled_at, completed_by, original_created_by, original_created_at
       )
       VALUES (
         ${orgId}::uuid, ${jobId}::uuid, ${job.customer_id}::uuid, ${job.customer_name},
-        ${job.title}, ${job.description}, ${job.notes}, ${job.scheduled_at},
+        ${job.title}, ${job.description}, ${job.job_type}, ${job.notes}, ${job.scheduled_at},
         ${userId}, ${job.created_by}, ${job.created_at}
       )
       RETURNING id, completed_at
@@ -1170,6 +1173,73 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       LEFT JOIN equipment e ON je.equipment_id = e.id
       WHERE je.job_id = ${jobId}::uuid
     `);
+
+    // AUTO-CREATE FOLLOW-UP JOBS for Service jobs with equipment that has service intervals
+    if (job.job_type === 'Service') {
+      console.log('[JOB COMPLETION] Job type is Service, checking for equipment with service intervals...');
+      
+      // Get equipment with service intervals from this job
+      const equipmentWithIntervals: any = await db.execute(sql`
+        SELECT e.id, e.name, e.service_interval_months, e.customer_id
+        FROM job_equipment je
+        JOIN equipment e ON e.id = je.equipment_id
+        WHERE je.job_id = ${jobId}::uuid 
+          AND e.service_interval_months IS NOT NULL
+      `);
+
+      for (const eq of equipmentWithIntervals) {
+        try {
+          console.log(`[JOB COMPLETION] Creating follow-up for equipment ${eq.name} with ${eq.service_interval_months} month interval`);
+          
+          // Calculate next service date (today + interval months)
+          const nextServiceDate = await db.execute(sql`
+            SELECT (CURRENT_DATE + INTERVAL '${sql.raw(eq.service_interval_months.toString())} months')::timestamp as next_date
+          `);
+          const scheduledDate = (nextServiceDate as any)[0].next_date;
+
+          // Create follow-up job
+          const followUpResult = await db.execute(sql`
+            INSERT INTO jobs (
+              org_id, customer_id, title, description, job_type, 
+              scheduled_at, status, created_by
+            )
+            VALUES (
+              ${orgId}::uuid,
+              ${eq.customer_id}::uuid,
+              ${`Service - ${eq.name}`},
+              ${`Follow-up service from ${job.title || 'completed job'}`},
+              'Service',
+              ${scheduledDate},
+              'new',
+              ${userId}
+            )
+            RETURNING id
+          `);
+          
+          const followUpJobId = (followUpResult as any)[0].id;
+
+          // Link equipment to new job
+          await db.execute(sql`
+            INSERT INTO job_equipment (job_id, equipment_id)
+            VALUES (${followUpJobId}::uuid, ${eq.id}::uuid)
+          `);
+
+          // Update equipment service dates
+          await db.execute(sql`
+            UPDATE equipment 
+            SET 
+              last_service_date = CURRENT_DATE,
+              next_service_date = ${scheduledDate}
+            WHERE id = ${eq.id}::uuid
+          `);
+
+          console.log(`[JOB COMPLETION] ✓ Created follow-up job ${followUpJobId} scheduled for ${scheduledDate}`);
+        } catch (err: any) {
+          console.error(`[JOB COMPLETION] Failed to create follow-up for equipment ${eq.id}:`, err);
+          // Continue with other equipment even if one fails
+        }
+      }
+    }
 
     // Delete related records first, but preserve job_charges for the completed job
     await db.execute(sql`

@@ -93,6 +93,9 @@ export const equipment = pgTable("equipment", {
   make: varchar("make", { length: 255 }),
   model: varchar("model", { length: 255 }),
   serial: varchar("serial", { length: 255 }),
+  serviceIntervalMonths: integer("service_interval_months"), // 6, 12, or null for no auto-scheduling
+  lastServiceDate: timestamp("last_service_date"),
+  nextServiceDate: timestamp("next_service_date"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -104,6 +107,7 @@ export const jobs = pgTable("jobs", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   status: varchar("status", { length: 50 }).default("new"),
+  jobType: varchar("job_type", { length: 50 }), // Service, Repair, Installation, Other
   notes: text("notes"), // Work performed notes
   scheduledAt: timestamp("scheduled_at"),
   confirmationToken: varchar("confirmation_token", { length: 255 }).unique(),
@@ -149,6 +153,7 @@ export const completedJobs = pgTable("completed_jobs", {
   customerName: varchar("customer_name", { length: 255 }),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
+  jobType: varchar("job_type", { length: 50 }), // Service, Repair, Installation, Other
   notes: text("notes"), // Work performed notes
   scheduledAt: timestamp("scheduled_at"),
   completedAt: timestamp("completed_at").defaultNow().notNull(),

@@ -149,7 +149,6 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
                 <SelectValue placeholder="Select job type (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
                 <SelectItem value="Service">Service</SelectItem>
                 <SelectItem value="Repair">Repair</SelectItem>
                 <SelectItem value="Installation">Installation</SelectItem>

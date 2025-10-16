@@ -286,6 +286,12 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
         job.technicians = [];
       }
     }
+    
+    // Disable caching to ensure fresh data
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     res.json(r);
   } catch (error: any) {
     console.error("GET /api/jobs error:", error);

@@ -268,7 +268,7 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
       from jobs j
       left join customers c on c.id = j.customer_id
       where j.org_id=${orgId}::uuid
-      order by j.created_at desc
+      order by j.scheduled_at asc nulls last, j.created_at desc
     `);
 
     // Add technician data with colors for each job

@@ -1051,9 +1051,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
 
     const job = jobResult[0];
 
-    // Start a transaction to ensure atomicity
-    await db.execute(sql`BEGIN`);
-    
     console.log(`[JOB COMPLETION] Starting completion of job ${jobId} (${job.title})`);
 
     // Insert into completed_jobs table
@@ -1295,9 +1292,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
 
-    // Commit the transaction
-    await db.execute(sql`COMMIT`);
-    
     console.log(`[JOB COMPLETION] ✅ Successfully completed job ${jobId}, created completed_job ${completedResult[0].id}`);
 
     res.json({ 
@@ -1306,13 +1300,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       completed_at: completedResult[0].completed_at
     });
   } catch (e: any) {
-    // Rollback the transaction on any error
-    try {
-      await db.execute(sql`ROLLBACK`);
-      console.log('[JOB COMPLETION] Transaction rolled back due to error');
-    } catch (rollbackErr) {
-      console.error('[JOB COMPLETION] Failed to rollback transaction:', rollbackErr);
-    }
     console.error("POST /api/jobs/:jobId/complete error:", e);
     res.status(500).json({ error: e?.message || "Failed to complete job" });
   }

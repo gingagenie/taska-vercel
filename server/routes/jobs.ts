@@ -1068,23 +1068,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     `);
 
     // Copy job charges to preserve them (since they'll be deleted by CASCADE when job is deleted)
-    // Create the table if it doesn't exist first
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS completed_job_charges (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        completed_job_id uuid NOT NULL,
-        original_job_id uuid NOT NULL,
-        org_id uuid NOT NULL,
-        kind text NOT NULL,
-        description text NOT NULL,
-        quantity numeric NOT NULL DEFAULT 0,
-        unit_price numeric NOT NULL DEFAULT 0,
-        total numeric NOT NULL DEFAULT 0,
-        created_at timestamptz DEFAULT now()
-      )
-    `);
-
-    // Copy existing charges to the completed job charges table (if any)
     await db.execute(sql`
       INSERT INTO completed_job_charges (
         completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at

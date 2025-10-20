@@ -11,10 +11,10 @@ if (!process.env.DATABASE_URL) {
 const databaseUrl = process.env.DATABASE_URL.replace(/:\s+(\d+)/, ':$1').trim()
 
 // Configure connection pooling optimized for Supabase pooler (PgBouncer)
-// Temporarily increased to handle all concurrent operations during startup and runtime
-console.log('🔌 [DB CLIENT] Creating new postgres connection pool (max: 15 connections)')
+// Reduced to 4 connections to work within Supabase connection limits
+console.log('🔌 [DB CLIENT] Creating new postgres connection pool (max: 4 connections)')
 const client = postgres(databaseUrl, {
-  max: 15,                    // Temporary: handle all concurrent startup + runtime operations
+  max: 4,                     // Reduced for Supabase compatibility
   idle_timeout: 10,           // Close idle connections after 10 seconds
   connect_timeout: 30,        // Allow 30s for connection during cold starts
   max_lifetime: 600,          // Recycle connections after 10 minutes

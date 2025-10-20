@@ -71,21 +71,11 @@ app.use(express.urlencoded({ extended: false }));
 // Cookie parser middleware (required for support marker cookies)
 app.use(cookieParser());
 
-// 3) Session store + cookie flags that work in Deploy
+// 3) Session configuration - uses in-memory storage for sessions
 import session from "express-session";
-import pgSession from "connect-pg-simple";
-import { Pool } from "pg";
 
-// Database connection pool for sessions and tenant guard
-const PgStore = pgSession(session as any);
-const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
-  ssl: isProd ? { rejectUnauthorized: false } : false
-});
-
-// Regular user session configuration
+// Regular user session configuration (uses in-memory storage)
 const regularSessionConfig = session({
-  // store: new PgStore({ pool, tableName: "session" }),
   secret: process.env.SESSION_SECRET || "dev-secret-change-me",
   name: "sid",
   resave: false,
@@ -101,9 +91,8 @@ const regularSessionConfig = session({
   },
 });
 
-// Support staff session configuration  
+// Support staff session configuration (uses in-memory storage)
 const supportSessionConfig = session({
-  // store: new PgStore({ pool, tableName: "support_session" }),
   secret: process.env.SUPPORT_SESSION_SECRET || process.env.SESSION_SECRET || "support-dev-secret-change-me",
   name: "support_sid",
   resave: false,
@@ -204,12 +193,16 @@ app.use("/uploads", (req: Request, res: Response, next: NextFunction) => {
   return staticUploads(req, res, next);
 });
 
-// --- BEGIN tenant guard ---
+// --- BEGIN tenant guard (DISABLED - requires pg.Pool) ---
 /**
  * Sets the current tenant for this HTTP request so RLS can do its job.
  * Requires that your auth has already put { org_id: '...' } on req.user
  * (or on req.session.user.org_id). If that's different, adjust the line marked 👇.
+ * 
+ * DISABLED: This function requires pg.Pool which was removed to fix connection exhaustion.
+ * If needed in the future, reimplement using postgres-js db.transaction() instead.
  */
+/*
 async function tenantGuard(req: Request, res: Response, next: NextFunction) {
   try {
     // 👇 get the org from the authenticated user on the server (NOT from headers/localStorage)
@@ -263,6 +256,7 @@ async function tenantGuard(req: Request, res: Response, next: NextFunction) {
     return res.status(500).json({ error: "Database connection failed" });
   }
 }
+*/
 // --- END tenant guard ---
 
 // Log every API request reaching Express

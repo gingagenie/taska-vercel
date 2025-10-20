@@ -408,17 +408,19 @@ app.use((req, res, next) => {
   }
 
   // 🚀 ENHANCED BILLING PROTECTION: Start continuous background compensation processor
+  // TEMPORARILY DISABLED: Causing database connection exhaustion - needs optimization
   // This achieves COMPLETE ELIMINATION of under-billing risk
-  try {
-    console.log("[STARTUP] 🔄 Starting continuous background compensation processor...");
-    startContinuousCompensationProcessor();
-    console.log("[STARTUP] ✅ Continuous compensation processor started - ZERO under-billing risk achieved");
-    console.log("[STARTUP] 🛡️ BILLING SAFETY: Enhanced with 60s background processing + periodic reconciliation");
-  } catch (error) {
-    console.error("[STARTUP] ❌ CRITICAL: Failed to start continuous compensation processor:", error);
-    // This is critical for billing safety - log prominently  
-    console.error("[STARTUP] ⚠️ BILLING SAFETY COMPROMISED: Manual intervention required");
-  }
+  // try {
+  //   console.log("[STARTUP] 🔄 Starting continuous background compensation processor...");
+  //   startContinuousCompensationProcessor();
+  //   console.log("[STARTUP] ✅ Continuous compensation processor started - ZERO under-billing risk achieved");
+  //   console.log("[STARTUP] 🛡️ BILLING SAFETY: Enhanced with 60s background processing + periodic reconciliation");
+  // } catch (error) {
+  //   console.error("[STARTUP] ❌ CRITICAL: Failed to start continuous compensation processor:", error);
+  //   // This is critical for billing safety - log prominently  
+  //   console.error("[STARTUP] ⚠️ BILLING SAFETY COMPROMISED: Manual intervention required");
+  // }
+  console.log("[STARTUP] ⚠️ Continuous compensation processor TEMPORARILY DISABLED to resolve connection issues");
 
   // Vite in dev, static in prod
   // IMPORTANT: Static serving must come AFTER API routes to avoid conflicts

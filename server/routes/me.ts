@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, postgresClient } from "../db/client"; 
+import { db } from "../db/client"; 
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
@@ -193,8 +193,11 @@ me.put("/org", requireAuth, requireOrg, async (req, res) => {
       const query = `UPDATE orgs SET ${updates.join(', ')} WHERE id = $${paramIndex}`;
       params.push(orgId);
       
-      // Use shared postgres client instead of creating new pool
-      await postgresClient.unsafe(query, params);
+      // Use postgres client directly for parameterized query
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      await pool.query(query, params);
+      await pool.end();
     }
     
     res.json({ ok: true });

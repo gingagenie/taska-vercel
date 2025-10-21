@@ -78,7 +78,7 @@ export function SearchableCombobox({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={true}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -92,19 +92,14 @@ export function SearchableCombobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent 
-        className="w-[var(--radix-popover-trigger-width)] p-0" 
-        align="start" 
-        sideOffset={4}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <Command shouldFilter={false}>
+      <PopoverContent className="w-full p-0" align="start">
+        <Command>
           <CommandInput 
             placeholder={searchPlaceholder}
             value={searchValue}
             onValueChange={setSearchValue}
           />
-          <CommandList className="max-h-[200px] overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+          <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {filteredItems.length > 0 && (
               <CommandGroup>

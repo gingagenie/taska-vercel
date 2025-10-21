@@ -71,11 +71,21 @@ app.use(express.urlencoded({ extended: false }));
 // Cookie parser middleware (required for support marker cookies)
 app.use(cookieParser());
 
-// 3) Session configuration - uses in-memory storage for sessions
+// 3) Session store + cookie flags that work in Deploy
 import session from "express-session";
+import pgSession from "connect-pg-simple";
+import { Pool } from "pg";
 
-// Regular user session configuration (uses in-memory storage)
+// Database connection pool for sessions and tenant guard
+const PgStore = pgSession(session as any);
+const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  ssl: isProd ? { rejectUnauthorized: false } : false
+});
+
+// Regular user session configuration
 const regularSessionConfig = session({
+  // store: new PgStore({ pool, tableName: "session" }),
   secret: process.env.SESSION_SECRET || "dev-secret-change-me",
   name: "sid",
   resave: false,
@@ -91,8 +101,9 @@ const regularSessionConfig = session({
   },
 });
 
-// Support staff session configuration (uses in-memory storage)
+// Support staff session configuration  
 const supportSessionConfig = session({
+  // store: new PgStore({ pool, tableName: "support_session" }),
   secret: process.env.SUPPORT_SESSION_SECRET || process.env.SESSION_SECRET || "support-dev-secret-change-me",
   name: "support_sid",
   resave: false,
@@ -193,16 +204,12 @@ app.use("/uploads", (req: Request, res: Response, next: NextFunction) => {
   return staticUploads(req, res, next);
 });
 
-// --- BEGIN tenant guard (DISABLED - requires pg.Pool) ---
+// --- BEGIN tenant guard ---
 /**
  * Sets the current tenant for this HTTP request so RLS can do its job.
  * Requires that your auth has already put { org_id: '...' } on req.user
  * (or on req.session.user.org_id). If that's different, adjust the line marked 👇.
- * 
- * DISABLED: This function requires pg.Pool which was removed to fix connection exhaustion.
- * If needed in the future, reimplement using postgres-js db.transaction() instead.
  */
-/*
 async function tenantGuard(req: Request, res: Response, next: NextFunction) {
   try {
     // 👇 get the org from the authenticated user on the server (NOT from headers/localStorage)
@@ -256,7 +263,6 @@ async function tenantGuard(req: Request, res: Response, next: NextFunction) {
     return res.status(500).json({ error: "Database connection failed" });
   }
 }
-*/
 // --- END tenant guard ---
 
 // Log every API request reaching Express
@@ -402,19 +408,17 @@ app.use((req, res, next) => {
   }
 
   // 🚀 ENHANCED BILLING PROTECTION: Start continuous background compensation processor
-  // TEMPORARILY DISABLED: Causing database connection exhaustion - needs optimization
   // This achieves COMPLETE ELIMINATION of under-billing risk
-  // try {
-  //   console.log("[STARTUP] 🔄 Starting continuous background compensation processor...");
-  //   startContinuousCompensationProcessor();
-  //   console.log("[STARTUP] ✅ Continuous compensation processor started - ZERO under-billing risk achieved");
-  //   console.log("[STARTUP] 🛡️ BILLING SAFETY: Enhanced with 60s background processing + periodic reconciliation");
-  // } catch (error) {
-  //   console.error("[STARTUP] ❌ CRITICAL: Failed to start continuous compensation processor:", error);
-  //   // This is critical for billing safety - log prominently  
-  //   console.error("[STARTUP] ⚠️ BILLING SAFETY COMPROMISED: Manual intervention required");
-  // }
-  console.log("[STARTUP] ⚠️ Continuous compensation processor TEMPORARILY DISABLED to resolve connection issues");
+  try {
+    console.log("[STARTUP] 🔄 Starting continuous background compensation processor...");
+    startContinuousCompensationProcessor();
+    console.log("[STARTUP] ✅ Continuous compensation processor started - ZERO under-billing risk achieved");
+    console.log("[STARTUP] 🛡️ BILLING SAFETY: Enhanced with 60s background processing + periodic reconciliation");
+  } catch (error) {
+    console.error("[STARTUP] ❌ CRITICAL: Failed to start continuous compensation processor:", error);
+    // This is critical for billing safety - log prominently  
+    console.error("[STARTUP] ⚠️ BILLING SAFETY COMPROMISED: Manual intervention required");
+  }
 
   // Vite in dev, static in prod
   // IMPORTANT: Static serving must come AFTER API routes to avoid conflicts

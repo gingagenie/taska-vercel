@@ -10,7 +10,11 @@ if (!process.env.DATABASE_URL) {
 // Clean up any whitespace issues in the connection string
 const databaseUrl = process.env.DATABASE_URL.replace(/:\s+(\d+)/, ':$1').trim()
 
-const client = postgres(databaseUrl)
+const client = postgres(databaseUrl, {
+  max: 5,
+  idle_timeout: 20,
+  connect_timeout: 10
+})
 export const db = drizzle(client, { schema })
 
 console.log('✅ Database connected successfully')

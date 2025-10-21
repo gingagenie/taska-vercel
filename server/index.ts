@@ -211,6 +211,7 @@ app.use("/uploads", (req: Request, res: Response, next: NextFunction) => {
  * (or on req.session.user.org_id). If that's different, adjust the line marked 👇.
  */
 async function tenantGuard(req: Request, res: Response, next: NextFunction) {
+  let client;
   try {
     // 👇 get the org from the authenticated user on the server (NOT from headers/localStorage)
     const orgId =
@@ -229,7 +230,7 @@ async function tenantGuard(req: Request, res: Response, next: NextFunction) {
     }
 
     // one PG client per request, with a transaction + tenant set
-    const client = await pool.connect();
+    client = await pool.connect();
     // Wrap the client with Drizzle for ORM functionality
     const drizzleClient = drizzle(client, { schema });
     // @ts-ignore
@@ -241,25 +242,29 @@ async function tenantGuard(req: Request, res: Response, next: NextFunction) {
     // Set the tenant context without a transaction to prevent timeouts
     await client.query("SET app.current_org = $1::uuid", [orgId]);
 
-    // auto-release when the response ends
-    res.on("finish", async () => {
-      try { 
-        client.release();
-      } catch (e) {
-        console.error("Error releasing client on finish:", e);
-      }
-    });
-    res.on("close", async () => {
-      try { 
-        client.release();
-      } catch (e) {
-        console.error("Error releasing client on close:", e);
+    // auto-release when the response ends (use 'close' only to avoid double-release)
+    let released = false;
+    res.on("close", () => {
+      if (!released && client) {
+        try { 
+          client.release();
+          released = true;
+        } catch (e) {
+          console.error("Error releasing client on close:", e);
+        }
       }
     });
 
     return next();
   } catch (e) {
     console.error("Tenant guard error:", e);
+    if (client) {
+      try {
+        client.release();
+      } catch (releaseError) {
+        console.error("Error releasing client after error:", releaseError);
+      }
+    }
     return res.status(500).json({ error: "Database connection failed" });
   }
 }

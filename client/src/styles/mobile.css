@@ -42,9 +42,19 @@ html, body {
   
   /* Fix popover scrolling on mobile */
   [data-radix-popover-content] {
-    max-height: 80vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    max-height: 80vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+  }
+  
+  /* Force CommandList scrolling on mobile */
+  [cmdk-list] {
+    max-height: 60vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+    overscroll-behavior: contain !important;
   }
   
   /* Ensure tables don't break mobile layout */

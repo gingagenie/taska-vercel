@@ -10,17 +10,13 @@ if (!process.env.DATABASE_URL) {
 // Clean up any whitespace issues in the connection string
 const databaseUrl = process.env.DATABASE_URL.replace(/:\s+(\d+)/, ':$1').trim()
 
-// Configure connection pooling optimized for Supabase pooler (PgBouncer)
-// Reduced to 2 connections to work within Supabase Session mode strict limits
-console.log('🔌 [DB CLIENT] Creating new postgres connection pool (max: 2 connections)')
+// Reduced to 3 connections to work within Supabase Session mode strict limits
+// Session mode has very low connection limits even on paid plans
+console.log('🔌 [DB CLIENT] Creating postgres connection pool (max: 3 connections)')
 const client = postgres(databaseUrl, {
-  max: 2,                     // Minimal connections for Supabase Session mode
-  idle_timeout: 5,            // Close idle connections quickly
-  connect_timeout: 30,        // Allow 30s for connection during cold starts
-  max_lifetime: 600,          // Recycle connections after 10 minutes
-  prepare: false,             // Required for PgBouncer compatibility
+  max: 3,                     // Minimal for Supabase Session mode
+  prepare: false,             // Required for PgBouncer compatibility  
   onnotice: () => {}, // Suppress NOTICE logs
-  debug: false
 })
 
 export const db = drizzle(client, { schema })

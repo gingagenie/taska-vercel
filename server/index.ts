@@ -388,18 +388,21 @@ app.use((req, res, next) => {
     }
 
   // CRITICAL BILLING PROTECTION: Startup reconciliation for missed finalizations
-  try {
-    console.log("[STARTUP] Starting pack consumption reconciliation...");
-    const reconciliationResult = await reconcilePendingFinalizations();
-    console.log(`[STARTUP] Reconciliation completed: ${reconciliationResult.recovered} recovered, ${reconciliationResult.failed} failed`);
-    
-    if (reconciliationResult.errors.length > 0) {
-      console.error("[STARTUP] Reconciliation errors:", reconciliationResult.errors);
-    }
-  } catch (error) {
-    console.error("[STARTUP] CRITICAL: Failed to run startup reconciliation:", error);
-    // Don't crash server, but log the error for manual intervention
-  }
+  // TEMPORARILY DISABLED: Causing database connection exhaustion during startup
+  // TODO: Re-enable once connection pooling is optimized or run manually via admin endpoint
+  // try {
+  //   console.log("[STARTUP] Starting pack consumption reconciliation...");
+  //   const reconciliationResult = await reconcilePendingFinalizations();
+  //   console.log(`[STARTUP] Reconciliation completed: ${reconciliationResult.recovered} recovered, ${reconciliationResult.failed} failed`);
+  //   
+  //   if (reconciliationResult.errors.length > 0) {
+  //     console.error("[STARTUP] Reconciliation errors:", reconciliationResult.errors);
+  //   }
+  // } catch (error) {
+  //   console.error("[STARTUP] CRITICAL: Failed to run startup reconciliation:", error);
+  //   // Don't crash server, but log the error for manual intervention
+  // }
+  console.log("[STARTUP] ⚠️ Pack consumption reconciliation TEMPORARILY DISABLED to resolve connection issues");
 
   // 🚀 ENHANCED BILLING PROTECTION: Start continuous background compensation processor
   // TEMPORARILY DISABLED: Causing database connection exhaustion - needs optimization

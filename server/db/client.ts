@@ -11,9 +11,10 @@ if (!process.env.DATABASE_URL) {
 const databaseUrl = process.env.DATABASE_URL.replace(/:\s+(\d+)/, ':$1').trim()
 
 const client = postgres(databaseUrl, {
-  max: 5,
+  max: 3,
   idle_timeout: 20,
-  connect_timeout: 10
+  connect_timeout: 30,
+  max_lifetime: 60 * 30
 })
 export const db = drizzle(client, { schema })
 

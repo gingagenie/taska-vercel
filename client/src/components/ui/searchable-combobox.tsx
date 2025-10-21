@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface SearchableComboboxProps {
   items: Array<{ id: string; name: string; [key: string]: any }>;
@@ -44,6 +50,17 @@ export function SearchableCombobox({
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.matchMedia('(pointer: coarse)').matches);
+    };
+    checkMobile();
+    const mediaQuery = window.matchMedia('(pointer: coarse)');
+    mediaQuery.addEventListener('change', checkMobile);
+    return () => mediaQuery.removeEventListener('change', checkMobile);
+  }, []);
 
   const selectedItem = items.find((item) => item.id === value);
 
@@ -77,6 +94,85 @@ export function SearchableCombobox({
     }
   };
 
+  const commandContent = (
+    <>
+      <CommandInput 
+        placeholder={searchPlaceholder}
+        value={searchValue}
+        onValueChange={setSearchValue}
+      />
+      <CommandList className="max-h-[60vh] overflow-y-auto">
+        <CommandEmpty>{emptyText}</CommandEmpty>
+        {filteredItems.length > 0 && (
+          <CommandGroup>
+            {filteredItems.map((item) => (
+              <CommandItem
+                key={item.id}
+                value={item.name}
+                onSelect={() => {
+                  onValueChange(item.id);
+                  setOpen(false);
+                  setSearchValue("");
+                }}
+                data-testid={`combobox-item-${item.id}`}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    value === item.id ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                {item.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {showCreateNew && (
+          <CommandGroup>
+            <CommandItem
+              value={searchValue}
+              onSelect={handleCreateNew}
+              disabled={isCreating}
+              className="text-blue-600 font-medium"
+              data-testid="combobox-create-new"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {isCreating ? "Creating..." : createNewLabel(searchValue)}
+            </CommandItem>
+          </CommandGroup>
+        )}
+      </CommandList>
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        <Button
+          variant="outline"
+          role="combobox"
+          onClick={() => setOpen(true)}
+          className={cn("w-full justify-between", className)}
+          disabled={disabled}
+          data-testid="combobox-trigger"
+        >
+          {selectedItem ? selectedItem.name : placeholder}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-w-[90vw] max-h-[80vh] p-0">
+            <DialogHeader className="px-4 pt-4 pb-2">
+              <DialogTitle>{placeholder}</DialogTitle>
+            </DialogHeader>
+            <Command className="border-none">
+              {commandContent}
+            </Command>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -94,52 +190,7 @@ export function SearchableCombobox({
       </PopoverTrigger>
       <PopoverContent className="w-full p-0 max-h-[300px]" align="start">
         <Command>
-          <CommandInput 
-            placeholder={searchPlaceholder}
-            value={searchValue}
-            onValueChange={setSearchValue}
-          />
-          <CommandList className="max-h-[240px] overflow-y-auto">
-            <CommandEmpty>{emptyText}</CommandEmpty>
-            {filteredItems.length > 0 && (
-              <CommandGroup>
-                {filteredItems.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={item.name}
-                    onSelect={() => {
-                      onValueChange(item.id);
-                      setOpen(false);
-                      setSearchValue("");
-                    }}
-                    data-testid={`combobox-item-${item.id}`}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        value === item.id ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    {item.name}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-            {showCreateNew && (
-              <CommandGroup>
-                <CommandItem
-                  value={searchValue}
-                  onSelect={handleCreateNew}
-                  disabled={isCreating}
-                  className="text-blue-600 font-medium"
-                  data-testid="combobox-create-new"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  {isCreating ? "Creating..." : createNewLabel(searchValue)}
-                </CommandItem>
-              </CommandGroup>
-            )}
-          </CommandList>
+          {commandContent}
         </Command>
       </PopoverContent>
     </Popover>

@@ -1,0 +1,154 @@
+Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+auth-debug.ts:294 [AUTH DEBUG] 🛠️ Debug functions available at window.authDebug
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-context.tsx:67 [HYBRID AUTH] AuthProvider initialized for Web Browser (cookie auth)
+subscription-error-modal.tsx:85 [DEBUG] SubscriptionErrorModalProvider mounted, setGlobalModalState set
+auth-debug.ts:267 [AUTH DEBUG] 🚀 Initializing authentication debugging system
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-debug.ts:34 [AUTH DEBUG] 🔍 Auth mode determined: cookie for platform: Web Browser (cookie auth)
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-debug.ts:84 [AUTH DIAGNOSTICS] 🔍 Authentication System Status
+auth-debug.ts:85 📱 Platform: Web Browser (cookie auth)
+auth-debug.ts:86 🔐 Auth Mode: cookie
+auth-debug.ts:87 🔒 JWT Disabled: false
+auth-debug.ts:88 ⚡ Mode Overridden: false
+auth-debug.ts:96 🛠️ Full Debug Data: {timestamp: '2025-10-24T01:07:48.833Z', platform: {…}, authentication: {…}, tokens: {…}, environment: {…}, …}
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-debug.ts:34 [AUTH DEBUG] 🔍 Auth mode determined: cookie for platform: Web Browser (cookie auth)
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-debug.ts:144 [AUTH VALIDATION] ✅ Configuration validation complete
+auth-debug.ts:226 [AUTH MONITOR] 📡 Started monitoring authentication events
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-debug.ts:34 [AUTH DEBUG] 🔍 Auth mode determined: cookie for platform: Web Browser (cookie auth)
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-debug.ts:249 [AUTH MONITOR] 📡 2025-10-24T01:07:48.834Z - Platform: Web Browser (cookie auth), Mode: cookie
+auth-debug.ts:280 [AUTH DEBUG] ✅ Authentication debugging system initialized
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-context.tsx:67 [HYBRID AUTH] AuthProvider initialized for Web Browser (cookie auth)
+queryClient.ts:201 [HYBRID API] Query /api/auth/me with auth mode: cookie
+FacebookPixel.tsx:65 [Facebook Pixel] Initialized with ID: 1508282447028316 (deferred)
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-context.tsx:67 [HYBRID AUTH] AuthProvider initialized for Web Browser (cookie auth)
+api.ts:30 [api] -> /api/members GET
+queryClient.ts:201 [HYBRID API] Query /api/usage with auth mode: cookie
+chunk-RPCDYKBN.js?v=e41473e1:521 Warning: validateDOMNesting(...): <a> cannot appear as a descendant of <a>.
+    at a
+    at a
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=e41473e1:337:18
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=e41473e1:79:13
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=e41473e1:56:13
+    at _c (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/components/ui/button.tsx:47:11)
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=e41473e1:79:13
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=e41473e1:56:13
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-AXMZZQ2X.js?v=e41473e1:42:13
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=e41473e1:79:13
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=e41473e1:56:13
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-AXMZZQ2X.js?v=e41473e1:42:13
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-4XNOAIBL.js?v=e41473e1:1929:13
+    at https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=e41473e1:199:13
+    at Provider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=e41473e1:38:15)
+    at Provider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=e41473e1:38:15)
+    at Popper (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-4XNOAIBL.js?v=e41473e1:1921:11)
+    at Tooltip (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=e41473e1:108:5)
+    at Provider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=e41473e1:38:15)
+    at TooltipProvider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=e41473e1:64:5)
+    at UsageWidget (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/components/layout/usage-widget.tsx:37:31)
+    at div
+    at div
+    at MobileHeader (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/components/layout/mobile-header.tsx:25:32)
+    at div
+    at div
+    at AuthenticatedApp (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/App.tsx?t=1761268042312&v=pGj3kl6m5uScvBO6yK2Hh:436:35)
+    at CustomerAppContent (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/App.tsx?t=1761268042312&v=pGj3kl6m5uScvBO6yK2Hh:873:42)
+    at SubscriptionErrorModalProvider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/components/modals/subscription-error-modal.tsx:129:50)
+    at Provider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=e41473e1:38:15)
+    at TooltipProvider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=e41473e1:64:5)
+    at AuthProvider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/context/auth-context.tsx:33:32)
+    at CustomerApp
+    at AppContent (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/src/App.tsx?t=1761268042312&v=pGj3kl6m5uScvBO6yK2Hh:971:22)
+    at QueryClientProvider (https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=e41473e1:2805:3)
+    at App
+printWarning @ chunk-RPCDYKBN.js?v=e41473e1:521
+error @ chunk-RPCDYKBN.js?v=e41473e1:505
+validateDOMNesting @ chunk-RPCDYKBN.js?v=e41473e1:8256
+createInstance @ chunk-RPCDYKBN.js?v=e41473e1:8328
+completeWork @ chunk-RPCDYKBN.js?v=e41473e1:16290
+completeUnitOfWork @ chunk-RPCDYKBN.js?v=e41473e1:19224
+performUnitOfWork @ chunk-RPCDYKBN.js?v=e41473e1:19206
+workLoopSync @ chunk-RPCDYKBN.js?v=e41473e1:19137
+renderRootSync @ chunk-RPCDYKBN.js?v=e41473e1:19116
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=e41473e1:18874
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=e41473e1:9119
+(anonymous) @ chunk-RPCDYKBN.js?v=e41473e1:18627
+setTimeout
+scheduleFn @ @tanstack_react-query.js?v=e41473e1:555
+flush @ @tanstack_react-query.js?v=e41473e1:569
+batch @ @tanstack_react-query.js?v=e41473e1:587
+dispatch_fn @ @tanstack_react-query.js?v=e41473e1:996
+setData @ @tanstack_react-query.js?v=e41473e1:696
+onSuccess @ @tanstack_react-query.js?v=e41473e1:897
+resolve @ @tanstack_react-query.js?v=e41473e1:456
+Promise.then
+run @ @tanstack_react-query.js?v=e41473e1:498
+start @ @tanstack_react-query.js?v=e41473e1:536
+fetch @ @tanstack_react-query.js?v=e41473e1:926
+executeFetch_fn @ @tanstack_react-query.js?v=e41473e1:2211
+onSubscribe @ @tanstack_react-query.js?v=e41473e1:1898
+subscribe @ @tanstack_react-query.js?v=e41473e1:24
+(anonymous) @ @tanstack_react-query.js?v=e41473e1:3022
+subscribeToStore @ chunk-RPCDYKBN.js?v=e41473e1:11984
+commitHookEffectListMount @ chunk-RPCDYKBN.js?v=e41473e1:16915
+commitPassiveMountOnFiber @ chunk-RPCDYKBN.js?v=e41473e1:18156
+commitPassiveMountEffects_complete @ chunk-RPCDYKBN.js?v=e41473e1:18129
+commitPassiveMountEffects_begin @ chunk-RPCDYKBN.js?v=e41473e1:18119
+commitPassiveMountEffects @ chunk-RPCDYKBN.js?v=e41473e1:18109
+flushPassiveEffectsImpl @ chunk-RPCDYKBN.js?v=e41473e1:19490
+flushPassiveEffects @ chunk-RPCDYKBN.js?v=e41473e1:19447
+commitRootImpl @ chunk-RPCDYKBN.js?v=e41473e1:19416
+commitRoot @ chunk-RPCDYKBN.js?v=e41473e1:19277
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=e41473e1:18895
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=e41473e1:9119
+(anonymous) @ chunk-RPCDYKBN.js?v=e41473e1:18627
+setTimeout
+scheduleFn @ @tanstack_react-query.js?v=e41473e1:555
+flush @ @tanstack_react-query.js?v=e41473e1:569
+batch @ @tanstack_react-query.js?v=e41473e1:587
+dispatch_fn @ @tanstack_react-query.js?v=e41473e1:996
+setData @ @tanstack_react-query.js?v=e41473e1:696
+onSuccess @ @tanstack_react-query.js?v=e41473e1:897
+resolve @ @tanstack_react-query.js?v=e41473e1:456
+Promise.then
+run @ @tanstack_react-query.js?v=e41473e1:498
+start @ @tanstack_react-query.js?v=e41473e1:536
+fetch @ @tanstack_react-query.js?v=e41473e1:926
+executeFetch_fn @ @tanstack_react-query.js?v=e41473e1:2211
+setOptions @ @tanstack_react-query.js?v=e41473e1:1955
+(anonymous) @ @tanstack_react-query.js?v=e41473e1:3032
+commitHookEffectListMount @ chunk-RPCDYKBN.js?v=e41473e1:16915
+commitPassiveMountOnFiber @ chunk-RPCDYKBN.js?v=e41473e1:18156
+commitPassiveMountEffects_complete @ chunk-RPCDYKBN.js?v=e41473e1:18129
+commitPassiveMountEffects_begin @ chunk-RPCDYKBN.js?v=e41473e1:18119
+commitPassiveMountEffects @ chunk-RPCDYKBN.js?v=e41473e1:18109
+flushPassiveEffectsImpl @ chunk-RPCDYKBN.js?v=e41473e1:19490
+flushPassiveEffects @ chunk-RPCDYKBN.js?v=e41473e1:19447
+(anonymous) @ chunk-RPCDYKBN.js?v=e41473e1:19328
+workLoop @ chunk-RPCDYKBN.js?v=e41473e1:197
+flushWork @ chunk-RPCDYKBN.js?v=e41473e1:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=e41473e1:384Understand this error
+subscription-error-modal.tsx:89 [DEBUG] Testing modal functionality...
+login:204 SW registered:  ServiceWorkerRegistration {installing: null, waiting: null, active: ServiceWorker, navigationPreload: NavigationPreloadManager, scope: 'https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/', …}
+login:1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">Understand this warning
+login:1 Error while trying to use the following icon from the Manifest: https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/icons/icon-144x144.png (Download error or resource isn't a valid image)Understand this error
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-context.tsx:67 [HYBRID AUTH] AuthProvider initialized for Web Browser (cookie auth)
+jobs.tsx:29 Jobs data: []
+FacebookPixel.tsx:126 [Facebook Pixel] Page view tracked: /jobs
+api.ts:30 [api] -> /api/jobs GET
+jobs.tsx:29 Jobs data: (20) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-debug.ts:34 [AUTH DEBUG] 🔍 Auth mode determined: cookie for platform: Web Browser (cookie auth)
+platform-detection.ts:72 [PLATFORM] Platform detection results: {platform: 'web', isCapacitor: false, isIOSCapacitor: false, authMode: 'cookie', shouldUseTokenAuth: false, …}
+auth-debug.ts:249 [AUTH MONITOR] 📡 2025-10-24T01:08:18.836Z - Platform: Web Browser (cookie auth), Mode: cookie

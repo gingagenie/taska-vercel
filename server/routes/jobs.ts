@@ -296,10 +296,18 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
           order by e.name
         `);
         job.equipment = equipmentResult || [];
+        if (equipmentResult && equipmentResult.length > 0) {
+          console.log(`[JOBS] Job ${job.title} has ${equipmentResult.length} equipment items:`, equipmentResult.map((e: any) => e.name).join(', '));
+        }
       } catch (e) {
         job.equipment = [];
+        console.error(`[JOBS] Error fetching equipment for job ${job.id}:`, e);
       }
     }
+    
+    // Log final job count with equipment
+    const jobsWithEquipment = r.filter((j: any) => j.equipment && j.equipment.length > 0).length;
+    console.log(`[JOBS] Returning ${r.length} jobs, ${jobsWithEquipment} have equipment assigned`);
     
     // Disable caching to ensure fresh data
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

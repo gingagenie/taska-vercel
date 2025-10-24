@@ -25,6 +25,9 @@ export default function Jobs() {
     queryFn: jobsApi.getAll, // expects id,title,status,scheduled_at,customer_id,customer_name
   });
 
+  // Debug: Check if equipment data is in the response
+  console.log("Jobs data:", jobs);
+
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case "new":

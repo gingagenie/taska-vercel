@@ -998,13 +998,13 @@ export default function SettingsPage() {
       });
       qc.invalidateQueries({ queryKey: ["/api/me"] });
       toast({
-        title: "Organization updated",
-        description: "Your organization information has been saved successfully.",
+        title: "Organisation updated",
+        description: "Your organisation information has been saved successfully.",
       });
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error?.message || "Failed to update organization",
+        description: error?.message || "Failed to update organisation",
         variant: "destructive",
       });
     } finally {
@@ -1166,10 +1166,10 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Organization */}
+        {/* Organisation */}
         <TabsContent value="org" className="mt-4">
           <Card>
-            <CardHeader><CardTitle>Organization</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Organisation</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Company name</Label>
@@ -1259,7 +1259,7 @@ export default function SettingsPage() {
                     data-testid="button-save-organization"
                     className="w-full"
                   >
-                    {saving ? "Saving..." : "Save Organization"}
+                    {saving ? "Saving..." : "Save Organisation"}
                   </Button>
                 </div>
               </div>
@@ -1305,7 +1305,7 @@ export default function SettingsPage() {
                     <div className="text-sm">
                       <p className="text-green-600 font-medium">✓ Connected</p>
                       <p className="text-muted-foreground">
-                        Organization: {xeroStatus.tenantName}
+                        Organisation: {xeroStatus.tenantName}
                       </p>
                       {xeroStatus.connectedAt && (
                         <p className="text-xs text-muted-foreground">

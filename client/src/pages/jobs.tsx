@@ -49,11 +49,13 @@ export default function Jobs() {
     const q = searchQuery.trim().toLowerCase();
     return (jobs as any[]).filter((job) => {
       const matchesStatus = statusFilter === "all" || job.status === statusFilter;
+      const equipmentNames = job.equipment?.map((eq: any) => eq.name.toLowerCase()).join(" ") || "";
       const matchesSearch =
         !q ||
         job.title?.toLowerCase().includes(q) ||
         job.id?.toLowerCase().includes(q) ||
-        job.customer_name?.toLowerCase().includes(q);
+        job.customer_name?.toLowerCase().includes(q) ||
+        equipmentNames.includes(q);
       return matchesStatus && matchesSearch;
     });
   }, [jobs, statusFilter, searchQuery]);
@@ -168,6 +170,15 @@ export default function Jobs() {
                     {job.description && (
                       <div className="text-sm text-gray-600">
                         {job.description}
+                      </div>
+                    )}
+
+                    {job.equipment && job.equipment.length > 0 && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">Equipment: </span>
+                        <span className="font-medium text-blue-600">
+                          {job.equipment.map((eq: any) => eq.name).join(", ")}
+                        </span>
                       </div>
                     )}
                     

@@ -285,6 +285,20 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
       } catch (e) {
         job.technicians = [];
       }
+
+      // Add equipment data for each job
+      try {
+        const equipmentResult: any = await db.execute(sql`
+          select e.id, e.name
+          from job_equipment je
+          join equipment e on e.id = je.equipment_id
+          where je.job_id = ${job.id}
+          order by e.name
+        `);
+        job.equipment = equipmentResult || [];
+      } catch (e) {
+        job.equipment = [];
+      }
     }
     
     // Disable caching to ensure fresh data

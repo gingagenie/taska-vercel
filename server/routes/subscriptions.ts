@@ -94,6 +94,16 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
       return res.status(404).json({ error: 'Plan not found' })
     }
     
+    // CRITICAL: Validate that AUD Stripe Price ID is configured
+    if (!plan.stripePriceId) {
+      console.error(`❌ CRITICAL: Plan ${planId} is missing stripe_price_id!`)
+      console.error('❌ Run: tsx server/scripts/setup-stripe-aud-prices.ts to configure AUD prices')
+      return res.status(500).json({ 
+        error: 'Subscription system not configured. Please contact support.',
+        details: 'Stripe AUD prices not set up for this plan'
+      })
+    }
+    
     // Get or create Stripe customer
     let stripeCustomerId: string
     const [existingSub] = await db.select().from(orgSubscriptions).where(eq(orgSubscriptions.orgId, orgId))
@@ -118,23 +128,15 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
       }
     }
     
-    // Create checkout session
+    // Create checkout session with FIXED AUD Price ID
+    // This prevents Stripe from falling back to legacy USD prices
+    console.log(`Creating checkout for ${planId} with AUD Price ID: ${plan.stripePriceId}`)
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       payment_method_types: ['card'],
       line_items: [
         {
-          price_data: {
-            currency: 'aud',
-            product_data: {
-              name: plan.name,
-              description: `${plan.name} subscription for ${org.name}`,
-            },
-            unit_amount: plan.priceMonthly,
-            recurring: {
-              interval: 'month',
-            },
-          },
+          price: plan.stripePriceId,
           quantity: 1,
         },
       ],

@@ -18,10 +18,10 @@ export async function generateInvoicePdf(
         ...chromium.args,
         '--hide-scrollbars',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
-      ],
-      defaultViewport: chromium.defaultViewport,
-      ignoreHTTPSErrors: true
+        '--disable-features=VizDisplayCompositor',
+        '--no-sandbox',
+        '--disable-setuid-sandbox'
+      ]
     });
     
     const page = await browser.newPage();

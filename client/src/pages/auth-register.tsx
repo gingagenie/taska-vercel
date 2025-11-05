@@ -59,16 +59,21 @@ export default function Register() {
         planId: selectedPlan
       });
       
+      console.log('Registration response:', response);
+      
       // Track registration initiation event
       FacebookPixelEvents.trackRegistration('email');
       
       // Redirect to Stripe Checkout
-      if (response.checkoutUrl) {
+      if (response?.checkoutUrl) {
+        console.log('Redirecting to:', response.checkoutUrl);
         window.location.href = response.checkoutUrl;
       } else {
+        console.error('Response missing checkoutUrl:', response);
         throw new Error("No checkout URL returned");
       }
     } catch (e: any) {
+      console.error('Registration error:', e);
       setError(e.message || "Failed to start registration");
       setSaving(false);
     }

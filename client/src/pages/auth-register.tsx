@@ -51,7 +51,7 @@ export default function Register() {
     
     try {
       // Create checkout session with trial period
-      const response: any = await apiRequest("POST", "/api/auth/register-with-trial", {
+      const res = await apiRequest("POST", "/api/auth/register-with-trial", {
         orgName,
         name,
         email,
@@ -59,6 +59,7 @@ export default function Register() {
         planId: selectedPlan
       });
       
+      const response = await res.json();
       console.log('Registration response:', response);
       
       // Track registration initiation event

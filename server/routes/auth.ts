@@ -288,8 +288,8 @@ router.get("/complete-registration", async (req, res) => {
     }
     
     const trialEndDate = new Date(trialEndTimestamp * 1000);
-    const currentPeriodEnd = stripeSubscription.current_period_end 
-      ? new Date(stripeSubscription.current_period_end * 1000) 
+    const currentPeriodEnd = (stripeSubscription as any).current_period_end 
+      ? new Date((stripeSubscription as any).current_period_end * 1000) 
       : trialEndDate;
     
     console.log(`[TRIAL REG] Stripe trial ends: ${trialEndDate.toISOString()}, plan: ${pendingReg.plan_id}, price: ${actualPriceId}`);

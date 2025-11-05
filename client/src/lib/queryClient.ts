@@ -211,7 +211,7 @@ export const getQueryFn: <T>(options: {
         return null;
       }
       
-      // If using tokens, try one more time after refresh
+      // If using tokens, try one more time after refresh (behavior is "throw" at this point)
       if (shouldUseTokenAuth()) {
         console.log('[HYBRID API] Query got 401, attempting token refresh and retry');
         const refreshed = await refreshTokenIfNeeded();
@@ -222,10 +222,7 @@ export const getQueryFn: <T>(options: {
             headers: newAuthHeaders
           });
           
-          if (retryRes.status === 401 && unauthorizedBehavior === "returnNull") {
-            return null;
-          }
-          
+          // After retry, let throwIfResNotOk handle any 401 (will throw)
           await throwIfResNotOk(retryRes);
           return await retryRes.json();
         }

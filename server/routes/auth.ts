@@ -182,7 +182,6 @@ router.post("/register-with-trial", async (req, res) => {
       },
       // Collect business/contact names and sync them
       customer_update: { name: "auto", address: "auto" },
-      customer_creation: "always",
       custom_fields: [
         {
           key: "business_name",

@@ -33,6 +33,13 @@ The application utilizes a responsive, mobile-first design leveraging Tailwind C
     *   **Environment Variables**: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY for Supabase Storage access.
 
 *   **Stripe Subscription System**: Comprehensive webhook monitoring and alerting system to prevent silent subscription failures.
+    *   **Card-Required Trial Signup** (November 2025): Production-ready trial registration flow requiring payment method upfront to prevent spam.
+        1. **Flow**: User selects plan → enters card on Stripe Checkout → 14-day trial starts → auto-charge on day 15
+        2. **Database-Backed**: `pending_registrations` table stores user data during checkout (token, email, password hash, plan, price ID) with 24-hour auto-cleanup
+        3. **Security**: Email locked via `customer_email` in Stripe session, email validation on completion (Stripe email must match pending registration), price validation using database-stored price ID (not metadata which can be tampered)
+        4. **Reliability**: Pending registrations survive server restarts, uses Stripe's actual `trial_end` timestamp (not local calculation), prevents duplicate account creation on page refresh
+        5. **Endpoints**: POST `/auth/register-with-trial` (creates pending registration + Stripe checkout), GET `/auth/complete-registration` (validates and completes signup after payment method added)
+        6. **Stripe Integration**: Uses fixed AUD Price IDs, trial_period_days=14, subscription metadata includes registration_token for linking
     *   **Database-Backed Monitoring** (`stripe_webhook_monitoring` table): Persistent tracking of webhook health (consecutive failures, timestamps, totals) across server restarts with automatic record creation.
     *   **Startup Validation** (Production Only): Automatic verification of critical environment variables (STRIPE_WEBHOOK_SECRET, STRIPE_SECRET_KEY, DATABASE_URL). Queries Stripe API to confirm webhook endpoints exist for production domains with status validation.
     *   **Enhanced Webhook Handler**: Detailed logging for all webhook events, records successes/failures to database, automatic failure counter reset on success, clear diagnostic messages for common issues (secret not linked, signature verification failures, wrong URL).

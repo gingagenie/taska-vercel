@@ -8,6 +8,14 @@ import fs from "fs";
 import { tiktokEvents } from "../services/tiktok-events";
 import type { CustomerInfo } from "../services/tiktok-events";
 import { generateAuthTokens, refreshAuthTokens, isJwtAuthDisabled } from "../lib/jwt-auth-tokens";
+import Stripe from 'stripe';
+import { subscriptionPlans } from "../../shared/schema";
+import { eq } from "drizzle-orm";
+import { nanoid } from 'nanoid';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2025-08-27.basil',
+});
 
 declare module 'express-session' {
   interface SessionData {
@@ -127,6 +135,265 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Email already exists" });
     }
     res.status(500).json({ error: "Failed to create account" });
+  }
+});
+
+// New trial-with-card-required registration flow
+router.post("/register-with-trial", async (req, res) => {
+  const { orgName, name, email, password, planId } = req.body || {};
+  
+  if (!orgName || !email || !password || !planId) {
+    return res.status(400).json({ error: "All fields required" });
+  }
+  
+  if (!['solo', 'pro', 'enterprise'].includes(planId)) {
+    return res.status(400).json({ error: "Invalid plan selected" });
+  }
+  
+  try {
+    // Check if email already exists
+    const existingUser: any = await db.execute(sql`
+      select id from users where lower(email) = lower(${email}) limit 1
+    `);
+    if (existingUser.length > 0) {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+    
+    // Get plan details and validate AUD price exists
+    const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, planId));
+    if (!plan) {
+      return res.status(400).json({ error: "Invalid plan" });
+    }
+    
+    if (!plan.stripePriceId) {
+      console.error(`❌ CRITICAL: Plan ${planId} missing stripe_price_id`);
+      return res.status(500).json({ error: "Plan not configured properly" });
+    }
+    
+    // Hash password now, create cryptographically strong token
+    const passwordHash = await bcrypt.hash(password, 10);
+    const registrationToken = nanoid(32); // Secure random token
+    
+    // Store pending registration in database
+    await db.execute(sql`
+      INSERT INTO pending_registrations (token, org_name, user_name, email, password_hash, plan_id, stripe_price_id)
+      VALUES (${registrationToken}, ${orgName}, ${name || 'Owner'}, ${email}, ${passwordHash}, ${planId}, ${plan.stripePriceId})
+    `);
+    
+    // Clean up old pending registrations (older than 24 hours)
+    await db.execute(sql`
+      DELETE FROM pending_registrations WHERE created_at < NOW() - INTERVAL '24 hours'
+    `);
+    
+    console.log(`[TRIAL REG] Stored pending registration for ${email}, token: ${registrationToken.substring(0, 8)}...`);
+    
+    // Create Stripe checkout session with 14-day trial
+    const checkoutSession = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'subscription',
+      customer_email: email, // Lock session to this email
+      line_items: [
+        {
+          price: plan.stripePriceId,
+          quantity: 1,
+        },
+      ],
+      subscription_data: {
+        trial_period_days: 14,
+        metadata: {
+          registration_token: registrationToken,
+          plan_id: planId
+        }
+      },
+      success_url: `${req.protocol}://${req.get('host')}/auth/complete-registration?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${req.protocol}://${req.get('host')}/auth/register?canceled=true`,
+      metadata: {
+        registration_token: registrationToken
+      }
+    });
+    
+    console.log(`[TRIAL REG] Created Stripe checkout session: ${checkoutSession.id}`);
+    
+    res.json({ checkoutUrl: checkoutSession.url });
+  } catch (error: any) {
+    console.error("[TRIAL REG] Error:", error);
+    res.status(500).json({ error: "Failed to initiate registration" });
+  }
+});
+
+// Complete registration after Stripe checkout
+router.get("/complete-registration", async (req, res) => {
+  const { session_id } = req.query;
+  
+  if (!session_id || typeof session_id !== 'string') {
+    return res.redirect('/auth/register?error=invalid_session');
+  }
+  
+  try {
+    // Retrieve Stripe checkout session
+    const checkoutSession = await stripe.checkout.sessions.retrieve(session_id);
+    
+    if (checkoutSession.status !== 'complete') {
+      console.error('[TRIAL REG] Checkout session not complete:', checkoutSession.status);
+      return res.redirect('/auth/register?error=payment_incomplete');
+    }
+    
+    const registrationToken = checkoutSession.metadata?.registration_token;
+    if (!registrationToken) {
+      console.error('[TRIAL REG] No registration token in metadata');
+      return res.redirect('/auth/register?error=missing_data');
+    }
+    
+    // Get pending registration data from database
+    const pendingRegs: any = await db.execute(sql`
+      SELECT * FROM pending_registrations WHERE token = ${registrationToken} LIMIT 1
+    `);
+    
+    if (pendingRegs.length === 0) {
+      console.error('[TRIAL REG] Pending registration not found or expired');
+      return res.redirect('/auth/register?error=expired');
+    }
+    
+    const pendingReg = pendingRegs[0];
+    
+    // Fetch the Stripe subscription to get actual trial_end and validate
+    if (!checkoutSession.subscription) {
+      console.error('[TRIAL REG] No subscription ID in checkout session');
+      return res.redirect('/auth/register?error=no_subscription');
+    }
+    
+    const stripeSubscription = await stripe.subscriptions.retrieve(checkoutSession.subscription as string);
+    
+    // SECURITY: Validate email matches between Stripe session and pending registration
+    const checkoutEmail = checkoutSession.customer_details?.email || checkoutSession.customer_email;
+    if (!checkoutEmail || checkoutEmail.toLowerCase() !== pendingReg.email.toLowerCase()) {
+      console.error('[TRIAL REG] Email mismatch! Session:', checkoutEmail, 'Pending:', pendingReg.email);
+      return res.redirect('/auth/register?error=email_mismatch');
+    }
+    
+    // SECURITY: Use database-stored price ID (not metadata which can be tampered)
+    const expectedPriceId = pendingReg.stripe_price_id;
+    const actualPriceId = stripeSubscription.items.data[0]?.price.id;
+    
+    if (actualPriceId !== expectedPriceId) {
+      console.error('[TRIAL REG] Price mismatch! Expected:', expectedPriceId, 'Got:', actualPriceId);
+      return res.redirect('/auth/register?error=plan_mismatch');
+    }
+    
+    // Use Stripe's actual trial_end timestamp (not locally calculated)
+    const trialEndTimestamp = stripeSubscription.trial_end;
+    if (!trialEndTimestamp) {
+      console.error('[TRIAL REG] No trial_end in Stripe subscription');
+      return res.redirect('/auth/register?error=no_trial');
+    }
+    
+    const trialEndDate = new Date(trialEndTimestamp * 1000);
+    const currentPeriodEnd = stripeSubscription.current_period_end 
+      ? new Date(stripeSubscription.current_period_end * 1000) 
+      : trialEndDate;
+    
+    console.log(`[TRIAL REG] Stripe trial ends: ${trialEndDate.toISOString()}, plan: ${pendingReg.plan_id}, price: ${actualPriceId}`);
+    
+    // Check if account already exists (prevent duplicate creation on refresh)
+    const existingUser: any = await db.execute(sql`
+      SELECT id FROM users WHERE lower(email) = lower(${pendingReg.email}) LIMIT 1
+    `);
+    
+    if (existingUser.length > 0) {
+      console.log('[TRIAL REG] User already exists, logging in');
+      const user = existingUser[0];
+      const userOrg: any = await db.execute(sql`
+        SELECT org_id FROM users WHERE id = ${user.id} LIMIT 1
+      `);
+      
+      // Log them in to existing account
+      req.session.regenerate((err) => {
+        if (err) return res.redirect('/auth/login?registered=true');
+        req.session.userId = user.id;
+        req.session.orgId = userOrg[0].org_id;
+        req.session.save(() => res.redirect('/?welcome=true'));
+      });
+      return;
+    }
+    
+    // Create organization
+    const orgIns: any = await db.execute(sql`
+      insert into orgs (name) values (${pendingReg.org_name}) returning id
+    `);
+    const orgId = orgIns[0].id;
+    
+    // Create user
+    const userIns: any = await db.execute(sql`
+      insert into users (org_id, name, email, password_hash, role)
+      values (${orgId}, ${pendingReg.user_name}, ${pendingReg.email}, ${pendingReg.password_hash}, 'admin')
+      returning id, name, email, role
+    `);
+    const user = userIns[0];
+    
+    // Create subscription record with Stripe's actual trial_end
+    await db.execute(sql`
+      insert into org_subscriptions (
+        org_id, plan_id, status, trial_end, current_period_end,
+        stripe_customer_id, stripe_subscription_id
+      )
+      values (
+        ${orgId}, ${pendingReg.plan_id}, 'trial', ${trialEndDate.toISOString()}, ${currentPeriodEnd.toISOString()},
+        ${checkoutSession.customer as string}, ${checkoutSession.subscription as string}
+      )
+    `);
+    
+    // Clean up pending registration from database
+    await db.execute(sql`
+      DELETE FROM pending_registrations WHERE token = ${registrationToken}
+    `);
+    
+    console.log(`[TRIAL REG] ✅ Registration completed for ${pendingReg.email}, org: ${orgId}, user: ${user.id}`);
+    
+    // Track TikTok CompleteRegistration event
+    try {
+      const customerInfo: CustomerInfo = {
+        email: pendingReg.email,
+        firstName: pendingReg.user_name?.split(' ')[0] || undefined,
+        lastName: pendingReg.user_name?.split(' ').slice(1).join(' ') || undefined,
+        ip: req.ip || req.connection.remoteAddress || '',
+        userAgent: req.get('User-Agent') || '',
+        country: 'AU',
+      };
+      
+      tiktokEvents.trackCompleteRegistration(
+        customerInfo,
+        {
+          value: 100,
+          currency: 'AUD',
+          status: 'completed',
+          contentName: 'User Registration - Trial Started'
+        },
+        req.get('Referer') || undefined,
+        req.get('Referer') || undefined
+      ).catch(() => {});
+    } catch {}
+    
+    // Create session and log user in
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error('[TRIAL REG] Session error:', err);
+        return res.redirect('/auth/login?registered=true');
+      }
+      req.session.userId = user.id;
+      req.session.orgId = orgId;
+      req.session.save((err2) => {
+        if (err2) {
+          console.error('[TRIAL REG] Session save error:', err2);
+          return res.redirect('/auth/login?registered=true');
+        }
+        // Redirect to dashboard
+        res.redirect('/?welcome=true');
+      });
+    });
+    
+  } catch (error: any) {
+    console.error('[TRIAL REG] Complete registration error:', error);
+    res.redirect('/auth/register?error=server_error');
   }
 });
 

@@ -787,6 +787,21 @@ export const supportSessions = pgTable("support_session", {
   expireIdx: index("support_session_expire_idx").on(t.expire),
 }));
 
+// Pending trial registrations - temporary storage during Stripe checkout
+export const pendingRegistrations = pgTable("pending_registrations", {
+  token: varchar("token", { length: 255 }).primaryKey(),
+  orgName: varchar("org_name", { length: 255 }).notNull(),
+  userName: varchar("user_name", { length: 255 }),
+  email: varchar("email", { length: 255 }).notNull(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  planId: varchar("plan_id", { length: 50 }).notNull(),
+  stripePriceId: varchar("stripe_price_id", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  // Index for efficient cleanup of expired registrations
+  createdAtIdx: index("pending_registrations_created_at_idx").on(t.createdAt),
+}));
+
 export type SupportAuditLog = typeof supportAuditLogs.$inferSelect;
 export type InsertSupportAuditLog = z.infer<typeof insertSupportAuditLogSchema>;
 

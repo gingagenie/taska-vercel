@@ -198,7 +198,7 @@ router.post("/register-with-trial", async (req, res) => {
       ],
       success_url: `${baseUrl}/settings?tab=billing&success=true`,
       cancel_url: `${baseUrl}/auth/register?canceled=true`,
-      locale: "en-AU",
+      locale: "en-GB",
       metadata: { orgId: String(orgId), planId },
     });
 

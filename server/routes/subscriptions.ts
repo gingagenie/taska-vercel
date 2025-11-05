@@ -2,7 +2,7 @@ import { Router } from 'express'
 import Stripe from 'stripe'
 import { db } from '../db/client'
 import { subscriptionPlans, orgSubscriptions, organizations, stripeWebhookMonitoring } from '../../shared/schema'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { requireAuth, requireOrg } from '../middleware/auth'
 import { sendEmail } from '../services/email'
 
@@ -11,13 +11,11 @@ const router = Router()
 // ===============================================================
 // ✅ ENV / APP CONFIG
 // ===============================================================
-const APP_ENV = (process.env.APP_ENV || process.env.NODE_ENV || 'production').trim()
-const STAGING_PRICE_ID = (process.env.TASKA_MONTHLY_TEST_PRICE_ID || '').trim()
 const BASE_URL =
   (process.env.NEXT_PUBLIC_APP_URL || '').trim() ||
   `${process.env.PROTOCOL || 'https'}://${process.env.HOST || 'localhost:8080'}`
 
-// Configuration for webhook failure alerts
+// Webhook alert config
 const WEBHOOK_FAILURE_ALERT_THRESHOLD = 5
 const WEBHOOK_ALERT_EMAIL = 'keith.richmond@live.com'
 
@@ -63,7 +61,7 @@ router.get('/status', requireAuth, requireOrg, async (req, res) => {
       .where(eq(orgSubscriptions.orgId, orgId))
 
     if (!subscription) {
-      // Create a default trial subscription
+      // Create a default trial subscription record (app-level)
       const [newSub] = await db
         .insert(orgSubscriptions)
         .values({
@@ -90,9 +88,8 @@ router.get('/status', requireAuth, requireOrg, async (req, res) => {
 })
 
 // ===============================================================
-// ✅ Create Stripe checkout session for subscription
-//    - Staging uses TEST price from env
-//    - Production uses live AUD price from DB
+// ✅ Create Stripe checkout session (LIVE) with 14-day trial
+//    - Card required now; no charge until trial ends
 // ===============================================================
 router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
   try {
@@ -103,21 +100,26 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
       return res.status(400).json({ error: 'Invalid plan ID' })
     }
 
-    // Get organization details
+    // Get organization
     const [org] = await db.select().from(organizations).where(eq(organizations.id, orgId))
     if (!org) return res.status(404).json({ error: 'Organization not found' })
 
-    // Get plan details
+    // Get plan
     const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, planId))
     if (!plan) return res.status(404).json({ error: 'Plan not found' })
 
-    // Pick the correct Stripe Price ID
-    const priceIdToUse = (APP_ENV === 'staging' && STAGING_PRICE_ID) ? STAGING_PRICE_ID : (plan.stripePriceId || '').trim()
+    // Use the LIVE AUD price from DB
+    const priceIdToUse = (plan.stripePriceId || '').trim()
     if (!priceIdToUse) {
-      console.error(`❌ No Stripe price configured. env=${APP_ENV} planPrice=${plan.stripePriceId} stagingPrice=${STAGING_PRICE_ID}`)
+      console.error(`❌ Plan ${planId} missing live stripePriceId`)
       return res.status(500).json({ error: 'Billing not configured. Please contact support.' })
     }
-    console.log(`🟢 Using price ID: ${priceIdToUse} (env=${APP_ENV})`)
+
+    // Determine trial length (defaults to 14 days)
+    const TRIAL_DAYS =
+      typeof (plan as any).trialDays === 'number' && (plan as any).trialDays > 0
+        ? (plan as any).trialDays
+        : 14
 
     // Get or create Stripe customer
     let stripeCustomerId: string
@@ -140,12 +142,18 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
       }
     }
 
-    // Create checkout session (currency comes from the Price itself)
+    // Create Checkout Session with trial and card required
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
-      payment_method_types: ['card'],
-      line_items: [{ price: priceIdToUse, quantity: 1 }],
       mode: 'subscription',
+      payment_method_types: ['card'],
+      payment_method_collection: 'always', // require card up front
+      line_items: [{ price: priceIdToUse, quantity: 1 }],
+      // Put trial on the subscription created by Checkout (no charge until trial ends)
+      subscription_data: {
+        trial_period_days: TRIAL_DAYS,
+        metadata: { orgId, planId },
+      },
       success_url: `${BASE_URL}/settings?tab=billing&success=true`,
       cancel_url: `${BASE_URL}/settings?tab=billing&canceled=true`,
       locale: 'en-AU',
@@ -155,9 +163,6 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
     return res.json({ url: session.url })
   } catch (error: any) {
     console.error('Error creating checkout session:', error?.stack || error)
-    if (APP_ENV === 'staging') {
-      return res.status(500).json({ error: 'create-checkout failed', details: String(error?.message || error) })
-    }
     return res.status(500).json({ error: 'Failed to create checkout session' })
   }
 })
@@ -224,23 +229,18 @@ async function sendWebhookFailureAlert(failureCount: number, lastReason: string)
     const html = `
       <h2>Stripe Webhook Failure Alert</h2>
       <p>The Taska subscription system has detected <strong>${failureCount} consecutive webhook failures</strong>.</p>
-      <h3>Details:</h3>
       <ul>
         <li><strong>Consecutive Failures:</strong> ${failureCount}</li>
         <li><strong>Last Failure Reason:</strong> ${lastReason}</li>
         <li><strong>Timestamp:</strong> ${new Date().toISOString()}</li>
       </ul>
-      <h3>Recommended Actions:</h3>
-      <ol>
-        <li>Check the health endpoint: <a href="https://www.taska.info/api/subscriptions/health">https://www.taska.info/api/subscriptions/health</a></li>
-        <li>Verify webhook endpoint URL in Stripe dashboard: <a href="https://dashboard.stripe.com/webhooks">https://dashboard.stripe.com/webhooks</a></li>
-        <li>Ensure webhook URL matches production domain (www.taska.info)</li>
-        <li>Verify STRIPE_WEBHOOK_SECRET is linked to the Replit app</li>
-        <li>Check server logs for detailed error messages</li>
-      </ol>
       <p><strong>This alert is sent when the failure threshold is reached to prevent silent subscription system failures.</strong></p>
     `
-    const text = `Stripe Webhook Failure Alert\n\nThe Taska subscription system has detected ${failureCount} consecutive webhook failures.\n\nDetails:\n- Consecutive Failures: ${failureCount}\n- Last Failure Reason: ${lastReason}\n- Timestamp: ${new Date().toISOString()}\n\nRecommended Actions:\n1. Check the health endpoint: https://www.taska.info/api/subscriptions/health\n2. Verify webhook endpoint URL in Stripe dashboard: https://dashboard.stripe.com/webhooks\n3. Ensure webhook URL matches production domain (www.taska.info)\n4. Verify STRIPE_WEBHOOK_SECRET is linked to the Replit app\n5. Check server logs for detailed error messages\n\nThis alert is sent when the failure threshold is reached to prevent silent subscription system failures.`
+    const text =
+      `Stripe Webhook Failure Alert\n\n` +
+      `The Taska subscription system has detected ${failureCount} consecutive webhook failures.\n\n` +
+      `Last Failure Reason: ${lastReason}\n` +
+      `Timestamp: ${new Date().toISOString()}\n`
 
     const emailSent = await sendEmail({
       to: WEBHOOK_ALERT_EMAIL,
@@ -279,10 +279,7 @@ router.get('/health', async (_req, res) => {
     ? Math.floor((now.getTime() - lastSuccessTime.getTime()) / (1000 * 60 * 60 * 24))
     : null
 
-  const webhooksAreStale = hasActiveSubscriptions && (
-    !lastSuccessTime ||
-    (daysSinceLastWebhook as number) > 35
-  )
+  const webhooksAreStale = hasActiveSubscriptions && (!lastSuccessTime || (daysSinceLastWebhook as number) > 35)
 
   const webhookHealth = {
     secretConfigured: hasWebhookSecret,
@@ -294,38 +291,24 @@ router.get('/health', async (_req, res) => {
     totalFailed: monitoringRecord.totalWebhooksFailed || 0,
     hasActiveSubscriptions,
     isStale: webhooksAreStale,
-    status: hasWebhookSecret ?
-      (webhooksAreStale ? '⚠️ Stale - no recent webhooks detected' :
-        (monitoringRecord.consecutiveFailures === 0 ? '✅ Healthy' :
-          `⚠️ ${monitoringRecord.consecutiveFailures} consecutive failures`)) :
-      '❌ Not configured'
+    status: hasWebhookSecret
+      ? (webhooksAreStale
+          ? '⚠️ Stale - no recent webhooks detected'
+          : (monitoringRecord.consecutiveFailures === 0 ? '✅ Healthy' : `⚠️ ${monitoringRecord.consecutiveFailures} consecutive failures`))
+      : '❌ Not configured'
   }
 
   const overallStatus = hasStripeKey && hasWebhookSecret && hasDatabaseUrl &&
-    (monitoringRecord.consecutiveFailures || 0) === 0 &&
-    !webhooksAreStale
+    (monitoringRecord.consecutiveFailures || 0) === 0 && !webhooksAreStale
 
   res.json({
     status: overallStatus ? '✅ All systems operational' : '⚠️ Configuration issues detected',
     timestamp: new Date().toISOString(),
     components: {
-      stripe: {
-        configured: hasStripeKey,
-        status: hasStripeKey ? '✅ Configured' : '❌ STRIPE_SECRET_KEY not configured'
-      },
+      stripe: { configured: hasStripeKey },
       webhook: webhookHealth,
-      database: {
-        configured: hasDatabaseUrl,
-        status: hasDatabaseUrl ? '✅ Configured' : '❌ DATABASE_URL not configured'
-      }
-    },
-    actions: !overallStatus ? [
-      !hasStripeKey && 'Add STRIPE_SECRET_KEY to secrets',
-      !hasWebhookSecret && 'Link STRIPE_WEBHOOK_SECRET to this app',
-      !hasDatabaseUrl && 'Configure DATABASE_URL',
-      (monitoringRecord.consecutiveFailures || 0) > 0 && 'Check Stripe webhook URL matches production domain',
-      webhooksAreStale && hasActiveSubscriptions && 'Verify webhook endpoint URL in Stripe dashboard - webhooks may not be reaching your app'
-    ].filter(Boolean) : []
+      database: { configured: hasDatabaseUrl }
+    }
   })
 })
 
@@ -354,50 +337,48 @@ router.post('/webhook', async (req, res) => {
   let event: Stripe.Event
 
   console.log('[WEBHOOK] ================================================')
-  console.log('[WEBHOOK] Received webhook request at:', new Date().toISOString())
-  console.log('[WEBHOOK] Has secret:', !!process.env.STRIPE_WEBHOOK_SECRET)
-  console.log('[WEBHOOK] Has signature:', !!sig)
+  console.log('[WEBHOOK] Received at:', new Date().toISOString())
 
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
-    console.error('[WEBHOOK] ❌ CRITICAL: STRIPE_WEBHOOK_SECRET is not configured!')
+    console.error('[WEBHOOK] ❌ STRIPE_WEBHOOK_SECRET is not configured')
     await recordWebhookFailure('STRIPE_WEBHOOK_SECRET not configured')
     return res.status(500).send('Webhook secret not configured')
   }
 
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET)
-    console.log('[WEBHOOK] ✅ Signature verified successfully!')
-    console.log('[WEBHOOK] Event type:', event.type)
-    console.log('[WEBHOOK] Event ID:', event.id)
+    console.log('[WEBHOOK] ✅ Signature verified. Type:', event.type, 'ID:', event.id)
   } catch (err: any) {
-    console.error('[WEBHOOK] ❌ SIGNATURE VERIFICATION FAILED', err?.message)
+    console.error('[WEBHOOK] ❌ Signature verification failed:', err?.message)
     await recordWebhookFailure(`Signature verification failed: ${err.message}`)
-    const monitoringRecord = await getOrCreateMonitoringRecord()
-    if ((monitoringRecord.consecutiveFailures || 0) > 5) {
-      console.error(`[WEBHOOK] ⚠️ WARNING: ${monitoringRecord.consecutiveFailures} consecutive webhook failures detected!`)
-    }
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
 
   try {
-    console.log('[WEBHOOK] Processing event:', event.type)
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        const { orgId, planId } = session.metadata!
+        const { orgId, planId } = session.metadata || {}
 
         if (session.subscription) {
+          const sub = await stripe.subscriptions.retrieve(
+            typeof session.subscription === 'string'
+              ? session.subscription
+              : session.subscription.id
+          )
+
           await db
             .update(orgSubscriptions)
             .set({
-              planId,
-              stripeSubscriptionId: session.subscription as string,
-              status: 'active',
-              currentPeriodStart: new Date(),
-              currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              planId: planId as string,
+              stripeSubscriptionId: sub.id,
+              status: sub.status as any, // 'trialing' during trial; flips to 'active' on first paid invoice
+              trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+              currentPeriodStart: sub.current_period_start ? new Date(sub.current_period_start * 1000) : null,
+              currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : null,
               updatedAt: new Date(),
             })
-            .where(eq(orgSubscriptions.orgId, orgId))
+            .where(eq(orgSubscriptions.orgId, orgId as string))
         }
         break
       }
@@ -447,19 +428,11 @@ router.post('/webhook', async (req, res) => {
       }
     }
 
-    const monitoringRecord = await getOrCreateMonitoringRecord()
-    if ((monitoringRecord.consecutiveFailures || 0) > 0) {
-      console.log(`[WEBHOOK] ✅ Webhook processed successfully after ${monitoringRecord.consecutiveFailures} previous failures`)
-    } else {
-      console.log('[WEBHOOK] ✅ Webhook processed successfully')
-    }
-
     await recordSuccessfulWebhook(event.id)
-    console.log('[WEBHOOK] ================================================')
-
+    console.log('[WEBHOOK] ✅ Processed', event.type, 'ID:', event.id)
     res.json({ received: true })
   } catch (error) {
-    console.error('[WEBHOOK] ❌ ERROR PROCESSING WEBHOOK:', error)
+    console.error('[WEBHOOK] ❌ Error processing webhook:', error)
     await recordWebhookFailure(`Processing error: ${error}`)
     res.status(500).json({ error: 'Webhook processing failed' })
   }

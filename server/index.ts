@@ -16,6 +16,9 @@ import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import compression from "compression";
+import session from "express-session";
+import pgSession from "connect-pg-simple";
+const PgStore = pgSession(session);
 
 const app = express();
 

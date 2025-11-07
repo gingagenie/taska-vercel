@@ -187,4 +187,18 @@ export async function ensurePhotoBucketExists(): Promise<void> {
   } catch (error: any) {
     console.error("[SUPABASE_STORAGE] Bucket check failed:", error.message);
   }
+  /**
+ * List photo objects for a given job.
+ * NOTE: This is a simple placeholder so builds pass.
+ * It returns an empty list for now. We’ll wire proper listing next.
+ */
+export async function listJobPhotos(
+  tenantId: string,
+  jobId: string
+): Promise<Array<{ key: string; url?: string }>> {
+  // TODO: Implement proper listing once we finalize the storage key structure.
+  // For now, return an empty array so routes compile and deploy.
+  return [];
+}
+
 }

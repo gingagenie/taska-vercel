@@ -258,6 +258,8 @@ app.use("/api/members", members);
 app.use("/api/debug", debugRouter);
 app.use("/api/admin", adminRoutes);
 app.use("/health", health);
+// ✅ Job photos routes (Supabase storage)
+app.use("/api/jobs", jobPhotos);
 
 app.use("/support/api/auth", supportAuth);
 app.use("/support/api/admin", blockCustomersFromSupportAdmin, supportAdmin);

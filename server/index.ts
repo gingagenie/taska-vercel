@@ -16,42 +16,40 @@ import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import compression from "compression";
+
+// ✅ Single, correct session imports
 import session from "express-session";
 import pgSession from "connect-pg-simple";
+import { Pool } from "pg";
+
 const PgStore = pgSession(session);
 
 const app = express();
 
-// Performance optimizations - enable compression
+/* ---------------- Performance & Static Cache ---------------- */
+
 app.use(compression({
   filter: (req, res) => {
-    // Don't compress responses with this request header
-    if (req.headers['x-no-compression']) {
-      return false;
-    }
-    // Use compression defaults
+    if (req.headers['x-no-compression']) return false;
     return compression.filter(req, res);
   },
-  level: 6, // Good balance of compression vs CPU
-  threshold: 1024, // Only compress if response > 1KB
+  level: 6,
+  threshold: 1024,
 }));
 
-// Set cache headers for static assets
 app.use('/assets', (req, res, next) => {
-  // Cache static assets for 1 year with immutable flag
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   res.setHeader('Vary', 'Accept-Encoding');
   next();
 });
 
-// 1) TRUST the Replit/Proxy so secure cookies survive
+/* ---------------- Proxy / CORS ---------------- */
+
 app.set("trust proxy", 1);
 
 const isProd = process.env.NODE_ENV === "production";
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || undefined; 
-// e.g. "https://your-deploy-client.replit.app" or custom domain
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || undefined;
 
-// 2) If your client hits a DIFFERENT origin than the API, enable CORS with credentials
 if (CLIENT_ORIGIN) {
   app.use(cors({
     origin: CLIENT_ORIGIN,
@@ -59,55 +57,55 @@ if (CLIENT_ORIGIN) {
   }));
 }
 
-// Conditional body parsing middleware - handles Stripe webhook raw body requirement
+/* ---------------- Body Parsing (Stripe raw for webhooks) ---------------- */
+
 app.use((req, res, next) => {
-  // Stripe webhook needs raw body for signature verification
   if (req.path === '/api/subscriptions/webhook' || req.path === '/api/usage/packs/webhook') {
     express.raw({ type: 'application/json' })(req, res, next);
   } else {
-    // All other routes use JSON parsing
     express.json()(req, res, next);
   }
 });
 app.use(express.urlencoded({ extended: false }));
-
-// Cookie parser middleware (required for support marker cookies)
 app.use(cookieParser());
 
-// 3) Session store + cookie flags that work in Deploy
-import session from "express-session";
-import pgSession from "connect-pg-simple";
-import { Pool } from "pg";
+/* ---------------- ✅ Postgres-backed Sessions ---------------- */
 
-// Database connection pool for sessions and tenant guard
-const PgStore = pgSession(session as any);
-const pool = new Pool({ 
+// One pg Pool for session store + tenant guard
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isProd ? { rejectUnauthorized: false } : false
+  ssl: isProd ? { rejectUnauthorized: false } : false,
 });
 
-// Regular user session configuration
+// Regular user session (stored in "session" table)
 const regularSessionConfig = session({
-  // store: new PgStore({ pool, tableName: "session" }),
-  secret: process.env.SESSION_SECRET || "dev-secret-change-me",
-  name: "sid",
+  store: new PgStore({
+    pool,
+    tableName: "session",
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SESSION_SECRET!,                // set in Railway
+  name: process.env.SESSION_COOKIE_NAME || "taska.sid",
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
     path: "/",
-    // Use "none" for iOS WebView compatibility - iOS can be stricter with sameSite
-    sameSite: "none",
-    // Always require secure for sameSite: none
-    secure: true,
-    maxAge: 1000 * 60 * 60 * 24 * 30,
+    sameSite: (process.env.COOKIE_SAMESITE as "lax"|"none"|"strict") ?? (isProd ? "none" : "lax"),
+    secure: isProd,                                   // true on HTTPS
+    domain: process.env.COOKIE_DOMAIN || undefined,   // e.g. "staging.taska.info"
+    maxAge: 1000 * 60 * 60 * 24 * 30,                 // 30 days
   },
 });
 
-// Support staff session configuration  
+// Support staff session (separate table)
 const supportSessionConfig = session({
-  // store: new PgStore({ pool, tableName: "support_session" }),
-  secret: process.env.SUPPORT_SESSION_SECRET || process.env.SESSION_SECRET || "support-dev-secret-change-me",
+  store: new PgStore({
+    pool,
+    tableName: "support_session",
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SUPPORT_SESSION_SECRET || process.env.SESSION_SECRET!,
   name: "support_sid",
   resave: false,
   saveUninitialized: false,
@@ -116,23 +114,21 @@ const supportSessionConfig = session({
     path: "/support",
     sameSite: "strict",
     secure: isProd,
-    maxAge: 1000 * 60 * 60 * 8,
+    maxAge: 1000 * 60 * 60 * 8, // 8 hours
   },
 });
 
-// Apply regular session middleware to all non-support routes
+// Apply regular session to non-support routes
 app.use((req, res, next) => {
-  if (req.path.startsWith("/support")) {
-    // Skip regular session for support routes
-    return next();
-  }
+  if (req.path.startsWith("/support")) return next();
   return regularSessionConfig(req, res, next);
 });
 
-// Apply support session middleware only to support routes
+// Apply support session to support routes
 app.use("/support", supportSessionConfig);
 
-// Ensure database schema is up to date
+/* ---------------- Schema Ensure & Storage Self-test ---------------- */
+
 (async () => {
   try {
     console.log("[STARTUP] Ensuring database schema...");
@@ -140,189 +136,113 @@ app.use("/support", supportSessionConfig);
     console.log("[STARTUP] ✅ Database schema ensured successfully");
   } catch (error) {
     console.error("[STARTUP] ❌ CRITICAL: Failed to ensure database schema:", error);
-    console.error("[STARTUP] Application may not function correctly without proper database schema");
-    // Don't exit in production - allow graceful degradation instead of crash loop
     console.error("[STARTUP] Continuing startup despite database schema issues...");
   }
 })();
 
-// Validate object storage configuration and run self-test
 (async () => {
   try {
     const { assertStorageEnv } = await import("./storage/paths");
     const { storageSelfTest } = await import("./storage/selftest");
-    
     console.log("[STARTUP] 🗄️ Validating object storage configuration...");
     assertStorageEnv();
     console.log("[STARTUP] ✅ Object storage environment validated");
-    
     console.log("[STARTUP] 🧪 Running storage self-test...");
     await storageSelfTest();
     console.log("[STARTUP] ✅ Storage self-test passed - object storage ready");
   } catch (error: any) {
     console.error("[STARTUP] ❌ CRITICAL: Object storage validation failed:", error?.message || error);
     console.error("[STARTUP] Photo uploads will not work until storage is properly configured");
-    console.error("[STARTUP] Check that PRIVATE_OBJECT_DIR is set and ends with '/.private'");
-    // Don't exit - allow app to run but log the critical issue
     console.error("[STARTUP] Continuing startup despite storage issues...");
   }
 })();
 
-// Ensure uploads dir exists and serve statically
+/* ---------------- Local Uploads Fallback (kept as-is) ---------------- */
+
 const uploadsDir = path.join(process.cwd(), "uploads");
 const avatarsDir = path.join(uploadsDir, "avatars");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 if (!fs.existsSync(avatarsDir)) fs.mkdirSync(avatarsDir, { recursive: true });
 
-// Pre-instantiate static middleware for better performance
 const staticUploads = express.static(uploadsDir, { maxAge: "1y", immutable: true });
 
-// Custom middleware to handle missing photos with placeholder
 app.use("/uploads", (req: Request, res: Response, next: NextFunction) => {
-  // Fix path handling: decode URL and remove leading slashes to prevent path.join from treating as absolute
   const relativePath = decodeURIComponent(req.path.replace(/^\/+/, ""));
   const filePath = path.join(uploadsDir, relativePath);
-  
-  // Check if requested file exists
-  if (fs.existsSync(filePath)) {
-    // File exists, serve it normally using pre-instantiated middleware
-    return staticUploads(req, res, next);
-  }
-  
-  // File doesn't exist - check if it's an image request (expanded format support)
+  if (fs.existsSync(filePath)) return staticUploads(req, res, next);
+
   const isImageRequest = /\.(jpe?g|png|gif|webp|heic|heif|avif|svg|bmp|tiff?)$/i.test(req.path);
   if (isImageRequest) {
     console.log(`[UPLOADS] Missing photo requested: ${req.path}, serving placeholder`);
-    // Serve placeholder image with consistent cache headers
     const placeholderPath = path.join(uploadsDir, "placeholder-photo.svg");
-    
-    // Set cache headers to match static file settings
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.setHeader('Expires', new Date(Date.now() + 31536000000).toUTCString());
-    
     return res.sendFile(placeholderPath);
   }
-  
-  // Not an image request, continue with normal static serving for other file types
   return staticUploads(req, res, next);
 });
 
-// --- BEGIN tenant guard ---
-/**
- * Sets the current tenant for this HTTP request so RLS can do its job.
- * Requires that your auth has already put { org_id: '...' } on req.user
- * (or on req.session.user.org_id). If that's different, adjust the line marked 👇.
- */
+/* ---------------- Tenant Guard (unchanged, but uses same Pool) ---------------- */
+
 async function tenantGuard(req: Request, res: Response, next: NextFunction) {
-  let client;
+  let client: any;
   try {
-    // 👇 get the org from the authenticated user on the server (NOT from headers/localStorage)
-    const orgId =
-      // prefer whatever your auth sets
-      // @ts-ignore
-      req.user?.org_id ||
-      // fallback if you use sessions
-      // @ts-ignore
-      req.session?.user?.org_id ||
-      // additional fallback for session-based auth
-      // @ts-ignore
-      req.session?.orgId;
+    // @ts-ignore
+    const orgId = req.user?.org_id || req.session?.user?.org_id || req.session?.orgId;
+    if (!orgId) return res.status(401).json({ error: "No org on session" });
 
-    if (!orgId) {
-      return res.status(401).json({ error: "No org on session" });
-    }
-
-    // one PG client per request, with a transaction + tenant set
     client = await pool.connect();
-    // Wrap the client with Drizzle for ORM functionality
     const drizzleClient = drizzle(client, { schema });
     // @ts-ignore
     req.db = drizzleClient;
-    // Store the raw client too for setting tenant context
     // @ts-ignore
     req.pgClient = client;
 
-    // Set the tenant context without a transaction to prevent timeouts
     await client.query("SET app.current_org = $1::uuid", [orgId]);
 
-    // auto-release when the response ends (use 'close' only to avoid double-release)
     let released = false;
     res.on("close", () => {
       if (!released && client) {
-        try { 
-          client.release();
-          released = true;
-        } catch (e) {
-          console.error("Error releasing client on close:", e);
-        }
+        try { client.release(); released = true; } catch (e) { console.error("Error releasing client on close:", e); }
       }
     });
 
     return next();
   } catch (e) {
     console.error("Tenant guard error:", e);
-    if (client) {
-      try {
-        client.release();
-      } catch (releaseError) {
-        console.error("Error releasing client after error:", releaseError);
-      }
-    }
+    if (client) { try { client.release(); } catch (releaseError) { console.error("Error releasing client after error:", releaseError); } }
     return res.status(500).json({ error: "Database connection failed" });
   }
 }
-// --- END tenant guard ---
 
-// Log every API request reaching Express
+/* ---------------- Tracing & Health ---------------- */
+
 app.use((req, _res, next) => {
-  if (req.path.startsWith("/api")) {
-    console.log(`[TRACE] ${req.method} ${req.path}`);
-  }
+  if (req.path.startsWith("/api")) console.log(`[TRACE] ${req.method} ${req.path}`);
   next();
 });
 
-// Remove default header injection - session auth only in production
-// In development, allow headers but don't default to demo values
-
-/** Quick health checks (sanity) */
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/health/db", async (_req, res) => {
   try {
-    // Check database connection and show basic info
     const dbUrl = process.env.DATABASE_URL;
     const dbHost = dbUrl ? new URL(dbUrl).hostname : 'NOT_SET';
-    
-    // Try simple connection test using Drizzle client
     const userResult = await db.execute(sql`SELECT COUNT(*) as user_count FROM users`);
     const orgResult = await db.execute(sql`SELECT COUNT(*) as org_count FROM orgs`);
-    
-    res.json({ 
-      ok: true, 
-      user_count: userResult[0]?.user_count,
-      org_count: orgResult[0]?.org_count,
-      db_host: dbHost
-    });
+    res.json({ ok: true, user_count: userResult[0]?.user_count, org_count: orgResult[0]?.org_count, db_host: dbHost });
   } catch (error) {
-    res.status(500).json({ 
-      ok: false, 
-      error: error instanceof Error ? error.message : 'Database connection failed'
-    });
+    res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Database connection failed' });
   }
-}); // replace with real db check later
+});
 
+/* ---------------- Mount Routes ---------------- */
 
-// Temporarily disable tenant guard to fix immediate database issues
-// TODO: Re-enable after fixing session/auth setup
-// mount tenant guard for all API routes (after auth, but exclude auth endpoints)
+// If you plan to re-enable tenant guard for all /api, do it here AFTER auth:
 // app.use("/api", (req, res, next) => {
-//   // Skip tenant guard for auth endpoints that work before authentication
-//   if (req.path.startsWith("/auth/") || req.path === "/auth") {
-//     return next();
-//   }
+//   if (req.path.startsWith("/auth/") || req.path === "/auth") return next();
 //   return tenantGuard(req, res, next);
 // });
 
-/** Mount API routes that aren't part of registerRoutes */
 import { members } from "./routes/members";
 import auth from "./routes/auth";
 import supportAuth from "./routes/support-auth";
@@ -330,6 +250,7 @@ import supportAdmin from "./routes/support-admin";
 import adminRoutes from "./routes/admin";
 import { health } from "./routes/health";
 import { debugRouter } from "./routes/debug";
+
 app.use("/api/me", me);
 app.use("/api/auth", auth);
 app.use("/api/members", members);
@@ -337,19 +258,16 @@ app.use("/api/debug", debugRouter);
 app.use("/api/admin", adminRoutes);
 app.use("/health", health);
 
-// Support staff authentication routes (accessible to unauthenticated support staff for login)
 app.use("/support/api/auth", supportAuth);
-
-// Support admin routes (only accessible to support_admin role)
 app.use("/support/api/admin", blockCustomersFromSupportAdmin, supportAdmin);
 
-// Legacy compatibility endpoint
 app.post("/api/teams/add-member", (req, res, next) => {
   req.url = "/_compat/teams-add-member";
   members(req, res, next);
 });
 
-/** API request logging (compact) */
+/* ---------------- API logging ---------------- */
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -366,9 +284,7 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        try {
-          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-        } catch { /* ignore stringify issues */ }
+        try { logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`; } catch {}
       }
       if (logLine.length > 120) logLine = logLine.slice(0, 119) + "…";
       log(logLine);
@@ -378,224 +294,136 @@ app.use((req, res, next) => {
   next();
 });
 
-// Wrap entire startup sequence in try-catch
+/* ---------------- Startup, billing safety, static, errors ---------------- */
+
 (async () => {
   let server: any;
 
   try {
     console.log("[STARTUP] 🚀 Starting Taska server...");
-    
-    // registerRoutes should mount all /api/* routers (jobs, customers, etc.)
-    // IMPORTANT: Must be called BEFORE static file serving in production!
+
     try {
       console.log("[STARTUP] Registering API routes...");
       server = await registerRoutes(app);
       console.log("[STARTUP] ✅ API routes registered successfully");
     } catch (e: any) {
       console.error("[STARTUP] ❌ registerRoutes failed:", e?.stack || e);
-      // Don't exit in production - create fallback server to prevent crash loop
       console.error("[STARTUP] Creating fallback server instead of exiting...");
-      // If registerRoutes throws, don't crash — create a basic HTTP server so we can see logs/health.
-      console.log("[STARTUP] Creating fallback HTTP server for development...");
       const http = await import("http");
       server = http.createServer(app);
     }
 
-  // CRITICAL BILLING PROTECTION: Startup reconciliation for missed finalizations
-  try {
-    console.log("[STARTUP] Starting pack consumption reconciliation...");
-    const reconciliationResult = await reconcilePendingFinalizations();
-    console.log(`[STARTUP] Reconciliation completed: ${reconciliationResult.recovered} recovered, ${reconciliationResult.failed} failed`);
-    
-    if (reconciliationResult.errors.length > 0) {
-      console.error("[STARTUP] Reconciliation errors:", reconciliationResult.errors);
-    }
-  } catch (error) {
-    console.error("[STARTUP] CRITICAL: Failed to run startup reconciliation:", error);
-    // Don't crash server, but log the error for manual intervention
-  }
-
-  // 🚀 ENHANCED BILLING PROTECTION: Start continuous background compensation processor
-  // This achieves COMPLETE ELIMINATION of under-billing risk
-  try {
-    console.log("[STARTUP] 🔄 Starting continuous background compensation processor...");
-    startContinuousCompensationProcessor();
-    console.log("[STARTUP] ✅ Continuous compensation processor started - ZERO under-billing risk achieved");
-    console.log("[STARTUP] 🛡️ BILLING SAFETY: Enhanced with 60s background processing + periodic reconciliation");
-  } catch (error) {
-    console.error("[STARTUP] ❌ CRITICAL: Failed to start continuous compensation processor:", error);
-    // This is critical for billing safety - log prominently  
-    console.error("[STARTUP] ⚠️ BILLING SAFETY COMPROMISED: Manual intervention required");
-  }
-
-  // Vite in dev, static in prod
-  // IMPORTANT: Static serving must come AFTER API routes to avoid conflicts
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
-
-  /** Centralized error handler — DO NOT rethrow (it kills the process) */
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-    console.error("Request error:", message, err?.stack || err);
-    res.status(status).json({ message });
-    // DON'T: throw err;
-  });
-
-  // Validate critical configuration before starting server
-  console.log("[STARTUP] 🔒 Validating critical configuration...");
-  const configWarnings: string[] = [];
-  const configErrors: string[] = [];
-  
-  // Check Stripe configuration
-  if (!process.env.STRIPE_SECRET_KEY) {
-    configErrors.push("STRIPE_SECRET_KEY is not configured");
-  }
-  if (!process.env.STRIPE_WEBHOOK_SECRET) {
-    configErrors.push("STRIPE_WEBHOOK_SECRET is not configured - webhooks will fail!");
-  } else {
-    console.log("[STARTUP] ✅ STRIPE_WEBHOOK_SECRET is configured");
-  }
-  
-  // Verify webhook endpoint exists in Stripe (production only)
-  if (isProd && process.env.STRIPE_SECRET_KEY) {
     try {
-      const Stripe = (await import('stripe')).default;
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-        apiVersion: '2025-08-27.basil',
-      });
-      
-      console.log("[STARTUP] 🔍 Verifying webhook endpoint in Stripe...");
-      const webhookEndpoints = await stripe.webhookEndpoints.list({ limit: 100 });
-      
-      const productionDomains = [
-        'www.taska.info',
-        'taska.info',
-        'taska-gingagenie.replit.app'
-      ];
-      
-      const matchingEndpoints = webhookEndpoints.data.filter(endpoint => 
-        productionDomains.some(domain => endpoint.url.includes(domain))
-      );
-      
-      if (matchingEndpoints.length === 0) {
-        configWarnings.push("No webhook endpoint found in Stripe for production domains (www.taska.info, taska.info)");
-        console.warn("[STARTUP] ⚠️ No webhook endpoint found in Stripe for production domains");
-        console.warn("[STARTUP] ⚠️ This means webhooks will NOT reach your app!");
-        console.warn("[STARTUP] ⚠️ Please add webhook endpoint in Stripe dashboard: https://dashboard.stripe.com/webhooks");
-      } else {
-        console.log(`[STARTUP] ✅ Found ${matchingEndpoints.length} webhook endpoint(s) for production domains:`);
-        matchingEndpoints.forEach(endpoint => {
-          console.log(`[STARTUP]    - ${endpoint.url} (status: ${endpoint.status})`);
-          if (endpoint.status !== 'enabled') {
-            configWarnings.push(`Webhook endpoint ${endpoint.url} is ${endpoint.status} - webhooks may not work`);
-          }
-        });
+      console.log("[STARTUP] Starting pack consumption reconciliation...");
+      const reconciliationResult = await reconcilePendingFinalizations();
+      console.log(`[STARTUP] Reconciliation completed: ${reconciliationResult.recovered} recovered, ${reconciliationResult.failed} failed`);
+      if (reconciliationResult.errors.length > 0) console.error("[STARTUP] Reconciliation errors:", reconciliationResult.errors);
+    } catch (error) {
+      console.error("[STARTUP] CRITICAL: Failed to run startup reconciliation:", error);
+    }
+
+    try {
+      console.log("[STARTUP] 🔄 Starting continuous background compensation processor...");
+      startContinuousCompensationProcessor();
+      console.log("[STARTUP] ✅ Continuous compensation processor started - ZERO under-billing risk achieved");
+      console.log("[STARTUP] 🛡️ BILLING SAFETY: Enhanced with 60s background processing + periodic reconciliation");
+    } catch (error) {
+      console.error("[STARTUP] ❌ CRITICAL: Failed to start continuous compensation processor:", error);
+      console.error("[STARTUP] ⚠️ BILLING SAFETY COMPROMISED: Manual intervention required");
+    }
+
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      console.error("Request error:", message, err?.stack || err);
+      res.status(status).json({ message });
+    });
+
+    console.log("[STARTUP] 🔒 Validating critical configuration...");
+    const configWarnings: string[] = [];
+    const configErrors: string[] = [];
+
+    if (!process.env.STRIPE_SECRET_KEY) configErrors.push("STRIPE_SECRET_KEY is not configured");
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      configErrors.push("STRIPE_WEBHOOK_SECRET is not configured - webhooks will fail!");
+    } else {
+      console.log("[STARTUP] ✅ STRIPE_WEBHOOK_SECRET is configured");
+    }
+
+    if (!process.env.DATABASE_URL) configErrors.push("DATABASE_URL is not configured");
+    if (isProd && !process.env.WEBHOOK_URL_CONFIRMED) {
+      configWarnings.push("WEBHOOK_URL_CONFIRMED not set - ensure Stripe webhook points to correct domain");
+    }
+
+    if (configWarnings.length > 0) {
+      console.warn("[STARTUP] ⚠️ Configuration warnings:");
+      configWarnings.forEach(w => console.warn(`  - ${w}`));
+    }
+    if (configErrors.length > 0) {
+      console.error("[STARTUP] ❌ Configuration errors detected:");
+      configErrors.forEach(e => console.error(`  - ${e}`));
+      console.error("[STARTUP] ⚠️ Server will start but may not function correctly!");
+    } else {
+      console.log("[STARTUP] ✅ All critical configuration validated successfully");
+    }
+
+    const port = parseInt(process.env.PORT || "5000", 10);
+    console.log(`[STARTUP] Starting server on 0.0.0.0:${port}...`);
+
+    server.listen(
+      { port, host: "0.0.0.0", reusePort: true },
+      () => {
+        const dbUrlHash = (process.env.DATABASE_URL || "").slice(0, 24) + "...";
+        console.log(`[STARTUP] ✅ Server successfully started!`);
+        log(`serving on port ${port} (NODE_ENV=${app.get("env")})`);
+        log(`Database: ${dbUrlHash}`);
+        log("Health: /health  |  API health: /health/db  |  Jobs: /api/jobs");
+        console.log(`[STARTUP] 🌐 Server is ready and listening on 0.0.0.0:${port}`);
       }
-    } catch (error: any) {
-      console.error("[STARTUP] ⚠️ Failed to verify webhook endpoint in Stripe:", error.message);
-      configWarnings.push("Could not verify webhook endpoint in Stripe - check API key permissions");
-    }
-  }
-  
-  // Check database
-  if (!process.env.DATABASE_URL) {
-    configErrors.push("DATABASE_URL is not configured");
-  }
-  
-  // Warn about webhook URL in production
-  if (isProd && !process.env.WEBHOOK_URL_CONFIRMED) {
-    configWarnings.push("WEBHOOK_URL_CONFIRMED not set - ensure Stripe webhook points to correct domain");
-  }
-  
-  // Log warnings
-  if (configWarnings.length > 0) {
-    console.warn("[STARTUP] ⚠️ Configuration warnings:");
-    configWarnings.forEach(warning => console.warn(`  - ${warning}`));
-  }
-  
-  // Log errors and continue (don't crash to prevent deploy loops)
-  if (configErrors.length > 0) {
-    console.error("[STARTUP] ❌ Configuration errors detected:");
-    configErrors.forEach(error => console.error(`  - ${error}`));
-    console.error("[STARTUP] ⚠️ Server will start but may not function correctly!");
-  } else {
-    console.log("[STARTUP] ✅ All critical configuration validated successfully");
-  }
+    );
 
-  // Always bind to PORT (Replit requirement) with explicit host binding
-  const port = parseInt(process.env.PORT || "5000", 10);
-  
-  console.log(`[STARTUP] Starting server on 0.0.0.0:${port}...`);
-  
-  server.listen(
-    {
-      port,
-      host: "0.0.0.0", // Explicit binding for production deployment
-      reusePort: true, // harmless on Node; ignored if unsupported
-    },
-    () => {
-      const dbUrlHash = (process.env.DATABASE_URL || "").slice(0, 24) + "...";
-      console.log(`[STARTUP] ✅ Server successfully started!`);
-      log(`serving on port ${port} (NODE_ENV=${app.get("env")})`);
-      log(`Database: ${dbUrlHash}`);
-      log("Health: /health  |  API health: /health/db  |  Jobs: /api/jobs");
-      console.log(`[STARTUP] 🌐 Server is ready and listening on 0.0.0.0:${port}`);
-    }
-  );
-
-    // Add server error handling
     server.on('error', (error: any) => {
       console.error("[STARTUP] ❌ CRITICAL: Server failed to start:", error);
-      if (error.code === 'EADDRINUSE') {
-        console.error(`[STARTUP] Port ${port} is already in use`);
-      } else if (error.code === 'EACCES') {
-        console.error(`[STARTUP] Permission denied to bind to port ${port}`);
-      }
-      
-      // Log error but don't exit to prevent crash loop
+      if (error.code === 'EADDRINUSE') console.error(`[STARTUP] Port ${port} is already in use`);
+      else if (error.code === 'EACCES') console.error(`[STARTUP] Permission denied to bind to port ${port}`);
       console.error("[STARTUP] Server startup failed, but continuing to prevent crash loop...");
     });
 
   } catch (startupError: any) {
     console.error("[STARTUP] ❌ FATAL: Unhandled startup error:", startupError?.stack || startupError);
     console.error("[STARTUP] Application failed to initialize properly");
-    
-    // Log error but don't exit to prevent crash loop
     console.error("[STARTUP] Fatal startup error encountered, but continuing to prevent crash loop...");
   }
 })();
 
-/** 🛡️ Graceful shutdown handling for billing safety */
+/* ---------------- Graceful shutdown ---------------- */
+
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
 function gracefulShutdown(signal: string) {
   console.log(`[SHUTDOWN] 🔄 Received ${signal}, starting graceful shutdown...`);
-  
-  // Stop continuous compensation processor to prevent billing race conditions
   try {
     stopContinuousCompensationProcessor();
     console.log('[SHUTDOWN] ✅ Continuous compensation processor stopped safely');
   } catch (error) {
     console.error('[SHUTDOWN] ❌ Error stopping compensation processor:', error);
   }
-  
-  // Give pending operations time to complete (critical for billing safety)
   setTimeout(() => {
     console.log('[SHUTDOWN] ✅ Graceful shutdown completed');
     process.exit(0);
-  }, 5000); // 5 second grace period for pending finalizations
+  }, 5000);
 }
 
-/** Bonus: catch unhandled promise rejections so one bad SQL cast doesn't kill the server silently */
 process.on("unhandledRejection", (reason) => {
   console.error("UnhandledRejection:", reason);
 });
 process.on("uncaughtException", (err) => {
   console.error("UncaughtException:", err);
 });
-

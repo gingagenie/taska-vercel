@@ -191,14 +191,17 @@ export async function ensurePhotoBucketExists(): Promise<void> {
 
 /**
  * List photo objects for a given job.
- * NOTE: This is a simple placeholder so builds pass.
- * It returns an empty list for now. We’ll wire proper listing next.
+ * NOTE: Keep this minimal so builds pass and callers have a stable signature.
+ * Your main jobs flow reads from the database, not directly from this.
  */
 export async function listJobPhotos(
   tenantId: string,
   jobId: string
 ): Promise<Array<{ key: string; url?: string }>> {
-  // TODO: Implement proper listing once we finalize the storage key structure.
-  // For now, return an empty array so routes compile and deploy.
+  // For now, this is intentionally conservative.
+  // If you want to actually walk Supabase Storage, we can implement that later.
+  console.log(
+    `[SUPABASE_STORAGE] listJobPhotos placeholder called tenant=${tenantId} job=${jobId}`
+  );
   return [];
 }

@@ -167,15 +167,15 @@ export async function deleteFile(key: string): Promise<boolean> {
 export async function ensurePhotoBucketExists(): Promise<void> {
   try {
     const { data: buckets } = await storageClient.listBuckets();
-    const exists = buckets?.some(b => b.name === BUCKET_NAME);
-    
+    const exists = buckets?.some((b) => b.name === BUCKET_NAME);
+
     if (!exists) {
       console.log("[SUPABASE_STORAGE] Creating photos bucket...");
       const { error } = await storageClient.createBucket(BUCKET_NAME, {
         public: false,
         fileSizeLimit: 10485760, // 10MB
       });
-      
+
       if (error) {
         console.error("[SUPABASE_STORAGE] Failed to create bucket:", error);
       } else {
@@ -187,7 +187,9 @@ export async function ensurePhotoBucketExists(): Promise<void> {
   } catch (error: any) {
     console.error("[SUPABASE_STORAGE] Bucket check failed:", error.message);
   }
-  /**
+}
+
+/**
  * List photo objects for a given job.
  * NOTE: This is a simple placeholder so builds pass.
  * It returns an empty list for now. We’ll wire proper listing next.
@@ -199,6 +201,4 @@ export async function listJobPhotos(
   // TODO: Implement proper listing once we finalize the storage key structure.
   // For now, return an empty array so routes compile and deploy.
   return [];
-}
-
 }

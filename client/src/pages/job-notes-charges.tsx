@@ -6,9 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Clock, Wrench } from "lucide-react";
+import { ArrowLeft, Trash2, Clock, Wrench } from "lucide-react";
 
 export default function JobNotesCharges() {
   const [match, params] = useRoute("/jobs/:id/notes");
@@ -41,6 +40,13 @@ export default function JobNotesCharges() {
   // Parts quantity options (1 to 10)
   const partQuantityOptions = Array.from({ length: 10 }, (_, i) => i + 1);
 
+  // Helper to normalise API data into a plain array
+  const asArray = (data: any) => {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.items)) return data.items;
+    return [];
+  };
+
   const loadAll = async () => {
     try {
       const [notesData, hoursData, partsData, photosData] = await Promise.all([
@@ -49,10 +55,11 @@ export default function JobNotesCharges() {
         api(`/api/jobs/${jobId}/parts`),
         photosApi.list(jobId),
       ]);
-      setNotes(notesData || []);
-      setHours(hoursData || []);
-      setParts(partsData || []);
-      setPhotos(photosData || []);
+
+      setNotes(asArray(notesData));
+      setHours(asArray(hoursData));
+      setParts(asArray(partsData));
+      setPhotos(asArray(photosData));
     } catch (e: any) {
       setErr(e?.message || "Failed to load data");
     } finally {
@@ -92,7 +99,7 @@ export default function JobNotesCharges() {
       });
       // Refresh hours list
       const hoursData = await api(`/api/jobs/${jobId}/hours`);
-      setHours(hoursData);
+      setHours(asArray(hoursData));
       setSelectedHours("0.5");
       setHoursDescription("");
     } catch (e: any) {
@@ -116,7 +123,7 @@ export default function JobNotesCharges() {
       });
       // Refresh parts list
       const partsData = await api(`/api/jobs/${jobId}/parts`);
-      setParts(partsData);
+      setParts(asArray(partsData));
       setNewPartName("");
       setNewPartQuantity("1");
     } catch (e: any) {
@@ -125,9 +132,6 @@ export default function JobNotesCharges() {
       setAddingPart(false);
     }
   };
-
-
-
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -158,17 +162,19 @@ export default function JobNotesCharges() {
     }
   };
 
-
-
   if (loading) return <div className="p-6">Loading…</div>;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Link href={`/jobs/${jobId}`}>
-          <a><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button></a>
+          <a>
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </a>
         </Link>
-        <h1 className="text-2xl font-bold">Notes & Hours + Parts</h1>
+        <h1 className="text-2xl font-bold">Notes &amp; Hours + Parts</h1>
       </div>
 
       {err && (
@@ -230,7 +236,7 @@ export default function JobNotesCharges() {
                 <SelectContent>
                   {hoursOptions.map((hours) => (
                     <SelectItem key={hours} value={hours.toString()}>
-                      {hours} {hours === 1 ? 'hour' : 'hours'}
+                      {hours} {hours === 1 ? "hour" : "hours"}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -258,7 +264,9 @@ export default function JobNotesCharges() {
                 {hours.map((hour) => (
                   <div key={hour.id} className="flex items-center justify-between border rounded p-3">
                     <div>
-                      <div className="font-medium">{hour.hours} {hour.hours === 1 ? 'hour' : 'hours'}</div>
+                      <div className="font-medium">
+                        {hour.hours} {hour.hours === 1 ? "hour" : "hours"}
+                      </div>
                       {hour.description && (
                         <div className="text-sm text-gray-600">{hour.description}</div>
                       )}
@@ -270,7 +278,13 @@ export default function JobNotesCharges() {
                 ))}
                 <div className="flex items-center justify-between border-t pt-2 mt-2">
                   <div className="font-semibold">Total Hours</div>
-                  <div className="font-bold">{hours.reduce((sum, h) => sum + h.hours, 0)} hours</div>
+                  <div className="font-bold">
+                    {hours.reduce(
+                      (sum, h) => sum + Number(h.hours || 0),
+                      0
+                    )}{" "}
+                    hours
+                  </div>
                 </div>
               </>
             )}

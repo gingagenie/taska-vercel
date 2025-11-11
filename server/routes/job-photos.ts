@@ -6,7 +6,7 @@ import {
   createSignedViewUrl,
   uploadPhotoToSupabase,
   deleteFile,
-  // listJobPhotos, // no longer needed for this route
+  // listJobPhotos, // no longer needed
 } from "../services/supabase";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
@@ -24,7 +24,7 @@ function requireAuth(req: any, res: any, next: any) {
 // Memory upload (for direct server-side uploads)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB to match bucket
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (_req, file, cb) => {
     const ok = /^image\/(png|jpe?g|webp|gif|heic|heif|avif|bmp|tiff)$/i.test(
       file.mimetype
@@ -35,8 +35,7 @@ const upload = multer({
 });
 
 /**
- * 1) Create a **signed upload URL** the client can PUT to directly (no file through your server)
- *    Client will: `fetch(uploadUrl, { method: 'PUT', body: file })`
+ * 1) Signed upload URL for direct client PUT
  */
 router.post("/:jobId/photos/signed-upload", requireAuth, async (req: any, res) => {
   try {
@@ -60,8 +59,7 @@ router.post("/:jobId/photos/signed-upload", requireAuth, async (req: any, res) =
 });
 
 /**
- * 2) **Server-side** upload (mobile/web form posts file to your API)
- *    form-data field name: `photo`
+ * 2) Server-side upload: form-data field `photo`
  */
 router.post(
   "/:jobId/photos/upload",
@@ -96,14 +94,13 @@ router.post(
 );
 
 /**
- * 3) Get a **fresh signed view URL** for any stored key
+ * 3) Fresh signed view URL for any key
  */
 router.post("/photos/sign", requireAuth, async (req: any, res) => {
   try {
     const { key } = req.body || {};
     if (!key) return res.status(400).json({ error: "key required" });
 
-    // Basic tenant safety
     const tenantId = String(req.session.orgId);
     if (!key.startsWith(`org/${tenantId}/`)) {
       return res.status(403).json({ error: "forbidden" });
@@ -143,14 +140,13 @@ router.delete("/photos", requireAuth, async (req: any, res) => {
 });
 
 /**
- * 5) Listing – now reads from job_photos table instead of Supabase stub
+ * 5) List photos for a job – **returns plain array**
  */
 router.get("/:jobId/photos", requireAuth, async (req: any, res) => {
   try {
     const tenantId = String(req.session.orgId);
     const jobId = String(req.params.jobId);
 
-    // Basic UUID validation
     if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
       return res.status(400).json({ error: "Invalid job ID" });
     }
@@ -163,8 +159,8 @@ router.get("/:jobId/photos", requireAuth, async (req: any, res) => {
       ORDER BY created_at DESC
     `);
 
-    // Keep shape { ok, items } to be friendly to existing callers
-    return res.json({ ok: true, items: rows });
+    // plain array so all existing callers can do photos.map(...)
+    return res.json(rows);
   } catch (e: any) {
     console.error("[JOB PHOTOS] list error:", e);
     return res

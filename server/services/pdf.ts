@@ -1,38 +1,42 @@
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
-import { generateInvoiceEmailTemplate } from './email';
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
+import { generateInvoiceEmailTemplate } from "./email";
+
+chromium.setHeadlessMode = true;
+chromium.setGraphicsMode = false;
 
 export async function generateInvoicePdf(
   invoice: any,
   organization: any,
   customer: any
 ): Promise<Buffer> {
-  let browser;
-  
+  let browser: puppeteer.Browser | null = null;
+
   try {
-    // Use serverless Chromium for better compatibility in cloud environments
-    browser = await puppeteer.launch({
-      headless: true,
-      executablePath: await chromium.executablePath(),
-      args: [
-        ...chromium.args,
-        '--hide-scrollbars',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--no-sandbox',
-        '--disable-setuid-sandbox'
-      ]
+    // Log env so we can see what's going on in Railway
+    console.log("[PDF] Starting invoice PDF generation", {
+      nodeEnv: process.env.NODE_ENV,
+      runtime: process.env.RAILWAY_ENVIRONMENT || process.env.VERCEL_ENV || "unknown",
     });
-    
+
+    const executablePath = await chromium.executablePath();
+
+    console.log("[PDF] Using chromium executablePath:", executablePath || "<none>");
+
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath,
+      headless: chromium.headless,
+      ignoreHTTPSErrors: true,
+    });
+
     const page = await browser.newPage();
-    
-    // Set proper media type for screen rendering
-    await page.emulateMediaType('screen');
-    
-    // Generate the invoice HTML using the existing email template
+
+    await page.emulateMediaType("screen");
+
     const { html } = generateInvoiceEmailTemplate(invoice, organization, customer);
-    
-    // Enhanced HTML with better PDF styling
+
     const pdfHtml = `
       <!DOCTYPE html>
       <html>
@@ -51,7 +55,6 @@ export async function generateInvoicePdf(
             font-size: 12px;
           }
           
-          /* Override email styles for better PDF formatting */
           table {
             width: 100% !important;
             border-collapse: collapse;
@@ -119,7 +122,6 @@ export async function generateInvoicePdf(
             margin: 20px 0 !important;
           }
           
-          /* Print-specific adjustments */
           @media print {
             body { margin: 0; }
             .no-print { display: none; }
@@ -131,47 +133,54 @@ export async function generateInvoicePdf(
       </body>
       </html>
     `;
-    
-    await page.setContent(pdfHtml, { 
-      waitUntil: 'domcontentloaded',
-      timeout: 15000
+
+    await page.setContent(pdfHtml, {
+      waitUntil: "domcontentloaded",
+      timeout: 15000,
     });
-    
-    // Wait a bit for fonts and styles to load
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Generate PDF with A4 format and good quality settings
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     const pdfBuffer = await page.pdf({
-      format: 'A4',
+      format: "A4",
       printBackground: true,
       margin: {
-        top: '20mm',
-        right: '15mm',
-        bottom: '20mm',
-        left: '15mm'
+        top: "20mm",
+        right: "15mm",
+        bottom: "20mm",
+        left: "15mm",
       },
-      preferCSSPageSize: true
+      preferCSSPageSize: true,
     });
-    
+
+    console.log("[PDF] PDF buffer generated, size (bytes):", pdfBuffer.length);
+
     return Buffer.from(pdfBuffer);
-    
   } catch (error) {
-    console.error('PDF generation error:', error);
-    throw new Error(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error("[PDF] PDF generation error:", error);
+    throw new Error(
+      `Failed to generate PDF: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
   } finally {
     if (browser) {
-      await browser.close();
+      await browser.close().catch((e) =>
+        console.error("[PDF] Error closing browser:", e)
+      );
     }
   }
 }
 
 export async function generateInvoicePdfFilename(invoice: any): Promise<string> {
-  const invoiceNumber = invoice.number || 'invoice';
-  const safeTitle = invoice.title ? invoice.title.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 30) : '';
-  
+  const invoiceNumber = invoice.number || "invoice";
+  const safeTitle = invoice.title
+    ? invoice.title.replace(/[^a-zA-Z0-9\s-]/g, "").substring(0, 30)
+    : "";
+
   if (safeTitle) {
-    return `${invoiceNumber}-${safeTitle.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+    return `${invoiceNumber}-${safeTitle.replace(/\s+/g, "-").toLowerCase()}.pdf`;
   }
-  
+
   return `${invoiceNumber}.pdf`;
 }

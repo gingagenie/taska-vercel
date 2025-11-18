@@ -12,6 +12,8 @@ import { finalizePackConsumption, releasePackReservation, durableFinalizePackCon
 import { tiktokEvents } from "../services/tiktok-events";
 import type { CustomerInfo } from "../services/tiktok-events";
 import { randomBytes } from "crypto";
+import { sendEmail, generateQuoteEmailTemplate } from "../services/email";
+import { generateQuotePdf, generateQuotePdfFilename } from "../services/pdf";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
@@ -68,97 +70,171 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
 });
 
 /** Create */
-router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
+router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  const {
+    email,         // legacy single email
+    emails,        // array of emails (new style)
+    fromEmail = "noreply@taska.info",
+    fromName = "Taska",
+  } = req.body || {};
+
+  // Support both single + multiple recipients
+  let recipientEmails: string[] = emails || (email ? [email] : []);
+  recipientEmails = recipientEmails
+    .map((e: string) => e.trim())
+    .filter((e: string) => e.length > 0);
+
+  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
+    return res.status(400).json({ error: "Invalid quote ID" });
+  }
+
+  if (!recipientEmails.length) {
+    return res.status(400).json({ error: "At least one recipient email is required" });
+  }
+
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const invalidEmails = recipientEmails.filter((e: string) => !emailRegex.test(e));
+  if (invalidEmails.length > 0) {
+    return res.status(400).json({
+      error: "Invalid email address(es)",
+      invalidEmails,
+    });
+  }
+
   try {
-    const orgId = (req as any).orgId;
-    const userId = (req as any).user?.id;
-    const { title, customerId, notes, lines = [] } = req.body;
-    
-    if (!title || !customerId) {
-      return res.status(400).json({ error: "title & customerId required" });
-    }
-    
-    // Simple quote creation
-    const result: any = await db.execute(sql`
-      INSERT INTO quotes (org_id, customer_id, title, notes, created_by)
-      VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${userId})
-      RETURNING id
+    // 1) Load quote with customer
+    const quoteResult: any = await db.execute(sql`
+      SELECT q.*, 
+             c.name  AS customer_name,
+             c.email AS customer_email,
+             c.phone AS customer_phone
+      FROM quotes q
+      JOIN customers c ON c.id = q.customer_id
+      WHERE q.id = ${id}::uuid
+        AND q.org_id = ${orgId}::uuid
     `);
-    
-    const quoteId = (result as any)[0].id;  // Match the pattern used in jobs.ts
-    
-    // Insert lines
-    for (const [i, line] of lines.entries()) {
+
+    const quote = quoteResult[0];
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+
+    // 2) Load full org details
+    const orgResult: any = await db.execute(sql`
+      SELECT name, abn, street, suburb, state, postcode,
+             account_name, bsb, account_number, invoice_terms
+      FROM orgs
+      WHERE id = ${orgId}::uuid
+    `);
+    const organization = orgResult[0] || {};
+
+    // 3) Load customer full details (for address, etc.)
+    const customerResult: any = await db.execute(sql`
+      SELECT name, contact_name, email, phone, street, suburb, state, postcode, address
+      FROM customers
+      WHERE id = ${quote.customer_id}::uuid
+        AND org_id = ${orgId}::uuid
+    `);
+    const customer = customerResult[0] || {};
+
+    // 4) Load quote line items
+    const items: any = await db.execute(sql`
+      SELECT *
+      FROM quote_lines
+      WHERE quote_id = ${id}::uuid
+      ORDER BY position ASC, created_at ASC
+    `);
+
+    const quoteData = {
+      ...quote,
+      items: items.map((item: any) => ({
+        description: item.description || "Item",
+        quantity: Number(item.quantity || 1),
+        // Your DB uses unit_amount on quote_lines (same as invoices)
+        unit_price: Number(item.unit_amount || item.unit_price || 0),
+      })),
+    };
+
+    // 5) Generate email content
+    const publicBaseUrl =
+      process.env.PUBLIC_URL ||
+      process.env.APP_BASE_URL ||
+      "https://staging.taska.info";
+
+    const { subject, html, text } = generateQuoteEmailTemplate(
+      quoteData,
+      organization.name || "Your Business",
+      publicBaseUrl
+    );
+
+    // 6) Generate PDF attachment for the quote
+    let pdfAttachment: { filename: string; content: string } | null = null;
+
+    try {
+      console.log(`[QUOTE PDF] Generating PDF for quote ${quoteData.number || quoteData.id}`);
+      const pdfBuffer = await generateQuotePdf(quoteData, organization, customer);
+      const filename = await generateQuotePdfFilename(quoteData);
+
+      pdfAttachment = {
+        filename,
+        content: pdfBuffer.toString("base64"),
+      };
+
+      console.log(
+        `[QUOTE PDF] Successfully generated quote PDF: ${filename} (${Math.round(
+          pdfBuffer.length / 1024
+        )}KB)`
+      );
+    } catch (pdfError) {
+      console.error("[QUOTE PDF] Failed to generate quote PDF:", pdfError);
+      // Don’t fail the whole request – just send without attachment
+      pdfAttachment = null;
+    }
+
+    // 7) Send email via MailerSend
+    const emailSent = await sendEmail({
+      to: recipientEmails,
+      from: `${fromName} <${fromEmail}>`,
+      subject,
+      html,
+      text,
+      ...(pdfAttachment && { attachments: [pdfAttachment] }),
+    });
+
+    if (!emailSent) {
+      return res.status(500).json({ error: "Failed to send quote email" });
+    }
+
+    // 8) Optionally update quote status to 'sent' if you want
+    if (quote.status === "draft") {
       await db.execute(sql`
-        INSERT INTO quote_lines (org_id, quote_id, position, description, quantity, unit_amount, tax_rate)
-        VALUES (${orgId}, ${quoteId}, ${i}, ${line.description || ''}, ${line.quantity || 0}, ${line.unit_amount || 0}, ${line.tax_rate || 0})
+        UPDATE quotes
+        SET status = 'sent'
+        WHERE id = ${id}::uuid
+          AND org_id = ${orgId}::uuid
       `);
     }
-    
-    // Calculate and store totals
-    const sums = sumLines(lines);
-    await db.execute(sql`
-      UPDATE quotes SET
-        sub_total=${sums.sub_total},
-        tax_total=${sums.tax_total},
-        grand_total=${sums.grand_total}
-      WHERE id=${quoteId}::uuid AND org_id=${orgId}::uuid
-    `);
 
-    // Get customer details for tracking
-    const customerResult: any = await db.execute(sql`
-      select name, contact_name, email, phone, suburb, state, postcode
-      from customers
-      where id = ${customerId}::uuid and org_id = ${orgId}::uuid
-    `);
-    const customer = customerResult[0];
+    const recipientText =
+      recipientEmails.length === 1
+        ? recipientEmails[0]
+        : `${recipientEmails.length} recipients`;
 
-    // Track TikTok Lead event for quote creation (fire and forget - non-blocking)
-    try {
-      const customerInfo: CustomerInfo = {
-        email: customer?.email || undefined,
-        phone: customer?.phone || undefined,
-        firstName: customer?.contact_name?.split(' ')[0] || undefined,
-        lastName: customer?.contact_name?.split(' ').slice(1).join(' ') || undefined,
-        city: customer?.suburb || undefined,
-        state: customer?.state || undefined,
-        country: 'AU', // Default to Australia for Taska
-        zipCode: customer?.postcode || undefined,
-        ip: req.ip || req.connection.remoteAddress || undefined,
-        userAgent: req.get('User-Agent') || undefined,
-      };
-
-      const leadData = {
-        value: sums.grand_total || 1000, // Use quote value or default estimate for lead value
-        currency: 'AUD',
-        contentName: 'New Quote Request Lead',
-        contentCategory: 'lead_generation',
-        contentType: 'lead_generation',
-        description: `Quote created: ${quoteId}`,
-        status: 'qualified',
-      };
-
-      // Fire and forget - don't wait for response to avoid slowing down quote creation
-      tiktokEvents.trackLead(
-        customerInfo,
-        leadData,
-        req.get('Referer') || undefined,
-        req.get('Referer') || undefined
-      ).catch((trackingError) => {
-        // Log tracking errors but don't throw them
-        console.error('[QUOTE_CREATION] TikTok Lead tracking failed:', trackingError);
-      });
-
-      console.log(`[QUOTE_CREATION] TikTok Lead tracking initiated for quote_id: ${quoteId}`);
-    } catch (trackingError) {
-      // Log any tracking errors but don't let them break quote creation
-      console.error('[QUOTE_CREATION] TikTok tracking error:', trackingError);
-    }
-    
-    res.json({ ok: true, id: quoteId });
-  } catch (error: any) {
-    console.error("Quote creation error:", error);
-    return res.status(500).json({ error: error.message });
+    return res.json({
+      ok: true,
+      message: pdfAttachment
+        ? `Quote sent successfully to ${recipientText} with PDF attached`
+        : `Quote sent successfully to ${recipientText} (PDF failed, sent without attachment)`,
+      recipients: recipientEmails,
+      recipientCount: recipientEmails.length,
+      pdfAttached: !!pdfAttachment,
+    });
+  } catch (err) {
+    console.error("Error sending quote email:", err);
+    return res.status(500).json({ error: "Failed to send quote email" });
   }
 });
 

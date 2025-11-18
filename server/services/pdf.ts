@@ -1,7 +1,7 @@
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import PDFDocument from "pdfkit";
-import { generateInvoiceEmailTemplate } from "./email";
+import { generateInvoiceEmailTemplate, generateQuoteEmailTemplate } from './email';
 
 chromium.setHeadlessMode = true;
 chromium.setGraphicsMode = false;
@@ -475,6 +475,188 @@ export async function generateInvoicePdf(
       customer
     );
   }
+}
+export async function generateQuotePdf(
+  quote: any,
+  organization: any,
+  customer: any
+): Promise<Buffer> {
+  let browser;
+
+  try {
+    // Use serverless Chromium for better compatibility in cloud environments
+    browser = await puppeteer.launch({
+      headless: true,
+      executablePath: await chromium.executablePath(),
+      args: [
+        ...chromium.args,
+        '--hide-scrollbars',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+      ],
+    });
+
+    const page = await browser.newPage();
+
+    await page.emulateMediaType('screen');
+
+    // Build base URL for any links in the quote template (accept / decline)
+    const publicBaseUrl =
+      process.env.PUBLIC_URL ||
+      process.env.APP_BASE_URL ||
+      'https://staging.taska.info';
+
+    // Reuse the existing quote email template to generate HTML
+    const { html } = generateQuoteEmailTemplate(
+      quote,
+      organization?.name || 'Your Business',
+      publicBaseUrl
+    );
+
+    const pdfHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          @page {
+            size: A4;
+            margin: 20mm;
+          }
+
+          body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.4;
+            color: #333;
+            font-size: 12px;
+          }
+
+          table {
+            width: 100% !important;
+            border-collapse: collapse;
+          }
+
+          th, td {
+            padding: 8px !important;
+            border-bottom: 1px solid #ddd !important;
+          }
+
+          th {
+            background-color: #f8f9fa !important;
+            font-weight: bold;
+          }
+
+          .header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: flex-start !important;
+            margin-bottom: 30px !important;
+            padding-bottom: 20px !important;
+            border-bottom: 2px solid #2563eb !important;
+          }
+
+          h1 {
+            color: #2563eb !important;
+            margin: 0 !important;
+            font-size: 24px !important;
+          }
+
+          h2 {
+            margin: 0 !important;
+            color: #333 !important;
+            font-size: 20px !important;
+          }
+
+          h3 {
+            margin: 0 0 10px 0 !important;
+            color: #333 !important;
+            border-bottom: 1px solid #ddd !important;
+            padding-bottom: 5px !important;
+          }
+
+          .totals-section {
+            margin-top: 20px !important;
+            text-align: right !important;
+          }
+
+          .totals-table {
+            margin-left: auto !important;
+            width: auto !important;
+            min-width: 250px !important;
+          }
+
+          .total-row {
+            font-weight: bold !important;
+            font-size: 14px !important;
+            background-color: #f8f9fa !important;
+          }
+
+          .payment-details {
+            background-color: #f8f9fa !important;
+            padding: 15px !important;
+            border-radius: 5px !important;
+            margin: 20px 0 !important;
+          }
+
+          @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        ${html}
+      </body>
+      </html>
+    `;
+
+    await page.setContent(pdfHtml, {
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20mm',
+        right: '15mm',
+        bottom: '20mm',
+        left: '15mm',
+      },
+      preferCSSPageSize: true,
+    });
+
+    return Buffer.from(pdfBuffer);
+  } catch (error) {
+    console.error('Quote PDF generation error:', error);
+    throw new Error(
+      `Failed to generate Quote PDF: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    );
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+export async function generateQuotePdfFilename(quote: any): Promise<string> {
+  const quoteNumber = quote.number || 'quote';
+  const safeTitle = quote.title
+    ? quote.title.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 30)
+    : '';
+
+  if (safeTitle) {
+    return `${quoteNumber}-${safeTitle.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+  }
+
+  return `${quoteNumber}.pdf`;
 }
 
 export async function generateInvoicePdfFilename(

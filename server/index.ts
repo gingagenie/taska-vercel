@@ -1,4 +1,5 @@
 import jobPhotos from "./routes/job-photos";
+import quotesRouter from "./routes/quotes";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -260,6 +261,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/health", health);
 // ✅ Job photos routes (Supabase storage)
 app.use("/api/jobs", jobPhotos);
+
+app.use("/api/quotes", quotesRouter);
 
 app.use("/support/api/auth", supportAuth);
 app.use("/support/api/admin", blockCustomersFromSupportAdmin, supportAdmin);

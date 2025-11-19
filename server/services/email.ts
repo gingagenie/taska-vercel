@@ -74,6 +74,67 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
   }
 }
 
+/**
+ * Helper used by quotes routes – send a quote email to the customer.
+ * Kept simple on purpose: no PDF, just HTML/text using the existing template.
+ */
+export async function sendQuoteEmailToCustomer(
+  quote: any,
+  organization: any = {},
+  customer: any = {},
+  recipients?: string | string[],
+  baseUrl?: string,
+  fromEmail: string = "noreply@taska.info",
+  fromName: string = "Taska"
+): Promise<boolean> {
+  try {
+    const orgName = organization.name || "Your Business";
+
+    // Figure out who we're emailing
+    let to: string[] = [];
+
+    if (recipients) {
+      to = Array.isArray(recipients) ? recipients : [recipients];
+    }
+
+    if (to.length === 0) {
+      if (customer.email) {
+        to = [customer.email];
+      } else if (quote.customer_email) {
+        to = [quote.customer_email];
+      }
+    }
+
+    if (!to.length) {
+      console.error("[QUOTE EMAIL] No recipient email found for quote", quote?.id || quote?.number);
+      return false;
+    }
+
+    const publicBaseUrl =
+      baseUrl ||
+      process.env.PUBLIC_URL ||
+      process.env.APP_BASE_URL ||
+      "https://staging.taska.info";
+
+    const { subject, html, text } = generateQuoteEmailTemplate(
+      quote,
+      orgName,
+      publicBaseUrl
+    );
+
+    return await sendEmail({
+      to,
+      from: `${fromName} <${fromEmail}>`,
+      subject,
+      html,
+      text,
+    });
+  } catch (err) {
+    console.error("[QUOTE EMAIL] Failed to send quote email:", err);
+    return false;
+  }
+}
+
 export function generateInvoiceEmailTemplate(
   invoice: any, 
   organization: any = {},

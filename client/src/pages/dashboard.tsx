@@ -11,6 +11,31 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { SubscriptionBanner } from "@/components/subscription/subscription-banner";
 import { UsageWidget } from "@/components/layout/usage-widget";
 import { trackViewContent } from "@/lib/tiktok-tracking";
+import React from "react";
+import { QuotesAcceptedCard } from "@/components/dashboard/QuotesAcceptedCard";
+// import other cards…
+
+const DashboardPage: React.FC = () => {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {/* Existing cards */}
+        {/* <JobsTodayCard /> */}
+        {/* <TotalJobsCard /> */}
+        {/* etc… */}
+
+        {/* New Accepted Quotes card */}
+        <QuotesAcceptedCard />
+      </div>
+
+      {/* rest of your dashboard (Upcoming Jobs, Quick Actions, etc.) */}
+    </div>
+  );
+};
+
+export default DashboardPage;
 
 // --- date helpers ---
 function startOfDay(d = new Date()) {

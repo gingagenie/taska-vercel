@@ -1,769 +1,225 @@
-import { Router } from "express";
-import { db } from "../db/client";
+import express from "express";
+import { z } from "zod";
 import { sql } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
-import { requireOrg } from "../middleware/tenancy";
-import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
-import { xeroService } from "../services/xero";
-import { sumLines } from "../lib/totals";
-import { sendEmail, generateQuoteEmailTemplate } from "../services/email";
-import { trackEmailUsage, checkEmailQuota } from "./job-sms";
-import { finalizePackConsumption, releasePackReservation, durableFinalizePackConsumption } from "../lib/pack-consumption";
-import { tiktokEvents } from "../services/tiktok-events";
-import type { CustomerInfo } from "../services/tiktok-events";
-import { randomBytes } from "crypto";
-import { sendEmail, generateQuoteEmailTemplate } from "../services/email";
-import { generateQuotePdf, generateQuotePdfFilename } from "../services/pdf";
+import type { Request, Response } from "express";
+import { requireAuth } from "../middleware/require-auth";
+import { sendQuoteEmailToCustomer } from "../services/email";
+import { db } from "../db/client";
+import * as schema from "../../shared/schema";
+import { eq, and } from "drizzle-orm";
 
-const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
-const router = Router();
+const router = express.Router();
 
-/** Get previous items for autocomplete */
-router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
-  const orgId = (req as any).orgId;
+/* ---------------------------------------------------------
+   GET all quotes for org
+--------------------------------------------------------- */
+router.get("/", requireAuth, async (req: Request, res: Response) => {
   try {
-    const r: any = await db.execute(sql`
-      SELECT DISTINCT 
-        description as itemName,
-        description,
-        COALESCE(unit_amount, 0) as price,
-        CASE WHEN tax_rate > 0 THEN 'GST' ELSE 'None' END as tax
-      FROM quote_lines 
-      WHERE org_id = ${orgId}::uuid AND description IS NOT NULL AND description != ''
-      UNION
-      SELECT DISTINCT 
-        description as itemName,
-        description,
-        COALESCE(unit_amount, 0) as price,
-        CASE WHEN tax_rate > 0 THEN 'GST' ELSE 'None' END as tax
-      FROM invoice_lines 
-      WHERE org_id = ${orgId}::uuid AND description IS NOT NULL AND description != ''
-      ORDER BY itemName
-      LIMIT 50
-    `);
-    res.json(r || []);
+    const orgId = req.user!.org_id;
+
+    const quotes = await db
+      .select()
+      .from(schema.quotes)
+      .where(eq(schema.quotes.org_id, orgId))
+      .orderBy(schema.quotes.created_at);
+
+    res.json({ ok: true, quotes });
   } catch (error) {
-    console.error("Error fetching previous items:", error);
-    res.json([]);
+    console.error("GET /api/quotes failed:", error);
+    res.status(500).json({ ok: false, error: "Failed to load quotes" });
   }
 });
 
-/** List */
-router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
-  const orgId = (req as any).orgId;
-  const r: any = await db.execute(sql`
-    select 
-      q.id, 
-      q.title, 
-      q.status, 
-      q.created_at, 
-      q.customer_id, 
-      c.name as customer_name,
-      COALESCE(q.grand_total, 0) as total_amount
-    from quotes q 
-    join customers c on c.id = q.customer_id
-    where q.org_id=${orgId}::uuid
-    order by q.created_at desc
-  `);
-  console.log(`[DEBUG] Quote list query result:`, r.map((quote: any) => ({ id: quote.id, title: quote.title, total_amount: quote.total_amount })));
-  res.json(r);  // Match the working pattern from jobs.ts
-});
-
-/** Create */
-router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
-  const { id } = req.params;
-  const orgId = (req as any).orgId;
-  const {
-    email,         // legacy single email
-    emails,        // array of emails (new style)
-    fromEmail = "noreply@taska.info",
-    fromName = "Taska",
-  } = req.body || {};
-
-  // Support both single + multiple recipients
-  let recipientEmails: string[] = emails || (email ? [email] : []);
-  recipientEmails = recipientEmails
-    .map((e: string) => e.trim())
-    .filter((e: string) => e.length > 0);
-
-  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
-    return res.status(400).json({ error: "Invalid quote ID" });
-  }
-
-  if (!recipientEmails.length) {
-    return res.status(400).json({ error: "At least one recipient email is required" });
-  }
-
-  // Basic email validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const invalidEmails = recipientEmails.filter((e: string) => !emailRegex.test(e));
-  if (invalidEmails.length > 0) {
-    return res.status(400).json({
-      error: "Invalid email address(es)",
-      invalidEmails,
-    });
-  }
-
+/* ---------------------------------------------------------
+   GET single quote
+--------------------------------------------------------- */
+router.get("/:id", requireAuth, async (req: Request, res: Response) => {
   try {
-    // 1) Load quote with customer
-    const quoteResult: any = await db.execute(sql`
-      SELECT q.*, 
-             c.name  AS customer_name,
-             c.email AS customer_email,
-             c.phone AS customer_phone
-      FROM quotes q
-      JOIN customers c ON c.id = q.customer_id
-      WHERE q.id = ${id}::uuid
-        AND q.org_id = ${orgId}::uuid
-    `);
+    const orgId = req.user!.org_id;
+    const id = req.params.id;
 
-    const quote = quoteResult[0];
+    const quote = await db
+      .select()
+      .from(schema.quotes)
+      .where(and(eq(schema.quotes.id, id), eq(schema.quotes.org_id, orgId)));
+
+    if (!quote[0]) {
+      return res.status(404).json({ ok: false, error: "Quote not found" });
+    }
+
+    res.json({ ok: true, quote: quote[0] });
+  } catch (error) {
+    console.error("GET /api/quotes/:id failed:", error);
+    res.status(500).json({ ok: false, error: "Failed to load quote" });
+  }
+});
+
+/* ---------------------------------------------------------
+   CREATE quote
+--------------------------------------------------------- */
+router.post("/", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.org_id;
+    const userId = req.user!.id;
+
+    const quoteInput = z.object({
+      title: z.string(),
+      customer_id: z.string(),
+      items: z.array(
+        z.object({
+          description: z.string(),
+          quantity: z.number(),
+          unit_price: z.number(),
+        })
+      ),
+      notes: z.string().optional(),
+      subtotal: z.number(),
+      gst: z.number(),
+      total: z.number(),
+    });
+
+    const body = quoteInput.parse(req.body);
+
+    const [quote] = await db
+      .insert(schema.quotes)
+      .values({
+        ...body,
+        org_id: orgId,
+        created_by: userId,
+      })
+      .returning();
+
+    res.json({ ok: true, quote });
+  } catch (error: any) {
+    console.error("POST /api/quotes failed:", error);
+    res.status(500).json({ ok: false, error: error.message || "Failed to save quote" });
+  }
+});
+
+/* ---------------------------------------------------------
+   UPDATE quote
+--------------------------------------------------------- */
+router.put("/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.org_id;
+    const id = req.params.id;
+
+    const quoteInput = z.object({
+      title: z.string(),
+      customer_id: z.string(),
+      items: z.array(
+        z.object({
+          description: z.string(),
+          quantity: z.number(),
+          unit_price: z.number(),
+        })
+      ),
+      notes: z.string().optional(),
+      subtotal: z.number(),
+      gst: z.number(),
+      total: z.number(),
+    });
+
+    const body = quoteInput.parse(req.body);
+
+    const [quote] = await db
+      .update(schema.quotes)
+      .set(body)
+      .where(and(eq(schema.quotes.id, id), eq(schema.quotes.org_id, orgId)))
+      .returning();
+
     if (!quote) {
-      return res.status(404).json({ error: "Quote not found" });
+      return res.status(404).json({ ok: false, error: "Quote not found" });
     }
 
-    // 2) Load full org details
-    const orgResult: any = await db.execute(sql`
-      SELECT name, abn, street, suburb, state, postcode,
-             account_name, bsb, account_number, invoice_terms
-      FROM orgs
-      WHERE id = ${orgId}::uuid
-    `);
-    const organization = orgResult[0] || {};
-
-    // 3) Load customer full details (for address, etc.)
-    const customerResult: any = await db.execute(sql`
-      SELECT name, contact_name, email, phone, street, suburb, state, postcode, address
-      FROM customers
-      WHERE id = ${quote.customer_id}::uuid
-        AND org_id = ${orgId}::uuid
-    `);
-    const customer = customerResult[0] || {};
-
-    // 4) Load quote line items
-    const items: any = await db.execute(sql`
-      SELECT *
-      FROM quote_lines
-      WHERE quote_id = ${id}::uuid
-      ORDER BY position ASC, created_at ASC
-    `);
-
-    const quoteData = {
-      ...quote,
-      items: items.map((item: any) => ({
-        description: item.description || "Item",
-        quantity: Number(item.quantity || 1),
-        // Your DB uses unit_amount on quote_lines (same as invoices)
-        unit_price: Number(item.unit_amount || item.unit_price || 0),
-      })),
-    };
-
-    // 5) Generate email content
-    const publicBaseUrl =
-      process.env.PUBLIC_URL ||
-      process.env.APP_BASE_URL ||
-      "https://staging.taska.info";
-
-    const { subject, html, text } = generateQuoteEmailTemplate(
-      quoteData,
-      organization.name || "Your Business",
-      publicBaseUrl
-    );
-
-    // 6) Generate PDF attachment for the quote
-    let pdfAttachment: { filename: string; content: string } | null = null;
-
-    try {
-      console.log(`[QUOTE PDF] Generating PDF for quote ${quoteData.number || quoteData.id}`);
-      const pdfBuffer = await generateQuotePdf(quoteData, organization, customer);
-      const filename = await generateQuotePdfFilename(quoteData);
-
-      pdfAttachment = {
-        filename,
-        content: pdfBuffer.toString("base64"),
-      };
-
-      console.log(
-        `[QUOTE PDF] Successfully generated quote PDF: ${filename} (${Math.round(
-          pdfBuffer.length / 1024
-        )}KB)`
-      );
-    } catch (pdfError) {
-      console.error("[QUOTE PDF] Failed to generate quote PDF:", pdfError);
-      // Don’t fail the whole request – just send without attachment
-      pdfAttachment = null;
-    }
-
-    // 7) Send email via MailerSend
-    const emailSent = await sendEmail({
-      to: recipientEmails,
-      from: `${fromName} <${fromEmail}>`,
-      subject,
-      html,
-      text,
-      ...(pdfAttachment && { attachments: [pdfAttachment] }),
-    });
-
-    if (!emailSent) {
-      return res.status(500).json({ error: "Failed to send quote email" });
-    }
-
-    // 8) Optionally update quote status to 'sent' if you want
-    if (quote.status === "draft") {
-      await db.execute(sql`
-        UPDATE quotes
-        SET status = 'sent'
-        WHERE id = ${id}::uuid
-          AND org_id = ${orgId}::uuid
-      `);
-    }
-
-    const recipientText =
-      recipientEmails.length === 1
-        ? recipientEmails[0]
-        : `${recipientEmails.length} recipients`;
-
-    return res.json({
-      ok: true,
-      message: pdfAttachment
-        ? `Quote sent successfully to ${recipientText} with PDF attached`
-        : `Quote sent successfully to ${recipientText} (PDF failed, sent without attachment)`,
-      recipients: recipientEmails,
-      recipientCount: recipientEmails.length,
-      pdfAttached: !!pdfAttachment,
-    });
-  } catch (err) {
-    console.error("Error sending quote email:", err);
-    return res.status(500).json({ error: "Failed to send quote email" });
+    res.json({ ok: true, quote });
+  } catch (error: any) {
+    console.error("PUT /api/quotes/:id failed:", error);
+    res.status(500).json({ ok: false, error: error.message || "Failed to update quote" });
   }
 });
 
-/** Get (with items + totals) */
-router.get("/:id", requireAuth, requireOrg, async (req, res) => {
-  const { id } = req.params; const orgId = (req as any).orgId;
-  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
-
-  const r: any = await db.execute(sql`
-    select q.*, c.name as customer_name
-    from quotes q join customers c on c.id=q.customer_id
-    where q.id=${id}::uuid and q.org_id=${orgId}::uuid
-  `);
-  const quote = r[0];  // Match the working pattern from jobs.ts
-  if (!quote) return res.status(404).json({ error: "not found" });
-
-  const lr: any = await db.execute(sql`
-    select * from quote_lines 
-    where quote_id=${id}::uuid and org_id=${orgId}::uuid 
-    order by position asc, created_at asc
-  `);
-  
-  // Transform lines to items format that frontend expects
-  const items = lr.map((line: any) => ({
-    id: line.id,
-    description: line.description,
-    quantity: line.quantity,
-    unit_price: line.unit_amount, // Map unit_amount to unit_price
-    tax_rate: line.tax_rate
-  }));
-  
-  // Map backend field names to frontend expected names
-  const response = {
-    ...quote,
-    items,
-    subtotal: quote.sub_total,
-    total: quote.grand_total
-  };
-  
-  res.json(response);
-});
-
-/** Update header and lines with totals */
-router.put("/:id", requireAuth, requireOrg, async (req, res) => {
-  const { id } = req.params; const orgId = (req as any).orgId;
-  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
-  const { title, customer_id, notes, lines = [] } = req.body || {};
-  
-  // Update header
-  await db.execute(sql`
-    update quotes set
-      title=coalesce(${title}, title),
-      customer_id=coalesce(${customer_id}::uuid, customer_id),
-      notes=coalesce(${notes}, notes)
-    where id=${id}::uuid and org_id=${orgId}::uuid
-  `);
-  
-  // Replace lines (simple path)
-  await db.execute(sql`delete from quote_lines where quote_id=${id}::uuid and org_id=${orgId}::uuid`);
-  
-  // Insert new lines
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    await db.execute(sql`
-      insert into quote_lines (org_id, quote_id, position, description, quantity, unit_amount, tax_rate)
-      values (${orgId}::uuid, ${id}::uuid, ${i}, ${l.description||""}, ${l.quantity||0}, ${l.unit_amount||0}, ${l.tax_rate||0})
-    `);
-  }
-  
-  // Recompute and store totals
-  const sums = sumLines(lines);
-  await db.execute(sql`
-    update quotes set
-      sub_total=${sums.sub_total},
-      tax_total=${sums.tax_total},
-      grand_total=${sums.grand_total}
-    where id=${id}::uuid and org_id=${orgId}::uuid
-  `);
-  
-  res.json({ ok: true, totals: sums });
-});
-
-/** Delete quote */
-router.delete("/:id", requireAuth, requireOrg, async (req, res) => {
-  const { id } = req.params;
-  const orgId = (req as any).orgId;
-  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
-
+/* ---------------------------------------------------------
+   SEND quote email (no PDF)
+--------------------------------------------------------- */
+router.post("/:id/send", requireAuth, async (req: Request, res: Response) => {
   try {
-    // Delete quote lines first (due to foreign key constraints)
-    await db.execute(sql`
-      delete from quote_lines 
-      where quote_id=${id}::uuid and org_id=${orgId}::uuid
-    `);
-    
-    // Delete the quote
-    await db.execute(sql`
-      delete from quotes
-      where id=${id}::uuid and org_id=${orgId}::uuid
-    `);
+    const id = req.params.id;
+    const orgId = req.user!.org_id;
+
+    const quote = await db
+      .select()
+      .from(schema.quotes)
+      .where(and(eq(schema.quotes.id, id), eq(schema.quotes.org_id, orgId)));
+
+    if (!quote[0]) {
+      return res.status(404).json({ ok: false, error: "Quote not found" });
+    }
+
+    const customer = await db
+      .select()
+      .from(schema.customers)
+      .where(eq(schema.customers.id, quote[0].customer_id));
+
+    if (!customer[0]) {
+      return res.status(400).json({ ok: false, error: "Customer not found" });
+    }
+
+    // Send ONLY email — no PDF
+    await sendQuoteEmailToCustomer(quote[0], customer[0]);
 
     res.json({ ok: true });
-  } catch (error: any) {
-    console.error("DELETE /api/quotes/:id error:", error);
-    res.status(500).json({ error: error?.message || "Failed to delete quote" });
-  }
-});
-
-/** Mark accepted */
-router.post("/:id/accept", requireAuth, requireOrg, async (req, res) => {
-  const { id } = req.params;
-  await db.execute(sql`update quotes set status='accepted', updated_at=now() where id=${id}::uuid`);
-  res.json({ ok: true });
-});
-
-/** Push to Xero */
-router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
-  const { id } = req.params; 
-  const orgId = (req as any).orgId;
-  
-  try {
-    // Get quote with customer details and items
-    const r: any = await db.execute(sql`
-      select q.*, c.name as customer_name, c.email as customer_email
-      from quotes q join customers c on c.id=q.customer_id
-      where q.id=${id}::uuid and q.org_id=${orgId}::uuid
-    `);
-    const quote = r[0];
-    if (!quote) return res.status(404).json({ error: "Quote not found" });
-
-    // Get quote lines
-    const lines: any = await db.execute(sql`
-      select * from quote_lines where quote_id=${id}::uuid order by position asc, created_at asc
-    `);
-
-    // Check if already pushed to Xero
-    if (quote.xero_id) {
-      return res.status(400).json({ error: "Quote already exists in Xero", xeroId: quote.xero_id });
-    }
-
-    // Push to Xero
-    const xeroQuote = await xeroService.createQuoteInXero(orgId, {
-      customerName: quote.customer_name,
-      customerEmail: quote.customer_email,
-      currency: quote.currency || 'AUD',
-      expiryDate: quote.expiry_date,
-      lines: lines.map((line: any) => ({
-        name: line.description,
-        description: line.description,
-        price: line.unit_amount,
-        quantity: line.quantity
-      }))
-    });
-
-    // Update quote with Xero ID
-    await db.execute(sql`
-      update quotes 
-      set xero_id=${xeroQuote?.quoteID}, updated_at=now() 
-      where id=${id}::uuid and org_id=${orgId}::uuid
-    `);
-
-    res.json({ 
-      ok: true, 
-      xeroId: xeroQuote?.quoteID,
-      xeroNumber: xeroQuote?.quoteNumber,
-      message: "Quote successfully created in Xero"
-    });
-
   } catch (error) {
-    console.error('Error pushing quote to Xero:', error);
-    if (error instanceof Error && error.message.includes('not found or tokens expired')) {
-      return res.status(401).json({ error: "Xero integration not connected. Please connect Xero in Settings." });
-    }
-    res.status(500).json({ error: "Failed to create quote in Xero" });
+    console.error("POST /api/quotes/:id/send failed:", error);
+    res.status(500).json({ ok: false, error: "Failed to send quote" });
   }
 });
 
-/** Preview quote email without sending */
-router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
-  const { id } = req.params;
-  const orgId = (req as any).orgId;
-  const { email } = req.body;
-  
-  if (!isUuid(id)) return res.status(400).json({ error: "Invalid quote ID" });
-  if (!email) return res.status(400).json({ error: "Customer email is required" });
-  
+/* ---------------------------------------------------------
+   PUBLIC: Accept a quote
+--------------------------------------------------------- */
+router.get("/:id/accept", async (req: Request, res: Response) => {
   try {
-    // Get quote with customer details and lines
-    const quoteResult: any = await db.execute(sql`
-      select q.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
-      from quotes q join customers c on c.id=q.customer_id
-      where q.id=${id}::uuid and q.org_id=${orgId}::uuid
+    const id = req.params.id;
+
+    await db
+      .update(schema.quotes)
+      .set({ status: "accepted" })
+      .where(eq(schema.quotes.id, id));
+
+    res.send(`
+      <html><body>
+        <h1>Quote Accepted</h1>
+        <p>Thank you! We'll be in touch shortly.</p>
+      </body></html>
     `);
-    const quote = quoteResult[0];
-    if (!quote) return res.status(404).json({ error: "Quote not found" });
-
-    // Get quote lines
-    const lines: any = await db.execute(sql`
-      select * from quote_lines where quote_id=${id}::uuid and org_id=${orgId}::uuid order by position asc, created_at asc
-    `);
-
-    // Prepare quote data for email template
-    const quoteData = {
-      ...quote,
-      items: lines.map((line: any) => ({
-        description: line.description,
-        quantity: line.quantity,
-        unit_price: line.unit_amount
-      }))
-    };
-
-    // Get organization name for branding
-    const orgResult: any = await db.execute(sql`
-      select name from orgs where id=${orgId}::uuid
-    `);
-    const orgName = orgResult[0]?.name || "Your Business";
-
-    // Generate email content for preview
-    const { subject, html, text } = generateQuoteEmailTemplate(quoteData, orgName);
-
-    res.json({ 
-      subject,
-      html,
-      text,
-      to: email
-    });
-
   } catch (error) {
-    console.error('Error generating quote email preview:', error);
-    res.status(500).json({ error: "Failed to generate email preview" });
+    console.error("Quote accept error:", error);
+    res.status(500).send("Failed to accept quote");
   }
 });
 
-/** Send quote via email */
-router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
-  const { id } = req.params;
-  const orgId = (req as any).orgId;
-  const { email, fromEmail = "noreply@taska.info", fromName = "Taska" } = req.body;
-  
-  if (!isUuid(id)) return res.status(400).json({ error: "Invalid quote ID" });
-  if (!email) return res.status(400).json({ error: "Customer email is required" });
-  
+/* ---------------------------------------------------------
+   PUBLIC: Decline a quote
+--------------------------------------------------------- */
+router.get("/:id/decline", async (req: Request, res: Response) => {
   try {
-    // Get quote with customer details and lines
-    const quoteResult: any = await db.execute(sql`
-      select q.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
-      from quotes q join customers c on c.id=q.customer_id
-      where q.id=${id}::uuid and q.org_id=${orgId}::uuid
+    const id = req.params.id;
+
+    await db
+      .update(schema.quotes)
+      .set({ status: "declined" })
+      .where(eq(schema.quotes.id, id));
+
+    res.send(`
+      <html><body>
+        <h1>Quote Declined</h1>
+        <p>No worries — thanks for letting us know.</p>
+      </body></html>
     `);
-    const quote = quoteResult[0];
-    if (!quote) return res.status(404).json({ error: "Quote not found" });
-
-    // Get quote lines
-    const lines: any = await db.execute(sql`
-      select * from quote_lines where quote_id=${id}::uuid order by position asc, created_at asc
-    `);
-
-    // Prepare quote data for email template
-    const quoteData = {
-      ...quote,
-      items: lines.map((line: any) => ({
-        description: line.description,
-        quantity: line.quantity,
-        unit_price: line.unit_amount
-      }))
-    };
-
-    // Get organization name for branding
-    const orgResult: any = await db.execute(sql`
-      select name from orgs where id=${orgId}::uuid
-    `);
-    const orgName = orgResult[0]?.name || "Your Business";
-
-    // Generate secure confirmation token for accept/decline links
-    const confirmationToken = randomBytes(32).toString('hex');
-
-    // Update quote with confirmation token
-    await db.execute(sql`
-      update quotes 
-      set confirmation_token=${confirmationToken}
-      where id=${id}::uuid and org_id=${orgId}::uuid
-    `);
-
-    // Add confirmation token to quote data
-    const quoteDataWithToken = {
-      ...quoteData,
-      confirmation_token: confirmationToken
-    };
-
-    // Get base URL for email links  
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://taska.info'  // Production domain
-      : process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : 'http://localhost:5000';
-
-    // Generate email content with confirmation token
-    const { subject, html, text } = generateQuoteEmailTemplate(quoteDataWithToken, orgName, baseUrl);
-
-    // PHASE 1: Check email quota and reserve pack unit if needed
-    const quotaCheck = await checkEmailQuota(orgId);
-    if (!quotaCheck.canSend) {
-      // Distinguish between different failure types for proper error handling
-      let statusCode = 429; // Default to quota exceeded
-      let errorMessage = "Email quota exceeded";
-      
-      if (quotaCheck.error === 'db_error') {
-        statusCode = 500;
-        errorMessage = quotaCheck.errorMessage || "Database error checking email quota";
-      } else if (quotaCheck.error === 'no_packs') {
-        errorMessage = "Email quota exceeded and no packs available";
-      }
-      
-      return res.status(statusCode).json({ 
-        error: errorMessage,
-        usage: quotaCheck.usage,
-        quota: quotaCheck.quota,
-        planId: quotaCheck.planId,
-        packInfo: {
-          type: quotaCheck.packType,
-          remainingPacks: quotaCheck.remainingPacks || 0,
-          packAvailable: quotaCheck.packAvailable || false
-        },
-        upgradeOptions: {
-          solo: { quota: 100, price: "$29/month" },
-          pro: { quota: 500, price: "$49/month" },
-          enterprise: { quota: 2000, price: "$99/month" }
-        }
-      });
-    }
-
-    // Log if pack was reserved for this email
-    if (quotaCheck.reservationId) {
-      console.log(`[EMAIL] Pack reserved for org ${orgId}: ${quotaCheck.packType} pack reserved, ${quotaCheck.remainingPacks} packs remaining after send`);
-    }
-
-    // PHASE 2: Attempt to send email
-    let finalizeSuccess = true;
-    const emailSent = await sendEmail({
-      to: email,
-      from: `${fromName} <${fromEmail}>`,
-      subject,
-      html,
-      text
-    });
-
-    if (!emailSent) {
-      // PHASE 3B: Email send failed - release pack reservation
-      if (quotaCheck.reservationId) {
-        console.log(`[EMAIL] Send failed, releasing pack reservation: ${quotaCheck.reservationId}`);
-        const releaseResult = await releasePackReservation(quotaCheck.reservationId);
-        if (!releaseResult.success) {
-          console.error(`[EMAIL] Failed to release pack reservation: ${releaseResult.errorMessage}`);
-        }
-      }
-      return res.status(500).json({ 
-        error: "Failed to send email",
-        packReservationReleased: !!quotaCheck.reservationId
-      });
-    }
-
-    // PHASE 3A: Email sent successfully - CRITICAL: MUST finalize pack consumption
-    // Using fail-safe approach: prefer failing request over under-billing
-    if (quotaCheck.reservationId) {
-      try {
-        console.log(`[EMAIL] Quote email sent successfully, finalizing pack consumption: ${quotaCheck.reservationId}`);
-        
-        // Use durable finalization with retry logic and fail-safe approach
-        const finalizeResult = await durableFinalizePackConsumption(
-          quotaCheck.reservationId,
-          {
-            maxAttempts: 3,
-            baseDelayMs: 1000,
-            failRequestOnPersistentFailure: true, // CRITICAL: Fail request if can't charge
-          }
-        );
-        
-        if (!finalizeResult.success) {
-          // This should rarely happen due to retry logic, but if it does, it's critical
-          console.error(`[EMAIL] CRITICAL: Failed to finalize pack consumption after retry attempts: ${finalizeResult.errorMessage}`);
-          
-          // The durable finalize function should have thrown an error if failRequestOnPersistentFailure is true
-          // If we reach here, something went wrong with the fail-safe logic
-          throw new Error(`BILLING ERROR: Email delivered but failed to charge after ${finalizeResult.attemptCount} attempts`);
-        }
-        
-        console.log(`[EMAIL] Pack consumption finalized successfully after ${finalizeResult.attemptCount} attempts`);
-      } catch (error) {
-        // CRITICAL BILLING ERROR: Email was delivered but we cannot charge for it
-        console.error(`[EMAIL] CRITICAL BILLING ERROR: Quote email sent to ${email} but pack finalization failed:`, error);
-        
-        // Log the critical billing error for manual intervention
-        await db.execute(sql`
-          INSERT INTO quote_lines (org_id, quote_id, position, description, quantity, unit_amount, tax_rate)
-          VALUES (${orgId}::uuid, ${id}::uuid, 999, ${'BILLING_ERROR: Email sent but not charged - ' + String(error).slice(0, 200)}, 0, 0, 0)
-          ON CONFLICT DO NOTHING
-        `).catch(logError => {
-          console.error(`[EMAIL] Failed to log billing error:`, logError);
-        });
-        
-        // FAIL-SAFE: Return error to prevent under-billing
-        // This means user sees the email as "failed" even though it was delivered
-        // This is better than allowing free email delivery
-        return res.status(500).json({
-          error: "Email delivered but billing failed - contact support immediately",
-          severity: "critical",
-          billingError: true,
-          emailDelivered: true,
-          support: "This email was delivered but could not be charged. Please contact support for billing adjustment."
-        });
-      }
-    }
-
-    // Track email usage for quota management
-    try {
-      await trackEmailUsage(orgId);
-    } catch (error) {
-      console.error('Failed to track email usage:', error);
-      // Don't fail the request if usage tracking fails
-    }
-
-    // Update quote status to 'sent' if it was 'draft'
-    if (quote.status === 'draft') {
-      await db.execute(sql`
-        update quotes 
-        set status='sent' 
-        where id=${id}::uuid and org_id=${orgId}::uuid
-      `);
-    }
-
-    const response: any = { 
-      ok: true, 
-      message: `Quote sent successfully to ${email}`,
-      email: email,
-      packUsed: !!quotaCheck.reservationId,
-      billingStatus: quotaCheck.reservationId ? 'charged' : 'plan_quota'
-    };
-
-    res.json(response);
-
   } catch (error) {
-    console.error('Error sending quote email:', error);
-    res.status(500).json({ error: "Failed to send quote email" });
-  }
-});
-
-/** Convert quote to job */
-router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
-  const { id } = req.params;
-  const orgId = (req as any).orgId;
-  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
-
-  try {
-    // Get quote with customer details and items
-    const r: any = await db.execute(sql`
-      select q.*, c.name as customer_name, c.email as customer_email
-      from quotes q join customers c on c.id=q.customer_id
-      where q.id=${id}::uuid and q.org_id=${orgId}::uuid
-    `);
-    const quote = r[0];
-    if (!quote) return res.status(404).json({ error: "Quote not found" });
-
-    // Get quote lines
-    const lines: any = await db.execute(sql`
-      select * from quote_lines where quote_id=${id}::uuid order by position asc, created_at asc
-    `);
-
-    // Check if already converted
-    if (quote.status === 'converted') {
-      return res.status(400).json({ error: "Quote already converted to job" });
-    }
-
-    // Create job from quote
-    const jr: any = await db.execute(sql`
-      insert into jobs (org_id, title, customer_id, description, status)
-      values (
-        ${orgId}::uuid, 
-        ${quote.title}, 
-        ${quote.customer_id}::uuid, 
-        ${quote.notes || ''}, 
-        'draft'
-      )
-      returning id
-    `);
-    
-    const jobId = jr[0].id;
-
-    // Convert quote lines to job hours/parts based on content
-    for (const line of lines) {
-      // Check if this is a labour item (case-insensitive)
-      const isLabour = /\b(labour|labor|work|hours?)\b/i.test(line.description);
-      
-      if (isLabour) {
-        // Create job_hours entry for labour items
-        await db.execute(sql`
-          insert into job_hours (org_id, job_id, hours, description)
-          values (
-            ${orgId}::uuid,
-            ${jobId}::uuid,
-            ${line.quantity},
-            ${line.description}
-          )
-        `);
-      } else {
-        // Create job_parts entry for non-labour items
-        await db.execute(sql`
-          insert into job_parts (org_id, job_id, part_name, quantity)
-          values (
-            ${orgId}::uuid,
-            ${jobId}::uuid,
-            ${line.description},
-            ${Math.floor(line.quantity)}
-          )
-        `);
-      }
-    }
-
-    // Update quote status to converted and link to job
-    await db.execute(sql`
-      update quotes 
-      set status='converted', job_id=${jobId}::uuid 
-      where id=${id}::uuid and org_id=${orgId}::uuid
-    `);
-
-    res.json({ ok: true, jobId });
-
-  } catch (error: any) {
-    console.error("Quote conversion error:", error);
-    res.status(500).json({ error: error?.message || "Failed to convert quote to job" });
+    console.error("Quote decline error:", error);
+    res.status(500).send("Failed to decline quote");
   }
 });
 

@@ -24,6 +24,7 @@ const DashboardPage: React.FC = () => {
         {/* Existing cards */}
         {/* <JobsTodayCard /> */}
         {/* <TotalJobsCard /> */}
+        {/* <QuotesAcceptedCard /> */}
         {/* etc… */}
 
         {/* New Accepted Quotes card */}

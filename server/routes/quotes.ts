@@ -67,6 +67,59 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
   res.json(r);  // Match the working pattern from jobs.ts
 });
 
+/** Accepted quotes summary (for dashboard) */
+router.get(
+  "/accepted/summary",
+  requireAuth,
+  requireOrg,
+  checkSubscription,
+  requireActiveSubscription,
+  async (req, res) => {
+    const orgId = (req as any).orgId;
+
+    try {
+      // Count of accepted quotes for this org
+      const countResult: any = await db.execute(sql`
+        select count(*)::int as count
+        from quotes
+        where org_id = ${orgId}::uuid
+          and status = 'accepted'
+      `);
+
+      const acceptedCount = countResult[0]?.count ?? 0;
+
+      // Last 3 accepted quotes for a little list on the dashboard
+      const recent: any = await db.execute(sql`
+        select 
+          q.id,
+          q.title,
+          q.status,
+          q.created_at,
+          coalesce(q.grand_total, 0) as total_amount,
+          c.name as customer_name
+        from quotes q
+        join customers c on c.id = q.customer_id
+        where q.org_id = ${orgId}::uuid
+          and q.status = 'accepted'
+        order by q.created_at desc
+        limit 3
+      `);
+
+      res.json({
+        ok: true,
+        count: acceptedCount,
+        recent,
+      });
+    } catch (error) {
+      console.error("Error fetching accepted quotes summary:", error);
+      res.status(500).json({
+        ok: false,
+        error: "Failed to load accepted quotes summary",
+      });
+    }
+  }
+);
+
 /** Create */
 router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   try {

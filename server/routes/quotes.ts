@@ -2,7 +2,7 @@ import express from "express";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 import type { Request, Response } from "express";
-import { requireAuth } from "../middleware/require-auth";
+import { requireAuth } from "../lib/require-auth";
 import { sendQuoteEmailToCustomer } from "../services/email";
 import { db } from "../db/client";
 import * as schema from "../../shared/schema";

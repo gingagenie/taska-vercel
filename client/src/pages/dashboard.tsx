@@ -35,7 +35,6 @@ const DashboardPage: React.FC = () => {
   );
 };
 
-export default DashboardPage;
 
 // --- date helpers ---
 function startOfDay(d = new Date()) {

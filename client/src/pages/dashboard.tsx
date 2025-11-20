@@ -13,42 +13,26 @@ import { UsageWidget } from "@/components/layout/usage-widget";
 import { trackViewContent } from "@/lib/tiktok-tracking";
 import React from "react";
 import { QuotesAcceptedCard } from "@/components/dashboard/QuotesAcceptedCard";
-// import other cards…
-
-const DashboardPage: React.FC = () => {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {/* Existing cards */}
-        {/* <JobsTodayCard /> */}
-        {/* <TotalJobsCard /> */}
-        {/* <QuotesAcceptedCard /> */}
-        {/* etc… */}
-
-        {/* New Accepted Quotes card */}
-        <QuotesAcceptedCard />
-      </div>
-
-      {/* rest of your dashboard (Upcoming Jobs, Quick Actions, etc.) */}
-    </div>
-  );
-};
-
 
 // --- date helpers ---
 function startOfDay(d = new Date()) {
-  const x = new Date(d); x.setHours(0,0,0,0); return x;
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }
+
 function endOfDay(d = new Date()) {
-  const x = new Date(d); x.setHours(23,59,59,999); return x;
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
 }
+
 function within(dateStr: string | null, from: Date, to: Date) {
   if (!dateStr) return false;
   const t = new Date(dateStr).getTime();
   return t >= from.getTime() && t <= to.getTime();
 }
+
 function fmtDateTime(s: string | null) {
   if (!s) return "Not scheduled";
   const d = new Date(s);
@@ -69,16 +53,20 @@ export default function Dashboard() {
   const todayEnd = endOfDay(now);
 
   const { todaysJobs, upcomingJobs } = useMemo(() => {
-    const todays = (jobs as any[]).filter(j =>
+    const todays = (jobs as any[]).filter((j) =>
       within(j.scheduled_at, todayStart, todayEnd)
     );
     const upcoming = (jobs as any[])
-      .filter(j => {
+      .filter((j) => {
         if (!j.scheduled_at) return false;
         const t = new Date(j.scheduled_at).getTime();
         return t > todayEnd.getTime();
       })
-      .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+      .sort(
+        (a, b) =>
+          new Date(a.scheduled_at).getTime() -
+          new Date(b.scheduled_at).getTime()
+      )
       .slice(0, 5);
     return { todaysJobs: todays, upcomingJobs: upcoming };
   }, [jobs]);
@@ -87,10 +75,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isLoading && jobs.length >= 0) {
       trackViewContent({
-        contentType: 'dashboard',
-        contentName: 'Main Dashboard',
-        contentCategory: 'dashboard_overview',
-        value: (jobs as any[]).length // Use job count as a value metric
+        contentType: "dashboard",
+        contentName: "Main Dashboard",
+        contentCategory: "dashboard_overview",
+        value: (jobs as any[]).length, // Use job count as a value metric
       });
     }
   }, [isLoading, jobs]);
@@ -104,7 +92,10 @@ export default function Dashboard() {
           <div className="hidden sm:block">
             <UsageWidget variant="desktop" />
           </div>
-          <Button data-mobile-full="true" onClick={() => setIsJobModalOpen(true)}>
+          <Button
+            data-mobile-full="true"
+            onClick={() => setIsJobModalOpen(true)}
+          >
             + New Job
           </Button>
         </div>
@@ -113,7 +104,13 @@ export default function Dashboard() {
       {/* Subscription Banner */}
       {subscription && (
         <SubscriptionBanner
-          status={subscription.subscription.status as 'trial' | 'active' | 'past_due' | 'canceled'}
+          status={
+            subscription.subscription.status as
+              | "trial"
+              | "active"
+              | "past_due"
+              | "canceled"
+          }
           planId={subscription.subscription.planId}
           trialEnd={subscription.subscription.trialEnd}
           currentPeriodEnd={subscription.subscription.currentPeriodEnd}
@@ -121,14 +118,18 @@ export default function Dashboard() {
       )}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link href="/schedule">
           <a>
             <Card className="border-schedule bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
               <CardContent className="card-pad flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-gray-500 font-medium">Jobs Today</div>
-                  <div className="text-2xl font-semibold">{todaysJobs.length}</div>
+                  <div className="text-sm text-gray-500 font-medium">
+                    Jobs Today
+                  </div>
+                  <div className="text-2xl font-semibold">
+                    {todaysJobs.length}
+                  </div>
                 </div>
                 <div className="p-3 rounded-lg bg-schedule text-schedule-foreground">
                   <CalendarDays className="h-6 w-6" />
@@ -143,8 +144,12 @@ export default function Dashboard() {
             <Card className="border-jobs bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
               <CardContent className="card-pad flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-gray-500 font-medium">Total Jobs</div>
-                  <div className="text-2xl font-semibold">{(jobs as any[]).length}</div>
+                  <div className="text-sm text-gray-500 font-medium">
+                    Total Jobs
+                  </div>
+                  <div className="text-2xl font-semibold">
+                    {(jobs as any[]).length}
+                  </div>
                 </div>
                 <div className="p-3 rounded-lg bg-jobs text-jobs-foreground">
                   <Briefcase className="h-6 w-6" />
@@ -153,6 +158,9 @@ export default function Dashboard() {
             </Card>
           </a>
         </Link>
+
+        {/* New Accepted Quotes card */}
+        <QuotesAcceptedCard />
       </div>
 
       {/* Today's Schedule + Upcoming */}
@@ -160,10 +168,16 @@ export default function Dashboard() {
         <Card className="border-schedule bg-white">
           <CardHeader>
             <div className="header-row">
-              <CardTitle>Today's Schedule</CardTitle>
+              <CardTitle>Today&apos;s Schedule</CardTitle>
               <div className="header-actions">
-                <Button asChild variant="outline" className="border-schedule text-schedule hover:bg-schedule-light">
-                  <Link href="/schedule"><a>View Schedule</a></Link>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="border-schedule text-schedule hover:bg-schedule-light"
+                >
+                  <Link href="/schedule">
+                    <a>View Schedule</a>
+                  </Link>
                 </Button>
               </div>
             </div>
@@ -172,7 +186,9 @@ export default function Dashboard() {
             {isLoading ? (
               <div className="text-sm text-gray-500">Loading…</div>
             ) : todaysJobs.length === 0 ? (
-              <div className="text-sm text-gray-500">No jobs scheduled for today.</div>
+              <div className="text-sm text-gray-500">
+                No jobs scheduled for today.
+              </div>
             ) : (
               <div className="space-y-3">
                 {todaysJobs.map((j: any) => (
@@ -180,7 +196,8 @@ export default function Dashboard() {
                     <a className="block rounded-lg border border-gray-200 hover:border-schedule hover:bg-schedule-light/30 p-3 transition">
                       <div className="font-medium">{j.title}</div>
                       <div className="text-xs text-gray-500">
-                        {fmtDateTime(j.scheduled_at)} • {j.customer_name || "—"}
+                        {fmtDateTime(j.scheduled_at)} •{" "}
+                        {j.customer_name || "—"}
                       </div>
                     </a>
                   </Link>
@@ -195,8 +212,14 @@ export default function Dashboard() {
             <div className="header-row">
               <CardTitle>Upcoming Jobs</CardTitle>
               <div className="header-actions">
-                <Button asChild variant="outline" className="border-jobs text-jobs hover:bg-jobs-light">
-                  <Link href="/jobs"><a>View All</a></Link>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="border-jobs text-jobs hover:bg-jobs-light"
+                >
+                  <Link href="/jobs">
+                    <a>View All</a>
+                  </Link>
                 </Button>
               </div>
             </div>
@@ -213,7 +236,8 @@ export default function Dashboard() {
                     <a className="block rounded-lg border border-gray-200 hover:border-jobs hover:bg-jobs-light/30 p-3 transition">
                       <div className="font-medium">{j.title}</div>
                       <div className="text-xs text-gray-500">
-                        {fmtDateTime(j.scheduled_at)} • {j.customer_name || "—"}
+                        {fmtDateTime(j.scheduled_at)} •{" "}
+                        {j.customer_name || "—"}
                       </div>
                     </a>
                   </Link>
@@ -231,17 +255,48 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent className="card-pad">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Button data-mobile-full="true" onClick={() => setIsJobModalOpen(true)} className="bg-jobs hover:bg-jobs/90 text-jobs-foreground">
+            <Button
+              data-mobile-full="true"
+              onClick={() => setIsJobModalOpen(true)}
+              className="bg-jobs hover:bg-jobs/90 text-jobs-foreground"
+            >
               <Briefcase className="h-4 w-4 mr-2" /> New Job
             </Button>
-            <Button asChild data-mobile-full="true" variant="outline" className="border-schedule text-schedule hover:bg-schedule-light">
-              <Link href="/schedule"><a><CalendarDays className="h-4 w-4 mr-2" /> Schedule</a></Link>
+            <Button
+              asChild
+              data-mobile-full="true"
+              variant="outline"
+              className="border-schedule text-schedule hover:bg-schedule-light"
+            >
+              <Link href="/schedule">
+                <a>
+                  <CalendarDays className="h-4 w-4 mr-2" /> Schedule
+                </a>
+              </Link>
             </Button>
-            <Button asChild data-mobile-full="true" variant="outline" className="border-people text-people hover:bg-people-light">
-              <Link href="/customers"><a><Users className="h-4 w-4 mr-2" /> Customers</a></Link>
+            <Button
+              asChild
+              data-mobile-full="true"
+              variant="outline"
+              className="border-people text-people hover:bg-people-light"
+            >
+              <Link href="/customers">
+                <a>
+                  <Users className="h-4 w-4 mr-2" /> Customers
+                </a>
+              </Link>
             </Button>
-            <Button asChild data-mobile-full="true" variant="outline" className="border-equipment text-equipment hover:bg-equipment-light">
-              <Link href="/equipment"><a><Wrench className="h-4 w-4 mr-2" /> Equipment</a></Link>
+            <Button
+              asChild
+              data-mobile-full="true"
+              variant="outline"
+              className="border-equipment text-equipment hover:bg-equipment-light"
+            >
+              <Link href="/equipment">
+                <a>
+                  <Wrench className="h-4 w-4 mr-2" /> Equipment
+                </a>
+              </Link>
             </Button>
           </div>
         </CardContent>

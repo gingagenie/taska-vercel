@@ -118,7 +118,7 @@ export const QuotesAcceptedCard: React.FC = () => {
           type="button"
           onClick={() => {
             // adjust if you’re using a router hook instead of location.href
-            window.location.href = "/app/quotes?filter=accepted";
+            window.location.href = "/app/quotes";
           }}
           className="rounded-lg border border-emerald-300 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
         >

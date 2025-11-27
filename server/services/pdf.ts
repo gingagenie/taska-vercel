@@ -1,5 +1,3 @@
-// src/server/lib/invoice-pdf.ts (or wherever this lives)
-
 import puppeteer from "puppeteer";
 import PDFDocument from "pdfkit";
 import { generateInvoiceEmailTemplate } from "./email";

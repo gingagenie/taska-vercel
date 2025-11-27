@@ -1,10 +1,8 @@
-import puppeteer from "puppeteer-core";
-import chromium from "@sparticuz/chromium";
+// src/server/lib/invoice-pdf.ts (or wherever this lives)
+
+import puppeteer from "puppeteer";
 import PDFDocument from "pdfkit";
 import { generateInvoiceEmailTemplate } from "./email";
-
-chromium.setHeadlessMode = true;
-chromium.setGraphicsMode = false;
 
 /* ---------------------------------------------------------
    Helpers
@@ -38,14 +36,9 @@ async function generateInvoicePdfWithPuppeteer(
   let browser: puppeteer.Browser | null = null;
 
   try {
-    const executablePath = await chromium.executablePath();
-
     browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath,
-      headless: chromium.headless,
-      ignoreHTTPSErrors: true,
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
     const page = await browser.newPage();
@@ -82,13 +75,14 @@ async function generateInvoicePdfWithPuppeteer(
 
     return Buffer.from(buffer);
   } finally {
-    if (browser) await browser.close();
+    if (browser) {
+      await browser.close();
+    }
   }
 }
 
 /**
- * Fallback PDF generator – now creates a clean invoice layout instead
- * of dumping raw JSON.
+ * Fallback PDF generator – clean invoice layout instead of raw JSON.
  */
 function generateInvoicePdfWithPdfKitSync(
   invoice: any,
@@ -247,9 +241,9 @@ export async function generateInvoicePdfFilename(
 ): Promise<string> {
   const num = invoice.number || "invoice";
   const title = invoice.title
-    ? invoice.title.replace(/[^a-zA-Z0-9\s-]/g, "").substring(0, 30)
+    ? invoice.title.replace(/[^a-zA-Z0-9\\s-]/g, "").substring(0, 30)
     : "";
   return title
-    ? `${num}-${title.replace(/\s+/g, "-").toLowerCase()}.pdf`
+    ? `${num}-${title.replace(/\\s+/g, "-").toLowerCase()}.pdf`
     : `${num}.pdf`;
 }

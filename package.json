@@ -51,7 +51,6 @@
     "@radix-ui/react-tooltip": "^1.2.0",
     "@replit/object-storage": "^1.0.0",
     "@sendgrid/mail": "^8.1.5",
-    "@sparticuz/chromium": "^138.0.2",
     "@stripe/react-stripe-js": "^4.0.0",
     "@stripe/stripe-js": "^7.9.0",
     "@supabase/storage-js": "^2.12.2",
@@ -106,7 +105,7 @@
     "passport-local": "^1.0.0",
     "pg": "^8.16.3",
     "postgres": "^3.4.7",
-    "puppeteer-core": "^24.22.2",
+    "puppeteer": "^23.0.0"  // or latest
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",

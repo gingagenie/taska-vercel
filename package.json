@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "NODE_ENV=production node dist/index.js",
+    "start": "NODE_ENV=production node dist/server/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push"
   },
@@ -105,7 +105,7 @@
     "passport-local": "^1.0.0",
     "pg": "^8.16.3",
     "postgres": "^3.4.7",
-    "puppeteer": "^23.0.0"  // or latest
+    "puppeteer": "^23.0.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",

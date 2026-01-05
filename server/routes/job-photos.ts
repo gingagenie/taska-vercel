@@ -6,7 +6,6 @@ import {
   createSignedViewUrl,
   uploadPhotoToSupabase,
   deleteFile,
-  // listJobPhotos, // no longer needed
 } from "../services/supabase";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
@@ -81,14 +80,14 @@ router.post(
         contentType: req.file.mimetype,
       });
 
+      // NOTE: This URL is only for immediate display after upload.
+      // The GET /:jobId/photos endpoint will always return fresh URLs later.
       const signedUrl = await createSignedViewUrl(key, 60 * 60 * 24 * 7); // 7 days
 
       return res.json({ ok: true, key, url: signedUrl });
     } catch (e: any) {
       console.error("[JOB PHOTOS] upload error:", e);
-      return res
-        .status(500)
-        .json({ error: e.message || "upload failed" });
+      return res.status(500).json({ error: e.message || "upload failed" });
     }
   }
 );
@@ -110,9 +109,7 @@ router.post("/photos/sign", requireAuth, async (req: any, res) => {
     return res.json({ ok: true, url });
   } catch (e: any) {
     console.error("[JOB PHOTOS] sign error:", e);
-    return res
-      .status(500)
-      .json({ error: e.message || "sign failed" });
+    return res.status(500).json({ error: e.message || "sign failed" });
   }
 });
 
@@ -133,14 +130,13 @@ router.delete("/photos", requireAuth, async (req: any, res) => {
     return res.json({ ok: true });
   } catch (e: any) {
     console.error("[JOB PHOTOS] delete error:", e);
-    return res
-      .status(500)
-      .json({ error: e.message || "delete failed" });
+    return res.status(500).json({ error: e.message || "delete failed" });
   }
 });
 
 /**
- * 5) List photos for a job – **returns plain array**
+ * 5) List photos for a job – returns plain array with FRESH signed URLs
+ *    This fixes "completed jobs can't see photos" when old signed URLs are stale.
  */
 router.get("/:jobId/photos", requireAuth, async (req: any, res) => {
   try {
@@ -151,21 +147,32 @@ router.get("/:jobId/photos", requireAuth, async (req: any, res) => {
       return res.status(400).json({ error: "Invalid job ID" });
     }
 
-    const rows: any = await db.execute(sql`
-      SELECT id, url, object_key, created_at
+    const result: any = await db.execute(sql`
+      SELECT id, object_key, created_at
       FROM job_photos
       WHERE job_id = ${jobId}::uuid
         AND org_id = ${tenantId}::uuid
       ORDER BY created_at DESC
     `);
 
-    // plain array so all existing callers can do photos.map(...)
-    return res.json(rows);
+    // drizzle execute shape varies; normalize to an array
+    const rows = Array.isArray(result) ? result : (result?.rows ?? []);
+
+    // Create fresh signed URLs every time the photos are requested
+    const photos = await Promise.all(
+      rows.map(async (r: any) => ({
+        id: r.id,
+        object_key: r.object_key,
+        created_at: r.created_at,
+        url: await createSignedViewUrl(r.object_key, 60 * 60 * 24 * 7), // 7 days
+      }))
+    );
+
+    // plain array so callers can do photos.map(...)
+    return res.json(photos);
   } catch (e: any) {
     console.error("[JOB PHOTOS] list error:", e);
-    return res
-      .status(500)
-      .json({ error: e.message || "list failed" });
+    return res.status(500).json({ error: e.message || "list failed" });
   }
 });
 

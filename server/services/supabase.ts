@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const BUCKET_NAME = "photos";
+const BUCKET_NAME = "photos"; // yes, still using the same bucket for now
 
 // Initialize Supabase Storage client
 const storageUrl = `${SUPABASE_URL}/storage/v1`;
@@ -31,41 +31,75 @@ export interface PhotoUploadResult {
 export function generatePhotoKey(params: PhotoUploadParams): string {
   const now = new Date();
   const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
   const parts = [
-    'org',
+    "org",
     params.tenantId,
     year,
     month,
     day,
-    params.jobId || 'misc',
-    crypto.randomUUID() + '.' + params.ext.replace('.', '')
+    params.jobId || "misc",
+    crypto.randomUUID() + "." + params.ext.replace(".", ""),
   ];
-  
-  return parts.join('/');
+
+  return parts.join("/");
+}
+
+/**
+ * Generate a storage key for NON-photo files (PDFs etc)
+ * Pattern: org/{tenantId}/docs/{yyyy}/{mm}/{dd}/{jobId}/{uuid}.{ext}
+ */
+export function generateFileKey(params: {
+  tenantId: string;
+  jobId?: string;
+  ext: string;
+  folder?: string; // default "docs"
+}): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  const folder = (params.folder || "docs").replace(/[^a-zA-Z0-9_-]/g, "");
+  const ext = params.ext.replace(".", "");
+
+  const parts = [
+    "org",
+    params.tenantId,
+    folder,
+    year,
+    month,
+    day,
+    params.jobId || "misc",
+    crypto.randomUUID() + "." + ext,
+  ];
+
+  return parts.join("/");
 }
 
 /**
  * Create a signed upload URL for direct client uploads to Supabase Storage
  */
-export async function createSignedUploadUrl(params: PhotoUploadParams): Promise<PhotoUploadResult> {
+export async function createSignedUploadUrl(
+  params: PhotoUploadParams
+): Promise<PhotoUploadResult> {
   const key = generatePhotoKey(params);
-  
+
   const { data, error } = await storageClient
     .from(BUCKET_NAME)
     .createSignedUploadUrl(key);
-  
+
   if (error) {
     console.error("[SUPABASE_STORAGE] Failed to create signed upload URL:", error);
     throw new Error(`Failed to create upload URL: ${error.message}`);
   }
-  
+
   if (!data) {
     throw new Error("No upload URL returned from Supabase");
   }
-  
+
   return {
     key,
     uploadUrl: data.signedUrl,
@@ -74,18 +108,21 @@ export async function createSignedUploadUrl(params: PhotoUploadParams): Promise<
 }
 
 /**
- * Create a signed URL for viewing/downloading a photo
+ * Create a signed URL for viewing/downloading a photo/file
  */
-export async function createSignedViewUrl(key: string, expiresIn: number = 900): Promise<string | null> {
+export async function createSignedViewUrl(
+  key: string,
+  expiresIn: number = 900
+): Promise<string | null> {
   const { data, error } = await storageClient
     .from(BUCKET_NAME)
     .createSignedUrl(key, expiresIn);
-  
+
   if (error) {
     console.error("[SUPABASE_STORAGE] Failed to create signed view URL:", error);
     return null;
   }
-  
+
   return data?.signedUrl || null;
 }
 
@@ -104,44 +141,79 @@ export interface DirectUploadResult {
   key: string;
 }
 
-export async function uploadPhotoToSupabase(params: DirectUploadParams): Promise<DirectUploadResult> {
+export async function uploadPhotoToSupabase(
+  params: DirectUploadParams
+): Promise<DirectUploadResult> {
   const key = generatePhotoKey({
     tenantId: params.tenantId,
     jobId: params.jobId,
     ext: params.ext,
   });
-  
-  const { error } = await storageClient
-    .from(BUCKET_NAME)
-    .upload(key, params.fileBuffer, {
-      contentType: params.contentType || "image/jpeg",
-      upsert: false,
-    });
-  
+
+  const { error } = await storageClient.from(BUCKET_NAME).upload(key, params.fileBuffer, {
+    contentType: params.contentType || "image/jpeg",
+    upsert: false,
+  });
+
   if (error) {
     console.error("[SUPABASE_STORAGE] Failed to upload photo:", error);
     throw new Error(`Failed to upload photo: ${error.message}`);
   }
-  
+
+  return { key };
+}
+
+/**
+ * Upload a file directly from server (for PDFs like service sheets)
+ * Generates a key under org/{tenantId}/docs/... unless you override folder
+ */
+export async function uploadFileToSupabase(params: {
+  tenantId: string;
+  jobId?: string;
+  ext: string; // e.g. "pdf"
+  fileBuffer: Buffer;
+  contentType?: string; // e.g. "application/pdf"
+  folder?: string; // default "docs"
+}): Promise<{ key: string }> {
+  const key = generateFileKey({
+    tenantId: params.tenantId,
+    jobId: params.jobId,
+    ext: params.ext,
+    folder: params.folder || "docs",
+  });
+
+  const { error } = await storageClient.from(BUCKET_NAME).upload(key, params.fileBuffer, {
+    contentType: params.contentType || "application/octet-stream",
+    upsert: false,
+  });
+
+  if (error) {
+    console.error("[SUPABASE_STORAGE] Failed to upload file:", error);
+    throw new Error(`Failed to upload file: ${error.message}`);
+  }
+
   return { key };
 }
 
 /**
  * Upload a file directly from server (for migration purposes)
+ * NOTE: upsert true here by design.
  */
-export async function uploadFile(key: string, fileBuffer: Buffer, contentType: string = "image/jpeg"): Promise<boolean> {
-  const { error } = await storageClient
-    .from(BUCKET_NAME)
-    .upload(key, fileBuffer, {
-      contentType,
-      upsert: true,
-    });
-  
+export async function uploadFile(
+  key: string,
+  fileBuffer: Buffer,
+  contentType: string = "image/jpeg"
+): Promise<boolean> {
+  const { error } = await storageClient.from(BUCKET_NAME).upload(key, fileBuffer, {
+    contentType,
+    upsert: true,
+  });
+
   if (error) {
     console.error("[SUPABASE_STORAGE] Failed to upload file:", error);
     return false;
   }
-  
+
   return true;
 }
 
@@ -149,15 +221,13 @@ export async function uploadFile(key: string, fileBuffer: Buffer, contentType: s
  * Delete a file from storage
  */
 export async function deleteFile(key: string): Promise<boolean> {
-  const { error } = await storageClient
-    .from(BUCKET_NAME)
-    .remove([key]);
-  
+  const { error } = await storageClient.from(BUCKET_NAME).remove([key]);
+
   if (error) {
     console.error("[SUPABASE_STORAGE] Failed to delete file:", error);
     return false;
   }
-  
+
   return true;
 }
 
@@ -198,8 +268,6 @@ export async function listJobPhotos(
   tenantId: string,
   jobId: string
 ): Promise<Array<{ key: string; url?: string }>> {
-  // For now, this is intentionally conservative.
-  // If you want to actually walk Supabase Storage, we can implement that later.
   console.log(
     `[SUPABASE_STORAGE] listJobPhotos placeholder called tenant=${tenantId} job=${jobId}`
   );

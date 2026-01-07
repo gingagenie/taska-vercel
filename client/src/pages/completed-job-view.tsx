@@ -4,7 +4,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { CheckCircle, Calendar, User, Clock, ArrowLeft, FileText, MessageSquare, Camera, Wrench, Trash2 } from "lucide-react";
+import {
+  CheckCircle,
+  Calendar,
+  User,
+  Clock,
+  ArrowLeft,
+  FileText,
+  MessageSquare,
+  Camera,
+  Wrench,
+  Trash2,
+  Download,
+} from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { useToast } from "@/hooks/use-toast";
 import { trackClickButton } from "@/lib/tiktok-tracking";
@@ -26,7 +38,7 @@ interface CompletedJob {
 
 interface JobCharge {
   id: string;
-  kind: 'labour' | 'material' | 'equipment' | 'other';
+  kind: "labour" | "material" | "equipment" | "other";
   description: string;
   quantity: number;
   unit_price: number;
@@ -38,6 +50,7 @@ export default function CompletedJobView() {
   const { id } = useParams();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+
   const [job, setJob] = useState<CompletedJob | null>(null);
   const [charges, setCharges] = useState<JobCharge[]>([]);
   const [hours, setHours] = useState<any[]>([]);
@@ -47,72 +60,194 @@ export default function CompletedJobView() {
   const [equipment, setEquipment] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [convertingToInvoice, setConvertingToInvoice] = useState(false);
+  const [downloadingSheet, setDownloadingSheet] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState<any>(null);
 
   useEffect(() => {
     loadCompletedJob();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function loadCompletedJob() {
     try {
       setLoading(true);
+      setError(null);
+
       const response = await fetch(`/api/jobs/completed/${id}`);
-      if (!response.ok) {
-        throw new Error('Failed to load completed job');
-      }
+      if (!response.ok) throw new Error("Failed to load completed job");
+
       const jobData = await response.json();
       setJob(jobData);
-      
-      // Load charges, hours, parts, notes, photos, and equipment for the completed job
+
+      // Load charges, hours, parts, notes, photos, equipment
       try {
-        const [chargesResponse, hoursResponse, partsResponse, notesResponse, photosResponse, equipmentResponse] = await Promise.all([
+        const [
+          chargesResponse,
+          hoursResponse,
+          partsResponse,
+          notesResponse,
+          photosResponse,
+          equipmentResponse,
+        ] = await Promise.all([
           fetch(`/api/jobs/completed/${jobData.id}/charges`),
           fetch(`/api/jobs/completed/${jobData.id}/hours`),
           fetch(`/api/jobs/completed/${jobData.id}/parts`),
           fetch(`/api/jobs/completed/${jobData.id}/notes`),
           fetch(`/api/jobs/completed/${jobData.id}/photos`),
-          fetch(`/api/jobs/completed/${jobData.id}/equipment`)
+          fetch(`/api/jobs/completed/${jobData.id}/equipment`),
         ]);
-        
-        if (chargesResponse.ok) {
-          const chargesData = await chargesResponse.json();
-          setCharges(chargesData);
-        }
-        
-        if (hoursResponse.ok) {
-          const hoursData = await hoursResponse.json();
-          setHours(hoursData);
-        }
-        
-        if (partsResponse.ok) {
-          const partsData = await partsResponse.json();
-          setParts(partsData);
-        }
-        
-        if (notesResponse.ok) {
-          const notesData = await notesResponse.json();
-          setNotes(notesData);
-        }
-        
-        if (photosResponse.ok) {
-          const photosData = await photosResponse.json();
-          setPhotos(photosData);
-        }
-        
-        if (equipmentResponse.ok) {
-          const equipmentData = await equipmentResponse.json();
-          setEquipment(equipmentData);
-        }
+
+        if (chargesResponse.ok) setCharges(await chargesResponse.json());
+        if (hoursResponse.ok) setHours(await hoursResponse.json());
+        if (partsResponse.ok) setParts(await partsResponse.json());
+        if (notesResponse.ok) setNotes(await notesResponse.json());
+        if (photosResponse.ok) setPhotos(await photosResponse.json());
+        if (equipmentResponse.ok) setEquipment(await equipmentResponse.json());
       } catch (e) {
-        console.error('Failed to load completed job data:', e);
-        // Don't fail the whole page if these fail to load
+        console.error("Failed to load completed job data:", e);
+        // Don’t fail the whole page if these fail
       }
     } catch (e: any) {
-      setError(e.message || 'Failed to load completed job');
+      setError(e.message || "Failed to load completed job");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleConvertToInvoice() {
+    if (!job) return;
+
+    trackClickButton({
+      contentName: "Convert Completed Job to Invoice Button",
+      contentCategory: "conversion",
+    });
+
+    try {
+      setConvertingToInvoice(true);
+
+      const response = await fetch(`/api/jobs/completed/${job.id}/convert-to-invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to convert to invoice");
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "Invoice Created",
+        description: result.message || "Invoice created successfully",
+      });
+
+      navigate(`/invoices/${result.invoiceId}`);
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e.message || "Failed to convert to invoice",
+        variant: "destructive",
+      });
+    } finally {
+      setConvertingToInvoice(false);
+    }
+  }
+
+  async function handleDownloadJobSheet() {
+    if (!job) return;
+
+    trackClickButton({
+      contentName: "Download Job Sheet Button",
+      contentCategory: "download",
+    });
+
+    try {
+      setDownloadingSheet(true);
+
+      // We download via fetch -> blob so it works reliably and can show toast errors.
+      const url = `/api/jobs/completed/${job.id}/service-sheet?download=1`;
+
+      const resp = await fetch(url, { method: "GET" });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to generate job sheet PDF");
+      }
+
+      const blob = await resp.blob();
+      if (!blob || blob.size === 0) {
+        throw new Error("PDF generation returned an empty file");
+      }
+
+      // Pick a friendly filename
+      const safeTitle = (job.title || "job-sheet")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60);
+
+      const filename = `job-sheet-${safeTitle || job.id}.pdf`;
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast({
+        title: "Job Sheet Ready",
+        description: "Downloaded PDF job sheet.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Couldn’t download job sheet",
+        description: e.message || "Something went wrong generating the PDF",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingSheet(false);
+    }
+  }
+
+  async function handleDeleteJob() {
+    if (!job) return;
+
+    if (!confirm("Are you sure you want to delete this completed job? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+
+      const response = await fetch(`/api/jobs/completed/${job.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to delete completed job");
+      }
+
+      toast({
+        title: "Job Deleted",
+        description: "The completed job has been deleted successfully",
+      });
+
+      navigate("/completed-jobs");
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e.message || "Failed to delete completed job",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -127,9 +262,7 @@ export default function CompletedJobView() {
   if (error || !job) {
     return (
       <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
-        <div className="text-center text-red-600">
-          Error: {error || 'Job not found'}
-        </div>
+        <div className="text-center text-red-600">Error: {error || "Job not found"}</div>
         <div className="text-center">
           <Link href="/completed-jobs">
             <Button variant="outline">
@@ -140,87 +273,6 @@ export default function CompletedJobView() {
         </div>
       </div>
     );
-  }
-
-  async function handleConvertToInvoice() {
-    if (!job) return;
-    
-    // Track the Convert to Invoice button click
-    trackClickButton({
-      contentName: "Convert Completed Job to Invoice Button",
-      contentCategory: "conversion",
-    });
-    
-    try {
-      setConvertingToInvoice(true);
-      const response = await fetch(`/api/jobs/completed/${job.id}/convert-to-invoice`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to convert to invoice');
-      }
-
-      const result = await response.json();
-      
-      toast({
-        title: "Invoice Created",
-        description: result.message || "Invoice created successfully",
-      });
-
-      // Navigate to the created invoice (assuming you have an invoices page)
-      navigate(`/invoices/${result.invoiceId}`);
-      
-    } catch (e: any) {
-      toast({
-        title: "Error",
-        description: e.message || 'Failed to convert to invoice',
-        variant: "destructive",
-      });
-    } finally {
-      setConvertingToInvoice(false);
-    }
-  }
-
-  async function handleDeleteJob() {
-    if (!job) return;
-    
-    if (!confirm('Are you sure you want to delete this completed job? This action cannot be undone.')) {
-      return;
-    }
-    
-    try {
-      setDeleting(true);
-      const response = await fetch(`/api/jobs/completed/${job.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete completed job');
-      }
-      
-      toast({
-        title: "Job Deleted",
-        description: "The completed job has been deleted successfully",
-      });
-
-      // Navigate back to completed jobs list
-      navigate('/completed-jobs');
-      
-    } catch (e: any) {
-      toast({
-        title: "Error",
-        description: e.message || 'Failed to delete completed job',
-        variant: "destructive",
-      });
-    } finally {
-      setDeleting(false);
-    }
   }
 
   return (
@@ -242,25 +294,38 @@ export default function CompletedJobView() {
             <p className="text-sm text-gray-500">Completed Job Details</p>
           </div>
         </div>
+
         <div className="flex items-center gap-2">
-          <Button 
+          <Button
+            onClick={handleDownloadJobSheet}
+            disabled={downloadingSheet || convertingToInvoice || deleting}
+            variant="outline"
+            data-testid="button-download-job-sheet"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {downloadingSheet ? "Preparing..." : "Download Job Sheet"}
+          </Button>
+
+          <Button
             onClick={handleConvertToInvoice}
-            disabled={convertingToInvoice || !job.customer_id || deleting}
+            disabled={convertingToInvoice || !job.customer_id || deleting || downloadingSheet}
             className="bg-blue-600 hover:bg-blue-700"
             data-testid="button-convert-to-invoice"
           >
             <FileText className="h-4 w-4 mr-2" />
             {convertingToInvoice ? "Converting..." : "Convert to Invoice"}
           </Button>
-          <Button 
+
+          <Button
             onClick={handleDeleteJob}
-            disabled={deleting || convertingToInvoice}
+            disabled={deleting || convertingToInvoice || downloadingSheet}
             variant="destructive"
             data-testid="button-delete-completed-job"
           >
             <Trash2 className="h-4 w-4 mr-2" />
             {deleting ? "Deleting..." : "Delete"}
           </Button>
+
           <Badge className="bg-green-100 text-green-800 border-green-200">
             <CheckCircle className="h-4 w-4 mr-2" />
             Completed
@@ -289,9 +354,7 @@ export default function CompletedJobView() {
           {job.description && (
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Description</h3>
-              <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                {job.description}
-              </p>
+              <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">{job.description}</p>
             </div>
           )}
 
@@ -299,9 +362,7 @@ export default function CompletedJobView() {
           {job.notes && (
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Work Notes</h3>
-              <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                {job.notes}
-              </p>
+              <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">{job.notes}</p>
             </div>
           )}
 
@@ -340,13 +401,9 @@ export default function CompletedJobView() {
                   <div key={hour.id} className="flex justify-between items-center bg-white p-3 rounded border">
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">{hour.hours} hours</div>
-                      {hour.description && (
-                        <div className="text-sm text-gray-500">{hour.description}</div>
-                      )}
+                      {hour.description && <div className="text-sm text-gray-500">{hour.description}</div>}
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {new Date(hour.created_at).toLocaleDateString()}
-                    </div>
+                    <div className="text-sm text-gray-500">{new Date(hour.created_at).toLocaleDateString()}</div>
                   </div>
                 ))}
                 <div className="border-t pt-3 flex justify-between items-center font-semibold text-lg">
@@ -368,9 +425,7 @@ export default function CompletedJobView() {
                       <div className="font-medium text-gray-900">{part.part_name}</div>
                       <div className="text-sm text-gray-500">Quantity: {part.quantity}</div>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {new Date(part.created_at).toLocaleDateString()}
-                    </div>
+                    <div className="text-sm text-gray-500">{new Date(part.created_at).toLocaleDateString()}</div>
                   </div>
                 ))}
                 <div className="border-t pt-3 flex justify-between items-center font-semibold text-lg">
@@ -390,19 +445,22 @@ export default function CompletedJobView() {
               </h3>
               <div className="bg-gray-50 p-3 rounded-lg space-y-2">
                 {equipment.map((item: any) => (
-                  <div key={item.equipment_id} className="flex justify-between items-center bg-white p-3 rounded border">
+                  <div
+                    key={item.equipment_id}
+                    className="flex justify-between items-center bg-white p-3 rounded border"
+                  >
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">{item.equipment_name}</div>
                       <div className="text-sm text-gray-500">Machine used for this job</div>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {new Date(item.created_at).toLocaleDateString()}
-                    </div>
+                    <div className="text-sm text-gray-500">{new Date(item.created_at).toLocaleDateString()}</div>
                   </div>
                 ))}
                 <div className="border-t pt-3 flex justify-between items-center font-semibold text-lg">
                   <span>Equipment Count:</span>
-                  <span>{equipment.length} machine{equipment.length !== 1 ? 's' : ''}</span>
+                  <span>
+                    {equipment.length} machine{equipment.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
               </div>
             </div>
@@ -416,24 +474,18 @@ export default function CompletedJobView() {
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-gray-400" />
                   <span className="font-medium">
-                    {utcIsoToLocalString(job.scheduled_at, { 
-                      dateStyle: "full", 
-                      timeStyle: "short" 
-                    })}
+                    {utcIsoToLocalString(job.scheduled_at, { dateStyle: "full", timeStyle: "short" })}
                   </span>
                 </div>
               </div>
             )}
-            
+
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Completed</h3>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-gray-400" />
                 <span className="font-medium">
-                  {utcIsoToLocalString(job.completed_at, { 
-                    dateStyle: "full", 
-                    timeStyle: "short" 
-                  })}
+                  {utcIsoToLocalString(job.completed_at, { dateStyle: "full", timeStyle: "short" })}
                 </span>
               </div>
             </div>
@@ -449,11 +501,10 @@ export default function CompletedJobView() {
               <div className="bg-gray-50 p-3 rounded-lg space-y-3">
                 {notes.map((note: any) => (
                   <div key={note.id} className="bg-white p-3 rounded border">
-                    <div className="text-gray-700 whitespace-pre-wrap mb-2">
-                      {note.text}
-                    </div>
+                    <div className="text-gray-700 whitespace-pre-wrap mb-2">{note.text}</div>
                     <div className="text-xs text-gray-500">
-                      {new Date(note.created_at).toLocaleDateString()} at {new Date(note.created_at).toLocaleTimeString()}
+                      {new Date(note.created_at).toLocaleDateString()} at{" "}
+                      {new Date(note.created_at).toLocaleTimeString()}
                     </div>
                   </div>
                 ))}
@@ -490,9 +541,7 @@ export default function CompletedJobView() {
           {/* Job ID Reference */}
           <div>
             <h3 className="text-sm font-medium text-gray-700 mb-2">Original Job ID</h3>
-            <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-              {job.original_job_id}
-            </code>
+            <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">{job.original_job_id}</code>
           </div>
         </CardContent>
       </Card>
@@ -502,16 +551,14 @@ export default function CompletedJobView() {
         <DialogContent className="max-w-4xl max-h-[90vh] p-0">
           {viewingPhoto && (
             <div className="relative">
-              <img 
-                src={viewingPhoto.url} 
-                alt="Job photo" 
+              <img
+                src={viewingPhoto.url}
+                alt="Job photo"
                 className="w-full h-auto max-h-[85vh] object-contain"
                 data-testid="img-photo-viewer"
               />
               <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-4">
-                <p className="text-sm">
-                  {new Date(viewingPhoto.created_at).toLocaleString()}
-                </p>
+                <p className="text-sm">{new Date(viewingPhoto.created_at).toLocaleString()}</p>
               </div>
             </div>
           )}

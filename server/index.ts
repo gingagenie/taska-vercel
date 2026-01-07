@@ -14,6 +14,7 @@ import path from "node:path";
 import { reconcilePendingFinalizations } from "./lib/pack-consumption";
 import { startContinuousCompensationProcessor, stopContinuousCompensationProcessor } from "./lib/continuous-compensation-processor";
 import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
+import portalRouter from "./routes/portal";
 
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -266,6 +267,8 @@ app.use("/api/quotes", quotesRouter);
 
 app.use("/support/api/auth", supportAuth);
 app.use("/support/api/admin", blockCustomersFromSupportAdmin, supportAdmin);
+
+app.use("/api", portalRouter);
 
 app.post("/api/teams/add-member", (req, res, next) => {
   req.url = "/_compat/teams-add-member";

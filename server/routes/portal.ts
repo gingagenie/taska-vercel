@@ -57,7 +57,11 @@ router.post("/portal/login", async (req: any, res) => {
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
     if (user.disabled_at) return res.status(403).json({ error: "Account disabled" });
 
-    const ok = await bcrypt.compare(password, user.password_hash);
+    const r2 = await db.execute(sql`
+      select crypt(${password}, ${user.password_hash}) = ${user.password_hash} as ok
+    `);
+    const ok = (r2 as any).rows?.[0]?.ok;
+
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
     req.session.customerUserId = user.id;

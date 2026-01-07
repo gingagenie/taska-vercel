@@ -87,19 +87,25 @@ const regularSessionConfig = session({
     tableName: "session",
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET!,                // set in Railway
-  name: process.env.SESSION_COOKIE_NAME || "taska.sid",
+
+  name: "taska.sid",
+  secret: process.env.SESSION_SECRET || "dev-secret",
   resave: false,
   saveUninitialized: false,
+
+  // REQUIRED for Railway / HTTPS
+  proxy: true,
+
   cookie: {
     httpOnly: true,
     path: "/",
-    sameSite: (process.env.COOKIE_SAMESITE as "lax"|"none"|"strict") ?? (isProd ? "none" : "lax"),
-    secure: isProd,                                   // true on HTTPS
-    domain: process.env.COOKIE_DOMAIN || undefined,   // e.g. "staging.taska.info"
-    maxAge: 1000 * 60 * 60 * 24 * 30,                 // 30 days
+    sameSite: "lax",     // ✅ IMPORTANT
+    secure: isProd,     // true in production (HTTPS)
+    domain: undefined,  // ✅ DO NOT SET DOMAIN
+    maxAge: 1000 * 60 * 60 * 24 * 30,
   },
 });
+
 
 // Support staff session (separate table)
 const supportSessionConfig = session({

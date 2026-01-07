@@ -5,42 +5,53 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download } from "lucide-react";
 
 export default function PortalEquipmentDetail() {
-  const { id } = useParams();
+  const params = useParams() as any;
+  const id = params?.id as string;
+  const org = (params?.org || "fixmyforklift") as string;
+
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
-      const r = await fetch(`/api/portal/equipment/${id}`);
+      const r = await fetch(`/api/portal/${org}/equipment/${id}`, {
+        credentials: "include",
+      });
       if (r.ok) setData(await r.json());
     })();
-  }, [id]);
+  }, [org, id]);
 
   async function download(jobId: string, title?: string) {
-    const url = `/api/portal/completed-jobs/${jobId}/service-sheet?download=1`;
-    const resp = await fetch(url);
+    const url = `/api/portal/${org}/completed-jobs/${jobId}/service-sheet?download=1`;
+
+    const resp = await fetch(url, {
+      credentials: "include",
+    });
     if (!resp.ok) return;
 
     const blob = await resp.blob();
+    if (!blob || blob.size === 0) return;
+
     const safe = (title || "service-sheet")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 60);
 
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
+    a.href = blobUrl;
     a.download = `service-sheet-${safe || jobId}.pdf`;
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(a.href);
+    URL.revokeObjectURL(blobUrl);
   }
 
   if (!data) return <div className="p-6">Loading...</div>;
 
   return (
     <div className="p-4 sm:p-6 min-h-screen bg-gray-100 space-y-4">
-      <Link href="/portal/equipment">
+      <Link href={`/portal/${org}/equipment`}>
         <Button variant="outline" size="sm">
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>

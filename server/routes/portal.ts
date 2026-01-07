@@ -240,4 +240,60 @@ router.get("/portal/:org/completed-jobs/:jobId/service-sheet", requirePortalAuth
   });
 });
 
+// GET /api/portal/:org/completed-jobs/:jobId/service-sheet?download=1
+router.get("/portal/:org/completed-jobs/:jobId/service-sheet", requireCustomerAuth, async (req: any, res) => {
+  try {
+    const { org } = req.params;
+    const { jobId } = req.params;
+
+    // 1) resolve org_id from org slug
+    const orgRows: any = await db.execute(sql`
+      select id from orgs where slug = ${org} limit 1
+    `);
+    const orgId = orgRows?.[0]?.id;
+    if (!orgId) return res.status(404).json({ error: "Org not found" });
+
+    // 2) get portal user + customer_id
+    const userRows: any = await db.execute(sql`
+      select id, customer_id
+      from customer_users
+      where id = ${req.session.customerUserId}::uuid
+        and org_id = ${orgId}::uuid
+      limit 1
+    `);
+    const portalUser = userRows?.[0];
+    if (!portalUser) return res.status(401).json({ error: "Not authenticated" });
+
+    // 3) enforce ownership: completed job must belong to this customer
+    const jobRows: any = await db.execute(sql`
+      select id
+      from completed_jobs
+      where id = ${jobId}::uuid
+        and org_id = ${orgId}::uuid
+        and customer_id = ${portalUser.customer_id}::uuid
+      limit 1
+    `);
+    if (!jobRows?.length) return res.status(404).json({ error: "Job not found" });
+
+    // 4) generate & stream pdf
+    const { generateServiceSheetPdfForCompletedJob } = await import("../lib/service-sheet");
+    const { pdfBuffer, filename } = await generateServiceSheetPdfForCompletedJob({
+      req,
+      orgId,
+      completedJobId: jobId,
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `${String(req.query.download || "") === "1" ? "attachment" : "inline"}; filename="${filename}"`
+    );
+    return res.send(pdfBuffer);
+  } catch (e: any) {
+    console.error("portal service sheet error:", e);
+    return res.status(500).json({ error: e?.message || "Failed to generate service sheet" });
+  }
+});
+
+
 export default router;

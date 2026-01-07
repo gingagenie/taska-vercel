@@ -54,22 +54,75 @@ async function getPortalUser(req: any) {
  */
 router.post("/portal/:org/login", async (req: any, res) => {
   try {
-    const orgSlug = req.params.org;
+    const { org } = req.params;
     const { email, password } = req.body || {};
 
-    if (!orgSlug) return res.status(400).json({ error: "Missing org" });
-    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+    if (!org) return res.status(400).json({ error: "Missing org" });
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password required" });
+    }
 
-    const orgId = await getOrgIdFromSlug(orgSlug);
-    if (!orgId) return res.status(404).json({ error: "Portal not found" });
+    // Resolve orgId from slug
+    const orgRows = await db.execute(sql`
+      select org_id
+      from portal_orgs
+      where slug = ${org}
+      limit 1
+    `);
 
-    const rows = await db.execute(sql`
+    const orgRow = (orgRows as any).rows?.[0] || (orgRows as any)[0];
+    if (!orgRow) return res.status(404).json({ error: "Portal not found" });
+
+    const orgId = orgRow.org_id;
+
+    // Find customer portal user
+    const userRows = await db.execute(sql`
       select id, org_id, customer_id, email, name, password_hash, disabled_at
       from customer_users
       where org_id = ${orgId}::uuid
         and lower(email) = lower(${email})
       limit 1
     `);
+
+    const user = (userRows as any).rows?.[0] || (userRows as any)[0];
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+    if (user.disabled_at) return res.status(403).json({ error: "Account disabled" });
+
+    // Password check (pgcrypto)
+    const check = await db.execute(sql`
+      select crypt(${password}, ${user.password_hash}) = ${user.password_hash} as ok
+    `);
+
+    const ok = (check as any).rows?.[0]?.ok;
+    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+
+    // ✅ SET SESSION
+    req.session.portalOrgId = orgId;
+    req.session.portalCustomerUserId = user.id;
+
+    // ✅ FORCE SAVE SESSION
+    return req.session.save((err: any) => {
+      if (err) {
+        console.error("portal session save error:", err);
+        return res.status(500).json({ error: "Login failed" });
+      }
+
+      return res.json({
+        ok: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          customer_id: user.customer_id,
+        },
+      });
+    });
+  } catch (e) {
+    console.error("portal login error:", e);
+    return res.status(500).json({ error: "Login failed" });
+  }
+});
+
 
     const user = (rows as any).rows?.[0] || (rows as any)[0];
     if (!user) return res.status(401).json({ error: "Invalid credentials" });

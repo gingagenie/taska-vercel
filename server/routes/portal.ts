@@ -58,16 +58,75 @@ router.post("/portal/:org/login", async (req: any, res) => {
     if (!orgSlug) return res.status(400).json({ error: "Missing org" });
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
-    const orgId = await getOrgIdFromSlug(orgSlug);
+    // 1) Resolve orgId from slug
+    const orgRows = await db.execute(sql`
+      select org_id
+      from portal_orgs
+      where slug = ${orgSlug}
+      limit 1
+    `);
+    const orgRow = (orgRows as any).rows?.[0] || (orgRows as any)[0];
+    const orgId = orgRow?.org_id;
+
     if (!orgId) return res.status(404).json({ error: "Portal not found" });
 
-    const rows = await db.execute(sql`
+    // 2) Find portal user
+    const userRows = await db.execute(sql`
       select id, org_id, customer_id, email, name, password_hash, disabled_at
       from customer_users
       where org_id = ${orgId}::uuid
         and lower(email) = lower(${email})
       limit 1
     `);
+
+    const user = (userRows as any).rows?.[0] || (userRows as any)[0];
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+    if (user.disabled_at) return res.status(403).json({ error: "Account disabled" });
+
+    // 3) Password check using pgcrypto crypt()
+    const checkRows = await db.execute(sql`
+      select (crypt(${password}, ${user.password_hash}) = ${user.password_hash}) as ok
+    `);
+
+    const checkRow = (checkRows as any).rows?.[0] || (checkRows as any)[0];
+    const okRaw = checkRow?.ok;
+
+    // Depending on driver, ok might be: true/false OR 't'/'f' OR 1/0
+    const ok = okRaw === true || okRaw === "t" || okRaw === 1;
+
+    // Helpful log (Railway logs)
+    console.log("[PORTAL LOGIN]", {
+      orgSlug,
+      orgId,
+      email: String(email).toLowerCase(),
+      userId: user.id,
+      okRaw,
+      ok,
+    });
+
+    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+
+    // 4) Save session
+    req.session.portalOrgId = orgId;
+    req.session.portalCustomerUserId = user.id;
+
+    return req.session.save((err: any) => {
+      if (err) {
+        console.error("portal session save error:", err);
+        return res.status(500).json({ error: "Login failed" });
+      }
+
+      return res.json({
+        ok: true,
+        user: { id: user.id, email: user.email, name: user.name, customer_id: user.customer_id },
+      });
+    });
+  } catch (e: any) {
+    console.error("portal login error:", e);
+    return res.status(500).json({ error: "Login failed" });
+  }
+});
+
 
     const user = (rows as any).rows?.[0] || (rows as any)[0];
     if (!user) return res.status(401).json({ error: "Invalid credentials" });

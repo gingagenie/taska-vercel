@@ -1,13 +1,10 @@
 import { Router } from "express";
 import { db } from "../db/client";
-import { jobs as jobsSchema, customers, equipment, jobPhotos, users, jobAssignments } from "../../shared/schema";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
-import { sql, eq, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 export const jobs = Router();
 
@@ -17,18 +14,20 @@ function isUuid(str: string): boolean {
 }
 
 // Timezone-aware scheduled_at normalization
-function normalizeScheduledAt(raw: any): string|null {
+function normalizeScheduledAt(raw: any): string | null {
   if (!raw) return null;
   // If client already sent proper UTC ISO with Z, pass it through
   if (typeof raw === "string" && /Z$/.test(raw)) return raw;
+
   // If it looks like "YYYY-MM-DDTHH:mm" (datetime-local), it should now be coming pre-converted from client
   // Client should use isoFromLocalInput() to convert Melbourne time to UTC before sending
   if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) {
     // Treat as Melbourne time and convert to UTC (subtract 10 hours)
     const localDate = new Date(raw + ":00"); // Add seconds if missing
-    const utcDate = new Date(localDate.getTime() - (10 * 60 * 60 * 1000)); // Melbourne is UTC+10
+    const utcDate = new Date(localDate.getTime() - 10 * 60 * 60 * 1000); // Melbourne is UTC+10
     if (!isNaN(utcDate.valueOf())) return utcDate.toISOString();
   }
+
   // Fallback: let Postgres parse; but ensure timestamptz column
   return raw;
 }
@@ -36,17 +35,21 @@ function normalizeScheduledAt(raw: any): string|null {
 // Configure multer for file uploads with memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size
-  },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (_req, file, cb) => {
     // Accept only image files including HEIF/HEIC variants from iOS devices
-    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif', 'image/heic-sequence'];
-    if (allowedMimeTypes.includes(file.mimetype.toLowerCase())) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed (JPEG, PNG, GIF, WebP, HEIC/HEIF)'));
-    }
+    const allowedMimeTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/heic",
+      "image/heif",
+      "image/heic-sequence",
+    ];
+    if (allowedMimeTypes.includes(file.mimetype.toLowerCase())) cb(null, true);
+    else cb(new Error("Only image files are allowed (JPEG, PNG, GIF, WebP, HEIC/HEIF)"));
   },
 });
 
@@ -57,6 +60,7 @@ jobs.get("/ping", (_req, res) => {
 });
 
 // GET /api/jobs/equipment?customerId=uuid - Filter equipment by customer for job creation
+// (This replaces your duplicate /equipment route later)
 jobs.get("/equipment", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const customerId = (req.query.customerId as string | undefined) || undefined;
@@ -80,7 +84,7 @@ jobs.get("/equipment", requireAuth, requireOrg, checkSubscription, requireActive
 jobs.get("/completed", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs/completed org=%s", orgId);
-  
+
   try {
     const r: any = await db.execute(sql`
       SELECT 
@@ -107,12 +111,12 @@ jobs.get("/completed", requireAuth, requireOrg, checkSubscription, requireActive
                cj.original_created_by, cj.original_created_at, inv.id
       ORDER BY cj.completed_at DESC
     `);
-    
+
     // Disable caching to ensure fresh data after invoice conversions
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/completed error:", e);
@@ -120,16 +124,312 @@ jobs.get("/completed", requireAuth, requireOrg, checkSubscription, requireActive
   }
 });
 
+/**
+ * ✅ SERVICE SHEET
+ * GET /api/jobs/completed/:completedJobId/service-sheet
+ *
+ * Returns { ok, key, url, filename }
+ * - Optional: ?download=1 streams PDF directly
+ */
+jobs.get(
+  "/completed/:completedJobId/service-sheet",
+  requireAuth,
+  requireOrg,
+  checkSubscription,
+  requireActiveSubscription,
+  async (req, res) => {
+    const { completedJobId } = req.params;
+    const orgId = (req as any).orgId;
+
+    if (!isUuid(completedJobId)) return res.status(400).json({ error: "Invalid completedJobId" });
+
+    try {
+      const completedJobRows: any = await db.execute(sql`
+        SELECT *
+        FROM completed_jobs
+        WHERE id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+        LIMIT 1
+      `);
+
+      if (!completedJobRows?.length) {
+        return res.status(404).json({ error: "Completed job not found" });
+      }
+
+      const job = completedJobRows[0];
+
+      // Pull all the bits that matter
+      const [equipmentRows, noteRows, hoursRows, partsRows] = await Promise.all([
+        db.execute(sql`
+          SELECT equipment_name, equipment_id, created_at
+          FROM completed_job_equipment
+          WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+          ORDER BY equipment_name ASC
+        `),
+        db.execute(sql`
+          SELECT text, created_at
+          FROM completed_job_notes
+          WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+          ORDER BY created_at ASC
+        `),
+        db.execute(sql`
+          SELECT hours, description, created_at
+          FROM completed_job_hours
+          WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+          ORDER BY created_at ASC
+        `),
+        db.execute(sql`
+          SELECT part_name, quantity, created_at
+          FROM completed_job_parts
+          WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
+          ORDER BY created_at ASC
+        `),
+      ]);
+
+      const esc = (v: any) =>
+        String(v ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+
+      const fmtDate = (v: any) => {
+        if (!v) return "-";
+        const d = new Date(v);
+        if (Number.isNaN(d.getTime())) return String(v);
+        return d.toLocaleString("en-AU");
+      };
+
+      const equipmentList = (equipmentRows as any[]).map((e) => esc(e.equipment_name)).filter(Boolean);
+      const notesList = (noteRows as any[]).map((n) => esc(n.text)).filter(Boolean);
+      const hoursList = (hoursRows as any[]).map((h) => ({
+        hours: Number(h.hours) || 0,
+        description: esc(h.description || ""),
+      }));
+      const partsList = (partsRows as any[]).map((p) => ({
+        part_name: esc(p.part_name || ""),
+        quantity: Number(p.quantity) || 0,
+      }));
+
+      const title = job.title || "Service Job";
+      const customer = job.customer_name || "—";
+
+      const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; }
+    h1 { font-size: 18px; margin: 0 0 6px; }
+    h2 { font-size: 13px; margin: 18px 0 8px; }
+    .muted { color: #555; }
+    .row { display: flex; justify-content: space-between; gap: 16px; }
+    .box { border: 1px solid #ddd; border-radius: 10px; padding: 10px 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; text-align: left; }
+    th { background: #fafafa; font-weight: 700; }
+    .right { text-align: right; }
+    ul { margin: 6px 0 0 18px; padding: 0; }
+    .small { font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <div>
+      <h1>Service Sheet</h1>
+      <div class="muted small">Taska • Completed Job</div>
+    </div>
+    <div style="text-align:right;">
+      <div><strong>Completed:</strong> ${esc(fmtDate(job.completed_at))}</div>
+      <div><strong>Customer:</strong> ${esc(customer)}</div>
+    </div>
+  </div>
+
+  <h2>Job</h2>
+  <div class="box">
+    <div><strong>Title:</strong> ${esc(title)}</div>
+    <div><strong>Description:</strong> ${esc(job.description || "—")}</div>
+    <div><strong>Scheduled:</strong> ${esc(fmtDate(job.scheduled_at))}</div>
+    ${job.notes ? `<div style="margin-top:8px;"><strong>Notes:</strong><br/>${esc(job.notes)}</div>` : ""}
+  </div>
+
+  <h2>Equipment</h2>
+  <div class="box">
+    ${
+      equipmentList.length
+        ? `<ul>${equipmentList.map((x) => `<li>${x}</li>`).join("")}</ul>`
+        : `<div class="muted">No equipment recorded.</div>`
+    }
+  </div>
+
+  <h2>Work Notes</h2>
+  <div class="box">
+    ${
+      notesList.length
+        ? `<ul>${notesList.map((x) => `<li>${x}</li>`).join("")}</ul>`
+        : `<div class="muted">No work notes recorded.</div>`
+    }
+  </div>
+
+  <h2>Hours</h2>
+  <div class="box">
+    ${
+      hoursList.length
+        ? `<table><thead><tr><th>Description</th><th class="right">Hours</th></tr></thead><tbody>
+          ${hoursList
+            .map((h) => `<tr><td>${h.description || "-"}</td><td class="right">${h.hours.toFixed(1)}</td></tr>`)
+            .join("")}
+        </tbody></table>`
+        : `<div class="muted">No hours recorded.</div>`
+    }
+  </div>
+
+  <h2>Parts</h2>
+  <div class="box">
+    ${
+      partsList.length
+        ? `<table><thead><tr><th>Part</th><th class="right">Qty</th></tr></thead><tbody>
+          ${partsList
+            .map((p) => `<tr><td>${p.part_name || "-"}</td><td class="right">${p.quantity}</td></tr>`)
+            .join("")}
+        </tbody></table>`
+        : `<div class="muted">No parts recorded.</div>`
+    }
+  </div>
+
+  <div class="muted small" style="margin-top:18px;">
+    Completed Job ID: ${esc(completedJobId)}
+  </div>
+</body>
+</html>`;
+
+      // Generate PDF (Puppeteer first, PDFKit fallback)
+      let pdfBuffer: Buffer;
+
+      try {
+        const puppeteer = (await import("puppeteer")).default;
+        let browser: any = null;
+        try {
+          browser = await puppeteer.launch({
+            headless: true,
+            args: ["--no-sandbox", "--disable-setuid-sandbox"],
+          });
+
+          const page = await browser.newPage();
+          await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 15000 });
+          await new Promise((r) => setTimeout(r, 250));
+
+          const buf = await page.pdf({
+            format: "A4",
+            printBackground: true,
+            preferCSSPageSize: true,
+          });
+
+          pdfBuffer = Buffer.from(buf);
+        } finally {
+          if (browser) await browser.close();
+        }
+      } catch (puppErr: any) {
+        console.warn("[SERVICE_SHEET] Puppeteer failed, using PDFKit fallback:", puppErr?.message);
+
+        const PDFDocument = (await import("pdfkit")).default;
+        pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+          const doc = new PDFDocument({ size: "A4", margin: 50 });
+          const chunks: Buffer[] = [];
+          doc.on("data", (c: any) => chunks.push(c));
+          doc.on("end", () => resolve(Buffer.concat(chunks)));
+          doc.on("error", reject);
+
+          doc.fontSize(18).text("Service Sheet");
+          doc.moveDown();
+          doc.fontSize(11).text(`Customer: ${customer}`);
+          doc.text(`Job: ${title}`);
+          doc.text(`Completed: ${fmtDate(job.completed_at)}`);
+          doc.moveDown();
+
+          doc.fontSize(12).text("Description", { underline: true });
+          doc.fontSize(10).text(job.description || "—");
+          doc.moveDown();
+
+          if (job.notes) {
+            doc.fontSize(12).text("Notes", { underline: true });
+            doc.fontSize(10).text(job.notes);
+            doc.moveDown();
+          }
+
+          doc.fontSize(12).text("Equipment", { underline: true });
+          doc.fontSize(10).text(equipmentList.length ? equipmentList.join("\n") : "—");
+          doc.moveDown();
+
+          doc.fontSize(12).text("Work Notes", { underline: true });
+          doc.fontSize(10).text(notesList.length ? notesList.join("\n") : "—");
+          doc.moveDown();
+
+          doc.fontSize(12).text("Hours", { underline: true });
+          if (hoursList.length) {
+            hoursList.forEach((h) => doc.fontSize(10).text(`- ${h.description || "Hours"}: ${h.hours}`));
+          } else {
+            doc.fontSize(10).text("—");
+          }
+          doc.moveDown();
+
+          doc.fontSize(12).text("Parts", { underline: true });
+          if (partsList.length) {
+            partsList.forEach((p) => doc.fontSize(10).text(`- ${p.part_name || "Part"} x ${p.quantity}`));
+          } else {
+            doc.fontSize(10).text("—");
+          }
+
+          doc.end();
+        });
+      }
+
+      const filename = `service-sheet-${completedJobId}.pdf`;
+
+      // Optional direct download
+      if (String(req.query.download || "") === "1") {
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        return res.send(pdfBuffer);
+      }
+
+      // Upload via Supabase Storage using uploadFileToSupabase()
+      const storage = await import("../services/supabase-storage");
+      const uploadFileToSupabase = (storage as any).uploadFileToSupabase;
+      const createSignedViewUrl = (storage as any).createSignedViewUrl;
+
+      if (typeof uploadFileToSupabase !== "function") {
+        return res.status(500).json({ error: "uploadFileToSupabase() is not available in supabase-storage service" });
+      }
+
+      // Key convention: org/<orgId>/completed/<completedJobId>/docs/<filename>
+      const key = `org/${orgId}/completed/${completedJobId}/docs/${filename}`;
+
+      await uploadFileToSupabase({
+        key,
+        fileBuffer: pdfBuffer,
+        contentType: "application/pdf",
+      });
+
+      const signedUrl = typeof createSignedViewUrl === "function" ? await createSignedViewUrl(key, 900) : null;
+
+      res.json({ ok: true, key, url: signedUrl, filename });
+    } catch (e: any) {
+      console.error("GET /api/jobs/completed/:completedJobId/service-sheet error:", e);
+      res.status(500).json({ error: e?.message || "Failed to generate service sheet" });
+    }
+  }
+);
+
 /* GET INDIVIDUAL COMPLETED JOB */
 jobs.get("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs/completed/%s org=%s", jobId, orgId);
-  
+
   try {
-    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
-      return res.status(400).json({ error: "Invalid jobId" });
-    }
+    if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
     const r: any = await db.execute(sql`
       SELECT 
@@ -148,11 +448,9 @@ jobs.get("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
       FROM completed_jobs
       WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
-    
-    if (r.length === 0) {
-      return res.status(404).json({ error: "Completed job not found" });
-    }
-    
+
+    if (r.length === 0) return res.status(404).json({ error: "Completed job not found" });
+
     res.json(r[0]);
   } catch (e: any) {
     console.error("GET /api/jobs/completed/%s error:", jobId, e);
@@ -165,11 +463,9 @@ jobs.get("/completed/:jobId/notes", requireAuth, requireOrg, async (req, res) =>
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs/completed/%s/notes org=%s", jobId, orgId);
-  
+
   try {
-    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
-      return res.status(400).json({ error: "Invalid jobId" });
-    }
+    if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
     const r: any = await db.execute(sql`
       SELECT id, text, created_at
@@ -177,7 +473,7 @@ jobs.get("/completed/:jobId/notes", requireAuth, requireOrg, async (req, res) =>
       WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
     `);
-    
+
     res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/completed/%s/notes error:", jobId, e);
@@ -190,11 +486,9 @@ jobs.get("/completed/:jobId/photos", requireAuth, requireOrg, async (req, res) =
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs/completed/%s/photos org=%s", jobId, orgId);
-  
+
   try {
-    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
-      return res.status(400).json({ error: "Invalid jobId" });
-    }
+    if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
     const r: any = await db.execute(sql`
       SELECT id, url, created_at
@@ -202,22 +496,20 @@ jobs.get("/completed/:jobId/photos", requireAuth, requireOrg, async (req, res) =
       WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
     `);
-    
+
     // Transform Supabase keys to signed URLs
     const { createSignedViewUrl } = await import("../services/supabase-storage");
-    
-    const photos = await Promise.all(r.map(async (photo: any) => {
-      // Check if URL is a Supabase key (starts with org/)
-      if (photo.url && photo.url.startsWith('org/')) {
-        const signedUrl = await createSignedViewUrl(photo.url, 900); // 15 min expiry
-        return {
-          ...photo,
-          url: signedUrl || photo.url, // Fallback to original if signing fails
-        };
-      }
-      return photo;
-    }));
-    
+
+    const photos = await Promise.all(
+      r.map(async (photo: any) => {
+        if (photo.url && photo.url.startsWith("org/")) {
+          const signedUrl = await createSignedViewUrl(photo.url, 900);
+          return { ...photo, url: signedUrl || photo.url };
+        }
+        return photo;
+      })
+    );
+
     res.json(photos);
   } catch (e: any) {
     console.error("GET /api/jobs/completed/%s/photos error:", jobId, e);
@@ -230,11 +522,9 @@ jobs.get("/completed/:jobId/equipment", requireAuth, requireOrg, async (req, res
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs/completed/%s/equipment org=%s", jobId, orgId);
-  
+
   try {
-    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
-      return res.status(400).json({ error: "Invalid jobId" });
-    }
+    if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
     const r: any = await db.execute(sql`
       SELECT equipment_id, equipment_name, created_at
@@ -242,7 +532,7 @@ jobs.get("/completed/:jobId/equipment", requireAuth, requireOrg, async (req, res
       WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY equipment_name ASC
     `);
-    
+
     res.json(r);
   } catch (e: any) {
     console.error("GET /api/jobs/completed/%s/equipment error:", jobId, e);
@@ -254,7 +544,7 @@ jobs.get("/completed/:jobId/equipment", requireAuth, requireOrg, async (req, res
 jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs org=%s", orgId);
-  
+
   try {
     const r: any = await db.execute(sql`
       select
@@ -282,7 +572,7 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
           order by u.name
         `);
         job.technicians = techniciansResult || [];
-      } catch (e) {
+      } catch {
         job.technicians = [];
       }
 
@@ -296,16 +586,16 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
           order by e.name
         `);
         job.equipment = equipmentResult || [];
-      } catch (e) {
+      } catch {
         job.equipment = [];
       }
     }
-    
+
     // Disable caching to ensure fresh data
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     res.json(r);
   } catch (error: any) {
     console.error("GET /api/jobs error:", error);
@@ -314,11 +604,10 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
 });
 
 // --- TECH FILTER SOURCE ---
-// Return technicians in this org (id + name). Query from actual users/memberships.
 jobs.get("/technicians", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   console.log("[TRACE] GET /api/jobs/technicians org=%s", orgId);
-  
+
   try {
     const r: any = await db.execute(sql`
       select id, name, email, role, color
@@ -341,21 +630,13 @@ jobs.get("/range", requireAuth, requireOrg, checkSubscription, requireActiveSubs
   if (!start || !end) return res.status(400).json({ error: "start and end are required (ISO strings)" });
 
   try {
-    // Build the query with optional technician filtering
-    let query = sql`
-      select j.id, j.title, j.status, 
-             to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
-             j.customer_id, coalesce(c.name,'—') as customer_name
-      from jobs j
-      left join customers c on c.id = j.customer_id
-    `;
-    
-    // Add technician filter if specified
+    let query = sql``;
+
     if (techId && techId !== "" && techId !== "none") {
       query = sql`
         select j.id, j.title, j.status, 
-               to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
-               j.customer_id, coalesce(c.name,'—') as customer_name
+              to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
+              j.customer_id, coalesce(c.name,'—') as customer_name
         from jobs j
         left join customers c on c.id = j.customer_id
         inner join job_assignments ja on ja.job_id = j.id
@@ -369,8 +650,8 @@ jobs.get("/range", requireAuth, requireOrg, checkSubscription, requireActiveSubs
     } else {
       query = sql`
         select j.id, j.title, j.status, 
-               to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
-               j.customer_id, coalesce(c.name,'—') as customer_name
+              to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
+              j.customer_id, coalesce(c.name,'—') as customer_name
         from jobs j
         left join customers c on c.id = j.customer_id
         where j.org_id = ${orgId}::uuid
@@ -382,8 +663,7 @@ jobs.get("/range", requireAuth, requireOrg, checkSubscription, requireActiveSubs
     }
 
     const r: any = await db.execute(query);
-    
-    // Add technician data with colors for each job
+
     for (const job of r) {
       try {
         const techniciansResult: any = await db.execute(sql`
@@ -394,11 +674,11 @@ jobs.get("/range", requireAuth, requireOrg, checkSubscription, requireActiveSubs
           order by u.name
         `);
         job.technicians = techniciansResult || [];
-      } catch (e) {
+      } catch {
         job.technicians = [];
       }
     }
-    
+
     res.json(r);
   } catch (error: any) {
     console.error("GET /api/jobs/range error:", error);
@@ -411,7 +691,7 @@ jobs.get("/customers", requireAuth, requireOrg, checkSubscription, requireActive
   try {
     const orgId = (req as any).orgId;
     console.log("[TRACE] GET /api/jobs/customers org=%s", orgId);
-    
+
     const result = await db.execute(sql`
       select id, name
       from customers
@@ -426,26 +706,6 @@ jobs.get("/customers", requireAuth, requireOrg, checkSubscription, requireActive
   }
 });
 
-// GET /equipment - Return dropdown data by org  
-jobs.get("/equipment", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
-  try {
-    const orgId = (req as any).orgId;
-    console.log("[TRACE] GET /api/jobs/equipment org=%s", orgId);
-    
-    const result = await db.execute(sql`
-      select id, name
-      from equipment
-      where org_id = ${orgId}::uuid
-      order by name asc
-    `);
-
-    res.json(result);
-  } catch (error: any) {
-    console.error("GET /api/jobs/equipment error:", error);
-    res.status(500).json({ error: error?.message || "Failed to fetch equipment" });
-  }
-});
-
 // GET /:jobId - Return specific job with details
 jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
   try {
@@ -453,9 +713,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
     const orgId = (req as any).orgId;
     console.log("[TRACE] GET /api/jobs/%s org=%s", jobId, orgId);
 
-    if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
-      return res.status(400).json({ error: "Invalid jobId" });
-    }
+    if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
     const jr: any = await db.execute(sql`
       select
@@ -469,10 +727,8 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
       left join customers c on c.id = j.customer_id
       where j.id=${jobId}::uuid and j.org_id=${orgId}::uuid
     `);
-    
-    if (!jr || jr.length === 0) {
-      return res.status(404).json({ error: "Job not found" });
-    }
+
+    if (!jr || jr.length === 0) return res.status(404).json({ error: "Job not found" });
 
     const job = jr[0];
 
@@ -491,7 +747,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
       job.technicians = [];
     }
 
-    // Fetch assigned equipment  
+    // Fetch assigned equipment
     try {
       const equipmentResult: any = await db.execute(sql`
         select e.id, e.name, e.make, e.model
@@ -526,7 +782,6 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
   if (equipmentId === "") equipmentId = null;
   if (jobType === "") jobType = null;
 
-  // Use the new timezone normalization function
   const scheduled = normalizeScheduledAt(scheduledAt);
 
   try {
@@ -537,10 +792,10 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
       description: description || null,
       jobType: jobType || null,
       scheduledAt: scheduledAt,
-      status: 'new',
+      status: "new",
       createdBy: userId || null,
     });
-    
+
     const result = await db.execute(sql`
       INSERT INTO jobs (org_id, customer_id, title, description, job_type, scheduled_at, status, created_by)
       VALUES (
@@ -555,7 +810,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
       )
       RETURNING id
     `);
-    
+
     const jobId = (result as any)[0].id;
 
     if (equipmentId) {
@@ -590,7 +845,7 @@ jobs.patch("/:jobId/schedule", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
   const { scheduledAt } = req.body || {};
-  if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) return res.status(400).json({ error: "invalid jobId" });
+  if (!jobId || !isUuid(jobId)) return res.status(400).json({ error: "invalid jobId" });
   if (!scheduledAt) return res.status(400).json({ error: "scheduledAt required (ISO)" });
 
   await db.execute(sql`
@@ -606,25 +861,24 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
 
-  // Validate ID quickly
-  if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
-    return res.status(400).json({ error: "Invalid jobId" });
-  }
+  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
   let { title, description, status, scheduledAt, customerId, assignedUserId } = req.body || {};
   if (customerId === "") customerId = null;
   if (assignedUserId === "") assignedUserId = null;
 
-  // Use the new timezone normalization function
   const scheduled = normalizeScheduledAt(scheduledAt);
 
-  // Always log what we received (so we know the route is hit)
   console.log("PUT /api/jobs/%s org=%s body=%o", jobId, orgId, {
-    title, description, status, scheduledAt: scheduled, customerId, assignedUserId
+    title,
+    description,
+    status,
+    scheduledAt: scheduled,
+    customerId,
+    assignedUserId,
   });
 
   try {
-    // Use SQL for update with timezone-aware scheduled_at
     const result = await db.execute(sql`
       UPDATE jobs SET 
         title = coalesce(${title}, title),
@@ -636,35 +890,23 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
       RETURNING id
     `);
 
-    if (!result.length) {
-      console.warn("PUT /api/jobs/%s -> no match for org=%s", jobId, orgId);
-      return res.status(404).json({ error: "Job not found" });
-    }
+    if (!result.length) return res.status(404).json({ error: "Job not found" });
 
-    // Handle assignment update
-    // Validate assignedUserId format and org membership if provided
     if (assignedUserId) {
-      // Check UUID format
-      if (!isUuid(assignedUserId)) {
-        return res.status(400).json({ error: "Invalid assignedUserId format" });
-      }
-      
-      // Validate that user belongs to the same org
+      if (!isUuid(assignedUserId)) return res.status(400).json({ error: "Invalid assignedUserId format" });
+
       const userCheck: any = await db.execute(sql`
         SELECT 1 FROM users 
         WHERE id = ${assignedUserId}::uuid AND org_id = ${orgId}::uuid
       `);
-      
+
       if (!userCheck.length) {
         return res.status(400).json({ error: "Invalid user assignment - user not found in organization" });
       }
     }
 
     // Delete all existing assignments for this job
-    await db.execute(sql`
-      DELETE FROM job_assignments
-      WHERE job_id = ${jobId}::uuid
-    `);
+    await db.execute(sql`DELETE FROM job_assignments WHERE job_id = ${jobId}::uuid`);
 
     // Create new assignment if provided
     if (assignedUserId) {
@@ -675,7 +917,6 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
       `);
     }
 
-    console.log("PUT /api/jobs/%s -> ok (assignment updated)", jobId);
     res.json({ ok: true });
   } catch (error: any) {
     console.error("PUT /api/jobs/%s error:", jobId, error);
@@ -690,22 +931,16 @@ jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
   try {
     const { jobId } = req.params;
     const orgId = (req as any).orgId;
-    
-    // Validate jobId format
-    if (!isUuid(jobId)) {
-      return res.status(400).json({ error: "Invalid job ID format" });
-    }
-    
-    console.log("[TRACE] GET /api/jobs/%s/photos org=%s", jobId, orgId);
-    
-    // Query photos from database
+
+    if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid job ID format" });
+
     const result = await db.execute(sql`
       SELECT id, url, object_key, created_at 
       FROM job_photos 
       WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
     `);
-    
+
     res.json(result);
   } catch (error: any) {
     console.error("GET /api/jobs/%s/photos error:", req.params.jobId, error);
@@ -714,172 +949,137 @@ jobs.get("/:jobId/photos", requireAuth, requireOrg, async (req, res) => {
 });
 
 // POST /:jobId/photos - Upload photo for a job
-jobs.post("/:jobId/photos", requireAuth, requireOrg, (req, res, next) => {
-  upload.single("photo")(req, res, (err) => {
-    if (err) {
-      if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ error: "File size exceeds 10MB limit" });
+jobs.post(
+  "/:jobId/photos",
+  requireAuth,
+  requireOrg,
+  (req, res, next) => {
+    upload.single("photo")(req, res, (err) => {
+      if (err) {
+        if (err instanceof multer.MulterError) {
+          if (err.code === "LIMIT_FILE_SIZE") return res.status(400).json({ error: "File size exceeds 10MB limit" });
+          return res.status(400).json({ error: `Upload error: ${err.message}` });
+        } else {
+          return res.status(400).json({ error: err.message || "Invalid file type" });
         }
-        return res.status(400).json({ error: `Upload error: ${err.message}` });
-      } else if (err) {
-        return res.status(400).json({ error: err.message || "Invalid file type" });
       }
-    }
-    next();
-  });
-}, async (req, res) => {
-  try {
-    const { jobId } = req.params;
-    const orgId = (req as any).orgId;
-    const userId = (req as any).user?.id;
-    
-    // Validate jobId format
-    if (!isUuid(jobId)) {
-      return res.status(400).json({ error: "Invalid job ID format" });
-    }
-    
-    const file = req.file;
-    
-    if (!file) {
-      return res.status(400).json({ error: "No file provided" });
-    }
-    
-    if (!file.buffer) {
-      return res.status(500).json({ error: "File buffer not available" });
-    }
-    
-    // Sanitize and validate file extension
-    let ext = 'jpg'; // default
-    if (file.originalname && file.originalname.includes('.')) {
-      const parts = file.originalname.split('.');
-      const rawExt = parts[parts.length - 1].toLowerCase().replace(/[^a-z0-9]/g, '');
-      // Map MIME type to extension if needed
-      const mimeToExt: Record<string, string> = {
-        'image/jpeg': 'jpg',
-        'image/jpg': 'jpg',
-        'image/png': 'png',
-        'image/gif': 'gif',
-        'image/webp': 'webp',
-        'image/heic': 'heic',
-        'image/heif': 'heif',
-        'image/heic-sequence': 'heic',
-      };
-      ext = mimeToExt[file.mimetype] || rawExt || 'jpg';
-    }
-    
-    // Verify job exists and belongs to org before uploading
-    const jobCheck: any = await db.execute(sql`
-      SELECT id FROM jobs WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
-    `);
-    if (jobCheck.length === 0) {
-      return res.status(404).json({ error: "Job not found" });
-    }
-    
-    // Try Supabase Storage first, fall back to Replit/local if it fails
+      next();
+    });
+  },
+  async (req, res) => {
     try {
-      const { uploadPhotoToSupabase } = await import("../services/supabase-storage");
-      const { media } = await import("../../shared/schema");
-      
-      console.log(`[PHOTO_UPLOAD] Attempting Supabase upload for job=${jobId}`);
-      
-      // Upload to Supabase Storage
-      const uploadResult = await uploadPhotoToSupabase({
-        tenantId: orgId,
-        jobId,
-        ext,
-        fileBuffer: file.buffer,
-        contentType: file.mimetype,
-      });
-      
-      // Store in media table
-      const [mediaRecord] = await db.insert(media).values({
-        orgId,
-        jobId,
-        key: uploadResult.key,
-        kind: "photo",
-        ext,
-        bytes: file.size,
-        isPublic: false,
-        createdBy: userId,
-      }).returning();
-      
-      // Also create job_photos record for backward compatibility
-      const url = `/api/media/${mediaRecord.id}/url`;
-      const result = await db.execute(sql`
-        INSERT INTO job_photos (job_id, org_id, url, object_key, media_id)
-        VALUES (${jobId}::uuid, ${orgId}::uuid, ${url}, ${uploadResult.key}, ${mediaRecord.id})
-        RETURNING id, url, object_key, created_at
+      const { jobId } = req.params;
+      const orgId = (req as any).orgId;
+      const userId = (req as any).user?.id;
+
+      if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid job ID format" });
+
+      const file = (req as any).file;
+      if (!file) return res.status(400).json({ error: "No file provided" });
+      if (!file.buffer) return res.status(500).json({ error: "File buffer not available" });
+
+      // Sanitize and validate file extension
+      let ext = "jpg";
+      if (file.originalname && file.originalname.includes(".")) {
+        const parts = file.originalname.split(".");
+        const rawExt = parts[parts.length - 1].toLowerCase().replace(/[^a-z0-9]/g, "");
+        const mimeToExt: Record<string, string> = {
+          "image/jpeg": "jpg",
+          "image/jpg": "jpg",
+          "image/png": "png",
+          "image/gif": "gif",
+          "image/webp": "webp",
+          "image/heic": "heic",
+          "image/heif": "heif",
+          "image/heic-sequence": "heic",
+        };
+        ext = mimeToExt[file.mimetype] || rawExt || "jpg";
+      }
+
+      const jobCheck: any = await db.execute(sql`
+        SELECT id FROM jobs WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
       `);
-      
-      console.log(`[PHOTO_UPLOAD] Supabase upload success: mediaId=${mediaRecord.id}, key=${uploadResult.key}`);
-      
-      const photo = result[0];
-      res.json(photo);
-      return;
-    } catch (supabaseError: any) {
-      console.warn(`[PHOTO_UPLOAD] Supabase upload failed, falling back to Replit storage:`, supabaseError.message);
-      
-      // Fall back to Replit/local storage
-      const { jobPhotoKey, absolutePathForKey, disableObjectStorage } = await import("../storage/paths");
-      const { logStorage } = await import("../storage/log");
-      const fs = await import("node:fs/promises");
-      const path = await import("node:path");
-      
-      // Create unique filename
-      const timestamp = Date.now();
-      const safeName = `${timestamp}-${file.originalname?.replace(/\s+/g, "_") || 'upload'}.${ext}`;
-      
-      // Generate key (canonical identifier stored in DB)
-      const key = jobPhotoKey(orgId, jobId, safeName);
-      let absolutePath = absolutePathForKey(key);
-      
-      // Upload to file system with fallback retry
+      if (jobCheck.length === 0) return res.status(404).json({ error: "Job not found" });
+
+      // Try Supabase first
       try {
-        await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-        await fs.writeFile(absolutePath, file.buffer);
-        logStorage("UPLOAD", { who: userId, key });
-      } catch (uploadError: any) {
-        if (uploadError?.code === "ENOENT" || uploadError?.code === "EACCES") {
-          // Object storage unavailable - disable and retry with fallback
-          disableObjectStorage();
-          absolutePath = absolutePathForKey(key);
-          
+        const { uploadPhotoToSupabase } = await import("../services/supabase-storage");
+        const { media } = await import("../../shared/schema");
+
+        const uploadResult = await uploadPhotoToSupabase({
+          tenantId: orgId,
+          jobId,
+          ext,
+          fileBuffer: file.buffer,
+          contentType: file.mimetype,
+        });
+
+        const [mediaRecord] = await db
+          .insert(media)
+          .values({
+            orgId,
+            jobId,
+            key: uploadResult.key,
+            kind: "photo",
+            ext,
+            bytes: file.size,
+            isPublic: false,
+            createdBy: userId,
+          })
+          .returning();
+
+        const url = `/api/media/${mediaRecord.id}/url`;
+        const result = await db.execute(sql`
+          INSERT INTO job_photos (job_id, org_id, url, object_key, media_id)
+          VALUES (${jobId}::uuid, ${orgId}::uuid, ${url}, ${uploadResult.key}, ${mediaRecord.id})
+          RETURNING id, url, object_key, created_at
+        `);
+
+        return res.json(result[0]);
+      } catch (supabaseError: any) {
+        console.warn(`[PHOTO_UPLOAD] Supabase upload failed, falling back:`, supabaseError.message);
+
+        const { jobPhotoKey, absolutePathForKey, disableObjectStorage } = await import("../storage/paths");
+        const { logStorage } = await import("../storage/log");
+        const fs = await import("node:fs/promises");
+        const path = await import("node:path");
+
+        const timestamp = Date.now();
+        const safeName = `${timestamp}-${file.originalname?.replace(/\s+/g, "_") || "upload"}.${ext}`;
+        const key = jobPhotoKey(orgId, jobId, safeName);
+        let absolutePath = absolutePathForKey(key);
+
+        try {
           await fs.mkdir(path.dirname(absolutePath), { recursive: true });
           await fs.writeFile(absolutePath, file.buffer);
-          logStorage("UPLOAD", { who: userId, key, storage: "local fallback (after failure)" });
-        } else {
-          throw uploadError;
+          logStorage("UPLOAD", { who: userId, key });
+        } catch (uploadError: any) {
+          if (uploadError?.code === "ENOENT" || uploadError?.code === "EACCES") {
+            disableObjectStorage();
+            absolutePath = absolutePathForKey(key);
+            await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+            await fs.writeFile(absolutePath, file.buffer);
+            logStorage("UPLOAD", { who: userId, key, storage: "local fallback (after failure)" });
+          } else {
+            throw uploadError;
+          }
         }
-      }
-      
-      try {
-        // Insert into database with both URL (for compatibility) and key
+
         const url = `/api/objects/${key}`;
         const result = await db.execute(sql`
           INSERT INTO job_photos (job_id, org_id, url, object_key)
           VALUES (${jobId}::uuid, ${orgId}::uuid, ${url}, ${key})
           RETURNING id, url, object_key, created_at
         `);
-        
-        const photo = result[0];
-        res.json(photo);
-      } catch (dbError: any) {
-        // If DB insert fails, clean up the uploaded file
-        try {
-          await fs.unlink(absolutePath);
-          logStorage("UPLOAD_ROLLBACK", { key });
-        } catch (cleanupError: any) {
-          console.error("Failed to clean up file after DB error:", cleanupError);
-        }
-        throw dbError;
+
+        res.json(result[0]);
       }
+    } catch (error: any) {
+      console.error("POST /api/jobs/%s/photos error:", req.params.jobId, error);
+      res.status(500).json({ error: error?.message || "Failed to upload photo" });
     }
-  } catch (error: any) {
-    console.error("POST /api/jobs/%s/photos error:", req.params.jobId, error);
-    res.status(500).json({ error: error?.message || "Failed to upload photo" });
   }
-});
+);
 
 // DELETE /:jobId/photos/:photoId - Delete a photo
 jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res) => {
@@ -887,39 +1087,30 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
     const { jobId, photoId } = req.params;
     const orgId = (req as any).orgId;
     const userId = (req as any).user?.id;
-    
-    // Validate UUIDs format
-    if (!isUuid(jobId) || !isUuid(photoId)) {
-      return res.status(400).json({ error: "Invalid job or photo ID format" });
-    }
-    
-    // Get photo info before deleting
+
+    if (!isUuid(jobId) || !isUuid(photoId)) return res.status(400).json({ error: "Invalid job or photo ID format" });
+
     const photoResult = await db.execute(sql`
       SELECT object_key, url FROM job_photos 
       WHERE id = ${photoId}::uuid AND job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
-    
+
     if (photoResult.length > 0) {
       const photo = photoResult[0] as any;
-      // Prefer object_key, fallback to extracting from url
-      const key = photo.object_key || photo.url?.replace('/objects/', '');
-      
+      const key = photo.object_key || photo.url?.replace("/objects/", "");
       if (key) {
         try {
-          // Import storage modules
           const { absolutePathForKey, disableObjectStorage } = await import("../storage/paths");
           const { logStorage } = await import("../storage/log");
           const fs = await import("node:fs/promises");
-          
+
           let absolutePath = absolutePathForKey(key);
-          
-          // Delete file from storage with fallback retry
+
           try {
             await fs.unlink(absolutePath);
             logStorage("DELETE", { who: userId, key });
           } catch (deleteError: any) {
             if (deleteError?.code === "ENOENT" || deleteError?.code === "EACCES") {
-              // Try with fallback
               disableObjectStorage();
               absolutePath = absolutePathForKey(key);
               await fs.unlink(absolutePath);
@@ -930,17 +1121,15 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
           }
         } catch (storageError: any) {
           console.error("Error deleting from storage:", storageError);
-          // Continue with database deletion even if storage deletion fails
         }
       }
     }
-    
-    // Delete from database
+
     await db.execute(sql`
       DELETE FROM job_photos 
       WHERE id = ${photoId}::uuid AND job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
-    
+
     res.json({ ok: true });
   } catch (error: any) {
     console.error("DELETE /api/jobs/%s/photos/%s error:", req.params.jobId, req.params.photoId, error);
@@ -950,7 +1139,7 @@ jobs.delete("/:jobId/photos/:photoId", requireAuth, requireOrg, async (req, res)
 
 /* NOTES */
 jobs.get("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params; 
+  const { jobId } = req.params;
   const orgId = (req as any).orgId;
   try {
     const r: any = await db.execute(sql`
@@ -967,7 +1156,7 @@ jobs.get("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
 });
 
 jobs.post("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params; 
+  const { jobId } = req.params;
   const orgId = (req as any).orgId;
   const { text } = req.body || {};
   if (!text?.trim()) return res.status(400).json({ error: "text required" });
@@ -985,13 +1174,13 @@ jobs.post("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
 });
 
 jobs.put("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params; 
+  const { jobId } = req.params;
   const orgId = (req as any).orgId;
   const { notes } = req.body || {};
   try {
     await db.execute(sql`
       update jobs 
-      set notes = ${notes || ''}, updated_at = now()
+      set notes = ${notes || ""}, updated_at = now()
       where id = ${jobId}::uuid and org_id = ${orgId}::uuid
     `);
     res.json({ ok: true });
@@ -1003,7 +1192,7 @@ jobs.put("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
 
 /* CHARGES */
 jobs.get("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params; 
+  const { jobId } = req.params;
   const orgId = (req as any).orgId;
   try {
     const r: any = await db.execute(sql`
@@ -1020,7 +1209,7 @@ jobs.get("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
 });
 
 jobs.post("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params; 
+  const { jobId } = req.params;
   const orgId = (req as any).orgId;
   let { kind, description, quantity, unitPrice } = req.body || {};
   if (!description?.trim()) return res.status(400).json({ error: "description required" });
@@ -1047,11 +1236,10 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
   const userId = (req as any).user?.id;
-  
+
   if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
   try {
-    // First, get the job details from the jobs table
     const jobResult: any = await db.execute(sql`
       SELECT j.*, c.name as customer_name
       FROM jobs j
@@ -1059,15 +1247,12 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE j.id = ${jobId}::uuid AND j.org_id = ${orgId}::uuid
     `);
 
-    if (jobResult.length === 0) {
-      return res.status(404).json({ error: "Job not found" });
-    }
+    if (jobResult.length === 0) return res.status(404).json({ error: "Job not found" });
 
     const job = jobResult[0];
 
     console.log(`[JOB COMPLETION] Starting completion of job ${jobId} (${job.title})`);
 
-    // Insert into completed_jobs table
     const completedResult: any = await db.execute(sql`
       INSERT INTO completed_jobs (
         org_id, original_job_id, customer_id, customer_name, title, description, job_type, notes,
@@ -1081,7 +1266,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       RETURNING id, completed_at
     `);
 
-    // Copy job charges to preserve them (since they'll be deleted by CASCADE when job is deleted)
+    // Copy job charges (since job is deleted)
     await db.execute(sql`
       INSERT INTO completed_job_charges (
         completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at
@@ -1100,7 +1285,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid
     `);
 
-    // Copy hours to completed job hours table
     await db.execute(sql`
       INSERT INTO completed_job_hours (
         completed_job_id, original_job_id, org_id, hours, description, created_at
@@ -1116,7 +1300,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid
     `);
 
-    // Copy parts to completed job parts table
     await db.execute(sql`
       INSERT INTO completed_job_parts (
         completed_job_id, original_job_id, org_id, part_name, quantity, created_at
@@ -1132,7 +1315,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid
     `);
 
-    // Copy notes to completed job notes table
     await db.execute(sql`
       INSERT INTO completed_job_notes (
         completed_job_id, original_job_id, org_id, text, created_at
@@ -1147,7 +1329,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid
     `);
 
-    // Copy photos to completed job photos table
     await db.execute(sql`
       INSERT INTO completed_job_photos (
         completed_job_id, original_job_id, org_id, url, created_at
@@ -1162,7 +1343,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid
     `);
 
-    // Copy equipment to completed job equipment table (so we know what machine to charge against)
     await db.execute(sql`
       INSERT INTO completed_job_equipment (
         completed_job_id, original_job_id, org_id, equipment_id, equipment_name, created_at
@@ -1180,10 +1360,9 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     `);
 
     // AUTO-CREATE FOLLOW-UP JOBS for Service jobs with equipment that has service intervals
-    if (job.job_type === 'Service') {
-      console.log('[JOB COMPLETION] Job type is Service, checking for equipment with service intervals...');
-      
-      // Get equipment with service intervals from this job
+    if (job.job_type === "Service") {
+      console.log("[JOB COMPLETION] Job type is Service, checking for equipment with service intervals...");
+
       const equipmentWithIntervals: any = await db.execute(sql`
         SELECT e.id, e.name, e.service_interval_months, e.customer_id
         FROM job_equipment je
@@ -1195,14 +1374,12 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       for (const eq of equipmentWithIntervals) {
         try {
           console.log(`[JOB COMPLETION] Creating follow-up for equipment ${eq.name} with ${eq.service_interval_months} month interval`);
-          
-          // Calculate next service date (today + interval months)
+
           const nextServiceDate = await db.execute(sql`
             SELECT (CURRENT_DATE + INTERVAL '${sql.raw(eq.service_interval_months.toString())} months')::timestamp as next_date
           `);
           const scheduledDate = (nextServiceDate as any)[0].next_date;
 
-          // Create follow-up job
           const followUpResult = await db.execute(sql`
             INSERT INTO jobs (
               org_id, customer_id, title, description, job_type, 
@@ -1212,7 +1389,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
               ${orgId}::uuid,
               ${eq.customer_id}::uuid,
               ${`Service - ${eq.name}`},
-              ${`Follow-up service from ${job.title || 'completed job'}`},
+              ${`Follow-up service from ${job.title || "completed job"}`},
               'Service',
               ${scheduledDate},
               'new',
@@ -1220,16 +1397,14 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
             )
             RETURNING id
           `);
-          
+
           const followUpJobId = (followUpResult as any)[0].id;
 
-          // Link equipment to new job
           await db.execute(sql`
             INSERT INTO job_equipment (job_id, equipment_id)
             VALUES (${followUpJobId}::uuid, ${eq.id}::uuid)
           `);
 
-          // Update equipment service dates
           await db.execute(sql`
             UPDATE equipment 
             SET 
@@ -1241,60 +1416,28 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
           console.log(`[JOB COMPLETION] ✓ Created follow-up job ${followUpJobId} scheduled for ${scheduledDate}`);
         } catch (err: any) {
           console.error(`[JOB COMPLETION] Failed to create follow-up for equipment ${eq.id}:`, err);
-          // Continue with other equipment even if one fails
         }
       }
     }
 
-    // Delete related records first, but preserve job_charges for the completed job
-    await db.execute(sql`
-      DELETE FROM job_notifications
-      WHERE job_id = ${jobId}::uuid
-    `);
-    
-    await db.execute(sql`
-      DELETE FROM job_assignments
-      WHERE job_id = ${jobId}::uuid
-    `);
-    
-    await db.execute(sql`
-      DELETE FROM job_equipment
-      WHERE job_id = ${jobId}::uuid
-    `);
-    
-    await db.execute(sql`
-      DELETE FROM job_photos
-      WHERE job_id = ${jobId}::uuid
-    `);
-    
-    await db.execute(sql`
-      DELETE FROM job_hours
-      WHERE job_id = ${jobId}::uuid
-    `);
-    
-    await db.execute(sql`
-      DELETE FROM job_notes
-      WHERE job_id = ${jobId}::uuid
-    `);
-    
-    await db.execute(sql`
-      DELETE FROM job_parts
-      WHERE job_id = ${jobId}::uuid
-    `);
+    // Delete related records
+    await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_assignments WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_equipment WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_photos WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_hours WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_notes WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_parts WHERE job_id = ${jobId}::uuid`);
 
     // NOTE: We don't delete job_charges here so they remain accessible via original_job_id
-    // Finally delete the job from the jobs table
-    await db.execute(sql`
-      DELETE FROM jobs
-      WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
-    `);
+    await db.execute(sql`DELETE FROM jobs WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
 
     console.log(`[JOB COMPLETION] ✅ Successfully completed job ${jobId}, created completed_job ${completedResult[0].id}`);
 
-    res.json({ 
-      ok: true, 
+    res.json({
+      ok: true,
       completed_job_id: completedResult[0].id,
-      completed_at: completedResult[0].completed_at
+      completed_at: completedResult[0].completed_at,
     });
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/complete error:", e);
@@ -1307,16 +1450,16 @@ jobs.post("/:jobId/hours", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const { hours, description } = req.body;
   const orgId = (req as any).orgId;
-  
+
   if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
-  if (!hours || typeof hours !== 'number' || hours % 0.5 !== 0) {
+  if (!hours || typeof hours !== "number" || hours % 0.5 !== 0) {
     return res.status(400).json({ error: "Hours must be in 0.5 increments" });
   }
 
   try {
     const r: any = await db.execute(sql`
       INSERT INTO job_hours (job_id, org_id, hours, description)
-      VALUES (${jobId}::uuid, ${orgId}::uuid, ${hours}, ${description || ''})
+      VALUES (${jobId}::uuid, ${orgId}::uuid, ${hours}, ${description || ""})
       RETURNING id, hours, description, created_at
     `);
     res.json(r[0]);
@@ -1331,9 +1474,9 @@ jobs.post("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const { partName, quantity } = req.body;
   const orgId = (req as any).orgId;
-  
+
   if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
-  if (!partName || typeof partName !== 'string') {
+  if (!partName || typeof partName !== "string") {
     return res.status(400).json({ error: "Part name is required" });
   }
   if (!quantity || !Number.isInteger(quantity) || quantity <= 0) {
@@ -1357,7 +1500,7 @@ jobs.post("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
 jobs.get("/:jobId/hours", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
-  
+
   try {
     const r: any = await db.execute(sql`
       SELECT id, hours, description, created_at
@@ -1376,7 +1519,7 @@ jobs.get("/:jobId/hours", requireAuth, requireOrg, async (req, res) => {
 jobs.get("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
-  
+
   try {
     const r: any = await db.execute(sql`
       SELECT id, part_name, quantity, created_at
@@ -1395,7 +1538,7 @@ jobs.get("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
 jobs.get("/completed/:completedJobId/charges", requireAuth, requireOrg, async (req, res) => {
   const { completedJobId } = req.params;
   const orgId = (req as any).orgId;
-  
+
   try {
     const r: any = await db.execute(sql`
       SELECT id, kind, description, quantity, unit_price, total, created_at
@@ -1414,7 +1557,7 @@ jobs.get("/completed/:completedJobId/charges", requireAuth, requireOrg, async (r
 jobs.get("/completed/:completedJobId/hours", requireAuth, requireOrg, async (req, res) => {
   const { completedJobId } = req.params;
   const orgId = (req as any).orgId;
-  
+
   try {
     const r: any = await db.execute(sql`
       SELECT id, hours, description, created_at
@@ -1433,7 +1576,7 @@ jobs.get("/completed/:completedJobId/hours", requireAuth, requireOrg, async (req
 jobs.get("/completed/:completedJobId/parts", requireAuth, requireOrg, async (req, res) => {
   const { completedJobId } = req.params;
   const orgId = (req as any).orgId;
-  
+
   try {
     const r: any = await db.execute(sql`
       SELECT id, part_name, quantity, created_at
@@ -1452,26 +1595,21 @@ jobs.get("/completed/:completedJobId/parts", requireAuth, requireOrg, async (req
 jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireOrg, async (req, res) => {
   const { completedJobId } = req.params;
   const orgId = (req as any).orgId;
-  
+
   if (!isUuid(completedJobId)) return res.status(400).json({ error: "Invalid completedJobId" });
 
   try {
-    // Get the completed job details
     const completedJobResult: any = await db.execute(sql`
       SELECT * FROM completed_jobs
       WHERE id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
     `);
 
-    if (completedJobResult.length === 0) {
-      return res.status(404).json({ error: "Completed job not found" });
-    }
+    if (completedJobResult.length === 0) return res.status(404).json({ error: "Completed job not found" });
 
     const completedJob = completedJobResult[0];
-    
-    // Look up equipment from completed_job_equipment (where it's stored after job completion)
+
     let equipmentInfo = null;
-    
-    // First try: Query completed_job_equipment (primary source after job completion)
+
     const completedEquipmentResult: any = await db.execute(sql`
       SELECT cje.equipment_name as name, e.make, e.model, e.serial
       FROM completed_job_equipment cje
@@ -1479,11 +1617,10 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       WHERE cje.completed_job_id = ${completedJobId}::uuid AND e.org_id = ${orgId}::uuid
       LIMIT 1
     `);
-    
+
     if (completedEquipmentResult.length > 0) {
       equipmentInfo = completedEquipmentResult[0];
     } else if (completedJob.original_job_id) {
-      // Fallback: Try job_equipment (for backward compatibility with older completed jobs)
       const equipmentResult: any = await db.execute(sql`
         SELECT e.name, e.make, e.model, e.serial
         FROM job_equipment je
@@ -1491,37 +1628,19 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
         WHERE je.job_id = ${completedJob.original_job_id}::uuid AND e.org_id = ${orgId}::uuid
         LIMIT 1
       `);
-      
-      if (equipmentResult.length > 0) {
-        equipmentInfo = equipmentResult[0];
-      }
+      if (equipmentResult.length > 0) equipmentInfo = equipmentResult[0];
     }
 
-    // Check if customer exists
-    if (!completedJob.customer_id) {
-      return res.status(400).json({ error: "Cannot create invoice: job has no customer" });
-    }
+    if (!completedJob.customer_id) return res.status(400).json({ error: "Cannot create invoice: job has no customer" });
 
-    // Generate invoice title based on equipment or job title
     let invoiceTitle;
     if (equipmentInfo) {
-      // Use equipment information for the title
-      const equipmentParts = [
-        equipmentInfo.name,
-        equipmentInfo.make,
-        equipmentInfo.model,
-        equipmentInfo.serial
-      ].filter(Boolean); // Remove null/empty values
-      
-      invoiceTitle = equipmentParts.length > 0 
-        ? `Invoice for: ${equipmentParts.join(' - ')}`
-        : `Invoice for: ${completedJob.title}`;
+      const equipmentParts = [equipmentInfo.name, equipmentInfo.make, equipmentInfo.model, equipmentInfo.serial].filter(Boolean);
+      invoiceTitle = equipmentParts.length > 0 ? `Invoice for: ${equipmentParts.join(" - ")}` : `Invoice for: ${completedJob.title}`;
     } else {
-      // Fallback to job title if no equipment found
       invoiceTitle = `Invoice for: ${completedJob.title}`;
     }
-    
-    // Check if already converted (idempotency guard) - check by job_id to allow multiple invoices for same equipment
+
     const existingInvoice: any = await db.execute(sql`
       SELECT id FROM invoices 
       WHERE org_id = ${orgId}::uuid 
@@ -1529,38 +1648,30 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     `);
 
     if (existingInvoice.length > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Invoice already exists for this completed job",
-        invoiceId: existingInvoice[0].id 
+        invoiceId: existingInvoice[0].id,
       });
     }
 
-    // Pre-fetch all item presets to avoid N+1 queries
     const allPresets: any = await db.execute(sql`
       SELECT name, unit_amount, tax_rate
       FROM item_presets
       WHERE org_id = ${orgId}::uuid
     `);
 
-    // Build preset lookup maps
     const presetMap = new Map();
     let laborPreset = null;
 
     for (const preset of allPresets) {
       const lowerName = preset.name.toLowerCase();
       presetMap.set(lowerName, preset);
-      
-      // Find labour preset (Australian spelling first, prefer exact matches, then partial)
-      if (!laborPreset && lowerName === 'labour') {
-        laborPreset = preset;
-      } else if (!laborPreset && lowerName === 'labor') {
-        laborPreset = preset;
-      } else if (!laborPreset && (lowerName.includes('labour') || lowerName.includes('labor') || lowerName.includes('hour'))) {
-        laborPreset = preset;
-      }
+
+      if (!laborPreset && lowerName === "labour") laborPreset = preset;
+      else if (!laborPreset && lowerName === "labor") laborPreset = preset;
+      else if (!laborPreset && (lowerName.includes("labour") || lowerName.includes("labor") || lowerName.includes("hour"))) laborPreset = preset;
     }
 
-    // Get individual note entries from completed job
     const noteEntries: any = await db.execute(sql`
       SELECT text, created_at
       FROM completed_job_notes
@@ -1568,33 +1679,27 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       ORDER BY created_at ASC
     `);
 
-    // Combine main job notes with individual note entries
-    let combinedNotes = completedJob.notes || '';
+    let combinedNotes = completedJob.notes || "";
     if (noteEntries.length > 0) {
-      const noteTexts = noteEntries.map((note: any) => note.text).join('\n');
+      const noteTexts = noteEntries.map((note: any) => note.text).join("\n");
       combinedNotes = combinedNotes ? `${combinedNotes}\n\n${noteTexts}` : noteTexts;
     }
 
-    // Generate next invoice number for this organization
     const lastInvoiceResult: any = await db.execute(sql`
       SELECT number FROM invoices 
       WHERE org_id = ${orgId}::uuid AND number IS NOT NULL 
       ORDER BY created_at DESC 
       LIMIT 1
     `);
-    
+
     let nextNumber = 1;
     if (lastInvoiceResult.length > 0 && lastInvoiceResult[0].number) {
-      // Extract number from format like "inv-0001"
       const match = lastInvoiceResult[0].number.match(/inv-(\d+)/i);
-      if (match) {
-        nextNumber = parseInt(match[1]) + 1;
-      }
+      if (match) nextNumber = parseInt(match[1]) + 1;
     }
-    
-    const invoiceNumber = `inv-${nextNumber.toString().padStart(4, '0')}`;
 
-    // Create invoice from completed job (notes go into invoice notes, not line items)
+    const invoiceNumber = `inv-${nextNumber.toString().padStart(4, "0")}`;
+
     const invoiceResult: any = await db.execute(sql`
       INSERT INTO invoices (org_id, customer_id, job_id, title, notes, number, status, sub_total, tax_total, grand_total)
       VALUES (
@@ -1614,20 +1719,12 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 
     const invoiceId = invoiceResult[0].id;
     let position = 0;
-    const lineItems = [];
+    const lineItems: any[] = [];
 
-    // Add equipment as first line item if available
     if (equipmentInfo) {
-      const equipmentParts = [
-        equipmentInfo.name,
-        equipmentInfo.make,
-        equipmentInfo.model,
-        equipmentInfo.serial
-      ].filter(Boolean);
-      
-      const equipmentDescription = equipmentParts.join(' - ');
-      
-      // Add equipment line item with quantity 1, unit amount 0, and 10% tax
+      const equipmentParts = [equipmentInfo.name, equipmentInfo.make, equipmentInfo.model, equipmentInfo.serial].filter(Boolean);
+      const equipmentDescription = equipmentParts.join(" - ");
+
       await db.execute(sql`
         INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
         VALUES (
@@ -1640,12 +1737,11 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
           0
         )
       `);
-      
+
       lineItems.push({ quantity: 1, unit_amount: 0, tax_rate: 0 });
       position++;
     }
 
-    // Get job charges and add them as line items
     const charges: any = await db.execute(sql`
       SELECT kind, description, quantity, unit_price, total
       FROM completed_job_charges
@@ -1656,7 +1752,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     for (const charge of charges) {
       const quantity = Number(charge.quantity) || 1;
       const unitAmount = Number(charge.unit_price) || 0;
-      const taxRate = 10; // 10% as percentage
+      const taxRate = 10;
 
       await db.execute(sql`
         INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
@@ -1675,7 +1771,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       position++;
     }
 
-    // Get job hours and add them as line items with preset pricing lookup
     const hours: any = await db.execute(sql`
       SELECT hours, description
       FROM completed_job_hours
@@ -1686,7 +1781,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     for (const hour of hours) {
       const quantity = Number(hour.hours) || 1;
       const unitAmount = Number(laborPreset?.unit_amount) || 0;
-      const taxRate = Number(laborPreset?.tax_rate) || 10; // Default 10% if no preset
+      const taxRate = Number(laborPreset?.tax_rate) || 10;
 
       await db.execute(sql`
         INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
@@ -1694,7 +1789,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
           ${orgId}::uuid,
           ${invoiceId}::uuid,
           ${position},
-          ${hour.description || 'Labor Hours'},
+          ${hour.description || "Labor Hours"},
           ${quantity},
           ${unitAmount},
           ${taxRate}
@@ -1705,7 +1800,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       position++;
     }
 
-    // Get job parts and add them as line items with preset pricing lookup
     const parts: any = await db.execute(sql`
       SELECT part_name, quantity
       FROM completed_job_parts
@@ -1715,12 +1809,12 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 
     for (const part of parts) {
       const partName = part.part_name?.trim();
-      if (!partName) continue; // Skip null/empty part names
+      if (!partName) continue;
 
       const quantity = Number(part.quantity) || 1;
       const preset = presetMap.get(partName.toLowerCase());
       const unitAmount = Number(preset?.unit_amount) || 0;
-      const taxRate = Number(preset?.tax_rate) || 10; // Default 10% if no preset
+      const taxRate = Number(preset?.tax_rate) || 10;
 
       await db.execute(sql`
         INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
@@ -1739,7 +1833,6 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       position++;
     }
 
-    // If no charges, hours, or parts were found, add a default line item
     if (charges.length === 0 && hours.length === 0 && parts.length === 0) {
       await db.execute(sql`
         INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
@@ -1756,23 +1849,20 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       lineItems.push({ quantity: 1, unit_amount: 0, tax_rate: 10 });
     }
 
-    // Calculate totals using the sumLines utility
     const { sumLines } = await import("../lib/totals.js");
     const { sub_total, tax_total, grand_total } = sumLines(lineItems);
 
-    // Update invoice with calculated totals
     await db.execute(sql`
       UPDATE invoices 
       SET sub_total = ${sub_total}, tax_total = ${tax_total}, grand_total = ${grand_total}
       WHERE id = ${invoiceId}::uuid AND org_id = ${orgId}::uuid
     `);
 
-    res.json({ 
-      ok: true, 
-      invoiceId: invoiceId,
-      message: `Invoice created successfully with ${position} line items. Total: $${grand_total.toFixed(2)}`
+    res.json({
+      ok: true,
+      invoiceId,
+      message: `Invoice created successfully with ${position} line items. Total: $${grand_total.toFixed(2)}`,
     });
-
   } catch (e: any) {
     console.error("POST /api/jobs/completed/:completedJobId/convert-to-invoice error:", e);
     res.status(500).json({ error: e?.message || "Failed to convert to invoice" });
@@ -1798,41 +1888,34 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
   console.log("[TRACE] DELETE /api/jobs/completed/%s org=%s", jobId, orgId);
-  
+
   if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
   try {
-    // Get photos to delete from object storage
     const photosResult: any = await db.execute(sql`
       SELECT url FROM completed_job_photos 
       WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
-    
-    // Delete photos from object storage
+
     if (photosResult && photosResult.length > 0) {
       for (const photo of photosResult) {
         const photoUrl = photo.url;
-        
-        // Delete from object storage if it's an object storage URL
-        if (photoUrl && photoUrl.startsWith('/objects/')) {
+
+        if (photoUrl && photoUrl.startsWith("/objects/")) {
           try {
-            const objectName = photoUrl.replace('/objects/', '');
+            const objectName = photoUrl.replace("/objects/", "");
             let privateDir = process.env.PRIVATE_OBJECT_DIR;
-            
+
             if (privateDir) {
-              // Normalize to ensure leading slash
-              if (!privateDir.startsWith('/')) {
-                privateDir = `/${privateDir}`;
-              }
-              
+              if (!privateDir.startsWith("/")) privateDir = `/${privateDir}`;
+
               const bucketMatch = privateDir.match(/^\/([^\/]+)/);
               if (bucketMatch) {
                 const bucketName = bucketMatch[1];
                 const { objectStorageClient } = await import("../objectStorage");
                 const bucket = objectStorageClient.bucket(bucketName);
                 const fileObj = bucket.file(objectName);
-                
-                // Check if file exists before deleting
+
                 const [exists] = await fileObj.exists();
                 if (exists) {
                   await fileObj.delete();
@@ -1842,21 +1925,18 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
             }
           } catch (storageError: any) {
             console.error("Error deleting photo from object storage:", photoUrl, storageError);
-            // Continue with other deletions even if one fails
           }
         }
       }
     }
 
-    // Delete all related completed job records
     await db.execute(sql`DELETE FROM completed_job_charges WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
     await db.execute(sql`DELETE FROM completed_job_hours WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
     await db.execute(sql`DELETE FROM completed_job_parts WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
     await db.execute(sql`DELETE FROM completed_job_notes WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
     await db.execute(sql`DELETE FROM completed_job_photos WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
     await db.execute(sql`DELETE FROM completed_job_equipment WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
-    
-    // Delete the completed job itself
+
     await db.execute(sql`
       DELETE FROM completed_jobs
       WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
@@ -1868,7 +1948,5 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
     res.status(500).json({ error: e?.message || "Failed to delete completed job" });
   }
 });
-
-
 
 export default jobs;

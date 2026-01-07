@@ -44,7 +44,7 @@ export default function PortalEquipmentDetail() {
     try {
       setDownloadingId(jobId);
 
-      const url = `/api/portal/${org}/completed-jobs/${jobId}/service-sheet?download=1`;
+      const url = `/api/jobs/completed/${jobId}/service-sheet?download=1`;
       const resp = await fetch(url, { credentials: "include" });
       if (!resp.ok) return;
 

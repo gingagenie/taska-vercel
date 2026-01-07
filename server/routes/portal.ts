@@ -4,12 +4,7 @@ import { sql } from "drizzle-orm";
 
 const router = Router();
 
-/**
- * Portal session guard
- * Stores:
- *  - req.session.portalOrgId
- *  - req.session.portalCustomerUserId
- */
+/** Portal auth guard */
 function requirePortalAuth(req: any, res: any, next: any) {
   if (!req.session?.portalOrgId || !req.session?.portalCustomerUserId) {
     return res.status(401).json({ error: "Not authenticated" });
@@ -17,23 +12,26 @@ function requirePortalAuth(req: any, res: any, next: any) {
   next();
 }
 
+function firstRow(result: any) {
+  return result?.rows?.[0] ?? result?.[0] ?? null;
+}
+
 async function getOrgIdFromSlug(orgSlug: string): Promise<string | null> {
-  const rows = await db.execute(sql`
+  const r = await db.execute(sql`
     select org_id
     from portal_orgs
     where slug = ${orgSlug}
     limit 1
   `);
-
-  const row = (rows as any).rows?.[0] || (rows as any)[0];
-  return row?.org_id || null;
+  const row = firstRow(r);
+  return row?.org_id ?? null;
 }
 
 async function getPortalUser(req: any) {
   const orgId = req.session.portalOrgId;
   const userId = req.session.portalCustomerUserId;
 
-  const rows = await db.execute(sql`
+  const r = await db.execute(sql`
     select id, org_id, customer_id, email, name, disabled_at
     from customer_users
     where id = ${userId}::uuid
@@ -41,14 +39,12 @@ async function getPortalUser(req: any) {
     limit 1
   `);
 
-  const user = (rows as any).rows?.[0] || (rows as any)[0];
-  return user || null;
+  return firstRow(r);
 }
 
 /**
  * POST /api/portal/:org/login
  * Body: { email, password }
- * Password check uses pgcrypto crypt().
  */
 router.post("/portal/:org/login", async (req: any, res) => {
   try {
@@ -58,20 +54,10 @@ router.post("/portal/:org/login", async (req: any, res) => {
     if (!orgSlug) return res.status(400).json({ error: "Missing org" });
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
-    // 1) Resolve orgId from slug
-    const orgRows = await db.execute(sql`
-      select org_id
-      from portal_orgs
-      where slug = ${orgSlug}
-      limit 1
-    `);
-    const orgRow = (orgRows as any).rows?.[0] || (orgRows as any)[0];
-    const orgId = orgRow?.org_id;
-
+    const orgId = await getOrgIdFromSlug(orgSlug);
     if (!orgId) return res.status(404).json({ error: "Portal not found" });
 
-    // 2) Find portal user
-    const userRows = await db.execute(sql`
+    const userResult = await db.execute(sql`
       select id, org_id, customer_id, email, name, password_hash, disabled_at
       from customer_users
       where org_id = ${orgId}::uuid
@@ -79,22 +65,18 @@ router.post("/portal/:org/login", async (req: any, res) => {
       limit 1
     `);
 
-    const user = (userRows as any).rows?.[0] || (userRows as any)[0];
+    const user = firstRow(userResult);
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
     if (user.disabled_at) return res.status(403).json({ error: "Account disabled" });
 
-    // 3) Password check using pgcrypto crypt()
-    const checkRows = await db.execute(sql`
+    const checkResult = await db.execute(sql`
       select (crypt(${password}, ${user.password_hash}) = ${user.password_hash}) as ok
     `);
 
-    const checkRow = (checkRows as any).rows?.[0] || (checkRows as any)[0];
+    const checkRow = firstRow(checkResult);
     const okRaw = checkRow?.ok;
-
-    // Depending on driver, ok might be: true/false OR 't'/'f' OR 1/0
     const ok = okRaw === true || okRaw === "t" || okRaw === 1;
 
-    // Helpful log (Railway logs)
     console.log("[PORTAL LOGIN]", {
       orgSlug,
       orgId,
@@ -106,7 +88,6 @@ router.post("/portal/:org/login", async (req: any, res) => {
 
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
-    // 4) Save session
     req.session.portalOrgId = orgId;
     req.session.portalCustomerUserId = user.id;
 
@@ -127,48 +108,17 @@ router.post("/portal/:org/login", async (req: any, res) => {
   }
 });
 
-
-    const user = (rows as any).rows?.[0] || (rows as any)[0];
-    if (!user) return res.status(401).json({ error: "Invalid credentials" });
-    if (user.disabled_at) return res.status(403).json({ error: "Account disabled" });
-
-    const check = await db.execute(sql`
-      select crypt(${password}, ${user.password_hash}) = ${user.password_hash} as ok
-    `);
-
-    const ok = (check as any).rows?.[0]?.ok;
-    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-
-    req.session.portalOrgId = orgId;
-    req.session.portalCustomerUserId = user.id;
-
-    return req.session.save((err: any) => {
-      if (err) {
-        console.error("portal session save error:", err);
-        return res.status(500).json({ error: "Login failed" });
-      }
-
-      return res.json({
-        ok: true,
-        user: { id: user.id, email: user.email, name: user.name, customer_id: user.customer_id },
-      });
-    });
-  } catch (e: any) {
-    console.error("portal login error:", e);
-    return res.status(500).json({ error: "Login failed" });
-  }
-});
-
+/** POST /api/portal/:org/logout */
 router.post("/portal/:org/logout", (req: any, res) => {
   req.session.portalOrgId = null;
   req.session.portalCustomerUserId = null;
 
-  return req.session.save?.((err: any) => {
-    if (err) return res.json({ ok: true });
-    return res.json({ ok: true });
-  }) || res.json({ ok: true });
+  // save best-effort
+  req.session.save?.(() => {});
+  return res.json({ ok: true });
 });
 
+/** GET /api/portal/:org/me */
 router.get("/portal/:org/me", requirePortalAuth, async (req: any, res) => {
   const user = await getPortalUser(req);
   if (!user) return res.status(401).json({ error: "Not authenticated" });
@@ -181,14 +131,12 @@ router.get("/portal/:org/me", requirePortalAuth, async (req: any, res) => {
   });
 });
 
-/**
- * GET /api/portal/:org/equipment
- */
+/** GET /api/portal/:org/equipment */
 router.get("/portal/:org/equipment", requirePortalAuth, async (req: any, res) => {
   const user = await getPortalUser(req);
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  const rows = await db.execute(sql`
+  const r = await db.execute(sql`
     select id, name, serial_number, asset_number, created_at
     from equipment
     where org_id = ${user.org_id}::uuid
@@ -196,19 +144,17 @@ router.get("/portal/:org/equipment", requirePortalAuth, async (req: any, res) =>
     order by created_at desc
   `);
 
-  return res.json((rows as any).rows || rows);
+  return res.json((r as any).rows ?? r);
 });
 
-/**
- * GET /api/portal/:org/equipment/:equipmentId
- */
+/** GET /api/portal/:org/equipment/:equipmentId */
 router.get("/portal/:org/equipment/:equipmentId", requirePortalAuth, async (req: any, res) => {
   const user = await getPortalUser(req);
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   const { equipmentId } = req.params;
 
-  const eqRows = await db.execute(sql`
+  const eqRes = await db.execute(sql`
     select id, name, serial_number, asset_number, created_at
     from equipment
     where org_id = ${user.org_id}::uuid
@@ -217,10 +163,10 @@ router.get("/portal/:org/equipment/:equipmentId", requirePortalAuth, async (req:
     limit 1
   `);
 
-  const equipment = (eqRows as any).rows?.[0] || (eqRows as any)[0];
+  const equipment = firstRow(eqRes);
   if (!equipment) return res.status(404).json({ error: "Equipment not found" });
 
-  const jobRows = await db.execute(sql`
+  const jobsRes = await db.execute(sql`
     select cj.id, cj.title, cj.completed_at
     from completed_jobs cj
     join completed_job_equipment cje on cje.completed_job_id = cj.id
@@ -232,34 +178,7 @@ router.get("/portal/:org/equipment/:equipmentId", requirePortalAuth, async (req:
 
   return res.json({
     equipment,
-    jobs: (jobRows as any).rows || jobRows,
-  });
-});
-
-/**
- * GET /api/portal/:org/completed-jobs/:jobId/service-sheet?download=1
- * NOTE: still needs wiring to your existing PDF generator.
- */
-router.get("/portal/:org/completed-jobs/:jobId/service-sheet", requirePortalAuth, async (req: any, res) => {
-  const user = await getPortalUser(req);
-  if (!user) return res.status(401).json({ error: "Not authenticated" });
-
-  const { jobId } = req.params;
-
-  const rows = await db.execute(sql`
-    select id, title
-    from completed_jobs
-    where org_id = ${user.org_id}::uuid
-      and customer_id = ${user.customer_id}::uuid
-      and id = ${jobId}::uuid
-    limit 1
-  `);
-
-  const job = (rows as any).rows?.[0] || (rows as any)[0];
-  if (!job) return res.status(404).json({ error: "Job not found" });
-
-  return res.status(501).json({
-    error: "PDF not wired for portal yet (need to reuse your existing completed job service-sheet generator).",
+    jobs: (jobsRes as any).rows ?? jobsRes,
   });
 });
 

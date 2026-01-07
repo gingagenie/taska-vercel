@@ -31,6 +31,56 @@ function normalizeScheduledAt(raw: any): string | null {
   return raw;
 }
 
+/**
+ * ✅ Allows EITHER:
+ * - staff session (req.session.userId + req.session.orgId)
+ * - portal session (req.session.customerId / req.session.portalCustomerId / req.session.customer.id)
+ *
+ * For portal: derives orgId from completed_jobs row so downstream queries work.
+ */
+async function requirePortalOrStaff(req: any, res: any, next: any) {
+  // Staff session (normal app)
+  if (req.session?.userId && req.session?.orgId) {
+    req.orgId = req.session.orgId;
+    req.user = { id: req.session.userId };
+    return next();
+  }
+
+  // Portal session: allow if they have a portal cookie marker
+  const customerId =
+    req.session?.customerId ||
+    req.session?.portalCustomerId ||
+    req.session?.customer?.id ||
+    null;
+
+  if (!customerId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  const completedJobId = req.params?.completedJobId || req.params?.jobId;
+  if (!completedJobId || !isUuid(completedJobId)) {
+    return res.status(400).json({ error: "Invalid job id" });
+  }
+
+  try {
+    const r: any = await db.execute(sql`
+      SELECT org_id
+      FROM completed_jobs
+      WHERE id = ${completedJobId}::uuid
+      LIMIT 1
+    `);
+
+    if (!r?.length) return res.status(404).json({ error: "Completed job not found" });
+
+    req.orgId = r[0].org_id;
+    req.customerId = customerId;
+    return next();
+  } catch (e: any) {
+    console.error("[requirePortalOrStaff] error:", e);
+    return res.status(500).json({ error: e?.message || "Auth failed" });
+  }
+}
+
 // Configure multer for file uploads with memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -313,11 +363,14 @@ jobs.get("/completed/:completedJobId/parts", requireAuth, requireOrg, async (req
  * GET /api/jobs/completed/:completedJobId/service-sheet
  * Returns { ok, key, url, filename }
  * Optional: ?download=1 streams PDF directly
+ *
+ * IMPORTANT:
+ * - This route supports staff AND portal sessions using requirePortalOrStaff
+ * - Staff sessions still require subscription middleware
  */
 jobs.get(
   "/completed/:completedJobId/service-sheet",
-  requireAuth,
-  requireOrg,
+  requirePortalOrStaff,
   checkSubscription,
   requireActiveSubscription,
   async (req, res) => {
@@ -449,7 +502,7 @@ jobs.get(
         // last resort: absolute to your host
         const proto =
           (req.headers["x-forwarded-proto"] as string) ||
-          ((req as any).protocol as string) ||
+          (req as any).protocol ||
           "https";
         const host = req.headers["x-forwarded-host"] || req.headers.host;
         if (host && rawUrl.startsWith("/")) return `${proto}://${host}${rawUrl}`;
@@ -465,7 +518,6 @@ jobs.get(
       );
 
       const photoList = resolvedPhotos.filter(Boolean) as Array<{ url: string; created_at: string }>;
-
       const brandLine = orgName ? esc(orgName) : "";
 
       const html = `<!doctype html>
@@ -486,7 +538,6 @@ jobs.get(
     .right { text-align: right; }
     ul { margin: 6px 0 0 18px; padding: 0; }
     .small { font-size: 11px; }
-
     .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .photo { border: 1px solid #eee; border-radius: 10px; overflow: hidden; background: #fff; }
     .photo img { width: 100%; height: 140px; object-fit: cover; display: block; }
@@ -648,16 +699,20 @@ jobs.get(
           doc.moveDown();
 
           doc.fontSize(12).text("Hours", { underline: true });
-          if (hoursList.length)
+          if (hoursList.length) {
             hoursList.forEach((h) => doc.fontSize(10).text(`- ${h.description || "Hours"}: ${h.hours}`));
-          else doc.fontSize(10).text("—");
+          } else {
+            doc.fontSize(10).text("—");
+          }
           doc.moveDown();
 
           doc.fontSize(12).text("Parts", { underline: true });
-          if (partsList.length) partsList.forEach((p) => doc.fontSize(10).text(`- ${p.part_name || "Part"} x ${p.quantity}`));
-          else doc.fontSize(10).text("—");
+          if (partsList.length) {
+            partsList.forEach((p) => doc.fontSize(10).text(`- ${p.part_name || "Part"} x ${p.quantity}`));
+          } else {
+            doc.fontSize(10).text("—");
+          }
 
-          // photos not embedded in fallback
           doc.end();
         });
       }
@@ -688,7 +743,8 @@ jobs.get(
         folder: "service-sheets",
       });
 
-      const signedUrl = typeof createSignedViewUrl2 === "function" ? await createSignedViewUrl2(uploaded.key, 900) : null;
+      const signedUrl =
+        typeof createSignedViewUrl2 === "function" ? await createSignedViewUrl2(uploaded.key, 900) : null;
 
       res.json({ ok: true, key: uploaded.key, url: signedUrl, filename });
     } catch (e: any) {
@@ -762,7 +818,7 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
   }
 });
 
-// TECHS LIST  (IMPORTANT: must be before "/:jobId")
+// TECHS LIST
 jobs.get("/technicians", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
 
@@ -844,7 +900,7 @@ jobs.get("/range", requireAuth, requireOrg, checkSubscription, requireActiveSubs
   }
 });
 
-// CUSTOMERS DROPDOWN (IMPORTANT: must be before "/:jobId")
+// CUSTOMERS DROPDOWN
 jobs.get("/customers", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
@@ -1637,8 +1693,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     let invoiceTitle;
     if (equipmentInfo) {
       const equipmentParts = [equipmentInfo.name, equipmentInfo.make, equipmentInfo.model, equipmentInfo.serial].filter(Boolean);
-      invoiceTitle =
-        equipmentParts.length > 0 ? `Invoice for: ${equipmentParts.join(" - ")}` : `Invoice for: ${completedJob.title}`;
+      invoiceTitle = equipmentParts.length > 0 ? `Invoice for: ${equipmentParts.join(" - ")}` : `Invoice for: ${completedJob.title}`;
     } else {
       invoiceTitle = `Invoice for: ${completedJob.title}`;
     }
@@ -1869,10 +1924,19 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 /* =========================
    DELETE JOBS
 ========================= */
-/**
- * IMPORTANT: put /completed/:jobId BEFORE /:jobId
- * otherwise "completed" gets captured as :jobId.
- */
+
+jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
+
+  await db.execute(sql`
+    delete from jobs
+    where id=${jobId}::uuid and org_id=${orgId}::uuid
+  `);
+
+  res.json({ ok: true });
+});
 
 jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
@@ -1899,17 +1963,4 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
     console.error("DELETE /api/jobs/completed/%s error:", jobId, e);
     res.status(500).json({ error: e?.message || "Failed to delete completed job" });
   }
-});
-
-jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params;
-  const orgId = (req as any).orgId;
-  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
-
-  await db.execute(sql`
-    delete from jobs
-    where id=${jobId}::uuid and org_id=${orgId}::uuid
-  `);
-
-  res.json({ ok: true });
 });

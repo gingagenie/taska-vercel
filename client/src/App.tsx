@@ -481,9 +481,12 @@ function AuthenticatedApp() {
 function PortalApp() {
   return (
     <Switch>
+      <Route path="/portal/:org/login" component={PortalLogin} />
+      <Route path="/portal/:org/equipment" component={PortalEquipmentList} />
+      <Route path="/portal/:org/equipment/:id" component={PortalEquipmentDetail} />
+
+      {/* Backwards compatible / default */}
       <Route path="/portal/login" component={PortalLogin} />
-      <Route path="/portal/equipment" component={PortalEquipmentList} />
-      <Route path="/portal/equipment/:id" component={PortalEquipmentDetail} />
       <Route component={PortalLogin} />
     </Switch>
   );

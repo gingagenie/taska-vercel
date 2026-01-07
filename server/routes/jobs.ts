@@ -115,19 +115,16 @@ jobs.get(
       // - Supabase keys stored as "org/..." -> signed URL
       // - URLs stored as "/api/media/:id/url" -> lookup media.key then signed URL
       // - Absolute https URLs -> pass through
-      // - Anything else -> skip (or pass-through as last resort)
+      // - Relative URLs -> attempt to make absolute
       const { createSignedViewUrl } = await import("../services/supabase-storage");
 
       async function resolvePhotoUrl(rawUrl: string | null): Promise<string | null> {
         if (!rawUrl) return null;
 
-        // Supabase object key stored directly
         if (rawUrl.startsWith("org/")) {
           return await createSignedViewUrl(rawUrl, 900);
         }
 
-        // If stored as your media proxy route, resolve via media table -> key -> signed url
-        // e.g. /api/media/<uuid>/url
         if (rawUrl.startsWith("/api/media/")) {
           const m = rawUrl.match(/^\/api\/media\/([0-9a-f-]{36})\/url/i);
           const mediaId = m?.[1];
@@ -149,12 +146,10 @@ jobs.get(
           }
         }
 
-        // Already absolute
         if (/^https?:\/\//i.test(rawUrl)) {
           return rawUrl;
         }
 
-        // As a last resort, try turning relative into absolute (may still fail if auth-protected)
         const proto =
           (req.headers["x-forwarded-proto"] as string) ||
           ((req as any).protocol as string) ||
@@ -170,16 +165,14 @@ jobs.get(
       const resolvedPhotos = await Promise.all(
         (photoRows as any[]).map(async (p) => {
           const url = await resolvePhotoUrl(p.url);
-          return url
-            ? { url, created_at: p.created_at }
-            : null;
+          return url ? { url, created_at: p.created_at } : null;
         })
       );
 
       const photoList = resolvedPhotos.filter(Boolean) as Array<{ url: string; created_at: string }>;
 
-      // ---- HTML ----
-      const brandLine = orgName ? esc(orgName) : ""; // if you want blank, it’ll be blank
+      // ---- HTML (NO "Taska" line) ----
+      const brandLine = orgName ? esc(orgName) : "";
 
       const html = `<!doctype html>
 <html>
@@ -327,59 +320,137 @@ jobs.get(
         console.warn("[SERVICE_SHEET] Puppeteer failed, using PDFKit fallback:", puppErr?.message);
 
         const PDFDocument = (await import("pdfkit")).default;
-        pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
-          const doc = new PDFDocument({ size: "A4", margin: 50 });
-          const chunks: Buffer[] = [];
-          doc.on("data", (c: any) => chunks.push(c));
-          doc.on("end", () => resolve(Buffer.concat(chunks)));
-          doc.on("error", reject);
 
-          doc.fontSize(18).text("Service Sheet");
-          doc.moveDown();
-          if (orgName) doc.fontSize(10).fillColor("#555").text(orgName);
-          doc.fillColor("#000");
-          doc.fontSize(11).text(`Customer: ${customer}`);
-          doc.text(`Job: ${title}`);
-          doc.text(`Completed: ${fmtDate(job.completed_at)}`);
-          doc.moveDown();
+        // Node 18+ has global fetch. If yours doesn’t, this will just skip photos cleanly.
+        const canFetch = typeof (globalThis as any).fetch === "function";
 
-          doc.fontSize(12).text("Description", { underline: true });
-          doc.fontSize(10).text(job.description || "—");
-          doc.moveDown();
+        pdfBuffer = await new Promise<Buffer>(async (resolve, reject) => {
+          try {
+            const doc = new PDFDocument({ size: "A4", margin: 50 });
+            const chunks: Buffer[] = [];
+            doc.on("data", (c: any) => chunks.push(c));
+            doc.on("end", () => resolve(Buffer.concat(chunks)));
+            doc.on("error", reject);
 
-          if (job.notes) {
-            doc.fontSize(12).text("Notes", { underline: true });
-            doc.fontSize(10).text(job.notes);
+            doc.fontSize(18).text("Service Sheet");
+            if (orgName) {
+              doc.moveDown(0.2);
+              doc.fontSize(10).fillColor("#555").text(orgName);
+              doc.fillColor("#000");
+            }
             doc.moveDown();
+
+            doc.fontSize(11).text(`Customer: ${customer}`);
+            doc.text(`Job: ${title}`);
+            doc.text(`Completed: ${fmtDate(job.completed_at)}`);
+            doc.moveDown();
+
+            doc.fontSize(12).text("Description", { underline: true });
+            doc.fontSize(10).text(job.description || "—");
+            doc.moveDown();
+
+            if (job.notes) {
+              doc.fontSize(12).text("Notes", { underline: true });
+              doc.fontSize(10).text(job.notes);
+              doc.moveDown();
+            }
+
+            doc.fontSize(12).text("Equipment", { underline: true });
+            doc.fontSize(10).text(equipmentList.length ? equipmentList.join("\n") : "—");
+            doc.moveDown();
+
+            doc.fontSize(12).text("Work Notes", { underline: true });
+            doc.fontSize(10).text(notesList.length ? notesList.join("\n") : "—");
+            doc.moveDown();
+
+            doc.fontSize(12).text("Hours", { underline: true });
+            if (hoursList.length) {
+              hoursList.forEach((h) => doc.fontSize(10).text(`- ${h.description || "Hours"}: ${h.hours}`));
+            } else {
+              doc.fontSize(10).text("—");
+            }
+            doc.moveDown();
+
+            doc.fontSize(12).text("Parts", { underline: true });
+            if (partsList.length) {
+              partsList.forEach((p) => doc.fontSize(10).text(`- ${p.part_name || "Part"} x ${p.quantity}`));
+            } else {
+              doc.fontSize(10).text("—");
+            }
+
+            // ✅ Photos in PDFKit fallback (best-effort)
+            if (photoList.length) {
+              doc.addPage();
+              doc.fontSize(16).text("Photos");
+              doc.moveDown();
+
+              if (!canFetch) {
+                doc.fontSize(10).fillColor("#555").text("Photo embedding unavailable (fetch not available).");
+                doc.fillColor("#000");
+              } else {
+                const maxPhotos = Math.min(photoList.length, 9); // keep it sane
+                const cellW = 160;
+                const cellH = 120;
+                const gap = 12;
+                const startX = doc.page.margins.left;
+                let x = startX;
+                let y = doc.y + 8;
+                let col = 0;
+
+                for (let i = 0; i < maxPhotos; i++) {
+                  const p = photoList[i];
+
+                  try {
+                    const resp = await fetch(p.url);
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const arr = await resp.arrayBuffer();
+                    const buf = Buffer.from(arr);
+
+                    // draw image
+                    doc
+                      .roundedRect(x, y, cellW, cellH, 8)
+                      .strokeColor("#dddddd")
+                      .stroke();
+                    doc.image(buf, x + 4, y + 4, { width: cellW - 8, height: cellH - 24, fit: [cellW - 8, cellH - 24] });
+
+                    // caption
+                    doc
+                      .fontSize(9)
+                      .fillColor("#555")
+                      .text(new Date(p.created_at).toLocaleDateString("en-AU"), x + 6, y + cellH - 16, { width: cellW - 12 });
+                    doc.fillColor("#000");
+                  } catch {
+                    // skip bad/unsupported images (HEIC etc)
+                    doc
+                      .roundedRect(x, y, cellW, cellH, 8)
+                      .strokeColor("#dddddd")
+                      .stroke();
+                    doc.fontSize(9).fillColor("#555").text("Photo not available", x + 10, y + 10, { width: cellW - 20 });
+                    doc.fillColor("#000");
+                  }
+
+                  col++;
+                  if (col >= 3) {
+                    col = 0;
+                    x = startX;
+                    y += cellH + gap;
+
+                    if (y + cellH > doc.page.height - doc.page.margins.bottom) {
+                      doc.addPage();
+                      x = startX;
+                      y = doc.page.margins.top;
+                    }
+                  } else {
+                    x += cellW + gap;
+                  }
+                }
+              }
+            }
+
+            doc.end();
+          } catch (err) {
+            reject(err);
           }
-
-          doc.fontSize(12).text("Equipment", { underline: true });
-          doc.fontSize(10).text(equipmentList.length ? equipmentList.join("\n") : "—");
-          doc.moveDown();
-
-          doc.fontSize(12).text("Work Notes", { underline: true });
-          doc.fontSize(10).text(notesList.length ? notesList.join("\n") : "—");
-          doc.moveDown();
-
-          doc.fontSize(12).text("Hours", { underline: true });
-          if (hoursList.length) {
-            hoursList.forEach((h) => doc.fontSize(10).text(`- ${h.description || "Hours"}: ${h.hours}`));
-          } else {
-            doc.fontSize(10).text("—");
-          }
-          doc.moveDown();
-
-          doc.fontSize(12).text("Parts", { underline: true });
-          if (partsList.length) {
-            partsList.forEach((p) => doc.fontSize(10).text(`- ${p.part_name || "Part"} x ${p.quantity}`));
-          } else {
-            doc.fontSize(10).text("—");
-          }
-
-          // NOTE: PDFKit fallback does NOT embed photos (it can, but it’s extra plumbing)
-          // Puppeteer path above will include photos.
-
-          doc.end();
         });
       }
 
@@ -403,8 +474,7 @@ jobs.get(
         });
       }
 
-      // Use your existing helper (tenantId/orgId + folder)
-      // This avoids inventing a different signature
+      // Store under org/<orgId>/service-sheets/... using your helper
       const uploaded = await uploadFileToSupabase({
         tenantId: orgId,
         jobId: completedJobId,

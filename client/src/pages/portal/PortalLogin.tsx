@@ -1,13 +1,18 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 
 export default function PortalLogin() {
+  const params = useParams() as any;
   const [, navigate] = useLocation();
   const { toast } = useToast();
+
+  // ✅ if someone hits /portal/login with no org, default to your org slug
+  const org = (params?.org || "fixmyforklift") as string;
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,8 +20,10 @@ export default function PortalLogin() {
   async function onLogin() {
     try {
       setLoading(true);
-      const resp = await fetch("/api/portal/login", {
+
+      const resp = await fetch(`/api/portal/${org}/login`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
@@ -26,7 +33,7 @@ export default function PortalLogin() {
         throw new Error(err.error || "Login failed");
       }
 
-      navigate("/portal/equipment");
+      navigate(`/portal/${org}/equipment`);
     } catch (e: any) {
       toast({ title: "Login failed", description: e.message, variant: "destructive" });
     } finally {

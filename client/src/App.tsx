@@ -35,6 +35,12 @@ import CompletedJobView from "./pages/completed-job-view";
 import CustomerView from "./pages/customer-view";
 import CustomerNew from "./pages/customers-new";
 import EquipmentView from "./pages/equipment-view";
+
+// ✅ Customer Portal pages
+import PortalLogin from "@/pages/portal/PortalLogin";
+import PortalEquipmentList from "@/pages/portal/PortalEquipmentList";
+import PortalEquipmentDetail from "@/pages/portal/PortalEquipmentDetail";
+
 // Lazy load heavy settings pages
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const MembersPage = lazy(() => import("@/pages/members"));
@@ -88,34 +94,34 @@ const AdminSupportPage = lazy(() => import("@/pages/admin/support"));
 import { AdminLayout } from "@/components/admin/AdminLayout";
 
 // Role-based route protection
-function ProtectedRoute({ 
-  component: Component, 
+function ProtectedRoute({
+  component: Component,
   allowedRoles = ["admin", "manager", "technician"],
-  ...props 
-}: { 
-  component: React.ComponentType<any>; 
+  ...props
+}: {
+  component: React.ComponentType<any>;
   allowedRoles?: string[];
   [key: string]: any;
 }) {
   const { user } = useAuth();
-  
+
   if (!user?.role || !allowedRoles.includes(user.role)) {
     return <NotFound />;
   }
-  
+
   return <Component {...props} />;
 }
 
 // Business Admin Route Protection - only for keith.richmond@live.com
-function AdminRoute({ 
-  component: Component, 
-  ...props 
-}: { 
-  component: React.ComponentType<any>; 
+function AdminRoute({
+  component: Component,
+  ...props
+}: {
+  component: React.ComponentType<any>;
   [key: string]: any;
 }) {
   const { user, isLoading } = useAuth();
-  
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -126,12 +132,12 @@ function AdminRoute({
       </div>
     );
   }
-  
+
   // Only allow admin portal access for business owner
-  if (!user || user.email !== 'keith.richmond@live.com') {
+  if (!user || user.email !== "keith.richmond@live.com") {
     return <NotFound />;
   }
-  
+
   return <Component {...props} />;
 }
 
@@ -161,18 +167,24 @@ function SupportAppContent() {
 
   return (
     <SupportLayout>
-      <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        }
+      >
         <Switch>
           <Route path="/support-admin/tickets" component={TicketQueue} />
           <Route path="/support-admin/tickets/:id" component={TicketDetail} />
           <Route path="/support-admin/my-tickets" component={MyTickets} />
-          
+
           {/* Admin Routes - Only accessible to support_admin role */}
           <Route path="/support-admin/admin" component={SupportAdminDashboard} />
           <Route path="/support-admin/users" component={SupportUsersAdmin} />
           <Route path="/support-admin/invites" component={SupportInvitesAdmin} />
           <Route path="/support-admin/audit" component={SupportAuditAdmin} />
-          
+
           {/* Default dashboard route - must be last */}
           <Route path="/support-admin" component={SupportDashboard} />
           <Route component={SupportDashboard} />
@@ -217,13 +229,19 @@ function AdminAppContent() {
 
   return (
     <AdminLayout>
-      <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        }
+      >
         <Switch>
           <Route path="/admin/organizations" component={() => <AdminRoute component={OrganizationsAdmin} />} />
           <Route path="/admin/analytics" component={() => <AdminRoute component={AnalyticsAdmin} />} />
           <Route path="/admin/blog" component={() => <AdminRoute component={BlogAdmin} />} />
           <Route path="/admin/support" component={() => <AdminRoute component={AdminSupportPage} />} />
-          
+
           {/* Default admin dashboard route - must be last */}
           <Route path="/admin" component={() => <AdminRoute component={AdminDashboard} />} />
           <Route component={() => <AdminRoute component={AdminDashboard} />} />
@@ -245,7 +263,7 @@ function AdminApp() {
 }
 
 function AuthenticatedApp() {
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const { user, isProUser } = useAuth();
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -274,21 +292,21 @@ function AuthenticatedApp() {
           title: "Customers",
           subtitle: "Manage customer relationships",
           addNewText: "New Customer",
-          onAddNew: () => (window as any).location = "/customers/new",
+          onAddNew: () => ((window as any).location = "/customers/new"),
         };
       case "/equipment":
         return {
           title: "Equipment",
           subtitle: "Track and manage equipment",
           addNewText: "New Equipment",
-          onAddNew: () => {}, // TODO: Implement equipment modal
+          onAddNew: () => {},
         };
       case "/teams":
         return {
           title: "Teams",
           subtitle: "Manage team members and assignments",
           addNewText: "Add Member",
-          onAddNew: () => {}, // TODO: Implement team member modal
+          onAddNew: () => {},
         };
       case "/schedule":
         return {
@@ -321,61 +339,153 @@ function AuthenticatedApp() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Desktop sidebar */}
       <Sidebar />
-      
-      {/* Main content */}
-      <div className="flex-1 sm:ml-64 flex flex-col min-h-0">
-        {/* Mobile header */}
-        <MobileHeader />
-        
-        {/* Page container - scrollable content */}
-        <main className="flex-1 overflow-y-auto page">
-        
-        <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/jobs" component={Jobs} />
-          <Route path="/customers" component={Customers} />
-          <Route path="/customers/new" component={CustomerNew} />
-          <Route path="/equipment" component={Equipment} />
 
-          <Route path="/schedule" component={ScheduleResponsive} />
-          <Route path="/completed-jobs" component={CompletedJobs} />
-          <Route path="/completed-jobs/:id">{() => <CompletedJobView />}</Route>
-          <Route path="/quotes">{() => <ProtectedRoute component={Quotes} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/quotes/new">{() => <ProtectedRoute component={QuoteEdit} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/quotes/:id">{() => <ProtectedRoute component={QuoteView} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/quotes/:id/edit">{() => <ProtectedRoute component={QuoteEdit} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/invoices">{() => <ProtectedRoute component={Invoices} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/invoices/new">{() => <ProtectedRoute component={InvoiceEdit} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/invoices/:id">{() => <ProtectedRoute component={InvoiceView} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/invoices/:id/edit">{() => <ProtectedRoute component={InvoiceEdit} allowedRoles={["admin", "manager"]} />}</Route>
-          <Route path="/settings">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><ProtectedRoute component={SettingsPage} allowedRoles={["admin", "manager"]} /></Suspense>}</Route>
-          <Route path="/members">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><ProtectedRoute component={MembersPage} allowedRoles={["admin", "manager"]} /></Suspense>}</Route>
-          <Route path="/jobs/:id">{() => <JobView />}</Route>
-          <Route path="/jobs/:id/edit">{() => <JobEdit />}</Route>
-          <Route path="/jobs/:id/notes">{() => <JobNotesCharges />}</Route>
-          <Route path="/customers/:id">{() => <CustomerView />}</Route>
-          <Route path="/equipment/:id">{() => <EquipmentView />}</Route>
-          <Route path="/support">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><CustomerSupportDashboard /></Suspense>}</Route>
-          <Route path="/support/new">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><CreateSupportTicket /></Suspense>}</Route>
-          <Route path="/support/tickets">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><SupportTicketsList /></Suspense>}</Route>
-          <Route path="/support/ticket/:id">{() => <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}><SupportTicketDetail /></Suspense>}</Route>
-          <Route path="/privacy" component={PrivacyPolicy} />
-          <Route path="/trial-expired" component={TrialExpired} />
-          <Route component={NotFound} />
-        </Switch>
+      <div className="flex-1 sm:ml-64 flex flex-col min-h-0">
+        <MobileHeader />
+
+        <main className="flex-1 overflow-y-auto page">
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/jobs" component={Jobs} />
+            <Route path="/customers" component={Customers} />
+            <Route path="/customers/new" component={CustomerNew} />
+            <Route path="/equipment" component={Equipment} />
+
+            <Route path="/schedule" component={ScheduleResponsive} />
+            <Route path="/completed-jobs" component={CompletedJobs} />
+            <Route path="/completed-jobs/:id">{() => <CompletedJobView />}</Route>
+
+            {/* ✅ Customer Portal routes (inside main app too, in case staff ever uses it) */}
+            <Route path="/portal/login" component={PortalLogin} />
+            <Route path="/portal/equipment" component={PortalEquipmentList} />
+            <Route path="/portal/equipment/:id" component={PortalEquipmentDetail} />
+
+            <Route path="/quotes">{() => <ProtectedRoute component={Quotes} allowedRoles={["admin", "manager"]} />}</Route>
+            <Route path="/quotes/new">{() => <ProtectedRoute component={QuoteEdit} allowedRoles={["admin", "manager"]} />}</Route>
+            <Route path="/quotes/:id">{() => <ProtectedRoute component={QuoteView} allowedRoles={["admin", "manager"]} />}</Route>
+            <Route path="/quotes/:id/edit">{() => <ProtectedRoute component={QuoteEdit} allowedRoles={["admin", "manager"]} />}</Route>
+
+            <Route path="/invoices">{() => <ProtectedRoute component={Invoices} allowedRoles={["admin", "manager"]} />}</Route>
+            <Route path="/invoices/new">{() => <ProtectedRoute component={InvoiceEdit} allowedRoles={["admin", "manager"]} />}</Route>
+            <Route path="/invoices/:id">{() => <ProtectedRoute component={InvoiceView} allowedRoles={["admin", "manager"]} />}</Route>
+            <Route path="/invoices/:id/edit">{() => <ProtectedRoute component={InvoiceEdit} allowedRoles={["admin", "manager"]} />}</Route>
+
+            <Route path="/settings">
+              {() => (
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center p-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  }
+                >
+                  <ProtectedRoute component={SettingsPage} allowedRoles={["admin", "manager"]} />
+                </Suspense>
+              )}
+            </Route>
+
+            <Route path="/members">
+              {() => (
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center p-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  }
+                >
+                  <ProtectedRoute component={MembersPage} allowedRoles={["admin", "manager"]} />
+                </Suspense>
+              )}
+            </Route>
+
+            <Route path="/jobs/:id">{() => <JobView />}</Route>
+            <Route path="/jobs/:id/edit">{() => <JobEdit />}</Route>
+            <Route path="/jobs/:id/notes">{() => <JobNotesCharges />}</Route>
+            <Route path="/customers/:id">{() => <CustomerView />}</Route>
+            <Route path="/equipment/:id">{() => <EquipmentView />}</Route>
+
+            <Route path="/support">
+              {() => (
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center p-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  }
+                >
+                  <CustomerSupportDashboard />
+                </Suspense>
+              )}
+            </Route>
+
+            <Route path="/support/new">
+              {() => (
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center p-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  }
+                >
+                  <CreateSupportTicket />
+                </Suspense>
+              )}
+            </Route>
+
+            <Route path="/support/tickets">
+              {() => (
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center p-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  }
+                >
+                  <SupportTicketsList />
+                </Suspense>
+              )}
+            </Route>
+
+            <Route path="/support/ticket/:id">
+              {() => (
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center p-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  }
+                >
+                  <SupportTicketDetail />
+                </Suspense>
+              )}
+            </Route>
+
+            <Route path="/privacy" component={PrivacyPolicy} />
+            <Route path="/trial-expired" component={TrialExpired} />
+            <Route component={NotFound} />
+          </Switch>
         </main>
       </div>
 
-      {/* Global Modals */}
       <JobModal open={isJobModalOpen} onOpenChange={setIsJobModalOpen} />
       <CustomerModal open={isCustomerModalOpen} onOpenChange={setIsCustomerModalOpen} />
       <UpgradeModal open={isUpgradeModalOpen} onOpenChange={setIsUpgradeModalOpen} />
-      
-      {/* AI Chat Widget */}
+
       <AIChatWidget />
     </div>
+  );
+}
+
+// ✅ NEW: Customer Portal App (separate from Taska staff auth)
+function PortalApp() {
+  return (
+    <Switch>
+      <Route path="/portal/login" component={PortalLogin} />
+      <Route path="/portal/equipment" component={PortalEquipmentList} />
+      <Route path="/portal/equipment/:id" component={PortalEquipmentDetail} />
+      <Route component={PortalLogin} />
+    </Switch>
   );
 }
 
@@ -427,17 +537,22 @@ function CustomerApp() {
 // Top-level App Content with route branching BEFORE any hook calls
 function AppContent() {
   const [location] = useLocation();
-  
+
+  // ✅ Customer portal routes - separate app (no Taska login required)
+  if (location.startsWith("/portal")) {
+    return <PortalApp />;
+  }
+
   // Business admin portal routes - completely separate app with own auth
   if (location.startsWith("/admin")) {
     return <AdminApp />;
   }
-  
+
   // Support admin portal routes - completely separate app with own auth
   if (location.startsWith("/support-admin")) {
     return <SupportApp />;
   }
-  
+
   // Customer app routes (including customer support at /support/*)
   return <CustomerApp />;
 }

@@ -1,29 +1,42 @@
 import { Router } from "express";
-import bcrypt from "bcryptjs";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 
-// If you use Drizzle table objects, swap these sql queries to your schema.
-// This is intentionally "drop-in" without needing your exact Drizzle tables.
-
 const router = Router();
 
-/** Customer portal session guard */
-function requireCustomerAuth(req: any, res: any, next: any) {
-  if (!req.session?.customerUserId || !req.session?.orgId) {
+/**
+ * Portal session guard
+ * We store:
+ *  - req.session.portalOrgId
+ *  - req.session.portalCustomerUserId
+ */
+function requirePortalAuth(req: any, res: any, next: any) {
+  if (!req.session?.portalOrgId || !req.session?.portalCustomerUserId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
   next();
 }
 
-async function getCustomerUser(req: any) {
-  const orgId = req.session.orgId;
-  const customerUserId = req.session.customerUserId;
+async function getOrgIdFromSlug(orgSlug: string): Promise<string | null> {
+  const rows = await db.execute(sql`
+    select org_id
+    from portal_orgs
+    where slug = ${orgSlug}
+    limit 1
+  `);
+
+  const row = (rows as any).rows?.[0] || (rows as any)[0];
+  return row?.org_id || null;
+}
+
+async function getPortalUser(req: any) {
+  const orgId = req.session.portalOrgId;
+  const userId = req.session.portalCustomerUserId;
 
   const rows = await db.execute(sql`
     select id, org_id, customer_id, email, name, disabled_at
     from customer_users
-    where id = ${customerUserId}::uuid
+    where id = ${userId}::uuid
       and org_id = ${orgId}::uuid
     limit 1
   `);
@@ -32,18 +45,23 @@ async function getCustomerUser(req: any) {
   return user || null;
 }
 
-/** Login (password) */
-router.post("/portal/login", async (req: any, res) => {
+/**
+ * POST /api/portal/:org/login
+ * Body: { email, password }
+ *
+ * Uses Postgres crypt() for password verification (no bcryptjs required).
+ * Make sure you created extension pgcrypto in Supabase.
+ */
+router.post("/portal/:org/login", async (req: any, res) => {
   try {
+    const orgSlug = req.params.org;
     const { email, password } = req.body || {};
+
+    if (!orgSlug) return res.status(400).json({ error: "Missing org" });
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
-    // orgId must be known. If your portal is org-specific, you can:
-    //  - set orgId via subdomain
-    //  - set orgId via a portal code
-    // For now: assume your existing session already has orgId OR you set it earlier.
-    const orgId = req.session?.orgId;
-    if (!orgId) return res.status(400).json({ error: "Missing org context" });
+    const orgId = await getOrgIdFromSlug(orgSlug);
+    if (!orgId) return res.status(404).json({ error: "Portal not found" });
 
     const rows = await db.execute(sql`
       select id, org_id, customer_id, email, name, password_hash, disabled_at
@@ -57,14 +75,17 @@ router.post("/portal/login", async (req: any, res) => {
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
     if (user.disabled_at) return res.status(403).json({ error: "Account disabled" });
 
-    const r2 = await db.execute(sql`
+    // ✅ Verify password using pgcrypto crypt()
+    const check = await db.execute(sql`
       select crypt(${password}, ${user.password_hash}) = ${user.password_hash} as ok
     `);
-    const ok = (r2 as any).rows?.[0]?.ok;
+    const ok = (check as any).rows?.[0]?.ok;
 
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
-    req.session.customerUserId = user.id;
+    // ✅ Set portal session
+    req.session.portalOrgId = orgId;
+    req.session.portalCustomerUserId = user.id;
 
     return res.json({
       ok: true,
@@ -76,13 +97,14 @@ router.post("/portal/login", async (req: any, res) => {
   }
 });
 
-router.post("/portal/logout", (req: any, res) => {
-  req.session.customerUserId = null;
+router.post("/portal/:org/logout", (req: any, res) => {
+  req.session.portalOrgId = null;
+  req.session.portalCustomerUserId = null;
   return res.json({ ok: true });
 });
 
-router.get("/portal/me", requireCustomerAuth, async (req: any, res) => {
-  const user = await getCustomerUser(req);
+router.get("/portal/:org/me", requirePortalAuth, async (req: any, res) => {
+  const user = await getPortalUser(req);
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   return res.json({
@@ -94,12 +116,11 @@ router.get("/portal/me", requireCustomerAuth, async (req: any, res) => {
 });
 
 /**
- * Equipment list for this customer.
- * ASSUMPTION: you have an `equipment` table with `customer_id`.
- * Replace fields/table name to match your schema.
+ * GET /api/portal/:org/equipment
+ * Assumes equipment table has org_id + customer_id
  */
-router.get("/portal/equipment", requireCustomerAuth, async (req: any, res) => {
-  const user = await getCustomerUser(req);
+router.get("/portal/:org/equipment", requirePortalAuth, async (req: any, res) => {
+  const user = await getPortalUser(req);
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   const rows = await db.execute(sql`
@@ -114,13 +135,12 @@ router.get("/portal/equipment", requireCustomerAuth, async (req: any, res) => {
 });
 
 /**
- * Equipment detail + completed job history.
- * ASSUMPTION: completed jobs reference equipment via completed_job_equipment join
- * OR direct equipment_id on completed_jobs.
- * We’ll support BOTH patterns below — keep the one you actually have.
+ * GET /api/portal/:org/equipment/:equipmentId
+ * Uses completed_job_equipment join table.
+ * If you DON'T have completed_job_equipment, tell me and I’ll swap to equipment_id on completed_jobs.
  */
-router.get("/portal/equipment/:equipmentId", requireCustomerAuth, async (req: any, res) => {
-  const user = await getCustomerUser(req);
+router.get("/portal/:org/equipment/:equipmentId", requirePortalAuth, async (req: any, res) => {
+  const user = await getPortalUser(req);
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   const { equipmentId } = req.params;
@@ -137,7 +157,6 @@ router.get("/portal/equipment/:equipmentId", requireCustomerAuth, async (req: an
   const equipment = (eqRows as any).rows?.[0] || (eqRows as any)[0];
   if (!equipment) return res.status(404).json({ error: "Equipment not found" });
 
-  // OPTION 1: join table completed_job_equipment (equipment used)
   const jobRows = await db.execute(sql`
     select cj.id, cj.title, cj.completed_at
     from completed_jobs cj
@@ -148,9 +167,6 @@ router.get("/portal/equipment/:equipmentId", requireCustomerAuth, async (req: an
     order by cj.completed_at desc
   `);
 
-  // OPTION 2 (if you store equipment_id directly on completed_jobs), replace above with:
-  // select id, title, completed_at from completed_jobs where org_id=... and customer_id=... and equipment_id=...
-
   return res.json({
     equipment,
     jobs: (jobRows as any).rows || jobRows,
@@ -158,19 +174,16 @@ router.get("/portal/equipment/:equipmentId", requireCustomerAuth, async (req: an
 });
 
 /**
- * Download service sheet PDF for a completed job (customer-scoped).
- * This MUST call your existing generator endpoint/logic.
- *
- * IMPORTANT: Do NOT allow arbitrary jobId — we enforce org + customer ownership.
+ * GET /api/portal/:org/completed-jobs/:jobId/service-sheet?download=1
+ * IMPORTANT: This is still a stub until we wire your existing working PDF generator.
  */
-router.get("/portal/completed-jobs/:jobId/service-sheet", requireCustomerAuth, async (req: any, res) => {
-  const user = await getCustomerUser(req);
+router.get("/portal/:org/completed-jobs/:jobId/service-sheet", requirePortalAuth, async (req: any, res) => {
+  const user = await getPortalUser(req);
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   const { jobId } = req.params;
   const download = req.query.download === "1";
 
-  // Ensure this completed job belongs to this customer
   const rows = await db.execute(sql`
     select id, title
     from completed_jobs
@@ -183,40 +196,13 @@ router.get("/portal/completed-jobs/:jobId/service-sheet", requireCustomerAuth, a
   const job = (rows as any).rows?.[0] || (rows as any)[0];
   if (!job) return res.status(404).json({ error: "Job not found" });
 
-  // Call your existing PDF generator function if you have it.
-  // If your service-sheet route already exists, you can literally reuse its implementation.
-  const pdfBuffer: Buffer = await generateServiceSheetPdfForCompletedJob({
-    orgId: user.org_id,
-    completedJobId: jobId,
+  // TODO: Wire your existing PDF generator here
+  return res.status(501).json({
+    error:
+      "PDF not wired for portal yet. Wire existing completed job service-sheet generator into portal route.",
   });
 
-  if (!pdfBuffer || pdfBuffer.length === 0) {
-    return res.status(500).json({ error: "PDF generation returned empty file" });
-  }
-
-  const filename = `service-sheet-${(job.title || jobId)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60)}.pdf`;
-
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Length", String(pdfBuffer.length));
-  res.setHeader("Content-Disposition", `${download ? "attachment" : "inline"}; filename="${filename}"`);
-
-  return res.status(200).send(pdfBuffer);
+  // When wired, you will return the PDF buffer with headers similar to your existing endpoint.
 });
 
 export default router;
-
-/**
- * You must implement or import this.
- * If you already have the working route:
- *   GET /api/jobs/completed/:id/service-sheet
- * then extract the generator into a shared function and call it from both.
- */
-async function generateServiceSheetPdfForCompletedJob(args: { orgId: string; completedJobId: string }) {
-  throw new Error(
-    "generateServiceSheetPdfForCompletedJob not wired. Extract your existing PDF generator into a shared function and call it here."
-  );
-}

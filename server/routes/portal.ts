@@ -5,6 +5,21 @@ import { sql } from "drizzle-orm";
 
 const router = Router();
 
+// 🔐 Portal auth guard
+function requireCustomerAuth(req: any, res: any, next: any) {
+  // Allow:
+  // - logged-in portal customers
+  // - logged-in staff (so you can test without portal login)
+  const ok =
+    Boolean(req.session?.customerId) ||
+    Boolean(req.session?.portalCustomerId) ||
+    Boolean(req.session?.userId);
+
+  if (!ok) return res.status(401).json({ error: "Not authenticated" });
+  next();
+}
+
+
 /** Helper: handle db.execute returning either {rows:[...]} or [...] */
 function rowsOf(result: any) {
   return result?.rows ?? result ?? [];

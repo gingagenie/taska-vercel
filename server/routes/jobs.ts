@@ -496,3 +496,4 @@ jobs.get(
     }
   }
 );
+export default jobs;

@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
 import fs from "fs";

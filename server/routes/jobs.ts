@@ -648,7 +648,8 @@ jobs.get(
           doc.moveDown();
 
           doc.fontSize(12).text("Hours", { underline: true });
-          if (hoursList.length) hoursList.forEach((h) => doc.fontSize(10).text(`- ${h.description || "Hours"}: ${h.hours}`));
+          if (hoursList.length)
+            hoursList.forEach((h) => doc.fontSize(10).text(`- ${h.description || "Hours"}: ${h.hours}`));
           else doc.fontSize(10).text("—");
           doc.moveDown();
 
@@ -687,8 +688,7 @@ jobs.get(
         folder: "service-sheets",
       });
 
-      const signedUrl =
-        typeof createSignedViewUrl2 === "function" ? await createSignedViewUrl2(uploaded.key, 900) : null;
+      const signedUrl = typeof createSignedViewUrl2 === "function" ? await createSignedViewUrl2(uploaded.key, 900) : null;
 
       res.json({ ok: true, key: uploaded.key, url: signedUrl, filename });
     } catch (e: any) {
@@ -762,7 +762,7 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
   }
 });
 
-// TECHS LIST
+// TECHS LIST  (IMPORTANT: must be before "/:jobId")
 jobs.get("/technicians", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
 
@@ -844,7 +844,7 @@ jobs.get("/range", requireAuth, requireOrg, checkSubscription, requireActiveSubs
   }
 });
 
-// CUSTOMERS DROPDOWN
+// CUSTOMERS DROPDOWN (IMPORTANT: must be before "/:jobId")
 jobs.get("/customers", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   try {
     const orgId = (req as any).orgId;
@@ -1637,7 +1637,8 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     let invoiceTitle;
     if (equipmentInfo) {
       const equipmentParts = [equipmentInfo.name, equipmentInfo.make, equipmentInfo.model, equipmentInfo.serial].filter(Boolean);
-      invoiceTitle = equipmentParts.length > 0 ? `Invoice for: ${equipmentParts.join(" - ")}` : `Invoice for: ${completedJob.title}`;
+      invoiceTitle =
+        equipmentParts.length > 0 ? `Invoice for: ${equipmentParts.join(" - ")}` : `Invoice for: ${completedJob.title}`;
     } else {
       invoiceTitle = `Invoice for: ${completedJob.title}`;
     }
@@ -1868,19 +1869,10 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 /* =========================
    DELETE JOBS
 ========================= */
-
-jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
-  const { jobId } = req.params;
-  const orgId = (req as any).orgId;
-  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
-
-  await db.execute(sql`
-    delete from jobs
-    where id=${jobId}::uuid and org_id=${orgId}::uuid
-  `);
-
-  res.json({ ok: true });
-});
+/**
+ * IMPORTANT: put /completed/:jobId BEFORE /:jobId
+ * otherwise "completed" gets captured as :jobId.
+ */
 
 jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
@@ -1907,4 +1899,17 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
     console.error("DELETE /api/jobs/completed/%s error:", jobId, e);
     res.status(500).json({ error: e?.message || "Failed to delete completed job" });
   }
+});
+
+jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
+
+  await db.execute(sql`
+    delete from jobs
+    where id=${jobId}::uuid and org_id=${orgId}::uuid
+  `);
+
+  res.json({ ok: true });
 });

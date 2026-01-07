@@ -60,7 +60,6 @@ jobs.get("/ping", (_req, res) => {
 });
 
 // GET /api/jobs/equipment?customerId=uuid - Filter equipment by customer for job creation
-// (This replaces your duplicate /equipment route later)
 jobs.get("/equipment", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
   const customerId = (req.query.customerId as string | undefined) || undefined;
@@ -157,7 +156,6 @@ jobs.get(
 
       const job = completedJobRows[0];
 
-      // Pull all the bits that matter
       const [equipmentRows, noteRows, hoursRows, partsRows] = await Promise.all([
         db.execute(sql`
           SELECT equipment_name, equipment_id, created_at
@@ -394,25 +392,15 @@ jobs.get(
         return res.send(pdfBuffer);
       }
 
-      // Upload via Supabase Storage using uploadFileToSupabase()
-      const storage = await import("../services/supabase-storage");
-      const uploadFileToSupabase = (storage as any).uploadFileToSupabase;
-      const createSignedViewUrl = (storage as any).createSignedViewUrl;
+      // ✅ Upload to Supabase Storage using your real helper: uploadFile(key, buffer, contentType)
+      const { uploadFile, createSignedViewUrl } = await import("../services/supabase-storage");
 
-      if (typeof uploadFileToSupabase !== "function") {
-        return res.status(500).json({ error: "uploadFileToSupabase() is not available in supabase-storage service" });
-      }
-
-      // Key convention: org/<orgId>/completed/<completedJobId>/docs/<filename>
       const key = `org/${orgId}/completed/${completedJobId}/docs/${filename}`;
 
-      await uploadFileToSupabase({
-        key,
-        fileBuffer: pdfBuffer,
-        contentType: "application/pdf",
-      });
+      const ok = await uploadFile(key, pdfBuffer, "application/pdf");
+      if (!ok) return res.status(500).json({ error: "Failed to upload service sheet to storage" });
 
-      const signedUrl = typeof createSignedViewUrl === "function" ? await createSignedViewUrl(key, 900) : null;
+      const signedUrl = await createSignedViewUrl(key, 900);
 
       res.json({ ok: true, key, url: signedUrl, filename });
     } catch (e: any) {
@@ -491,19 +479,19 @@ jobs.get("/completed/:jobId/photos", requireAuth, requireOrg, async (req, res) =
     if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
     const r: any = await db.execute(sql`
-      SELECT id, url, created_at
+      SELECT id, url, object_key, created_at
       FROM completed_job_photos
       WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
       ORDER BY created_at DESC
     `);
 
-    // Transform Supabase keys to signed URLs
     const { createSignedViewUrl } = await import("../services/supabase-storage");
 
     const photos = await Promise.all(
       r.map(async (photo: any) => {
-        if (photo.url && photo.url.startsWith("org/")) {
-          const signedUrl = await createSignedViewUrl(photo.url, 900);
+        const key = photo.object_key || photo.url;
+        if (key && String(key).startsWith("org/")) {
+          const signedUrl = await createSignedViewUrl(String(key), 900);
           return { ...photo, url: signedUrl || photo.url };
         }
         return photo;
@@ -561,7 +549,6 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
       order by j.scheduled_at asc nulls last, j.created_at desc
     `);
 
-    // Add technician data with colors for each job
     for (const job of r) {
       try {
         const techniciansResult: any = await db.execute(sql`
@@ -576,7 +563,6 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
         job.technicians = [];
       }
 
-      // Add equipment data for each job
       try {
         const equipmentResult: any = await db.execute(sql`
           select e.id, e.name
@@ -591,7 +577,6 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
       }
     }
 
-    // Disable caching to ensure fresh data
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
@@ -732,7 +717,6 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
 
     const job = jr[0];
 
-    // Fetch assigned technicians
     try {
       const techniciansResult: any = await db.execute(sql`
         select u.id, u.name, u.email, u.color
@@ -747,7 +731,6 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
       job.technicians = [];
     }
 
-    // Fetch assigned equipment
     try {
       const equipmentResult: any = await db.execute(sql`
         select e.id, e.name, e.make, e.model
@@ -777,7 +760,6 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
   let { title, description, jobType, customerId, scheduledAt, equipmentId, assignedTechIds } = req.body || {};
   if (!title) return res.status(400).json({ error: "title required" });
 
-  // normalize inputs
   if (customerId === "") customerId = null;
   if (equipmentId === "") equipmentId = null;
   if (jobType === "") jobType = null;
@@ -821,7 +803,6 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
       `);
     }
 
-    // create job assignments if provided
     if (Array.isArray(assignedTechIds) && assignedTechIds.length > 0) {
       for (const uid of assignedTechIds) {
         if (!uid) continue;
@@ -840,7 +821,7 @@ jobs.post("/create", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
-// --- DRAG-TO-RESCHEDULE (just update scheduled_at) ---
+// --- DRAG-TO-RESCHEDULE ---
 jobs.patch("/:jobId/schedule", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
@@ -905,10 +886,8 @@ jobs.put("/:jobId", requireAuth, requireOrg, async (req, res) => {
       }
     }
 
-    // Delete all existing assignments for this job
     await db.execute(sql`DELETE FROM job_assignments WHERE job_id = ${jobId}::uuid`);
 
-    // Create new assignment if provided
     if (assignedUserId) {
       await db.execute(sql`
         INSERT INTO job_assignments (job_id, user_id)
@@ -978,7 +957,6 @@ jobs.post(
       if (!file) return res.status(400).json({ error: "No file provided" });
       if (!file.buffer) return res.status(500).json({ error: "File buffer not available" });
 
-      // Sanitize and validate file extension
       let ext = "jpg";
       if (file.originalname && file.originalname.includes(".")) {
         const parts = file.originalname.split(".");
@@ -1266,7 +1244,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       RETURNING id, completed_at
     `);
 
-    // Copy job charges (since job is deleted)
     await db.execute(sql`
       INSERT INTO completed_job_charges (
         completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at
@@ -1329,15 +1306,18 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid
     `);
 
+    // ✅ Copy photos INCLUDING object_key/media_id so we can sign/delete later
     await db.execute(sql`
       INSERT INTO completed_job_photos (
-        completed_job_id, original_job_id, org_id, url, created_at
+        completed_job_id, original_job_id, org_id, url, object_key, media_id, created_at
       )
       SELECT 
         ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
         org_id,
         url,
+        object_key,
+        media_id,
         created_at
       FROM job_photos
       WHERE job_id = ${jobId}::uuid
@@ -1420,7 +1400,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       }
     }
 
-    // Delete related records
     await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_assignments WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_equipment WHERE job_id = ${jobId}::uuid`);
@@ -1429,7 +1408,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     await db.execute(sql`DELETE FROM job_notes WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_parts WHERE job_id = ${jobId}::uuid`);
 
-    // NOTE: We don't delete job_charges here so they remain accessible via original_job_id
     await db.execute(sql`DELETE FROM jobs WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
 
     console.log(`[JOB COMPLETION] ✅ Successfully completed job ${jobId}, created completed_job ${completedResult[0].id}`);
@@ -1660,8 +1638,8 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
       WHERE org_id = ${orgId}::uuid
     `);
 
-    const presetMap = new Map();
-    let laborPreset = null;
+    const presetMap = new Map<string, any>();
+    let laborPreset: any = null;
 
     for (const preset of allPresets) {
       const lowerName = preset.name.toLowerCase();
@@ -1893,10 +1871,26 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
 
   try {
     const photosResult: any = await db.execute(sql`
-      SELECT url FROM completed_job_photos 
+      SELECT url, object_key FROM completed_job_photos 
       WHERE completed_job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid
     `);
 
+    // ✅ Delete Supabase objects when we have an org/... key
+    try {
+      const { deleteFile } = await import("../services/supabase-storage");
+      if (photosResult && photosResult.length > 0) {
+        for (const photo of photosResult) {
+          const k = photo.object_key;
+          if (k && String(k).startsWith("org/")) {
+            await deleteFile(String(k));
+          }
+        }
+      }
+    } catch (supDelErr: any) {
+      console.error("Error deleting Supabase photo objects during completed job deletion:", supDelErr?.message || supDelErr);
+    }
+
+    // Legacy object storage deletion (kept)
     if (photosResult && photosResult.length > 0) {
       for (const photo of photosResult) {
         const photoUrl = photo.url;

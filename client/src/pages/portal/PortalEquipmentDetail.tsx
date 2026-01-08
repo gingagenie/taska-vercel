@@ -26,49 +26,20 @@ export default function PortalEquipmentDetail() {
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        const r = await fetch(`/api/portal/${org}/equipment/${id}`, { credentials: "include" });
+        const r = await fetch(`/api/portal/${org}/equipment/${id}`, {
+          credentials: "include",
+        });
         if (r.ok) setData(await r.json());
       } finally {
         setLoading(false);
       }
     })();
   }, [org, id]);
-
-  async function download(jobId: string, title?: string) {
-    try {
-      setDownloadingId(jobId);
-
-      const url = `/api/jobs/completed/${jobId}/service-sheet?download=1`;
-      const resp = await fetch(url, { credentials: "include" });
-      if (!resp.ok) return;
-
-      const blob = await resp.blob();
-      if (!blob || blob.size === 0) return;
-
-      const safe = (title || "service-sheet")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 60);
-
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = `service-sheet-${safe || jobId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(blobUrl);
-    } finally {
-      setDownloadingId(null);
-    }
-  }
 
   if (loading) return <div className="p-6">Loading…</div>;
   if (!data) return <div className="p-6">Not found.</div>;
@@ -89,9 +60,13 @@ export default function PortalEquipmentDetail() {
 
           <div className="flex flex-wrap gap-2">
             {(eq?.make || eq?.model) && (
-              <Badge variant="secondary">{[eq?.make, eq?.model].filter(Boolean).join(" ")}</Badge>
+              <Badge variant="secondary">
+                {[eq?.make, eq?.model].filter(Boolean).join(" ")}
+              </Badge>
             )}
-            {eq?.serial_number && <Badge variant="outline">SN: {eq.serial_number}</Badge>}
+            {eq?.serial_number && (
+              <Badge variant="outline">SN: {eq.serial_number}</Badge>
+            )}
           </div>
         </CardHeader>
 
@@ -123,20 +98,28 @@ export default function PortalEquipmentDetail() {
 
         <CardContent className="space-y-2">
           {(data.jobs || []).map((j: any) => (
-            <div key={j.id} className="flex items-center justify-between bg-white border rounded p-3">
+            <div
+              key={j.id}
+              className="flex items-center justify-between bg-white border rounded p-3"
+            >
               <div>
                 <div className="font-medium text-gray-900">{j.title}</div>
-                <div className="text-xs text-gray-500">{fmtDateTime(j.completed_at)}</div>
+                <div className="text-xs text-gray-500">
+                  {fmtDateTime(j.completed_at)}
+                </div>
               </div>
 
-              <Button
-                variant="outline"
-                onClick={() => download(j.id, j.title)}
-                disabled={downloadingId === j.id}
+              {/* ✅ Option A: use a real link so the browser handles cookies + download */}
+              <a
+                href={`/api/jobs/completed/${j.id}/service-sheet?download=1`}
+                target="_blank"
+                rel="noreferrer"
               >
-                <Download className="h-4 w-4 mr-2" />
-                {downloadingId === j.id ? "Preparing…" : "PDF"}
-              </Button>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  PDF
+                </Button>
+              </a>
             </div>
           ))}
 

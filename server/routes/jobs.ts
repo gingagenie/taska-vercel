@@ -46,11 +46,35 @@ async function requirePortalOrStaff(req: any, res: any, next: any) {
     return next();
   }
 
+  /**
+ * ✅ Allows EITHER:
+ * - staff session (req.session.userId + req.session.orgId)
+ * - portal session (various session markers)
+ *
+ * For portal:
+ * - sets req.isPortal = true so subscription middleware can bypass
+ * - derives orgId from completed_jobs row so downstream queries work
+ * - (recommended) ensures the completed job belongs to that customer
+ */
+async function requirePortalOrStaff(req: any, res: any, next: any) {
+  // Staff session (normal app)
+  if (req.session?.userId && req.session?.orgId) {
+    req.orgId = req.session.orgId;
+    req.user = { id: req.session.userId };
+    req.isPortal = false;
+    return next();
+  }
+
   // Portal session: allow if they have a portal cookie marker
   const customerId =
-    req.session?.customerId ||
     req.session?.portalCustomerId ||
+    req.session?.customerId ||
     req.session?.customer?.id ||
+    req.session?.portal?.customerId ||
+    req.session?.portal?.customer?.id ||
+    req.session?.portalCustomer?.id ||
+    req.session?.portalSession?.customerId ||
+    req.session?.portalSession?.customer?.id ||
     null;
 
   if (!customerId) {
@@ -63,17 +87,29 @@ async function requirePortalOrStaff(req: any, res: any, next: any) {
   }
 
   try {
+    // ✅ IMPORTANT: also validate the job belongs to this portal customer
+    // If your completed_jobs table uses customer_id, this is the right check.
+    // If not, tell me what column it uses and I’ll adjust.
     const r: any = await db.execute(sql`
-      SELECT org_id
+      SELECT org_id, customer_id
       FROM completed_jobs
       WHERE id = ${completedJobId}::uuid
       LIMIT 1
     `);
 
-    if (!r?.length) return res.status(404).json({ error: "Completed job not found" });
+    if (!r?.length) {
+      return res.status(404).json({ error: "Completed job not found" });
+    }
+
+    // If job has a customer_id, enforce it matches portal customer
+    const jobCustomerId = r[0].customer_id;
+    if (jobCustomerId && String(jobCustomerId) !== String(customerId)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
 
     req.orgId = r[0].org_id;
     req.customerId = customerId;
+    req.isPortal = true; // ✅ tells subscription middleware to bypass
     return next();
   } catch (e: any) {
     console.error("[requirePortalOrStaff] error:", e);

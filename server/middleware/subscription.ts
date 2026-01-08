@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
  * Detect portal requests so we can bypass subscription gating.
  * Priority:
  *  1) req.isPortal (set by requirePortalOrStaff)
- *  2) session markers (fallback)
+ *  2) session markers (fallback - cover all likely shapes)
  */
 function isPortalRequest(req: any): boolean {
   if (req?.isPortal) return true;
@@ -15,7 +15,12 @@ function isPortalRequest(req: any): boolean {
   return Boolean(
     req?.session?.portalCustomerId ||
       req?.session?.customerId ||
-      req?.session?.customer?.id
+      req?.session?.customer?.id ||
+      req?.session?.portal?.customerId ||
+      req?.session?.portal?.customer?.id ||
+      req?.session?.portalCustomer?.id ||
+      req?.session?.portalSession?.customerId ||
+      req?.session?.portalSession?.customer?.id
   );
 }
 
@@ -28,13 +33,13 @@ export async function checkSubscription(
   try {
     // ✅ Portal customers should NOT be subscription-gated
     if (isPortalRequest(req as any)) {
-      // Optional: provide a benign subscription object in case downstream code expects it
+      // Provide a benign subscription object in case downstream code expects it
       (req as any).subscription = {
         planId: "portal",
         status: "active",
         isActive: true,
         trialEnd: undefined,
-        features: [],
+        features: ["portal_access"],
       };
       return next();
     }

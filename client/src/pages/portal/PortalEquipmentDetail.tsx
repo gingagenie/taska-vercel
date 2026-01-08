@@ -97,31 +97,32 @@ export default function PortalEquipmentDetail() {
         </CardHeader>
 
         <CardContent className="space-y-2">
-          {(data.jobs || []).map((j: any) => (
-            <div
-              key={j.id}
-              className="flex items-center justify-between bg-white border rounded p-3"
-            >
-              <div>
-                <div className="font-medium text-gray-900">{j.title}</div>
-                <div className="text-xs text-gray-500">
-                  {fmtDateTime(j.completed_at)}
-                </div>
-              </div>
+          {(data.jobs || []).map((j: any) => {
+            // ✅ Portal-safe PDF URL (does not mess with Taska app routes)
+            const pdfUrl = `/api/portal/${org}/completed-jobs/${j.id}/service-sheet?download=1`;
 
-              {/* ✅ Option A: use a real link so the browser handles cookies + download */}
-              <a
-                href={`/api/jobs/completed/${j.id}/service-sheet?download=1`}
-                target="_blank"
-                rel="noreferrer"
+            return (
+              <div
+                key={j.id}
+                className="flex items-center justify-between bg-white border rounded p-3"
               >
-                <Button variant="outline">
-                  <Download className="h-4 w-4 mr-2" />
-                  PDF
+                <div>
+                  <div className="font-medium text-gray-900">{j.title}</div>
+                  <div className="text-xs text-gray-500">
+                    {fmtDateTime(j.completed_at)}
+                  </div>
+                </div>
+
+                {/* ✅ Option A: real link click; shadcn Button renders as <a> */}
+                <Button asChild variant="outline">
+                  <a href={pdfUrl} target="_blank" rel="noreferrer">
+                    <Download className="h-4 w-4 mr-2" />
+                    PDF
+                  </a>
                 </Button>
-              </a>
-            </div>
-          ))}
+              </div>
+            );
+          })}
 
           {(!data.jobs || data.jobs.length === 0) && (
             <div className="text-gray-500">No service history yet.</div>

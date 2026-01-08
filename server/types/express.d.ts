@@ -25,3 +25,16 @@ declare namespace Express {
     supportUserId?: string
   }
 }
+
+declare global {
+  namespace Express {
+    interface Request {
+      isPortal?: boolean;
+      customerId?: string;
+      orgId?: string;
+      subscription?: any;
+      user?: { id: string };
+    }
+  }
+}
+export {};

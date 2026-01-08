@@ -34,27 +34,12 @@ function normalizeScheduledAt(raw: any): string | null {
 /**
  * ✅ Allows EITHER:
  * - staff session (req.session.userId + req.session.orgId)
- * - portal session (req.session.customerId / req.session.portalCustomerId / req.session.customer.id)
- *
- * For portal: derives orgId from completed_jobs row so downstream queries work.
- */
-async function requirePortalOrStaff(req: any, res: any, next: any) {
-  // Staff session (normal app)
-  if (req.session?.userId && req.session?.orgId) {
-    req.orgId = req.session.orgId;
-    req.user = { id: req.session.userId };
-    return next();
-  }
-
-  /**
- * ✅ Allows EITHER:
- * - staff session (req.session.userId + req.session.orgId)
  * - portal session (various session markers)
  *
  * For portal:
  * - sets req.isPortal = true so subscription middleware can bypass
  * - derives orgId from completed_jobs row so downstream queries work
- * - (recommended) ensures the completed job belongs to that customer
+ * - ensures the completed job belongs to that portal customer (if customer_id exists)
  */
 async function requirePortalOrStaff(req: any, res: any, next: any) {
   // Staff session (normal app)
@@ -87,9 +72,6 @@ async function requirePortalOrStaff(req: any, res: any, next: any) {
   }
 
   try {
-    // ✅ IMPORTANT: also validate the job belongs to this portal customer
-    // If your completed_jobs table uses customer_id, this is the right check.
-    // If not, tell me what column it uses and I’ll adjust.
     const r: any = await db.execute(sql`
       SELECT org_id, customer_id
       FROM completed_jobs

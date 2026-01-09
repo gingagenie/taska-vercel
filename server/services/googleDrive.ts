@@ -1,27 +1,15 @@
 import { google } from "googleapis";
 import { Readable } from "stream";
 
-function getServiceAccount() {
+function getDriveClient() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) {
-    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_JSON");
-  }
+  if (!raw) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_JSON");
 
-  // Railway often escapes newlines
   const json = JSON.parse(raw.replace(/\\n/g, "\n"));
 
-  return {
-    client_email: json.client_email,
-    private_key: json.private_key,
-  };
-}
-
-function getDriveClient() {
-  const sa = getServiceAccount();
-
   const auth = new google.auth.JWT({
-    email: sa.client_email,
-    key: sa.private_key,
+    email: json.client_email,
+    key: json.private_key,
     scopes: ["https://www.googleapis.com/auth/drive"],
   });
 
@@ -40,7 +28,7 @@ export async function uploadPdfToDriveFolder(opts: {
     body: Readable.from(opts.pdfBuffer),
   };
 
-  const response = await drive.files.create({
+  const res = await drive.files.create({
     requestBody: {
       name: opts.fileName,
       parents: [opts.folderId],
@@ -51,9 +39,7 @@ export async function uploadPdfToDriveFolder(opts: {
     fields: "id, webViewLink",
   });
 
-  if (!response.data.id) {
-    throw new Error("Drive upload failed — no file ID returned");
-  }
+  if (!res.data.id) throw new Error("Drive upload failed — no file ID returned");
 
-  return response.data;
+  return res.data;
 }

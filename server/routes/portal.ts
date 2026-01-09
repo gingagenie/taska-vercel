@@ -20,25 +20,21 @@ function requirePortalAuth(req: any, res: any, next: any) {
   return next();
 }
 
-/* ---------------------------
-   PORTAL LOGIN (UNIFIED)
-   POST /api/portal/:org/login
-   --------------------------- */
+// ✅ PORTAL LOGIN (sets BOTH portalUserId + real customerId)
+// POST /api/portal/:org/login
 portalRouter.post("/portal/:org/login", async (req: any, res) => {
   try {
     const { email, password } = req.body || {};
-
-    // UI field is called "email" but your DB uses customer_users.name
-    const identifier = String(email || "").trim();
-    const pass = String(password || "");
-
-    if (!identifier || !pass) {
-      return res.status(400).json({ error: "Email and password required" });
+    const identifier = String(email || "").trim(); // you kept the field called "email" in the UI
+    if (!identifier || !password) {
+      return res.status(400).json({ error: "Email/Username and password required" });
     }
 
-    // ✅ correct table + column based on your screenshot
+    // 1) Look up the portal user (your screenshot shows this table exists)
+    // IMPORTANT: This assumes customer_users has a customer_id column.
+    // If it doesn't, scroll the table horizontally in Supabase and confirm.
     const rows: any = await db.execute(sql`
-      SELECT id, name, password_hash, disabled_at
+      SELECT id, name, customer_id, password_hash, disabled_at
       FROM customer_users
       WHERE lower(name) = lower(${identifier})
       LIMIT 1
@@ -49,22 +45,25 @@ portalRouter.post("/portal/:org/login", async (req: any, res) => {
     }
 
     const user = rows[0];
+
     if (user.disabled_at) {
       return res.status(403).json({ error: "Account disabled" });
     }
 
     const bcrypt = (await import("bcryptjs")).default;
-    const ok = await bcrypt.compare(pass, user.password_hash);
-
+    const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // ✅ ONE session marker only
+    // ✅ THIS IS THE KEY BIT:
+    // - portalCustomerId = portal user id (customer_users.id)
+    // - customerId      = real customer id (customers.id) used by equipment.customer_id
     req.session.portalCustomerId = user.id;
-    req.session.portalUser = { id: user.id, name: user.name };
+    req.session.customerId = user.customer_id;
+    req.session.customer = { id: user.customer_id, name: user.name };
+    req.session.isPortal = true;
 
-    // ✅ force save so next request sees it
     await new Promise<void>((resolve, reject) => {
       req.session.save((err: any) => (err ? reject(err) : resolve()));
     });

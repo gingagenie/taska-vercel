@@ -1,5 +1,6 @@
 import jobPhotos from "./routes/job-photos";
 import quotesRouter from "./routes/quotes";
+import driveTest from "./routes/driveTest";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -262,6 +263,7 @@ import { health } from "./routes/health";
 import { debugRouter } from "./routes/debug";
 
 app.use("/api/me", me);
+app.use(driveTest);
 app.use("/api/auth", auth);
 app.use("/api/members", members);
 app.use("/api/debug", debugRouter);

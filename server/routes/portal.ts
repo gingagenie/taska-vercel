@@ -2,101 +2,87 @@
 import { Router } from "express";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
-
-// IMPORTANT: reuse the existing jobs router (DO NOT reimplement PDFs)
 import jobsRouter from "./jobs";
 
 const portalRouter = Router();
 
-// --------------------------------------------------
-// helpers
-// --------------------------------------------------
 function isUuid(str: string): boolean {
   return /^[0-9a-f-]{36}$/i.test(str);
 }
 
-// ✅ PORTAL LOGIN (FINAL, CORRECT)
+/** ONE source of truth for portal auth */
+function requirePortalAuth(req: any, res: any, next: any) {
+  const portalCustomerId = req.session?.portalCustomerId || null;
+  if (!portalCustomerId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  req.portalCustomerId = portalCustomerId;
+  return next();
+}
+
+/* ---------------------------
+   PORTAL LOGIN (UNIFIED)
+   POST /api/portal/:org/login
+   --------------------------- */
 portalRouter.post("/portal/:org/login", async (req: any, res) => {
   try {
     const { email, password } = req.body || {};
 
-    if (!email || !password) {
+    // UI field is called "email" but your DB uses customer_users.name
+    const identifier = String(email || "").trim();
+    const pass = String(password || "");
+
+    if (!identifier || !pass) {
       return res.status(400).json({ error: "Email and password required" });
     }
 
-    // 🔑 PORTAL USERS LIVE HERE
+    // ✅ correct table + column based on your screenshot
     const rows: any = await db.execute(sql`
       SELECT id, name, password_hash, disabled_at
       FROM customer_users
-      WHERE lower(name) = lower(${email})
+      WHERE lower(name) = lower(${identifier})
       LIMIT 1
     `);
 
-    if (!rows.length) {
+    if (!rows?.length) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const user = rows[0];
-
     if (user.disabled_at) {
       return res.status(403).json({ error: "Account disabled" });
     }
 
     const bcrypt = (await import("bcryptjs")).default;
-    const ok = await bcrypt.compare(password, user.password_hash);
+    const ok = await bcrypt.compare(pass, user.password_hash);
 
     if (!ok) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // ✅ THIS IS WHAT YOUR EQUIPMENT ROUTES EXPECT
+    // ✅ ONE session marker only
     req.session.portalCustomerId = user.id;
-    req.session.customer = { id: user.id, name: user.name };
+    req.session.portalUser = { id: user.id, name: user.name };
 
-    // 🔒 Force save
-    await new Promise<void>((resolve, reject) =>
-      req.session.save((err: any) => (err ? reject(err) : resolve()))
-    );
+    // ✅ force save so next request sees it
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err: any) => (err ? reject(err) : resolve()));
+    });
 
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (e: any) {
     console.error("[portal login]", e);
-    res.status(500).json({ error: "Login failed" });
+    return res.status(500).json({ error: e?.message || "Login failed" });
   }
 });
 
-/**
- * ✅ Robust portal customerId extraction.
- * This is the real fix for your "login 200 but equipment 401" loop.
- */
-function getPortalCustomerId(req: any): string | null {
-  return (
-    req?.session?.portalCustomerId ||
-    req?.session?.customerId ||
-    req?.session?.customer?.id ||
-    req?.session?.portal?.customerId ||
-    req?.session?.portal?.customer?.id ||
-    req?.session?.portalCustomer?.id ||
-    req?.session?.portalSession?.customerId ||
-    req?.session?.portalSession?.customer?.id ||
-    req?.session?.portalAuth?.customerId ||
-    req?.session?.portalAuth?.customer?.id ||
-    null
-  );
-}
-
-// --------------------------------------------------
-// PORTAL: equipment list / detail routes
-// --------------------------------------------------
-
-// GET /api/portal/:org/equipment
-portalRouter.get("/portal/:org/equipment", async (req: any, res) => {
+/* ---------------------------
+   EQUIPMENT LIST
+   GET /api/portal/:org/equipment
+   --------------------------- */
+portalRouter.get("/portal/:org/equipment", requirePortalAuth, async (req: any, res) => {
   try {
-    const customerId = getPortalCustomerId(req);
-
-    if (!customerId) {
-      return res.status(401).json({ error: "Not authenticated" });
-    }
+    const customerId = req.portalCustomerId;
 
     const r: any = await db.execute(sql`
       SELECT id, name, make, model, serial_number
@@ -105,15 +91,18 @@ portalRouter.get("/portal/:org/equipment", async (req: any, res) => {
       ORDER BY name ASC
     `);
 
-    res.json(r);
+    return res.json(r);
   } catch (e: any) {
     console.error("[portal equipment list]", e);
-    res.status(500).json({ error: e?.message || "Failed to load equipment" });
+    return res.status(500).json({ error: e?.message || "Failed to load equipment" });
   }
 });
 
-// GET /api/portal/:org/equipment/:id
-portalRouter.get("/portal/:org/equipment/:id", async (req: any, res) => {
+/* ---------------------------
+   EQUIPMENT DETAIL
+   GET /api/portal/:org/equipment/:id
+   --------------------------- */
+portalRouter.get("/portal/:org/equipment/:id", requirePortalAuth, async (req: any, res) => {
   const { id } = req.params;
 
   if (!isUuid(id)) {
@@ -121,11 +110,7 @@ portalRouter.get("/portal/:org/equipment/:id", async (req: any, res) => {
   }
 
   try {
-    const customerId = getPortalCustomerId(req);
-
-    if (!customerId) {
-      return res.status(401).json({ error: "Not authenticated" });
-    }
+    const customerId = req.portalCustomerId;
 
     const equipmentRows: any = await db.execute(sql`
       SELECT *
@@ -146,35 +131,27 @@ portalRouter.get("/portal/:org/equipment/:id", async (req: any, res) => {
       ORDER BY cj.completed_at DESC
     `);
 
-    res.json({
-      equipment: equipmentRows[0],
-      jobs,
-    });
+    return res.json({ equipment: equipmentRows[0], jobs });
   } catch (e: any) {
     console.error("[portal equipment detail]", e);
-    res.status(500).json({ error: e?.message || "Failed to load equipment" });
+    return res.status(500).json({ error: e?.message || "Failed to load equipment" });
   }
 });
 
-// --------------------------------------------------
-// ✅ PORTAL SERVICE SHEET (reuses existing jobs router)
-// --------------------------------------------------
-// GET /api/portal/:org/completed-jobs/:completedJobId/service-sheet
-// --------------------------------------------------
+/* ---------------------------
+   PORTAL PDF REUSE
+   GET /api/portal/:org/completed-jobs/:completedJobId/service-sheet
+   --------------------------- */
 portalRouter.get(
   "/portal/:org/completed-jobs/:completedJobId/service-sheet",
+  requirePortalAuth,
   async (req: any, res: any, next: any) => {
     const { completedJobId } = req.params;
-
     if (!completedJobId || !isUuid(completedJobId)) {
       return res.status(400).json({ error: "Invalid job id" });
     }
 
-    const customerId = getPortalCustomerId(req);
-
-    if (!customerId) {
-      return res.status(401).json({ error: "Not authenticated" });
-    }
+    const customerId = req.portalCustomerId;
 
     try {
       const r: any = await db.execute(sql`
@@ -184,26 +161,21 @@ portalRouter.get(
         LIMIT 1
       `);
 
-      if (!r?.length) {
-        return res.status(404).json({ error: "Completed job not found" });
-      }
+      if (!r?.length) return res.status(404).json({ error: "Completed job not found" });
 
       if (r[0].customer_id && String(r[0].customer_id) !== String(customerId)) {
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      // ✅ CRITICAL FLAGS for downstream middleware
-      req.isPortal = true; // lets subscription middleware bypass
+      req.isPortal = true;      // bypass subscription middleware
       req.customerId = customerId;
       req.orgId = r[0].org_id;
 
-      // ✅ forward into EXISTING /api/jobs/completed/:id/service-sheet route
       req.url = `/completed/${completedJobId}/service-sheet${req._parsedUrl?.search || ""}`;
-
       return (jobsRouter as any)(req, res, next);
     } catch (e: any) {
       console.error("[portal service sheet]", e);
-      res.status(500).json({ error: e?.message || "Failed to generate PDF" });
+      return res.status(500).json({ error: e?.message || "Failed to generate PDF" });
     }
   }
 );

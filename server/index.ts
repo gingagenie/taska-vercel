@@ -95,6 +95,7 @@ const regularSessionConfig = session({
 
   // REQUIRED for Railway / HTTPS
   proxy: true,
+  rolling: true, // ✅ THIS FIXES THE PORTAL AUTH LOOP
 
   cookie: {
     httpOnly: true,

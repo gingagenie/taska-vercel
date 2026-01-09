@@ -120,6 +120,45 @@ const upload = multer({
   },
 });
 
+async function uploadServiceSheetToDriveIfConfigured(opts: {
+  orgId: string;
+  completedJobId: string;
+  pdfBuffer: Buffer;
+  filename: string;
+}) {
+  try {
+    // Find a drive folder for the first piece of equipment on this completed job
+    const folderRows: any = await db.execute(sql`
+      SELECT e.drive_folder_id
+      FROM completed_job_equipment cje
+      JOIN equipment e ON e.id = cje.equipment_id
+      WHERE cje.completed_job_id = ${opts.completedJobId}::uuid
+        AND cje.org_id = ${opts.orgId}::uuid
+        AND e.drive_folder_id IS NOT NULL
+      ORDER BY cje.created_at ASC
+      LIMIT 1
+    `);
+
+    const driveFolderId = folderRows?.[0]?.drive_folder_id as string | undefined;
+    if (!driveFolderId) return; // nothing configured → silently skip
+
+    await uploadPdfToDriveFolder({
+      folderId: driveFolderId,
+      fileName: opts.filename,
+      pdfBuffer: opts.pdfBuffer,
+    });
+
+    console.log("[DRIVE_UPLOAD] ok", {
+      completedJobId: opts.completedJobId,
+      driveFolderId,
+      filename: opts.filename,
+    });
+  } catch (e: any) {
+    console.error("[DRIVE_UPLOAD] failed (non-fatal):", e?.message || e);
+  }
+});
+
+
 // --- Ping ---
 jobs.get("/ping", (_req, res) => {
   res.json({ ok: true });

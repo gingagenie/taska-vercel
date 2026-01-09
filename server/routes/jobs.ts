@@ -1562,13 +1562,15 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       RETURNING id, completed_at
     `);
 
+    const completedJobId = completedResult[0].id;
+
     // Copy charges/hours/parts/notes/photos/equipment
     await db.execute(sql`
       INSERT INTO completed_job_charges (
         completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at
       )
       SELECT 
-        ${completedResult[0].id}::uuid,
+        ${completedJobId}::uuid,
         ${jobId}::uuid,
         org_id,
         kind,
@@ -1586,7 +1588,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         completed_job_id, original_job_id, org_id, hours, description, created_at
       )
       SELECT 
-        ${completedResult[0].id}::uuid,
+        ${completedJobId}::uuid,
         ${jobId}::uuid,
         org_id,
         hours,
@@ -1601,7 +1603,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         completed_job_id, original_job_id, org_id, part_name, quantity, created_at
       )
       SELECT 
-        ${completedResult[0].id}::uuid,
+        ${completedJobId}::uuid,
         ${jobId}::uuid,
         org_id,
         part_name,
@@ -1616,7 +1618,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         completed_job_id, original_job_id, org_id, text, created_at
       )
       SELECT 
-        ${completedResult[0].id}::uuid,
+        ${completedJobId}::uuid,
         ${jobId}::uuid,
         org_id,
         text,
@@ -1631,7 +1633,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         completed_job_id, original_job_id, org_id, url, created_at
       )
       SELECT 
-        ${completedResult[0].id}::uuid,
+        ${completedJobId}::uuid,
         ${jobId}::uuid,
         org_id,
         url,
@@ -1645,7 +1647,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         completed_job_id, original_job_id, org_id, equipment_id, equipment_name, created_at
       )
       SELECT 
-        ${completedResult[0].id}::uuid,
+        ${completedJobId}::uuid,
         ${jobId}::uuid,
         ${orgId}::uuid,
         je.equipment_id,
@@ -1655,6 +1657,101 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       LEFT JOIN equipment e ON je.equipment_id = e.id
       WHERE je.job_id = ${jobId}::uuid
     `);
+
+    /**
+     * ✅ AUTO-UPLOAD SERVICE SHEET PDF TO GOOGLE DRIVE (per equipment folder)
+     *
+     * - Finds drive_folder_id via completed_job_equipment -> equipment
+     * - Generates PDF buffer via server/lib/serice-sheet.ts (existing)
+     * - Uploads PDF to that folder
+     *
+     * IMPORTANT: Drive upload errors DO NOT fail job completion.
+     */
+    try {
+      // 1) Find a drive folder for the first piece of equipment on this completed job
+      const folderRows: any = await db.execute(sql`
+        SELECT e.drive_folder_id
+        FROM completed_job_equipment cje
+        JOIN equipment e ON e.id = cje.equipment_id
+        WHERE cje.completed_job_id = ${completedJobId}::uuid
+          AND cje.org_id = ${orgId}::uuid
+          AND e.drive_folder_id IS NOT NULL
+        ORDER BY cje.created_at ASC
+        LIMIT 1
+      `);
+
+      const driveFolderId = folderRows?.[0]?.drive_folder_id as string | undefined;
+
+      if (driveFolderId) {
+        // 2) Generate the PDF buffer using your existing lib
+        const mod: any = await import("../lib/serice-sheet");
+
+        // Try a few common export styles without guessing your exact function name
+        const candidateFns = [
+          mod.buildServiceSheetPdf,
+          mod.generateServiceSheetPdf,
+          mod.buildServiceSheet,
+          mod.generateServiceSheet,
+          mod.default,
+        ].filter((f: any) => typeof f === "function");
+
+        if (!candidateFns.length) {
+          throw new Error("No service-sheet generator function found in ../lib/serice-sheet");
+        }
+
+        let pdfOut: any = null;
+        let lastErr: any = null;
+
+        // Try calling with (completedJobId) first, then (completedJobId, orgId), then ({...})
+        for (const fn of candidateFns) {
+          try {
+            pdfOut = await fn(completedJobId);
+            if (pdfOut?.pdfBuffer) break;
+          } catch (e) {
+            lastErr = e;
+          }
+
+          try {
+            pdfOut = await fn(completedJobId, orgId);
+            if (pdfOut?.pdfBuffer) break;
+          } catch (e) {
+            lastErr = e;
+          }
+
+          try {
+            pdfOut = await fn({ completedJobId, orgId, req });
+            if (pdfOut?.pdfBuffer) break;
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+
+        if (!pdfOut?.pdfBuffer) {
+          throw new Error(lastErr?.message || "Service sheet generation failed (no pdfBuffer returned)");
+        }
+
+        const pdfBuffer: Buffer = Buffer.isBuffer(pdfOut.pdfBuffer)
+          ? pdfOut.pdfBuffer
+          : Buffer.from(pdfOut.pdfBuffer);
+
+        const filename =
+          (typeof pdfOut.filename === "string" && pdfOut.filename.trim()) ||
+          `service-sheet-${completedJobId}.pdf`;
+
+        // 3) Upload it to Drive
+        await uploadPdfToDriveFolder({
+          folderId: driveFolderId,
+          fileName: filename,
+          pdfBuffer,
+        });
+
+        console.log("[DRIVE_UPLOAD] ok", { completedJobId, driveFolderId, filename });
+      } else {
+        console.log("[DRIVE_UPLOAD] skipped (no drive_folder_id)", { completedJobId });
+      }
+    } catch (driveErr: any) {
+      console.error("[DRIVE_UPLOAD] failed (job still completed):", driveErr?.message || driveErr);
+    }
 
     // cleanup
     await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
@@ -1669,274 +1766,12 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
 
     res.json({
       ok: true,
-      completed_job_id: completedResult[0].id,
+      completed_job_id: completedJobId,
       completed_at: completedResult[0].completed_at,
     });
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/complete error:", e);
     res.status(500).json({ error: e?.message || "Failed to complete job" });
-  }
-});
-
-/* =========================
-   CONVERT COMPLETED JOB TO INVOICE
-========================= */
-
-jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireOrg, async (req, res) => {
-  const { completedJobId } = req.params;
-  const orgId = (req as any).orgId;
-
-  if (!isUuid(completedJobId)) return res.status(400).json({ error: "Invalid completedJobId" });
-
-  try {
-    const completedJobResult: any = await db.execute(sql`
-      SELECT * FROM completed_jobs
-      WHERE id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
-    `);
-
-    if (completedJobResult.length === 0) return res.status(404).json({ error: "Completed job not found" });
-
-    const completedJob = completedJobResult[0];
-    if (!completedJob.customer_id) return res.status(400).json({ error: "Cannot create invoice: job has no customer" });
-
-    let equipmentInfo = null;
-    const completedEquipmentResult: any = await db.execute(sql`
-      SELECT cje.equipment_name as name, e.make, e.model, e.serial
-      FROM completed_job_equipment cje
-      JOIN equipment e ON e.id = cje.equipment_id
-      WHERE cje.completed_job_id = ${completedJobId}::uuid AND e.org_id = ${orgId}::uuid
-      LIMIT 1
-    `);
-    if (completedEquipmentResult.length > 0) equipmentInfo = completedEquipmentResult[0];
-
-    let invoiceTitle;
-    if (equipmentInfo) {
-      const equipmentParts = [equipmentInfo.name, equipmentInfo.make, equipmentInfo.model, equipmentInfo.serial].filter(Boolean);
-      invoiceTitle = equipmentParts.length > 0 ? `Invoice for: ${equipmentParts.join(" - ")}` : `Invoice for: ${completedJob.title}`;
-    } else {
-      invoiceTitle = `Invoice for: ${completedJob.title}`;
-    }
-
-    const existingInvoice: any = await db.execute(sql`
-      SELECT id FROM invoices 
-      WHERE org_id = ${orgId}::uuid 
-      AND job_id = ${completedJob.original_job_id}::uuid
-    `);
-    if (existingInvoice.length > 0) {
-      return res.status(400).json({
-        error: "Invoice already exists for this completed job",
-        invoiceId: existingInvoice[0].id,
-      });
-    }
-
-    const allPresets: any = await db.execute(sql`
-      SELECT name, unit_amount, tax_rate
-      FROM item_presets
-      WHERE org_id = ${orgId}::uuid
-    `);
-
-    const presetMap = new Map<string, any>();
-    let laborPreset: any = null;
-    for (const preset of allPresets) {
-      const lowerName = String(preset.name || "").toLowerCase();
-      presetMap.set(lowerName, preset);
-      if (!laborPreset && (lowerName === "labour" || lowerName === "labor" || lowerName.includes("hour"))) laborPreset = preset;
-    }
-
-    const noteEntries: any = await db.execute(sql`
-      SELECT text, created_at
-      FROM completed_job_notes
-      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
-      ORDER BY created_at ASC
-    `);
-
-    let combinedNotes = completedJob.notes || "";
-    if (noteEntries.length > 0) {
-      const noteTexts = noteEntries.map((n: any) => n.text).join("\n");
-      combinedNotes = combinedNotes ? `${combinedNotes}\n\n${noteTexts}` : noteTexts;
-    }
-
-    const lastInvoiceResult: any = await db.execute(sql`
-      SELECT number FROM invoices 
-      WHERE org_id = ${orgId}::uuid AND number IS NOT NULL 
-      ORDER BY created_at DESC 
-      LIMIT 1
-    `);
-
-    let nextNumber = 1;
-    if (lastInvoiceResult.length > 0 && lastInvoiceResult[0].number) {
-      const match = String(lastInvoiceResult[0].number).match(/inv-(\d+)/i);
-      if (match) nextNumber = parseInt(match[1]) + 1;
-    }
-    const invoiceNumber = `inv-${nextNumber.toString().padStart(4, "0")}`;
-
-    const invoiceResult: any = await db.execute(sql`
-      INSERT INTO invoices (org_id, customer_id, job_id, title, notes, number, status, sub_total, tax_total, grand_total)
-      VALUES (
-        ${orgId}::uuid, 
-        ${completedJob.customer_id}::uuid,
-        ${completedJob.original_job_id}::uuid,
-        ${invoiceTitle},
-        ${combinedNotes},
-        ${invoiceNumber},
-        'draft',
-        0,
-        0,
-        0
-      )
-      RETURNING id
-    `);
-
-    const invoiceId = invoiceResult[0].id;
-    let position = 0;
-    const lineItems: any[] = [];
-
-    if (equipmentInfo) {
-      const equipmentParts = [equipmentInfo.name, equipmentInfo.make, equipmentInfo.model, equipmentInfo.serial].filter(Boolean);
-      const equipmentDescription = equipmentParts.join(" - ");
-
-      await db.execute(sql`
-        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
-        VALUES (
-          ${orgId}::uuid,
-          ${invoiceId}::uuid,
-          ${position},
-          ${equipmentDescription},
-          1,
-          0,
-          0
-        )
-      `);
-
-      lineItems.push({ quantity: 1, unit_amount: 0, tax_rate: 0 });
-      position++;
-    }
-
-    const charges: any = await db.execute(sql`
-      SELECT kind, description, quantity, unit_price, total
-      FROM completed_job_charges
-      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
-      ORDER BY created_at ASC
-    `);
-
-    for (const charge of charges) {
-      const quantity = Number(charge.quantity) || 1;
-      const unitAmount = Number(charge.unit_price) || 0;
-      const taxRate = 10;
-
-      await db.execute(sql`
-        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
-        VALUES (
-          ${orgId}::uuid,
-          ${invoiceId}::uuid,
-          ${position},
-          ${charge.description},
-          ${quantity},
-          ${unitAmount},
-          ${taxRate}
-        )
-      `);
-
-      lineItems.push({ quantity, unit_amount: unitAmount, tax_rate: taxRate });
-      position++;
-    }
-
-    const hours: any = await db.execute(sql`
-      SELECT hours, description
-      FROM completed_job_hours
-      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
-      ORDER BY created_at ASC
-    `);
-
-    for (const hour of hours) {
-      const quantity = Number(hour.hours) || 1;
-      const unitAmount = Number(laborPreset?.unit_amount) || 0;
-      const taxRate = Number(laborPreset?.tax_rate) || 10;
-
-      await db.execute(sql`
-        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
-        VALUES (
-          ${orgId}::uuid,
-          ${invoiceId}::uuid,
-          ${position},
-          ${hour.description || "Labor Hours"},
-          ${quantity},
-          ${unitAmount},
-          ${taxRate}
-        )
-      `);
-
-      lineItems.push({ quantity, unit_amount: unitAmount, tax_rate: taxRate });
-      position++;
-    }
-
-    const parts: any = await db.execute(sql`
-      SELECT part_name, quantity
-      FROM completed_job_parts
-      WHERE completed_job_id = ${completedJobId}::uuid AND org_id = ${orgId}::uuid
-      ORDER BY created_at ASC
-    `);
-
-    for (const part of parts) {
-      const partName = String(part.part_name || "").trim();
-      if (!partName) continue;
-
-      const quantity = Number(part.quantity) || 1;
-      const preset = presetMap.get(partName.toLowerCase());
-      const unitAmount = Number(preset?.unit_amount) || 0;
-      const taxRate = Number(preset?.tax_rate) || 10;
-
-      await db.execute(sql`
-        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
-        VALUES (
-          ${orgId}::uuid,
-          ${invoiceId}::uuid,
-          ${position},
-          ${partName},
-          ${quantity},
-          ${unitAmount},
-          ${taxRate}
-        )
-      `);
-
-      lineItems.push({ quantity, unit_amount: unitAmount, tax_rate: taxRate });
-      position++;
-    }
-
-    if (charges.length === 0 && hours.length === 0 && parts.length === 0) {
-      await db.execute(sql`
-        INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
-        VALUES (
-          ${orgId}::uuid,
-          ${invoiceId}::uuid,
-          0,
-          ${completedJob.description || `Work completed: ${completedJob.title}`},
-          1,
-          0,
-          10
-        )
-      `);
-      lineItems.push({ quantity: 1, unit_amount: 0, tax_rate: 10 });
-      position = 1;
-    }
-
-    const { sumLines } = await import("../lib/totals.js");
-    const { sub_total, tax_total, grand_total } = sumLines(lineItems);
-
-    await db.execute(sql`
-      UPDATE invoices 
-      SET sub_total = ${sub_total}, tax_total = ${tax_total}, grand_total = ${grand_total}
-      WHERE id = ${invoiceId}::uuid AND org_id = ${orgId}::uuid
-    `);
-
-    res.json({
-      ok: true,
-      invoiceId,
-      message: `Invoice created successfully with ${position} line items. Total: $${grand_total.toFixed(2)}`,
-    });
-  } catch (e: any) {
-    console.error("POST /api/jobs/completed/:completedJobId/convert-to-invoice error:", e);
-    res.status(500).json({ error: e?.message || "Failed to convert to invoice" });
   }
 });
 

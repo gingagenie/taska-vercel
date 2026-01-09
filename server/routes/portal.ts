@@ -15,6 +15,53 @@ function isUuid(str: string): boolean {
   return /^[0-9a-f-]{36}$/i.test(str);
 }
 
+// ✅ PORTAL LOGIN — THIS IS THE FIX
+// POST /api/portal/:org/login
+portalRouter.post("/portal/:org/login", async (req: any, res) => {
+  try {
+    const { email, password } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password required" });
+    }
+
+    // ⚠️ adjust table/columns ONLY if your schema is different
+    const rows: any = await db.execute(sql`
+      SELECT id, email, portal_password_hash
+      FROM customers
+      WHERE lower(email) = lower(${email})
+      LIMIT 1
+    `);
+
+    if (!rows.length) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const customer = rows[0];
+
+    const bcrypt = (await import("bcryptjs")).default;
+    const ok = await bcrypt.compare(password, customer.portal_password_hash);
+
+    if (!ok) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // 🔑 THIS IS THE IMPORTANT BIT
+    req.session.portalCustomerId = customer.id;
+    req.session.customer = { id: customer.id, email: customer.email };
+
+    // 🔒 FORCE SESSION SAVE (THIS WAS MISSING)
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err: any) => (err ? reject(err) : resolve()));
+    });
+
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error("[portal login]", e);
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
 /**
  * ✅ Robust portal customerId extraction.
  * This is the real fix for your "login 200 but equipment 401" loop.

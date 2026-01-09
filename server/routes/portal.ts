@@ -27,7 +27,7 @@ portalRouter.post("/portal/:org/login", async (req: any, res) => {
 
     // ⚠️ adjust table/columns ONLY if your schema is different
     const rows: any = await db.execute(sql`
-      SELECT id, email, portal_password_hash
+      SELECT id, email, password_hash
       FROM customers
       WHERE lower(email) = lower(${email})
       LIMIT 1
@@ -40,7 +40,7 @@ portalRouter.post("/portal/:org/login", async (req: any, res) => {
     const customer = rows[0];
 
     const bcrypt = (await import("bcryptjs")).default;
-    const ok = await bcrypt.compare(password, customer.portal_password_hash);
+    const ok = await bcrypt.compare(password, customer.password_hash);
 
     if (!ok) {
       return res.status(401).json({ error: "Invalid credentials" });

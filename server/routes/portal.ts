@@ -15,8 +15,7 @@ function isUuid(str: string): boolean {
   return /^[0-9a-f-]{36}$/i.test(str);
 }
 
-// ✅ PORTAL LOGIN — THIS IS THE FIX
-// POST /api/portal/:org/login
+// ✅ PORTAL LOGIN (FINAL, CORRECT)
 portalRouter.post("/portal/:org/login", async (req: any, res) => {
   try {
     const { email, password } = req.body || {};
@@ -25,11 +24,11 @@ portalRouter.post("/portal/:org/login", async (req: any, res) => {
       return res.status(400).json({ error: "Email and password required" });
     }
 
-    // ⚠️ adjust table/columns ONLY if your schema is different
+    // 🔑 PORTAL USERS LIVE HERE
     const rows: any = await db.execute(sql`
-      SELECT id, email, password_hash
-      FROM customers
-      WHERE lower(email) = lower(${email})
+      SELECT id, name, password_hash, disabled_at
+      FROM customer_users
+      WHERE lower(name) = lower(${email})
       LIMIT 1
     `);
 
@@ -37,23 +36,27 @@ portalRouter.post("/portal/:org/login", async (req: any, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const customer = rows[0];
+    const user = rows[0];
+
+    if (user.disabled_at) {
+      return res.status(403).json({ error: "Account disabled" });
+    }
 
     const bcrypt = (await import("bcryptjs")).default;
-    const ok = await bcrypt.compare(password, customer.password_hash);
+    const ok = await bcrypt.compare(password, user.password_hash);
 
     if (!ok) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // 🔑 THIS IS THE IMPORTANT BIT
-    req.session.portalCustomerId = customer.id;
-    req.session.customer = { id: customer.id, email: customer.email };
+    // ✅ THIS IS WHAT YOUR EQUIPMENT ROUTES EXPECT
+    req.session.portalCustomerId = user.id;
+    req.session.customer = { id: user.id, name: user.name };
 
-    // 🔒 FORCE SESSION SAVE (THIS WAS MISSING)
-    await new Promise<void>((resolve, reject) => {
-      req.session.save((err: any) => (err ? reject(err) : resolve()));
-    });
+    // 🔒 Force save
+    await new Promise<void>((resolve, reject) =>
+      req.session.save((err: any) => (err ? reject(err) : resolve()))
+    );
 
     res.json({ ok: true });
   } catch (e: any) {

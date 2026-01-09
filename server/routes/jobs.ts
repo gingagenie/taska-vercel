@@ -3,6 +3,7 @@ import { Router } from "express";
 import multer from "multer";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
+import { uploadPdfToDriveFolder } from "../services/googleDrive";
 
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";

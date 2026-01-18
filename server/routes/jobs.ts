@@ -812,6 +812,70 @@ jobs.get(
   }
 );
 
+// CONVERT COMPLETED JOB → INVOICE
+jobs.post(
+  "/completed/:completedJobId/convert-to-invoice",
+  requireAuth,
+  requireOrg,
+  async (req, res) => {
+    const { completedJobId } = req.params;
+    const orgId = (req as any).orgId;
+
+    if (!isUuid(completedJobId)) {
+      return res.status(400).json({ error: "Invalid completedJobId" });
+    }
+
+    try {
+      // 1. Load completed job
+      const cj: any = await db.execute(sql`
+        SELECT *
+        FROM completed_jobs
+        WHERE id = ${completedJobId}::uuid
+          AND org_id = ${orgId}::uuid
+        LIMIT 1
+      `);
+
+      if (!cj.length) {
+        return res.status(404).json({ error: "Completed job not found" });
+      }
+
+      const completedJob = cj[0];
+
+      // 2. Create invoice
+      const inv: any = await db.execute(sql`
+        INSERT INTO invoices (
+          org_id,
+          job_id,
+          customer_id,
+          customer_name,
+          status,
+          created_at
+        )
+        VALUES (
+          ${orgId}::uuid,
+          ${completedJob.original_job_id}::uuid,
+          ${completedJob.customer_id}::uuid,
+          ${completedJob.customer_name},
+          'draft',
+          now()
+        )
+        RETURNING id
+      `);
+
+      const invoiceId = inv[0].id;
+
+      // ✅ THIS IS THE LINE YOU WERE MISSING
+      return res.json({
+        ok: true,
+        invoiceId,
+      });
+    } catch (e: any) {
+      console.error("convert-to-invoice error:", e);
+      return res.status(500).json({ error: e?.message || "Failed to convert to invoice" });
+    }
+  }
+);
+
 /* =========================
    ACTIVE JOBS
 ========================= */

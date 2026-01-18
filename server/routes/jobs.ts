@@ -812,22 +812,23 @@ jobs.get(
   }
 );
 
+// CONVERT COMPLETED JOB → INVOICE
 jobs.post(
-  "/completed/:id/convert-to-invoice",
+  "/completed/:completedJobId/convert-to-invoice",
   requireAuth,
   requireOrg,
   async (req, res) => {
+    const { completedJobId } = req.params;
+    const orgId = (req as any).orgId;
+    const userId = (req as any).user?.id || null;
+
+    if (!isUuid(completedJobId)) {
+      return res.status(400).json({ error: "Invalid completedJobId" });
+    }
+
     try {
-      const completedJobId = req.params.id;
-      const orgId = (req as any).orgId;
-      const userId = (req as any).user?.id;
-
-      if (!completedJobId || !/^[0-9a-f-]{36}$/i.test(completedJobId)) {
-        return res.status(400).json({ error: "Invalid job id" });
-      }
-
       // 1️⃣ Load completed job
-      const jobRows: any = await db.execute(sql`
+      const rows: any = await db.execute(sql`
         SELECT *
         FROM completed_jobs
         WHERE id = ${completedJobId}::uuid
@@ -835,70 +836,78 @@ jobs.post(
         LIMIT 1
       `);
 
-      const completedJob = jobRows[0];
-      if (!completedJob) {
+      if (!rows.length) {
         return res.status(404).json({ error: "Completed job not found" });
       }
 
-      // 2️⃣ Get last invoice number (for this org)
-      const lastInv: any = await db.execute(sql`
-        SELECT number
+      const completedJob = rows[0];
+      const originalJobId = completedJob.original_job_id;
+
+      // 2️⃣ Prevent duplicate invoices
+      const existing: any = await db.execute(sql`
+        SELECT id
         FROM invoices
         WHERE org_id = ${orgId}::uuid
-          AND number IS NOT NULL
-        ORDER BY created_at DESC
+          AND job_id = ${originalJobId}::uuid
         LIMIT 1
       `);
 
-      let nextNumber = 1;
-      if (lastInv.length && lastInv[0].number) {
-        const match = String(lastInv[0].number).match(/inv-(\d+)/i);
-        if (match) nextNumber = Number(match[1]) + 1;
+      if (existing.length) {
+        return res.status(409).json({ error: "Invoice already exists for this job" });
       }
 
-      const invoiceNumber = `inv-${String(nextNumber).padStart(4, "0")}`;
-
-      // 3️⃣ Create invoice
+      // 3️⃣ Create invoice (SIMPLE, NO NUMBERING BULLSHIT)
       const invRows: any = await db.execute(sql`
         INSERT INTO invoices (
           org_id,
           job_id,
           customer_id,
           title,
-          number,
           status,
           created_by
         )
         VALUES (
           ${orgId}::uuid,
-          ${completedJobId}::uuid,
+          ${originalJobId}::uuid,
           ${completedJob.customer_id}::uuid,
           ${completedJob.title || "Service Invoice"},
-          ${invoiceNumber},
           'draft',
           ${userId}
         )
         RETURNING id
       `);
 
-      const invoiceId = invRows[0]?.id;
-      if (!invoiceId) {
-        throw new Error("Invoice creation failed");
-      }
+      const invoiceId = invRows[0].id;
 
-      // 4️⃣ Done
-      return res.json({
-        ok: true,
-        invoiceId,
-      });
+      // 4️⃣ Copy charges → invoice_lines
+      await db.execute(sql`
+        INSERT INTO invoice_lines (
+          invoice_id,
+          org_id,
+          description,
+          quantity,
+          unit_price,
+          total
+        )
+        SELECT
+          ${invoiceId}::uuid,
+          org_id,
+          description,
+          quantity,
+          unit_price,
+          total
+        FROM completed_job_charges
+        WHERE completed_job_id = ${completedJobId}::uuid
+      `);
+
+      res.json({ ok: true, invoiceId });
     } catch (err: any) {
-      console.error("[convert-to-invoice]", err);
-      return res.status(500).json({
-        error: "Failed to convert job to invoice",
-      });
+      console.error("convert-to-invoice failed:", err);
+      res.status(500).json({ error: err.message || "Failed to convert to invoice" });
     }
   }
 );
+
 
 /* =========================
    ACTIVE JOBS

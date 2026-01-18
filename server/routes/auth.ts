@@ -4,8 +4,6 @@ import { sql } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { tiktokEvents } from "../services/tiktok-events";
-import type { CustomerInfo } from "../services/tiktok-events";
 import { generateAuthTokens, refreshAuthTokens, isJwtAuthDisabled } from "../lib/jwt-auth-tokens";
 import Stripe from "stripe";
 import { subscriptionPlans } from "../../shared/schema";

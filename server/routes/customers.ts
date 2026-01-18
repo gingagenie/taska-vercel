@@ -7,8 +7,6 @@ import { checkSubscription, requireActiveSubscription } from "../middleware/subs
 import multer from "multer";
 import { parse } from "csv-parse";
 import { Readable } from "stream";
-import { tiktokEvents } from "../services/tiktok-events";
-import type { CustomerInfo } from "../services/tiktok-events";
 
 export const customers = Router();
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);

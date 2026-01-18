@@ -812,7 +812,7 @@ jobs.get(
   }
 );
 
-router.post(
+jobs.post(
   "/completed/:id/convert-to-invoice",
   requireAuth,
   requireOrg,

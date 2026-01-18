@@ -5,7 +5,6 @@ import { Link, useLocation } from "wouter";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { trackClickButton } from "@/lib/tiktok-tracking";
 import { Input } from "@/components/ui/input";
 
 import { Mail, Phone, MapPin, MoreHorizontal, Edit, ArrowRight, Upload } from "lucide-react";
@@ -66,7 +65,7 @@ export default function Customers() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.csv')) {
+    if (!file.name.toLowerCase().endsWith(".csv")) {
       toast({
         title: "Invalid file type",
         description: "Please select a CSV file",
@@ -76,26 +75,28 @@ export default function Customers() {
     }
 
     setIsUploading(true);
-    
+
     try {
       const formData = new FormData();
-      formData.append('csvFile', file);
+      formData.append("csvFile", file);
 
-      const response = await fetch('/api/customers/import-csv', {
-        method: 'POST',
+      const response = await fetch("/api/customers/import-csv", {
+        method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload CSV');
+        throw new Error(errorData.error || "Failed to upload CSV");
       }
 
       const result = await response.json();
-      
+
       toast({
         title: "CSV Import Successful",
-        description: `Imported ${result.imported} of ${result.total} customers${result.errors ? `. ${result.errors.length} errors occurred.` : ''}`,
+        description: `Imported ${result.imported} of ${result.total} customers${
+          result.errors ? `. ${result.errors.length} errors occurred.` : ""
+        }`,
       });
 
       if (result.errors) {
@@ -104,18 +105,17 @@ export default function Customers() {
 
       // Refresh the customers list
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-      
     } catch (error: any) {
       toast({
         title: "Import Failed",
-        description: error.message || 'Failed to import CSV',
+        description: error.message || "Failed to import CSV",
         variant: "destructive",
       });
     } finally {
       setIsUploading(false);
       // Reset file input
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = "";
       }
     }
   };
@@ -139,12 +139,8 @@ export default function Customers() {
             accept=".csv"
             className="hidden"
           />
-          <Button 
+          <Button
             onClick={() => {
-              trackClickButton({
-                contentName: "Import CSV Button",
-                contentCategory: "lead_generation",
-              });
               fileInputRef.current?.click();
             }}
             disabled={isUploading}
@@ -154,14 +150,10 @@ export default function Customers() {
             <Upload className="h-4 w-4 mr-2" />
             {isUploading ? "Importing..." : "Import CSV"}
           </Button>
-          <Button 
+          <Button
             onClick={() => {
-              trackClickButton({
-                contentName: "New Customer Button",
-                contentCategory: "lead_generation",
-              });
               navigate("/customers/new");
-            }} 
+            }}
             data-testid="button-new-customer"
             data-mobile-full="true"
             className="bg-people hover:bg-people/90 text-people-foreground"
@@ -191,11 +183,11 @@ export default function Customers() {
             const addr = addrLine(c);
             const hue = hueFrom(c.name);
             return (
-              <Card 
-                key={c.id} 
+              <Card
+                key={c.id}
                 className="border-people bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
                 onClick={() => {
-                  console.log('Clicking customer card:', c.id);
+                  console.log("Clicking customer card:", c.id);
                   navigate(`/customers/${c.id}`);
                 }}
                 data-testid={`card-customer-${c.id}`}
@@ -215,13 +207,11 @@ export default function Customers() {
                             {c.name || "Unnamed Customer"}
                           </div>
                           {c.contact_name && (
-                            <div className="text-sm text-gray-600">
-                              Contact: {c.contact_name}
-                            </div>
+                            <div className="text-sm text-gray-600">Contact: {c.contact_name}</div>
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                         <div>
                           <div className="text-gray-500">Email</div>
@@ -230,7 +220,7 @@ export default function Customers() {
                             {c.email || "—"}
                           </div>
                         </div>
-                        
+
                         <div>
                           <div className="text-gray-500">Phone</div>
                           <div className="font-medium flex items-center gap-1">
@@ -238,7 +228,7 @@ export default function Customers() {
                             {c.phone || "—"}
                           </div>
                         </div>
-                        
+
                         <div>
                           <div className="text-gray-500">Address</div>
                           <div className="font-medium flex items-center gap-1">
@@ -247,14 +237,14 @@ export default function Customers() {
                           </div>
                         </div>
                       </div>
-                      
+
                       {c.notes && (
                         <div className="mt-3 p-3 bg-gray-50 rounded-lg">
                           <div className="text-gray-500 text-xs uppercase tracking-wide mb-1">Notes</div>
                           <div className="text-sm text-gray-700">{c.notes}</div>
                         </div>
                       )}
-                      
+
                       <div className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-blue-500 transition-colors pt-1">
                         <span>Click for details</span>
                         <ArrowRight className="h-3 w-3" />

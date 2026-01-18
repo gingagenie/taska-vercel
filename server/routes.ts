@@ -23,7 +23,6 @@ import { debug } from "./routes/debug";
 import { aiSupportRouter } from "./routes/ai-support";
 import supportTickets from "./routes/support-tickets";
 import { publicRouter } from "./routes/public";
-import tiktokTracking from "./routes/tiktok-tracking";
 import adminRoutes from "./routes/admin";
 import mediaRouter from "./routes/media";
 import { blockSupportStaffFromCustomerData } from "./middleware/access-control";
@@ -78,8 +77,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/ai-support");
   app.use("/api/support-tickets", supportTickets);
   console.log("[mount] /api/support-tickets");
-  app.use("/api/tiktok", blockSupportStaffFromCustomerData, tiktokTracking);
-  console.log("[mount] /api/tiktok (customer-only)");
   
   // Admin routes - requires admin authentication
   app.use("/api/admin", adminRoutes);

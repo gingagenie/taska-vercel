@@ -822,12 +822,12 @@ jobs.post(
     const userId = (req as any).user?.id;
 
     if (!isUuid(completedJobId)) {
-      return res.status(400).json({ error: "Invalid completedJobId" });
+      return res.status(400).json({ error: "Invalid completed job id" });
     }
 
     try {
       // 1️⃣ Load completed job
-      const cj: any = await db.execute(sql`
+      const cjRows: any = await db.execute(sql`
         SELECT *
         FROM completed_jobs
         WHERE id = ${completedJobId}::uuid
@@ -835,18 +835,19 @@ jobs.post(
         LIMIT 1
       `);
 
-      if (!cj.length) {
+      if (!cjRows.length) {
         return res.status(404).json({ error: "Completed job not found" });
       }
 
-      const completedJob = cj[0];
+      const completedJob = cjRows[0];
+      const originalJobId = completedJob.original_job_id;
 
-      if (!completedJob.original_job_id) {
-        return res.status(400).json({ error: "Completed job missing original_job_id" });
+      if (!originalJobId) {
+        return res.status(400).json({ error: "Completed job has no original job id" });
       }
 
-      // 2️⃣ Create invoice against ORIGINAL job
-      const inv: any = await db.execute(sql`
+      // 2️⃣ Create invoice (THIS IS THE KEY FIX)
+      const invRows: any = await db.execute(sql`
         INSERT INTO invoices (
           org_id,
           job_id,
@@ -857,16 +858,16 @@ jobs.post(
         )
         VALUES (
           ${orgId}::uuid,
-          ${completedJob.original_job_id}::uuid,
+          ${originalJobId}::uuid,
           ${completedJob.customer_id}::uuid,
-          ${completedJob.title || "Invoice"},
+          ${completedJob.title || "Service Invoice"},
           'draft',
           ${userId}
         )
         RETURNING id
       `);
 
-      const invoiceId = inv[0].id;
+      const invoiceId = invRows[0].id;
 
       // 3️⃣ Copy charges → invoice_lines
       await db.execute(sql`
@@ -887,22 +888,20 @@ jobs.post(
           total
         FROM completed_job_charges
         WHERE completed_job_id = ${completedJobId}::uuid
+          AND org_id = ${orgId}::uuid
       `);
 
-      // 4️⃣ Link invoice back to completed job
-      await db.execute(sql`
-        UPDATE completed_jobs
-        SET invoice_id = ${invoiceId}::uuid
-        WHERE id = ${completedJobId}::uuid
-      `);
-
-      res.json({ ok: true, invoiceId });
+      res.json({
+        ok: true,
+        invoice_id: invoiceId,
+      });
     } catch (e: any) {
-      console.error("convert-to-invoice failed:", e);
+      console.error("[convert-to-invoice] failed:", e);
       res.status(500).json({ error: e.message || "Failed to convert to invoice" });
     }
   }
 );
+
 /* =========================
    ACTIVE JOBS
 ========================= */

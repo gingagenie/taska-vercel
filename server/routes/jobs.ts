@@ -156,7 +156,7 @@ async function uploadServiceSheetToDriveIfConfigured(opts: {
   } catch (e: any) {
     console.error("[DRIVE_UPLOAD] failed (non-fatal):", e?.message || e);
   }
-});
+}
 
 
 // --- Ping ---

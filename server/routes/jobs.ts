@@ -847,7 +847,6 @@ jobs.post(
       }
 
      // 2️⃣ Generate invoice number (REQUIRED)
-const lastInv: any = await db.execute(sql`
   SELECT number
   FROM invoices
   WHERE org_id = ${orgId}::uuid

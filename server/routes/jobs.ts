@@ -812,7 +812,7 @@ jobs.get(
   }
 );
 
-// CONVERT COMPLETED JOB → INVOICE
+// CONVERT COMPLETED JOB → INVOICE (BULLETPROOF VERSION)
 jobs.post(
   "/completed/:completedJobId/convert-to-invoice",
   requireAuth,
@@ -828,7 +828,7 @@ jobs.post(
 
     try {
       // 1️⃣ Load completed job
-      const rows: any = await db.execute(sql`
+      const cjRows: any = await db.execute(sql`
         SELECT *
         FROM completed_jobs
         WHERE id = ${completedJobId}::uuid
@@ -836,14 +836,14 @@ jobs.post(
         LIMIT 1
       `);
 
-      if (!rows.length) {
+      if (!cjRows.length) {
         return res.status(404).json({ error: "Completed job not found" });
       }
 
-      const completedJob = rows[0];
+      const completedJob = cjRows[0];
       const originalJobId = completedJob.original_job_id;
 
-      // 2️⃣ Prevent duplicate invoices
+      // 2️⃣ Stop duplicates
       const existing: any = await db.execute(sql`
         SELECT id
         FROM invoices
@@ -853,10 +853,10 @@ jobs.post(
       `);
 
       if (existing.length) {
-        return res.status(409).json({ error: "Invoice already exists for this job" });
+        return res.status(409).json({ error: "Invoice already exists" });
       }
 
-      // 3️⃣ Create invoice (SIMPLE, NO NUMBERING BULLSHIT)
+      // 3️⃣ Create invoice
       const invRows: any = await db.execute(sql`
         INSERT INTO invoices (
           org_id,
@@ -869,7 +869,7 @@ jobs.post(
         VALUES (
           ${orgId}::uuid,
           ${originalJobId}::uuid,
-          ${completedJob.customer_id}::uuid,
+          ${completedJob.customer_id || null},
           ${completedJob.title || "Service Invoice"},
           'draft',
           ${userId}
@@ -879,34 +879,44 @@ jobs.post(
 
       const invoiceId = invRows[0].id;
 
-      // 4️⃣ Copy charges → invoice_lines
-      await db.execute(sql`
-        INSERT INTO invoice_lines (
-          invoice_id,
-          org_id,
-          description,
-          quantity,
-          unit_price,
-          total
-        )
-        SELECT
-          ${invoiceId}::uuid,
-          org_id,
-          description,
-          quantity,
-          unit_price,
-          total
+      // 4️⃣ Copy charges ONLY IF THEY EXIST
+      const chargeRows: any = await db.execute(sql`
+        SELECT description, quantity, unit_price, total
         FROM completed_job_charges
         WHERE completed_job_id = ${completedJobId}::uuid
       `);
 
+      if (chargeRows.length) {
+        for (const c of chargeRows) {
+          await db.execute(sql`
+            INSERT INTO invoice_lines (
+              invoice_id,
+              org_id,
+              description,
+              quantity,
+              unit_price,
+              total
+            )
+            VALUES (
+              ${invoiceId}::uuid,
+              ${orgId}::uuid,
+              ${c.description},
+              ${c.quantity},
+              ${c.unit_price},
+              ${c.total}
+            )
+          `);
+        }
+      }
+
       res.json({ ok: true, invoiceId });
     } catch (err: any) {
-      console.error("convert-to-invoice failed:", err);
-      res.status(500).json({ error: err.message || "Failed to convert to invoice" });
+      console.error("convert-to-invoice ERROR:", err);
+      res.status(500).json({ error: err.message || "Convert failed" });
     }
   }
 );
+
 
 
 /* =========================

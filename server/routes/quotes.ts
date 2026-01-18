@@ -9,8 +9,6 @@ import { sumLines } from "../lib/totals";
 import { sendEmail, generateQuoteEmailTemplate } from "../services/email";
 import { trackEmailUsage, checkEmailQuota } from "./job-sms";
 import { finalizePackConsumption, releasePackReservation, durableFinalizePackConsumption } from "../lib/pack-consumption";
-import { tiktokEvents } from "../services/tiktok-events";
-import type { CustomerInfo } from "../services/tiktok-events";
 import { randomBytes } from "crypto";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);

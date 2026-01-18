@@ -6,19 +6,22 @@ import jobsRouter from "./jobs";
 
 const portalRouter = Router();
 
+/* --------------------------------------------------
+   Helpers
+-------------------------------------------------- */
+
 function isUuid(str: string): boolean {
   return /^[0-9a-f-]{36}$/i.test(str);
 }
 
 function getPortalCustomerId(req: any): string | null {
   return (
-    req?.session?.customerId ||          // ✅ real customers.id
+    req?.session?.customerId ||
     req?.session?.customer?.id ||
     null
   );
 }
 
-// ✅ Resolve orgId from slug so we can correctly scope all portal queries
 async function getOrgIdBySlug(orgSlug: string): Promise<string | null> {
   const r: any = await db.execute(sql`
     SELECT id
@@ -26,14 +29,13 @@ async function getOrgIdBySlug(orgSlug: string): Promise<string | null> {
     WHERE lower(slug) = lower(${orgSlug})
     LIMIT 1
   `);
-
   return r?.[0]?.id || null;
 }
 
-/**
- * ✅ Debug endpoint: tells you exactly what the server sees
- * GET /api/portal/:org/debug-session
- */
+/* --------------------------------------------------
+   Debug
+-------------------------------------------------- */
+
 portalRouter.get("/portal/:org/debug-session", async (req: any, res) => {
   const orgSlug = req.params.org;
   const orgId = await getOrgIdBySlug(orgSlug);
@@ -43,21 +45,19 @@ portalRouter.get("/portal/:org/debug-session", async (req: any, res) => {
     orgId,
     session: {
       customerId: req?.session?.customerId || null,
-      portalCustomerId: req?.session?.portalCustomerId || null,
       customer: req?.session?.customer || null,
-      isPortal: req?.session?.isPortal || null,
     },
     cookie: req.headers?.cookie || null,
   });
 });
 
-// --------------------------------------------------
-// GET /api/portal/:org/equipment
-// --------------------------------------------------
+/* --------------------------------------------------
+   Equipment
+-------------------------------------------------- */
+
 portalRouter.get("/portal/:org/equipment", async (req: any, res) => {
   try {
-    const orgSlug = req.params.org;
-    const orgId = await getOrgIdBySlug(orgSlug);
+    const orgId = await getOrgIdBySlug(req.params.org);
     if (!orgId) return res.status(404).json({ error: "Org not found" });
 
     const customerId = getPortalCustomerId(req);
@@ -73,27 +73,23 @@ portalRouter.get("/portal/:org/equipment", async (req: any, res) => {
 
     res.json(r);
   } catch (e: any) {
-    console.error("[portal equipment list]", e);
-    res.status(500).json({ error: e?.message || "Failed to load equipment" });
+    console.error("[portal equipment]", e);
+    res.status(500).json({ error: "Failed to load equipment" });
   }
 });
 
-// --------------------------------------------------
-// GET /api/portal/:org/equipment/:id
-// --------------------------------------------------
 portalRouter.get("/portal/:org/equipment/:id", async (req: any, res) => {
   const { id } = req.params;
   if (!isUuid(id)) return res.status(400).json({ error: "Invalid equipment id" });
 
   try {
-    const orgSlug = req.params.org;
-    const orgId = await getOrgIdBySlug(orgSlug);
+    const orgId = await getOrgIdBySlug(req.params.org);
     if (!orgId) return res.status(404).json({ error: "Org not found" });
 
     const customerId = getPortalCustomerId(req);
     if (!customerId) return res.status(401).json({ error: "Not authenticated" });
 
-    const equipmentRows: any = await db.execute(sql`
+    const eq: any = await db.execute(sql`
       SELECT *
       FROM equipment
       WHERE id = ${id}::uuid
@@ -102,67 +98,101 @@ portalRouter.get("/portal/:org/equipment/:id", async (req: any, res) => {
       LIMIT 1
     `);
 
-    if (!equipmentRows?.length) return res.status(404).json({ error: "Equipment not found" });
+    if (!eq.length) return res.status(404).json({ error: "Equipment not found" });
 
-    // optional: you might want jobs filtered to equipment, but keeping your current behaviour:
     const jobs: any = await db.execute(sql`
-      SELECT cj.id, cj.title, cj.completed_at
-      FROM completed_jobs cj
-      WHERE cj.org_id = ${orgId}::uuid
-        AND cj.customer_id = ${customerId}::uuid
-      ORDER BY cj.completed_at DESC
+      SELECT id, title, completed_at
+      FROM completed_jobs
+      WHERE org_id = ${orgId}::uuid
+        AND customer_id = ${customerId}::uuid
+      ORDER BY completed_at DESC
     `);
 
-    res.json({ equipment: equipmentRows[0], jobs });
+    res.json({ equipment: eq[0], jobs });
   } catch (e: any) {
     console.error("[portal equipment detail]", e);
-    res.status(500).json({ error: e?.message || "Failed to load equipment" });
+    res.status(500).json({ error: "Failed to load equipment" });
   }
 });
 
-// --------------------------------------------------
-// PORTAL SERVICE SHEET (reuses jobs router)
-// GET /api/portal/:org/completed-jobs/:completedJobId/service-sheet
-// --------------------------------------------------
+/* --------------------------------------------------
+   SERVICE SHEET (proxy to jobs.ts)
+-------------------------------------------------- */
+
 portalRouter.get(
   "/portal/:org/completed-jobs/:completedJobId/service-sheet",
   async (req: any, res: any, next: any) => {
     const { completedJobId } = req.params;
-    if (!completedJobId || !isUuid(completedJobId)) {
+    if (!isUuid(completedJobId)) {
       return res.status(400).json({ error: "Invalid job id" });
     }
 
-    const orgSlug = req.params.org;
-    const orgId = await getOrgIdBySlug(orgSlug);
+    const orgId = await getOrgIdBySlug(req.params.org);
     if (!orgId) return res.status(404).json({ error: "Org not found" });
 
     const customerId = getPortalCustomerId(req);
     if (!customerId) return res.status(401).json({ error: "Not authenticated" });
 
-    try {
-      const r: any = await db.execute(sql`
-        SELECT org_id, customer_id
-        FROM completed_jobs
-        WHERE id = ${completedJobId}::uuid
-          AND org_id = ${orgId}::uuid
-        LIMIT 1
-      `);
+    const r: any = await db.execute(sql`
+      SELECT customer_id
+      FROM completed_jobs
+      WHERE id = ${completedJobId}::uuid
+        AND org_id = ${orgId}::uuid
+      LIMIT 1
+    `);
 
-      if (!r?.length) return res.status(404).json({ error: "Completed job not found" });
-      if (r[0].customer_id && String(r[0].customer_id) !== String(customerId)) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-
-      req.isPortal = true;
-      req.customerId = customerId;
-      req.orgId = orgId;
-
-      req.url = `/completed/${completedJobId}/service-sheet${req._parsedUrl?.search || ""}`;
-      return (jobsRouter as any)(req, res, next);
-    } catch (e: any) {
-      console.error("[portal service sheet]", e);
-      res.status(500).json({ error: e?.message || "Failed to generate PDF" });
+    if (!r.length) return res.status(404).json({ error: "Completed job not found" });
+    if (String(r[0].customer_id) !== String(customerId)) {
+      return res.status(403).json({ error: "Forbidden" });
     }
+
+    req.isPortal = true;
+    req.customerId = customerId;
+    req.orgId = orgId;
+
+    req.url = `/completed/${completedJobId}/service-sheet${req._parsedUrl?.search || ""}`;
+    return (jobsRouter as any)(req, res, next);
+  }
+);
+
+/* --------------------------------------------------
+   ✅ CONVERT TO INVOICE (THE FIX)
+-------------------------------------------------- */
+
+portalRouter.post(
+  "/portal/:org/jobs/completed/:completedJobId/convert-to-invoice",
+  async (req: any, res: any, next: any) => {
+    const { completedJobId } = req.params;
+    if (!isUuid(completedJobId)) {
+      return res.status(400).json({ error: "Invalid job id" });
+    }
+
+    const orgId = await getOrgIdBySlug(req.params.org);
+    if (!orgId) return res.status(404).json({ error: "Org not found" });
+
+    const customerId = getPortalCustomerId(req);
+    if (!customerId) return res.status(401).json({ error: "Not authenticated" });
+
+    const r: any = await db.execute(sql`
+      SELECT customer_id
+      FROM completed_jobs
+      WHERE id = ${completedJobId}::uuid
+        AND org_id = ${orgId}::uuid
+      LIMIT 1
+    `);
+
+    if (!r.length) return res.status(404).json({ error: "Completed job not found" });
+    if (String(r[0].customer_id) !== String(customerId)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    req.isPortal = true;
+    req.customerId = customerId;
+    req.orgId = orgId;
+
+    // 🔁 forward into jobs.ts
+    req.url = `/completed/${completedJobId}/convert-to-invoice`;
+    return (jobsRouter as any)(req, res, next);
   }
 );
 

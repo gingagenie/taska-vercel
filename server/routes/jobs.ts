@@ -846,26 +846,65 @@ jobs.post(
         return res.status(400).json({ error: "Completed job has no original job id" });
       }
 
-      // 2️⃣ Create invoice (THIS IS THE KEY FIX)
-      const invRows: any = await db.execute(sql`
-        INSERT INTO invoices (
-          org_id,
-          job_id,
-          customer_id,
-          title,
-          status,
-          created_by
-        )
-        VALUES (
-          ${orgId}::uuid,
-          ${originalJobId}::uuid,
-          ${completedJob.customer_id}::uuid,
-          ${completedJob.title || "Service Invoice"},
-          'draft',
-          ${userId}
-        )
-        RETURNING id
-      `);
+     // 2️⃣ Generate invoice number (REQUIRED)
+const lastInv: any = await db.execute(sql`
+  SELECT number
+  FROM invoices
+  WHERE org_id = ${orgId}::uuid
+    AND number IS NOT NULL
+  ORDER BY created_at DESC
+  LIMIT 1
+`);
+
+let nextNumber = 1;
+if (lastInv.length && lastInv[0].number) {
+  const m = lastInv[0].number.match(/inv-(\d+)/i);
+  if (m) nextNumber = Number(m[1]) + 1;
+}
+
+const invoiceNumber = `inv-${String(nextNumber).padStart(4, "0")}`;
+
+// 2️⃣ Generate invoice number (REQUIRED)
+const lastInv: any = await db.execute(sql`
+  SELECT number
+  FROM invoices
+  WHERE org_id = ${orgId}::uuid
+    AND number IS NOT NULL
+  ORDER BY created_at DESC
+  LIMIT 1
+`);
+
+let nextNumber = 1;
+if (lastInv.length && lastInv[0].number) {
+  const m = lastInv[0].number.match(/inv-(\d+)/i);
+  if (m) nextNumber = Number(m[1]) + 1;
+}
+
+const invoiceNumber = `inv-${String(nextNumber).padStart(4, "0")}`;
+
+// 2️⃣ Create invoice (FIXED – includes number)
+const invRows: any = await db.execute(sql`
+  INSERT INTO invoices (
+    org_id,
+    job_id,
+    customer_id,
+    title,
+    number,
+    status,
+    created_by
+  )
+  VALUES (
+    ${orgId}::uuid,
+    ${originalJobId}::uuid,
+    ${completedJob.customer_id}::uuid,
+    ${completedJob.title || "Service Invoice"},
+    ${invoiceNumber},
+    'draft',
+    ${userId}
+  )
+  RETURNING id
+`);
+
 
       const invoiceId = invRows[0].id;
 

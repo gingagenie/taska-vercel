@@ -1,4 +1,5 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import multer from "multer";

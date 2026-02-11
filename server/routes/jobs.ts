@@ -1564,21 +1564,92 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
 
     const completedJobId = completedResult[0].id;
 
-    // Copy related data
+    // ================= COPY RELATED DATA =================
+
+    // Charges
     await db.execute(sql`
-      INSERT INTO completed_job_equipment (
-        completed_job_id, original_job_id, org_id, equipment_id, equipment_name, created_at
+      INSERT INTO completed_job_charges (
+        completed_job_id, original_job_id, org_id,
+        kind, description, quantity, unit_price, total, created_at
       )
-      SELECT 
+      SELECT
         ${completedJobId}::uuid,
         ${jobId}::uuid,
-        ${orgId}::uuid,
-        je.equipment_id,
-        e.name,
-        je.created_at
-      FROM job_equipment je
-      LEFT JOIN equipment e ON je.equipment_id = e.id
-      WHERE je.job_id = ${jobId}::uuid
+        org_id,
+        kind,
+        description,
+        quantity,
+        unit_price,
+        total,
+        created_at
+      FROM job_charges
+      WHERE job_id = ${jobId}::uuid
+    `);
+    
+    // Hours
+    await db.execute(sql`
+      INSERT INTO completed_job_hours (
+        completed_job_id, original_job_id, org_id,
+        hours, description, created_at
+      )
+      SELECT
+        ${completedJobId}::uuid,
+        ${jobId}::uuid,
+        org_id,
+        hours,
+        description,
+        created_at
+      FROM job_hours
+      WHERE job_id = ${jobId}::uuid
+    `);
+    
+    // Parts
+    await db.execute(sql`
+      INSERT INTO completed_job_parts (
+        completed_job_id, original_job_id, org_id,
+        part_name, quantity, created_at
+      )
+      SELECT
+        ${completedJobId}::uuid,
+        ${jobId}::uuid,
+        org_id,
+        part_name,
+        quantity,
+        created_at
+      FROM job_parts
+      WHERE job_id = ${jobId}::uuid
+    `);
+    
+    // Notes
+    await db.execute(sql`
+      INSERT INTO completed_job_notes (
+        completed_job_id, original_job_id, org_id,
+        text, created_at
+      )
+      SELECT
+        ${completedJobId}::uuid,
+        ${jobId}::uuid,
+        org_id,
+        text,
+        created_at
+      FROM job_notes
+      WHERE job_id = ${jobId}::uuid
+    `);
+    
+    // Photos
+    await db.execute(sql`
+      INSERT INTO completed_job_photos (
+        completed_job_id, original_job_id, org_id,
+        url, created_at
+      )
+      SELECT
+        ${completedJobId}::uuid,
+        ${jobId}::uuid,
+        org_id,
+        url,
+        created_at
+      FROM job_photos
+      WHERE job_id = ${jobId}::uuid
     `);
 
     // =========================================================

@@ -1672,7 +1672,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
 
     res.json({
       ok: true,
-      completed_job_id: completedJobId,
+      completed_job_id: completedResult[0].id,
       completed_at: completedResult[0].completed_at,
     });
 

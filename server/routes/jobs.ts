@@ -1992,3 +1992,213 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
     res.status(500).json({ error: e?.message || "Failed to delete completed job" });
   }
 });
+
+/* =========================
+   CONVERT COMPLETED JOB TO INVOICE
+========================= */
+
+jobs.post(
+  "/completed/:completedJobId/convert-to-invoice",
+  requireAuth,
+  requireOrg,
+  async (req, res) => {
+    const { completedJobId } = req.params;
+    const orgId = (req as any).orgId;
+
+    if (!isUuid(completedJobId)) {
+      return res.status(400).json({ error: "Invalid completedJobId" });
+    }
+
+    try {
+      // 1️⃣ Get completed job
+      const jobRows: any = await db.execute(sql`
+        SELECT *
+        FROM completed_jobs
+        WHERE id = ${completedJobId}::uuid
+        AND org_id = ${orgId}::uuid
+      `);
+
+      if (!jobRows.length) {
+        return res.status(404).json({ error: "Completed job not found" });
+      }
+
+      const job = jobRows[0];
+
+      if (!job.customer_id) {
+        return res.status(400).json({ error: "Cannot invoice job with no customer" });
+      }
+
+      // 2️⃣ Prevent duplicate invoice
+      const existing: any = await db.execute(sql`
+        SELECT id FROM invoices
+        WHERE org_id = ${orgId}::uuid
+        AND job_id = ${job.original_job_id}::uuid
+      `);
+
+      if (existing.length) {
+        return res.status(400).json({
+          error: "Invoice already exists",
+          invoiceId: existing[0].id,
+        });
+      }
+
+      // 3️⃣ Create invoice
+      const invoiceResult: any = await db.execute(sql`
+        INSERT INTO invoices (
+          org_id,
+          customer_id,
+          job_id,
+          title,
+          notes,
+          status,
+          sub_total,
+          tax_total,
+          grand_total
+        )
+        VALUES (
+          ${orgId}::uuid,
+          ${job.customer_id}::uuid,
+          ${job.original_job_id}::uuid,
+          ${`Invoice for: ${job.title}`},
+          ${job.notes || ""},
+          'draft',
+          0,
+          0,
+          0
+        )
+        RETURNING id
+      `);
+
+      const invoiceId = invoiceResult[0].id;
+
+      let position = 0;
+      const lineItems: any[] = [];
+
+      // 4️⃣ Charges
+      const charges: any = await db.execute(sql`
+        SELECT description, quantity, unit_price
+        FROM completed_job_charges
+        WHERE completed_job_id = ${completedJobId}::uuid
+        AND org_id = ${orgId}::uuid
+      `);
+
+      for (const c of charges) {
+        await db.execute(sql`
+          INSERT INTO invoice_lines (
+            org_id, invoice_id, position,
+            description, quantity, unit_amount, tax_rate
+          )
+          VALUES (
+            ${orgId}::uuid,
+            ${invoiceId}::uuid,
+            ${position},
+            ${c.description},
+            ${c.quantity},
+            ${c.unit_price},
+            10
+          )
+        `);
+
+        lineItems.push({
+          quantity: c.quantity,
+          unit_amount: c.unit_price,
+          tax_rate: 10,
+        });
+
+        position++;
+      }
+
+      // 5️⃣ Hours
+      const hours: any = await db.execute(sql`
+        SELECT hours, description
+        FROM completed_job_hours
+        WHERE completed_job_id = ${completedJobId}::uuid
+        AND org_id = ${orgId}::uuid
+      `);
+
+      for (const h of hours) {
+        await db.execute(sql`
+          INSERT INTO invoice_lines (
+            org_id, invoice_id, position,
+            description, quantity, unit_amount, tax_rate
+          )
+          VALUES (
+            ${orgId}::uuid,
+            ${invoiceId}::uuid,
+            ${position},
+            ${h.description || "Labour"},
+            ${h.hours},
+            0,
+            10
+          )
+        `);
+
+        lineItems.push({
+          quantity: h.hours,
+          unit_amount: 0,
+          tax_rate: 10,
+        });
+
+        position++;
+      }
+
+      // 6️⃣ Parts
+      const parts: any = await db.execute(sql`
+        SELECT part_name, quantity
+        FROM completed_job_parts
+        WHERE completed_job_id = ${completedJobId}::uuid
+        AND org_id = ${orgId}::uuid
+      `);
+
+      for (const p of parts) {
+        await db.execute(sql`
+          INSERT INTO invoice_lines (
+            org_id, invoice_id, position,
+            description, quantity, unit_amount, tax_rate
+          )
+          VALUES (
+            ${orgId}::uuid,
+            ${invoiceId}::uuid,
+            ${position},
+            ${p.part_name},
+            ${p.quantity},
+            0,
+            10
+          )
+        `);
+
+        lineItems.push({
+          quantity: p.quantity,
+          unit_amount: 0,
+          tax_rate: 10,
+        });
+
+        position++;
+      }
+
+      // 7️⃣ Calculate totals
+      const { sumLines } = await import("../lib/totals.js");
+      const { sub_total, tax_total, grand_total } = sumLines(lineItems);
+
+      await db.execute(sql`
+        UPDATE invoices
+        SET sub_total = ${sub_total},
+            tax_total = ${tax_total},
+            grand_total = ${grand_total}
+        WHERE id = ${invoiceId}::uuid
+        AND org_id = ${orgId}::uuid
+      `);
+
+      res.json({
+        ok: true,
+        invoiceId,
+        message: "Invoice created successfully",
+      });
+
+    } catch (e: any) {
+      console.error("convert-to-invoice error:", e);
+      res.status(500).json({ error: e?.message || "Failed to convert" });
+    }
+  }
+);
+

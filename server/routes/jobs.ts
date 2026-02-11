@@ -1562,18 +1562,13 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       RETURNING id, completed_at
     `);
 
-    const completedJobId = completedResult[0].id;
-
-    // ================= COPY RELATED DATA =================
-
-    // Charges
+    // Copy charges/hours/parts/notes/photos/equipment
     await db.execute(sql`
       INSERT INTO completed_job_charges (
-        completed_job_id, original_job_id, org_id,
-        kind, description, quantity, unit_price, total, created_at
+        completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at
       )
-      SELECT
-        ${completedJobId}::uuid,
+      SELECT 
+        ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
         org_id,
         kind,
@@ -1585,15 +1580,13 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       FROM job_charges
       WHERE job_id = ${jobId}::uuid
     `);
-    
-    // Hours
+
     await db.execute(sql`
       INSERT INTO completed_job_hours (
-        completed_job_id, original_job_id, org_id,
-        hours, description, created_at
+        completed_job_id, original_job_id, org_id, hours, description, created_at
       )
-      SELECT
-        ${completedJobId}::uuid,
+      SELECT 
+        ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
         org_id,
         hours,
@@ -1602,15 +1595,13 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       FROM job_hours
       WHERE job_id = ${jobId}::uuid
     `);
-    
-    // Parts
+
     await db.execute(sql`
       INSERT INTO completed_job_parts (
-        completed_job_id, original_job_id, org_id,
-        part_name, quantity, created_at
+        completed_job_id, original_job_id, org_id, part_name, quantity, created_at
       )
-      SELECT
-        ${completedJobId}::uuid,
+      SELECT 
+        ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
         org_id,
         part_name,
@@ -1619,15 +1610,13 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       FROM job_parts
       WHERE job_id = ${jobId}::uuid
     `);
-    
-    // Notes
+
     await db.execute(sql`
       INSERT INTO completed_job_notes (
-        completed_job_id, original_job_id, org_id,
-        text, created_at
+        completed_job_id, original_job_id, org_id, text, created_at
       )
-      SELECT
-        ${completedJobId}::uuid,
+      SELECT 
+        ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
         org_id,
         text,
@@ -1635,15 +1624,14 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       FROM job_notes
       WHERE job_id = ${jobId}::uuid
     `);
-    
-    // Photos
+
+    // IMPORTANT: completed_job_photos has NO object_key column in your DB
     await db.execute(sql`
       INSERT INTO completed_job_photos (
-        completed_job_id, original_job_id, org_id,
-        url, created_at
+        completed_job_id, original_job_id, org_id, url, created_at
       )
-      SELECT
-        ${completedJobId}::uuid,
+      SELECT 
+        ${completedResult[0].id}::uuid,
         ${jobId}::uuid,
         org_id,
         url,
@@ -1652,85 +1640,23 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE job_id = ${jobId}::uuid
     `);
 
-    // =========================================================
-    // 🔥 AUTO CREATE NEXT SERVICE JOB (Recurring Logic)
-    // =========================================================
-
-    const equipmentRows: any = await db.execute(sql`
-      SELECT e.id, e.name, e.service_interval_months
+    await db.execute(sql`
+      INSERT INTO completed_job_equipment (
+        completed_job_id, original_job_id, org_id, equipment_id, equipment_name, created_at
+      )
+      SELECT 
+        ${completedResult[0].id}::uuid,
+        ${jobId}::uuid,
+        ${orgId}::uuid,
+        je.equipment_id,
+        e.name,
+        je.created_at
       FROM job_equipment je
-      JOIN equipment e ON e.id = je.equipment_id
+      LEFT JOIN equipment e ON je.equipment_id = e.id
       WHERE je.job_id = ${jobId}::uuid
-      AND e.org_id = ${orgId}::uuid
     `);
 
-    for (const eq of equipmentRows) {
-      const interval = Number(eq.service_interval_months);
-
-      if (interval && interval > 0) {
-        const completedDate = new Date();
-        const nextDate = new Date(completedDate);
-        nextDate.setMonth(nextDate.getMonth() + interval);
-
-        const nextIso = nextDate.toISOString();
-
-        // Update equipment tracking
-        await db.execute(sql`
-          UPDATE equipment
-          SET
-            last_service_date = now(),
-            next_service_date = ${nextIso}::timestamptz
-          WHERE id = ${eq.id}::uuid
-          AND org_id = ${orgId}::uuid
-        `);
-
-        // Prevent duplicate future jobs
-        const existingFuture: any = await db.execute(sql`
-          SELECT id FROM jobs
-          WHERE org_id = ${orgId}::uuid
-          AND customer_id = ${job.customer_id}::uuid
-          AND title = ${`Service Due – ${eq.name}`}
-          AND scheduled_at = ${nextIso}::timestamptz
-          LIMIT 1
-        `);
-
-        if (existingFuture.length === 0) {
-          const newJobResult: any = await db.execute(sql`
-            INSERT INTO jobs (
-              org_id,
-              customer_id,
-              title,
-              description,
-              scheduled_at,
-              status,
-              created_by
-            )
-            VALUES (
-              ${orgId}::uuid,
-              ${job.customer_id}::uuid,
-              ${`Service Due – ${eq.name}`},
-              ${`Scheduled service for equipment: ${eq.name}`},
-              ${nextIso}::timestamptz,
-              'new',
-              ${userId}
-            )
-            RETURNING id
-          `);
-
-          const newJobId = newJobResult[0].id;
-
-          await db.execute(sql`
-            INSERT INTO job_equipment (job_id, equipment_id)
-            VALUES (${newJobId}::uuid, ${eq.id}::uuid)
-            ON CONFLICT DO NOTHING
-          `);
-        }
-      }
-    }
-
-    // =========================================================
-
-    // cleanup original job
+    // cleanup
     await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_assignments WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_equipment WHERE job_id = ${jobId}::uuid`);
@@ -1746,7 +1672,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       completed_job_id: completedResult[0].id,
       completed_at: completedResult[0].completed_at,
     });
-
   } catch (e: any) {
     console.error("POST /api/jobs/:jobId/complete error:", e);
     res.status(500).json({ error: e?.message || "Failed to complete job" });
@@ -1811,17 +1736,12 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     `);
 
     const presetMap = new Map<string, any>();
-    let labourPreset: any = null;
+    let laborPreset: any = null;
     for (const preset of allPresets) {
       const lowerName = String(preset.name || "").toLowerCase();
       presetMap.set(lowerName, preset);
-
-      if (!labourPreset && (lowerName === "labour" || lowerName.includes("hour"))) {
-      labourPreset = preset;
-     }
-  }
-
-
+      if (!laborPreset && (lowerName === "labour" || lowerName === "labor" || lowerName.includes("hour"))) laborPreset = preset;
+    }
 
     const noteEntries: any = await db.execute(sql`
       SELECT text, created_at
@@ -1930,8 +1850,8 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 
     for (const hour of hours) {
       const quantity = Number(hour.hours) || 1;
-      const unitAmount = Number(labourPreset?.unit_amount) || 0;
-      const taxRate = Number(labourPreset?.tax_rate) || 10;
+      const unitAmount = Number(laborPreset?.unit_amount) || 0;
+      const taxRate = Number(laborPreset?.tax_rate) || 10;
 
       await db.execute(sql`
         INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
@@ -2063,269 +1983,3 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
     res.status(500).json({ error: e?.message || "Failed to delete completed job" });
   }
 });
-
- // =========================
- // CONVERT COMPLETED JOB TO INVOICE
- // =========================
-
-  jobs.post(
-  "/completed/:completedJobId/convert-to-invoice",
-  requireAuth,
-  requireOrg,
-  async (req, res) => {
-    const { completedJobId } = req.params;
-    const orgId = (req as any).orgId;
-
-    if (!isUuid(completedJobId)) {
-      return res.status(400).json({ error: "Invalid completedJobId" });
-    }
-
-    try {
-      // 1️⃣ Get completed job
-      const jobRows: any = await db.execute(sql`
-        SELECT *
-        FROM completed_jobs
-        WHERE id = ${completedJobId}::uuid
-        AND org_id = ${orgId}::uuid
-      `);
-
-      if (!jobRows.length) {
-        return res.status(404).json({ error: "Completed job not found" });
-      }
-
-      const job = jobRows[0];
-
-      // ---- Get equipment info for title ----
-const equipmentRows: any = await db.execute(sql`
-  SELECT e.name, e.make, e.model, e.serial
-  FROM completed_job_equipment cje
-  JOIN equipment e ON e.id = cje.equipment_id
-  WHERE cje.completed_job_id = ${completedJobId}::uuid
-  AND e.org_id = ${orgId}::uuid
-  LIMIT 1
-`);
-
-let invoiceTitle = `Invoice for: ${job.title}`;
-
-if (equipmentRows.length) {
-  const eq = equipmentRows[0];
-  const parts = [eq.name, eq.make, eq.model, eq.serial].filter(Boolean);
-  if (parts.length) {
-    invoiceTitle = `Invoice for: ${parts.join(" - ")}`;
-  }
-}
-
-// ---- Combine notes for summary ----
-const noteRows: any = await db.execute(sql`
-  SELECT text
-  FROM completed_job_notes
-  WHERE completed_job_id = ${completedJobId}::uuid
-  AND org_id = ${orgId}::uuid
-  ORDER BY created_at ASC
-`);
-
-let combinedNotes = job.notes || "";
-
-if (noteRows.length) {
-  const noteText = noteRows.map((n: any) => n.text).join("\n");
-  combinedNotes = combinedNotes
-    ? `${combinedNotes}\n\n${noteText}`
-    : noteText;
-}
-
-
-      if (!job.customer_id) {
-        return res.status(400).json({ error: "Cannot invoice job with no customer" });
-      }
-
-      // 2️⃣ Prevent duplicate invoice
-      const existing: any = await db.execute(sql`
-        SELECT id FROM invoices
-        WHERE org_id = ${orgId}::uuid
-        AND job_id = ${job.original_job_id}::uuid
-      `);
-
-      if (existing.length) {
-        return res.status(400).json({
-          error: "Invoice already exists",
-          invoiceId: existing[0].id,
-        });
-      }
-
-      // 4️⃣ Get presets (for labour + parts)
-      const presetRows: any = await db.execute(sql`
-        SELECT name, unit_amount, tax_rate
-        FROM item_presets
-        WHERE org_id = ${orgId}::uuid
-      `);
-
-      const presetMap = new Map<string, any>();
-      let labourPreset: any = null;
-
-      for (const p of presetRows) {
-        const key = String(p.name || "").toLowerCase();
-        presetMap.set(key, p);
-
-        if (!labourPreset && (key === "labour" || key.includes("hour"))) {
-          labourPreset = p;
-        }
-      }
-
-      // 5️⃣ Create invoice
-      const invoiceResult: any = await db.execute(sql`
-        INSERT INTO invoices (
-          org_id,
-          customer_id,
-          job_id,
-          title,
-          notes,
-          status,
-          sub_total,
-          tax_total,
-          grand_total
-        )
-        VALUES (
-          ${orgId}::uuid,
-          ${job.customer_id}::uuid,
-          ${job.original_job_id}::uuid,
-          $${invoiceTitle},
-          ${combinedNotes},
-          'draft',
-          0,
-          0,
-          0
-        )
-        RETURNING id
-      `);
-
-      const invoiceId = invoiceResult[0].id;
-      let position = 0;
-      const lineItems: any[] = [];
-
-      // 6️⃣ Charges
-      const charges: any = await db.execute(sql`
-        SELECT description, quantity, unit_price
-        FROM completed_job_charges
-        WHERE completed_job_id = ${completedJobId}::uuid
-        AND org_id = ${orgId}::uuid
-      `);
-
-      for (const c of charges) {
-        const qty = Number(c.quantity) || 1;
-        const price = Number(c.unit_price) || 0;
-
-        await db.execute(sql`
-          INSERT INTO invoice_lines (
-            org_id, invoice_id, position,
-            description, quantity, unit_amount, tax_rate
-          )
-          VALUES (
-            ${orgId}::uuid,
-            ${invoiceId}::uuid,
-            ${position},
-            ${c.description},
-            ${qty},
-            ${price},
-            10
-          )
-        `);
-
-        lineItems.push({ quantity: qty, unit_amount: price, tax_rate: 10 });
-        position++;
-      }
-
-      // 7️⃣ Hours (uses labour preset)
-      const hours: any = await db.execute(sql`
-        SELECT hours, description
-        FROM completed_job_hours
-        WHERE completed_job_id = ${completedJobId}::uuid
-        AND org_id = ${orgId}::uuid
-      `);
-
-      for (const h of hours) {
-        const qty = Number(h.hours) || 1;
-        const price = Number(labourPreset?.unit_amount) || 0;
-        const tax = Number(labourPreset?.tax_rate) || 10;
-
-        await db.execute(sql`
-          INSERT INTO invoice_lines (
-            org_id, invoice_id, position,
-            description, quantity, unit_amount, tax_rate
-          )
-          VALUES (
-            ${orgId}::uuid,
-            ${invoiceId}::uuid,
-            ${position},
-            ${h.description || "Labour"},
-            ${qty},
-            ${price},
-            ${tax}
-          )
-        `);
-
-        lineItems.push({ quantity: qty, unit_amount: price, tax_rate: tax });
-        position++;
-      }
-
-      // 8️⃣ Parts (uses preset if exists)
-      const parts: any = await db.execute(sql`
-        SELECT part_name, quantity
-        FROM completed_job_parts
-        WHERE completed_job_id = ${completedJobId}::uuid
-        AND org_id = ${orgId}::uuid
-      `);
-
-      for (const p of parts) {
-        const name = String(p.part_name || "").trim();
-        if (!name) continue;
-
-        const preset = presetMap.get(name.toLowerCase());
-        const qty = Number(p.quantity) || 1;
-        const price = Number(preset?.unit_amount) || 0;
-        const tax = Number(preset?.tax_rate) || 10;
-
-        await db.execute(sql`
-          INSERT INTO invoice_lines (
-            org_id, invoice_id, position,
-            description, quantity, unit_amount, tax_rate
-          )
-          VALUES (
-            ${orgId}::uuid,
-            ${invoiceId}::uuid,
-            ${position},
-            ${name},
-            ${qty},
-            ${price},
-            ${tax}
-          )
-        `);
-
-        lineItems.push({ quantity: qty, unit_amount: price, tax_rate: tax });
-        position++;
-      }
-
-      // 9️⃣ Totals
-      const { sumLines } = await import("../lib/totals.js");
-      const { sub_total, tax_total, grand_total } = sumLines(lineItems);
-
-      await db.execute(sql`
-        UPDATE invoices
-        SET sub_total = ${sub_total},
-            tax_total = ${tax_total},
-            grand_total = ${grand_total}
-        WHERE id = ${invoiceId}::uuid
-        AND org_id = ${orgId}::uuid
-      `);
-
-      res.json({
-        ok: true,
-        invoiceId,
-        message: "Invoice created successfully",
-      });
-
-    } catch (e: any) {
-      console.error("convert-to-invoice error:", e);
-      res.status(500).json({ error: e?.message || "Failed to convert" });
-    }
-  }
-);

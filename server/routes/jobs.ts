@@ -2095,6 +2095,45 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
 
       const job = jobRows[0];
 
+      // ---- Get equipment info for title ----
+const equipmentRows: any = await db.execute(sql`
+  SELECT e.name, e.make, e.model, e.serial
+  FROM completed_job_equipment cje
+  JOIN equipment e ON e.id = cje.equipment_id
+  WHERE cje.completed_job_id = ${completedJobId}::uuid
+  AND e.org_id = ${orgId}::uuid
+  LIMIT 1
+`);
+
+let invoiceTitle = `Invoice for: ${job.title}`;
+
+if (equipmentRows.length) {
+  const eq = equipmentRows[0];
+  const parts = [eq.name, eq.make, eq.model, eq.serial].filter(Boolean);
+  if (parts.length) {
+    invoiceTitle = `Invoice for: ${parts.join(" - ")}`;
+  }
+}
+
+// ---- Combine notes for summary ----
+const noteRows: any = await db.execute(sql`
+  SELECT text
+  FROM completed_job_notes
+  WHERE completed_job_id = ${completedJobId}::uuid
+  AND org_id = ${orgId}::uuid
+  ORDER BY created_at ASC
+`);
+
+let combinedNotes = job.notes || "";
+
+if (noteRows.length) {
+  const noteText = noteRows.map((n: any) => n.text).join("\n");
+  combinedNotes = combinedNotes
+    ? `${combinedNotes}\n\n${noteText}`
+    : noteText;
+}
+
+
       if (!job.customer_id) {
         return res.status(400).json({ error: "Cannot invoice job with no customer" });
       }
@@ -2166,7 +2205,7 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
           ${orgId}::uuid,
           ${job.customer_id}::uuid,
           ${job.original_job_id}::uuid,
-          ${`Invoice for: ${job.title}`},
+          $${invoiceTitle},
           ${combinedNotes},
           'draft',
           0,

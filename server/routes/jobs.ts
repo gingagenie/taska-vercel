@@ -1930,8 +1930,8 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
 
     for (const hour of hours) {
       const quantity = Number(hour.hours) || 1;
-      const unitAmount = Number(laborPreset?.unit_amount) || 0;
-      const taxRate = Number(laborPreset?.tax_rate) || 10;
+      const unitAmount = Number(labourPreset?.unit_amount) || 0;
+      const taxRate = Number(labourPreset?.tax_rate) || 10;
 
       await db.execute(sql`
         INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)

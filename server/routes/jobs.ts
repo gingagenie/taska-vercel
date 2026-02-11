@@ -1740,12 +1740,17 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
     `);
 
     const presetMap = new Map<string, any>();
-    let laborPreset: any = null;
+    let labourPreset: any = null;
     for (const preset of allPresets) {
       const lowerName = String(preset.name || "").toLowerCase();
       presetMap.set(lowerName, preset);
-      if (!laborPreset && (lowerName === "labour" || lowerName === "labor" || lowerName.includes("hour"))) laborPreset = preset;
-    }
+
+      if (!labourPreset && (lowerName === "labour" || lowerName.includes("hour"))) {
+      labourPreset = preset;
+     }
+  }
+
+
 
     const noteEntries: any = await db.execute(sql`
       SELECT text, created_at

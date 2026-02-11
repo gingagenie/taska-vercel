@@ -1562,6 +1562,127 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       RETURNING id, completed_at
     `);
 
+    const completedJobId = completedResult[0].id;
+
+    // Copy related data
+    await db.execute(sql`
+      INSERT INTO completed_job_equipment (
+        completed_job_id, original_job_id, org_id, equipment_id, equipment_name, created_at
+      )
+      SELECT 
+        ${completedJobId}::uuid,
+        ${jobId}::uuid,
+        ${orgId}::uuid,
+        je.equipment_id,
+        e.name,
+        je.created_at
+      FROM job_equipment je
+      LEFT JOIN equipment e ON je.equipment_id = e.id
+      WHERE je.job_id = ${jobId}::uuid
+    `);
+
+    // =========================================================
+    // 🔥 AUTO CREATE NEXT SERVICE JOB (Recurring Logic)
+    // =========================================================
+
+    const equipmentRows: any = await db.execute(sql`
+      SELECT e.id, e.name, e.service_interval_months
+      FROM job_equipment je
+      JOIN equipment e ON e.id = je.equipment_id
+      WHERE je.job_id = ${jobId}::uuid
+      AND e.org_id = ${orgId}::uuid
+    `);
+
+    for (const eq of equipmentRows) {
+      const interval = Number(eq.service_interval_months);
+
+      if (interval && interval > 0) {
+        const completedDate = new Date();
+        const nextDate = new Date(completedDate);
+        nextDate.setMonth(nextDate.getMonth() + interval);
+
+        const nextIso = nextDate.toISOString();
+
+        // Update equipment tracking
+        await db.execute(sql`
+          UPDATE equipment
+          SET
+            last_service_date = now(),
+            next_service_date = ${nextIso}::timestamptz
+          WHERE id = ${eq.id}::uuid
+          AND org_id = ${orgId}::uuid
+        `);
+
+        // Prevent duplicate future jobs
+        const existingFuture: any = await db.execute(sql`
+          SELECT id FROM jobs
+          WHERE org_id = ${orgId}::uuid
+          AND customer_id = ${job.customer_id}::uuid
+          AND title = ${`Service Due – ${eq.name}`}
+          AND scheduled_at = ${nextIso}::timestamptz
+          LIMIT 1
+        `);
+
+        if (existingFuture.length === 0) {
+          const newJobResult: any = await db.execute(sql`
+            INSERT INTO jobs (
+              org_id,
+              customer_id,
+              title,
+              description,
+              scheduled_at,
+              status,
+              created_by
+            )
+            VALUES (
+              ${orgId}::uuid,
+              ${job.customer_id}::uuid,
+              ${`Service Due – ${eq.name}`},
+              ${`Scheduled service for equipment: ${eq.name}`},
+              ${nextIso}::timestamptz,
+              'new',
+              ${userId}
+            )
+            RETURNING id
+          `);
+
+          const newJobId = newJobResult[0].id;
+
+          await db.execute(sql`
+            INSERT INTO job_equipment (job_id, equipment_id)
+            VALUES (${newJobId}::uuid, ${eq.id}::uuid)
+            ON CONFLICT DO NOTHING
+          `);
+        }
+      }
+    }
+
+    // =========================================================
+
+    // cleanup original job
+    await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_assignments WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_equipment WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_photos WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_hours WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_notes WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_parts WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_charges WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM jobs WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+
+    res.json({
+      ok: true,
+      completed_job_id: completedJobId,
+      completed_at: completedResult[0].completed_at,
+    });
+
+  } catch (e: any) {
+    console.error("POST /api/jobs/:jobId/complete error:", e);
+    res.status(500).json({ error: e?.message || "Failed to complete job" });
+  }
+});
+
+
     // Copy charges/hours/parts/notes/photos/equipment
     await db.execute(sql`
       INSERT INTO completed_job_charges (

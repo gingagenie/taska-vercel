@@ -2152,23 +2152,6 @@ if (noteRows.length) {
         });
       }
 
-      // 3️⃣ Merge job notes + work notes
-      const noteRows: any = await db.execute(sql`
-        SELECT text
-        FROM completed_job_notes
-        WHERE completed_job_id = ${completedJobId}::uuid
-        AND org_id = ${orgId}::uuid
-        ORDER BY created_at ASC
-      `);
-
-      let combinedNotes = job.notes || "";
-      if (noteRows.length) {
-        const noteText = noteRows.map((n: any) => n.text).join("\n");
-        combinedNotes = combinedNotes
-          ? `${combinedNotes}\n\n${noteText}`
-          : noteText;
-      }
-
       // 4️⃣ Get presets (for labour + parts)
       const presetRows: any = await db.execute(sql`
         SELECT name, unit_amount, tax_rate

@@ -2065,10 +2065,7 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
 });
 
 /* =========================
-   CONVERT COMPLETED JOB TO INVOICE
-========================= */
-
-jobs.post(
+  jobs.post(
   "/completed/:completedJobId/convert-to-invoice",
   requireAuth,
   requireOrg,
@@ -2113,7 +2110,43 @@ jobs.post(
         });
       }
 
-      // 3️⃣ Create invoice
+      // 3️⃣ Merge job notes + work notes
+      const noteRows: any = await db.execute(sql`
+        SELECT text
+        FROM completed_job_notes
+        WHERE completed_job_id = ${completedJobId}::uuid
+        AND org_id = ${orgId}::uuid
+        ORDER BY created_at ASC
+      `);
+
+      let combinedNotes = job.notes || "";
+      if (noteRows.length) {
+        const noteText = noteRows.map((n: any) => n.text).join("\n");
+        combinedNotes = combinedNotes
+          ? `${combinedNotes}\n\n${noteText}`
+          : noteText;
+      }
+
+      // 4️⃣ Get presets (for labour + parts)
+      const presetRows: any = await db.execute(sql`
+        SELECT name, unit_amount, tax_rate
+        FROM item_presets
+        WHERE org_id = ${orgId}::uuid
+      `);
+
+      const presetMap = new Map<string, any>();
+      let labourPreset: any = null;
+
+      for (const p of presetRows) {
+        const key = String(p.name || "").toLowerCase();
+        presetMap.set(key, p);
+
+        if (!labourPreset && (key === "labour" || key.includes("hour"))) {
+          labourPreset = p;
+        }
+      }
+
+      // 5️⃣ Create invoice
       const invoiceResult: any = await db.execute(sql`
         INSERT INTO invoices (
           org_id,
@@ -2131,7 +2164,7 @@ jobs.post(
           ${job.customer_id}::uuid,
           ${job.original_job_id}::uuid,
           ${`Invoice for: ${job.title}`},
-          ${job.notes || ""},
+          ${combinedNotes},
           'draft',
           0,
           0,
@@ -2141,11 +2174,10 @@ jobs.post(
       `);
 
       const invoiceId = invoiceResult[0].id;
-
       let position = 0;
       const lineItems: any[] = [];
 
-      // 4️⃣ Charges
+      // 6️⃣ Charges
       const charges: any = await db.execute(sql`
         SELECT description, quantity, unit_price
         FROM completed_job_charges
@@ -2154,6 +2186,9 @@ jobs.post(
       `);
 
       for (const c of charges) {
+        const qty = Number(c.quantity) || 1;
+        const price = Number(c.unit_price) || 0;
+
         await db.execute(sql`
           INSERT INTO invoice_lines (
             org_id, invoice_id, position,
@@ -2164,22 +2199,17 @@ jobs.post(
             ${invoiceId}::uuid,
             ${position},
             ${c.description},
-            ${c.quantity},
-            ${c.unit_price},
+            ${qty},
+            ${price},
             10
           )
         `);
 
-        lineItems.push({
-          quantity: c.quantity,
-          unit_amount: c.unit_price,
-          tax_rate: 10,
-        });
-
+        lineItems.push({ quantity: qty, unit_amount: price, tax_rate: 10 });
         position++;
       }
 
-      // 5️⃣ Hours
+      // 7️⃣ Hours (uses labour preset)
       const hours: any = await db.execute(sql`
         SELECT hours, description
         FROM completed_job_hours
@@ -2188,6 +2218,10 @@ jobs.post(
       `);
 
       for (const h of hours) {
+        const qty = Number(h.hours) || 1;
+        const price = Number(labourPreset?.unit_amount) || 0;
+        const tax = Number(labourPreset?.tax_rate) || 10;
+
         await db.execute(sql`
           INSERT INTO invoice_lines (
             org_id, invoice_id, position,
@@ -2198,22 +2232,17 @@ jobs.post(
             ${invoiceId}::uuid,
             ${position},
             ${h.description || "Labour"},
-            ${h.hours},
-            0,
-            10
+            ${qty},
+            ${price},
+            ${tax}
           )
         `);
 
-        lineItems.push({
-          quantity: h.hours,
-          unit_amount: 0,
-          tax_rate: 10,
-        });
-
+        lineItems.push({ quantity: qty, unit_amount: price, tax_rate: tax });
         position++;
       }
 
-      // 6️⃣ Parts
+      // 8️⃣ Parts (uses preset if exists)
       const parts: any = await db.execute(sql`
         SELECT part_name, quantity
         FROM completed_job_parts
@@ -2222,6 +2251,14 @@ jobs.post(
       `);
 
       for (const p of parts) {
+        const name = String(p.part_name || "").trim();
+        if (!name) continue;
+
+        const preset = presetMap.get(name.toLowerCase());
+        const qty = Number(p.quantity) || 1;
+        const price = Number(preset?.unit_amount) || 0;
+        const tax = Number(preset?.tax_rate) || 10;
+
         await db.execute(sql`
           INSERT INTO invoice_lines (
             org_id, invoice_id, position,
@@ -2231,23 +2268,18 @@ jobs.post(
             ${orgId}::uuid,
             ${invoiceId}::uuid,
             ${position},
-            ${p.part_name},
-            ${p.quantity},
-            0,
-            10
+            ${name},
+            ${qty},
+            ${price},
+            ${tax}
           )
         `);
 
-        lineItems.push({
-          quantity: p.quantity,
-          unit_amount: 0,
-          tax_rate: 10,
-        });
-
+        lineItems.push({ quantity: qty, unit_amount: price, tax_rate: tax });
         position++;
       }
 
-      // 7️⃣ Calculate totals
+      // 9️⃣ Totals
       const { sumLines } = await import("../lib/totals.js");
       const { sub_total, tax_total, grand_total } = sumLines(lineItems);
 
@@ -2272,4 +2304,3 @@ jobs.post(
     }
   }
 );
-

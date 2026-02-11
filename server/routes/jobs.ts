@@ -2064,7 +2064,10 @@ jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
-/* =========================
+ // =========================
+ // CONVERT COMPLETED JOB TO INVOICE
+ // =========================
+
   jobs.post(
   "/completed/:completedJobId/convert-to-invoice",
   requireAuth,

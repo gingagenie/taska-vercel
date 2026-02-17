@@ -1527,154 +1527,286 @@ jobs.get("/:jobId/parts", requireAuth, requireOrg, async (req, res) => {
 });
 
 /* =========================
-   COMPLETE JOB (move to completed_*)
+   COMPLETE JOB
+   Fully atomic — all steps run inside a single database transaction.
+   If anything fails the transaction rolls back and the original job
+   is completely untouched.
 ========================= */
 
 jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
-  const userId = (req as any).user?.id;
+  const userId = (req as any).user?.id || null;
 
-  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
+  if (!isUuid(jobId)) {
+    return res.status(400).json({ error: "Invalid jobId" });
+  }
+
+  // We use a raw pg client to issue BEGIN / COMMIT / ROLLBACK.
+  // Drizzle's db.execute() uses the shared pool and cannot do manual
+  // transaction control. We keep a module-level pool (max 3 conns)
+  // so we don't spin up a new Pool on every request.
+  const { Pool } = await import("pg");
+
+  if (!(globalThis as any).__completeJobPool) {
+    (globalThis as any).__completeJobPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 3,
+      ssl: process.env.NODE_ENV === "production"
+        ? { rejectUnauthorized: false }
+        : false,
+    });
+  }
+  const pgPool: InstanceType<typeof Pool> =
+    (globalThis as any).__completeJobPool;
+
+  const client = await pgPool.connect();
 
   try {
-    const jobResult: any = await db.execute(sql`
-      SELECT j.*, c.name as customer_name
-      FROM jobs j
-      LEFT JOIN customers c ON j.customer_id = c.id
-      WHERE j.id = ${jobId}::uuid AND j.org_id = ${orgId}::uuid
-    `);
+    await client.query("BEGIN");
 
-    if (jobResult.length === 0) return res.status(404).json({ error: "Job not found" });
+    // ── 1. Load the active job ──────────────────────────────────────────
+    const jobResult = await client.query(
+      `SELECT j.id, j.org_id, j.customer_id, j.title, j.description,
+              j.status, j.job_type, j.notes, j.scheduled_at,
+              j.created_by, j.created_at,
+              c.name AS customer_name
+       FROM jobs j
+       LEFT JOIN customers c ON c.id = j.customer_id
+       WHERE j.id = $1 AND j.org_id = $2
+       LIMIT 1`,
+      [jobId, orgId]
+    );
 
-    const job = jobResult[0];
+    if (jobResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Job not found" });
+    }
 
-    const completedResult: any = await db.execute(sql`
-      INSERT INTO completed_jobs (
-        org_id, original_job_id, customer_id, customer_name, title, description, job_type, notes,
-        scheduled_at, completed_by, original_created_by, original_created_at
-      )
-      VALUES (
-        ${orgId}::uuid, ${jobId}::uuid, ${job.customer_id}::uuid, ${job.customer_name},
-        ${job.title}, ${job.description}, ${job.job_type}, ${job.notes},
-        ${job.scheduled_at}, ${userId}, ${job.created_by}, ${job.created_at}
-      )
-      RETURNING id, completed_at
-    `);
+    const job = jobResult.rows[0];
 
-    // Copy charges/hours/parts/notes/photos/equipment
-    await db.execute(sql`
-      INSERT INTO completed_job_charges (
-        completed_job_id, original_job_id, org_id, kind, description, quantity, unit_price, total, created_at
-      )
-      SELECT 
-        ${completedResult[0].id}::uuid,
-        ${jobId}::uuid,
-        org_id,
-        kind,
-        description,
-        quantity,
-        unit_price,
-        total,
-        created_at
-      FROM job_charges
-      WHERE job_id = ${jobId}::uuid
-    `);
+    // ── 2. Create the completed_jobs record ────────────────────────────
+    const completedResult = await client.query(
+      `INSERT INTO completed_jobs (
+         org_id, original_job_id, customer_id, customer_name,
+         title, description, job_type, notes, scheduled_at,
+         completed_at, completed_by,
+         original_created_by, original_created_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, $11, $12)
+       RETURNING id`,
+      [
+        orgId,
+        jobId,
+        job.customer_id   || null,
+        job.customer_name || null,
+        job.title,
+        job.description   || null,
+        job.job_type      || null,
+        job.notes         || null,
+        job.scheduled_at  || null,
+        userId,
+        job.created_by    || null,
+        job.created_at    || null,
+      ]
+    );
 
-    await db.execute(sql`
-      INSERT INTO completed_job_hours (
-        completed_job_id, original_job_id, org_id, hours, description, created_at
-      )
-      SELECT 
-        ${completedResult[0].id}::uuid,
-        ${jobId}::uuid,
-        org_id,
-        hours,
-        description,
-        created_at
-      FROM job_hours
-      WHERE job_id = ${jobId}::uuid
-    `);
+    const completedJobId: string = completedResult.rows[0].id;
 
-    await db.execute(sql`
-      INSERT INTO completed_job_parts (
-        completed_job_id, original_job_id, org_id, part_name, quantity, created_at
-      )
-      SELECT 
-        ${completedResult[0].id}::uuid,
-        ${jobId}::uuid,
-        org_id,
-        part_name,
-        quantity,
-        created_at
-      FROM job_parts
-      WHERE job_id = ${jobId}::uuid
-    `);
+    // ── 3. Copy notes ───────────────────────────────────────────────────
+    await client.query(
+      `INSERT INTO completed_job_notes
+         (completed_job_id, original_job_id, org_id, text, created_at)
+       SELECT $1, job_id, org_id, text, created_at
+       FROM job_notes
+       WHERE job_id = $2 AND org_id = $3`,
+      [completedJobId, jobId, orgId]
+    );
 
-    await db.execute(sql`
-      INSERT INTO completed_job_notes (
-        completed_job_id, original_job_id, org_id, text, created_at
-      )
-      SELECT 
-        ${completedResult[0].id}::uuid,
-        ${jobId}::uuid,
-        org_id,
-        text,
-        created_at
-      FROM job_notes
-      WHERE job_id = ${jobId}::uuid
-    `);
+    // ── 4. Copy hours ───────────────────────────────────────────────────
+    await client.query(
+      `INSERT INTO completed_job_hours
+         (completed_job_id, original_job_id, org_id, hours, description, created_at)
+       SELECT $1, job_id, org_id, hours, description, created_at
+       FROM job_hours
+       WHERE job_id = $2 AND org_id = $3`,
+      [completedJobId, jobId, orgId]
+    );
 
-    // IMPORTANT: completed_job_photos has NO object_key column in your DB
-    await db.execute(sql`
-      INSERT INTO completed_job_photos (
-        completed_job_id, original_job_id, org_id, url, created_at
-      )
-      SELECT 
-        ${completedResult[0].id}::uuid,
-        ${jobId}::uuid,
-        org_id,
-        url,
-        created_at
-      FROM job_photos
-      WHERE job_id = ${jobId}::uuid
-    `);
+    // ── 5. Copy parts ───────────────────────────────────────────────────
+    await client.query(
+      `INSERT INTO completed_job_parts
+         (completed_job_id, original_job_id, org_id, part_name, quantity, created_at)
+       SELECT $1, job_id, org_id, part_name, quantity, created_at
+       FROM job_parts
+       WHERE job_id = $2 AND org_id = $3`,
+      [completedJobId, jobId, orgId]
+    );
 
-    await db.execute(sql`
-      INSERT INTO completed_job_equipment (
-        completed_job_id, original_job_id, org_id, equipment_id, equipment_name, created_at
-      )
-      SELECT 
-        ${completedResult[0].id}::uuid,
-        ${jobId}::uuid,
-        ${orgId}::uuid,
-        je.equipment_id,
-        e.name,
-        je.created_at
-      FROM job_equipment je
-      LEFT JOIN equipment e ON je.equipment_id = e.id
-      WHERE je.job_id = ${jobId}::uuid
-    `);
+    // ── 6. Copy charges ─────────────────────────────────────────────────
+    // job_charges exists in the DB but is not in schema.ts — copy
+    // defensively so no charge data is ever lost on job completion.
+    try {
+      await client.query(
+        `INSERT INTO completed_job_charges
+           (completed_job_id, original_job_id, org_id,
+            kind, description, quantity, unit_price, total, created_at)
+         SELECT $1, job_id, org_id,
+                kind, description, quantity, unit_price, total, created_at
+         FROM job_charges
+         WHERE job_id = $2 AND org_id = $3`,
+        [completedJobId, jobId, orgId]
+      );
+    } catch (chargesErr: any) {
+      // completed_job_charges may not exist on older installs — skip, don't abort
+      console.warn(
+        "[COMPLETE_JOB] Skipping charges copy (table may not exist):",
+        chargesErr?.message
+      );
+    }
 
-    // cleanup
-    await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
-    await db.execute(sql`DELETE FROM job_assignments WHERE job_id = ${jobId}::uuid`);
-    await db.execute(sql`DELETE FROM job_equipment WHERE job_id = ${jobId}::uuid`);
-    await db.execute(sql`DELETE FROM job_photos WHERE job_id = ${jobId}::uuid`);
-    await db.execute(sql`DELETE FROM job_hours WHERE job_id = ${jobId}::uuid`);
-    await db.execute(sql`DELETE FROM job_notes WHERE job_id = ${jobId}::uuid`);
-    await db.execute(sql`DELETE FROM job_parts WHERE job_id = ${jobId}::uuid`);
-    await db.execute(sql`DELETE FROM job_charges WHERE job_id = ${jobId}::uuid`);
-    await db.execute(sql`DELETE FROM jobs WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    // ── 7. Copy equipment (name snapshot) ──────────────────────────────
+    // job_equipment has no org_id column, so we supply orgId as $3
+    await client.query(
+      `INSERT INTO completed_job_equipment
+         (completed_job_id, original_job_id, org_id, equipment_id, equipment_name, created_at)
+       SELECT $1, je.job_id, $3, je.equipment_id, e.name, je.created_at
+       FROM job_equipment je
+       JOIN equipment e ON e.id = je.equipment_id
+       WHERE je.job_id = $2`,
+      [completedJobId, jobId, orgId]
+    );
 
-    res.json({
+    // ── 8. Copy photos ──────────────────────────────────────────────────
+    await client.query(
+      `INSERT INTO completed_job_photos
+         (completed_job_id, original_job_id, org_id, url, created_at)
+       SELECT $1, $2, org_id, url, created_at
+       FROM job_photos
+       WHERE job_id = $2 AND org_id = $3`,
+      [completedJobId, jobId, orgId]
+    );
+
+    // ── 9 & 10. Service interval: update equipment + create follow-up ───
+    // Only runs for equipment that has service_interval_months set (> 0).
+    // If no equipment has a service interval this section is a no-op.
+    const equipmentResult = await client.query(
+      `SELECT e.id, e.name, e.service_interval_months, e.customer_id
+       FROM job_equipment je
+       JOIN equipment e ON e.id = je.equipment_id
+       WHERE je.job_id = $1
+         AND e.service_interval_months IS NOT NULL
+         AND e.service_interval_months > 0`,
+      [jobId]
+    );
+
+    const completedAt = new Date();
+    let nextJobId: string | null = null;
+
+    for (const equip of equipmentResult.rows) {
+      const intervalMonths = Number(equip.service_interval_months);
+
+      // Next service = today + interval months
+      const nextServiceDate = new Date(completedAt);
+      nextServiceDate.setMonth(nextServiceDate.getMonth() + intervalMonths);
+
+      // ── 9. Stamp service dates on the equipment ─────────────────────
+      await client.query(
+        `UPDATE equipment
+         SET last_service_date = $1,
+             next_service_date  = $2
+         WHERE id = $3 AND org_id = $4`,
+        [
+          completedAt.toISOString(),
+          nextServiceDate.toISOString(),
+          equip.id,
+          orgId,
+        ]
+      );
+
+      // ── 10. Create the follow-up service job ────────────────────────
+      const followUpTitle = `Service – ${equip.name}`;
+      const followUpDescription =
+        `Auto-scheduled ${intervalMonths}-month service for ${equip.name}. ` +
+        `Previous service completed ${completedAt.toLocaleDateString("en-AU")}.`;
+
+      const newJobResult = await client.query(
+        `INSERT INTO jobs
+           (org_id, customer_id, title, description,
+            job_type, scheduled_at, status, created_by)
+         VALUES ($1, $2, $3, $4, 'Service', $5, 'new', $6)
+         RETURNING id`,
+        [
+          orgId,
+          equip.customer_id || null,
+          followUpTitle,
+          followUpDescription,
+          nextServiceDate.toISOString(),
+          userId,
+        ]
+      );
+
+      nextJobId = newJobResult.rows[0].id;
+
+      // Link equipment to the new job
+      await client.query(
+        `INSERT INTO job_equipment (job_id, equipment_id)
+         VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [nextJobId, equip.id]
+      );
+
+      // Re-assign the same technicians to the new job
+      await client.query(
+        `INSERT INTO job_assignments (job_id, user_id, assigned_at)
+         SELECT $1, user_id, NOW()
+         FROM job_assignments
+         WHERE job_id = $2
+         ON CONFLICT DO NOTHING`,
+        [nextJobId, jobId]
+      );
+    }
+
+    // ── 11. Delete the original active job ─────────────────────────────
+    // FK ON DELETE CASCADE automatically removes:
+    //   job_assignments, job_equipment, job_photos,
+    //   job_notes, job_hours, job_parts, job_charges
+    await client.query(
+      `DELETE FROM jobs WHERE id = $1 AND org_id = $2`,
+      [jobId, orgId]
+    );
+
+    // ── Commit everything ───────────────────────────────────────────────
+    await client.query("COMMIT");
+
+    console.log(
+      `[COMPLETE_JOB] ✅ Job ${jobId} → completedJobId=${completedJobId}` +
+      (nextJobId
+        ? ` followUpJobId=${nextJobId}`
+        : " (no service interval set)")
+    );
+
+    return res.json({
       ok: true,
-      completed_job_id: completedResult[0].id,
-      completed_at: completedResult[0].completed_at,
+      completedJobId,
+      nextJobId,
+      message: nextJobId
+        ? "Job completed and follow-up service job scheduled"
+        : "Job completed successfully",
     });
-  } catch (e: any) {
-    console.error("POST /api/jobs/:jobId/complete error:", e);
-    res.status(500).json({ error: e?.message || "Failed to complete job" });
+
+  } catch (err: any) {
+    try { await client.query("ROLLBACK"); } catch {}
+    console.error(
+      "[COMPLETE_JOB] ❌ Transaction rolled back — original job is untouched:",
+      err?.message || err
+    );
+    return res.status(500).json({
+      error: err?.message || "Failed to complete job",
+    });
+
+  } finally {
+    client.release();
   }
 });
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { useRoute, useLocation, Link } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { api, photosApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { localInputFromISO, isoFromLocalInput } from "@/lib/datetime";
 
 export default function JobEdit() {
@@ -40,9 +41,7 @@ export default function JobEdit() {
         setStatus(j.status || "new");
         setScheduledAt(localInputFromISO(j.scheduled_at));
         setCustomerId(j.customer_id || "");
-        // Set equipment from job (take first one if multiple)
         setEquipmentId(j.equipment?.[0]?.id || "");
-        // Set assigned user from job (take first technician if multiple)
         setAssignedUserId(j.technicians?.[0]?.id || "");
 
         const [cs, photosData, membersData] = await Promise.all([
@@ -55,17 +54,15 @@ export default function JobEdit() {
         setPhotos(photosData || []);
         setMembers(membersData || []);
         
-        // Load equipment filtered by customer (if customer is selected)
         if (j.customer_id) {
           try {
             const eq = await api(`/api/jobs/equipment?customerId=${encodeURIComponent(j.customer_id)}`);
             if (alive) setEquipment(eq || []);
-          } catch (equipmentError) {
-            console.error('Failed to load equipment:', equipmentError);
+          } catch {
             if (alive) setEquipment([]);
           }
         } else {
-          setEquipment([]); // No customer selected, no equipment
+          setEquipment([]);
         }
       } catch (e: any) {
         if (!alive) return;
@@ -77,35 +74,22 @@ export default function JobEdit() {
     return () => { alive = false; };
   }, [jobId]);
 
-  // Filter equipment when customer changes (like job creation does)
   useEffect(() => {
     if (!customerId || customerId === "none") {
       setEquipment([]);
       setEquipmentId("");
       return;
     }
-    
     (async () => {
       try {
         const eq = await api(`/api/jobs/equipment?customerId=${encodeURIComponent(customerId)}`);
         setEquipment(eq || []);
-        setEquipmentId(""); // Reset selection when customer changes
-      } catch (e: any) {
-        console.error('Failed to load equipment for customer:', e);
+        setEquipmentId("");
+      } catch {
         setEquipment([]);
       }
     })();
   }, [customerId]);
-
-  function normalizeDate(v: string | null | undefined): string | null {
-    if (!v) return null;
-    if (v.includes("T")) {
-      const [d, t] = v.split("T");
-      const tt = t.length === 5 ? `${t}:00` : t; // HH:MM -> HH:MM:SS
-      return `${d} ${tt}`.slice(0, 19);
-    }
-    return v;
-  }
 
   async function save() {
     if (!title.trim()) {
@@ -141,8 +125,6 @@ export default function JobEdit() {
     <div className="p-6 space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Edit Job</h1>
-
-        {/* Use a button that navigates instead of <a> inside <Link> */}
         <Button variant="outline" onClick={() => navigate(`/jobs/${jobId}`)}>
           Back to job
         </Button>
@@ -182,10 +164,10 @@ export default function JobEdit() {
 
           <div>
             <label className="block text-sm font-medium mb-1">Scheduled At (Melbourne Time)</label>
-            <Input
-              type="datetime-local"
+            <DateTimePicker
               value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
+              onChange={setScheduledAt}
+              placeholder="Pick date & time"
             />
           </div>
 
@@ -198,9 +180,7 @@ export default function JobEdit() {
             >
               <option value="">— None —</option>
               {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
@@ -231,9 +211,7 @@ export default function JobEdit() {
             >
               <option value="">— Unassigned —</option>
               {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
+                <option key={member.id} value={member.id}>{member.name}</option>
               ))}
             </select>
           </div>
@@ -265,7 +243,6 @@ export default function JobEdit() {
             />
             {uploading && <div className="text-sm text-blue-600 mt-1">Uploading...</div>}
             
-            {/* Display uploaded photos */}
             {photos.length > 0 && (
               <div className="mt-3">
                 <div className="text-sm text-gray-600 mb-2">{photos.length} photo(s) uploaded</div>

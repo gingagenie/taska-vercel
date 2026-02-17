@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { isoFromLocalInput } from "@/lib/datetime";
 
 type Props = { 
@@ -79,16 +80,6 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
     }
   }, [open, defaultCustomerId]);
 
-  function normalizeDate(v: string | null | undefined): string | null {
-    if (!v) return null;
-    if (v.includes("T")) {
-      const [d, t] = v.split("T");
-      const tt = t.length === 5 ? `${t}:00` : t; // HH:MM -> HH:MM:SS
-      return `${d} ${tt}`.slice(0, 19);
-    }
-    return v;
-  }
-
   async function createJob() {
     if (!title.trim()) {
       setErr("Title is required");
@@ -103,11 +94,10 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
         description,
         customerId: customerId || null,
         scheduledAt: isoFromLocalInput(scheduledAt),
-        equipmentId: equipmentId || null, // single equipment
+        equipmentId: equipmentId || null,
         assignedTechIds,
       };
       const r = await jobsApi.create(body);
-      // Invalidate jobs list and schedule range to refresh
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs/range"] });
       onOpenChange(false);
@@ -172,10 +162,10 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
 
           <div>
             <Label>Scheduled At (Melbourne Time)</Label>
-            <Input
-              type="datetime-local"
+            <DateTimePicker
               value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
+              onChange={setScheduledAt}
+              placeholder="Pick date & time"
             />
           </div>
 
@@ -189,7 +179,6 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
                 try {
                   const result = await customersApi.create({ name });
                   const newCustomer = result.customer;
-                  // Update local customers list
                   setCustomers(prev => [...prev, newCustomer]);
                   return { id: newCustomer.id, name: newCustomer.name };
                 } catch (error) {
@@ -220,7 +209,6 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
                     customerId 
                   });
                   const newEquipment = { id: result.id, name, customerId };
-                  // Update local equipment list
                   setEquipment(prev => [...prev, newEquipment]);
                   return { id: result.id, name };
                 } catch (error) {
@@ -238,7 +226,6 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
 
           <div>
             <label className="block text-sm font-medium mb-1">Assign technicians</label>
-            {/* Simple multi-select using native <select multiple>. */}
             <select
               multiple
               className="w-full border rounded p-2 h-28"

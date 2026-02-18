@@ -1,22 +1,18 @@
-// Force rebuild - v2
 import { google } from "googleapis";
 import { Readable } from "stream";
 
 function getDriveClient() {
-  let raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  // Use separate environment variables instead of JSON
+  const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY;
   
-  // Support base64-encoded JSON (for Railway compatibility)
-  if (!raw && process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64) {
-    raw = Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, 'base64').toString('utf-8');
+  if (!clientEmail || !privateKey) {
+    throw new Error("Missing GOOGLE_CLIENT_EMAIL or GOOGLE_PRIVATE_KEY environment variables");
   }
-  
-  if (!raw) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_JSON_BASE64");
-
-  const json = JSON.parse(raw);
 
   const auth = new google.auth.JWT({
-    email: json.client_email,
-    key: json.private_key,
+    email: clientEmail,
+    key: privateKey,
     scopes: ["https://www.googleapis.com/auth/drive"],
   });
 

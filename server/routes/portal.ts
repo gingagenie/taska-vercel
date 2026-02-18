@@ -1,4 +1,4 @@
-// server/routes/portal.ts
+
 import { Router } from "express";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";

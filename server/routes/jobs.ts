@@ -1687,45 +1687,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       [completedJobId, jobId, orgId]
     );
     
-// ── 9. Upload service sheet to Google Drive ──────────────────────
-    const equipmentWithFolders = await client.query(
-      `SELECT e.id, e.name, e.google_drive_folder_id
-       FROM job_equipment je
-       JOIN equipment e ON e.id = je.equipment_id
-       WHERE je.job_id = $1
-       LIMIT 1`,
-      [jobId]
-    );
 
-    if (equipmentWithFolders.rows.length > 0) {
-      const equip = equipmentWithFolders.rows[0];
-      
-      try {
-        const { generateServiceSheetPDF } = await import('../lib/service-sheet-generator');
-        const pdfBuffer = await generateServiceSheetPDF(completedResult.rows[0].id, orgId);
-        
-        const { uploadServiceSheet } = await import('../services/googleDrive');
-        const dateStr = new Date().toISOString().split('T')[0];
-        
-        const { folderId } = await uploadServiceSheet({
-          equipmentName: equip.name,
-          pdfBuffer,
-          date: dateStr,
-          existingFolderId: equip.google_drive_folder_id,
-        });
-        
-        if (!equip.google_drive_folder_id) {
-          await client.query(
-            `UPDATE equipment SET google_drive_folder_id = $1 WHERE id = $2`,
-            [folderId, equip.id]
-          );
-        }
-        
-        console.log(`✅ Service sheet uploaded to Google Drive: ${equip.name} - ${dateStr}.pdf`);
-      } catch (driveErr) {
-        console.error('⚠️ Google Drive upload failed (non-fatal):', driveErr);
-      }
-    }
     // ── 10 & 11. Service interval: update equipment + create follow-up ───
     // Only runs for equipment that has service_interval_months set (> 0).
     // If no equipment has a service interval this section is a no-op.
@@ -1824,7 +1786,46 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         ? ` followUpJobId=${nextJobId}`
         : " (no service interval set)")
     );
+// ── 9. Upload service sheet to Google Drive ──────────────────────
+    const equipmentWithFolders = await client.query(
+      `SELECT e.id, e.name, e.google_drive_folder_id
+       FROM job_equipment je
+       JOIN equipment e ON e.id = je.equipment_id
+       WHERE je.job_id = $1
+       LIMIT 1`,
+      [jobId]
+    );
 
+    if (equipmentWithFolders.rows.length > 0) {
+      const equip = equipmentWithFolders.rows[0];
+      
+      try {
+        const { generateServiceSheetPDF } = await import('../lib/service-sheet-generator');
+        const pdfBuffer = await generateServiceSheetPDF(completedResult.rows[0].id, orgId);
+        
+        const { uploadServiceSheet } = await import('../services/googleDrive');
+        const dateStr = new Date().toISOString().split('T')[0];
+        
+        const { folderId } = await uploadServiceSheet({
+          equipmentName: equip.name,
+          pdfBuffer,
+          date: dateStr,
+          existingFolderId: equip.google_drive_folder_id,
+        });
+        
+        if (!equip.google_drive_folder_id) {
+          await client.query(
+            `UPDATE equipment SET google_drive_folder_id = $1 WHERE id = $2`,
+            [folderId, equip.id]
+          );
+        }
+        
+        console.log(`✅ Service sheet uploaded to Google Drive: ${equip.name} - ${dateStr}.pdf`);
+      } catch (driveErr) {
+        console.error('⚠️ Google Drive upload failed (non-fatal):', driveErr);
+      }
+    }
+    
     return res.json({
       ok: true,
       completedJobId,

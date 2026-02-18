@@ -96,6 +96,7 @@ export const equipment = pgTable("equipment", {
   serviceIntervalMonths: integer("service_interval_months"), // 6, 12, or null for no auto-scheduling
   lastServiceDate: timestamp("last_service_date"),
   nextServiceDate: timestamp("next_service_date"),
+  googleDriveFolderId: varchar("google_drive_folder_id", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

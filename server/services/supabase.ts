@@ -1,16 +1,32 @@
 import { StorageClient } from "@supabase/storage-js";
 import crypto from "node:crypto";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || "";
-const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const BUCKET_NAME = "photos"; // yes, still using the same bucket for now
 
-// Initialize Supabase Storage client
-const storageUrl = `${SUPABASE_URL}/storage/v1`;
-const storageClient = new StorageClient(storageUrl, {
-  apikey: SUPABASE_SERVICE_ROLE,
-  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
-});
+// Lazy-load storage client (only create when needed)
+let _storageClient: StorageClient | null = null;
+
+function getStorageClient(): StorageClient {
+  if (_storageClient) return _storageClient;
+  
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!SUPABASE_URL) {
+    throw new Error('SUPABASE_URL environment variable is not set');
+  }
+  if (!SUPABASE_SERVICE_ROLE) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY environment variable is not set');
+  }
+  
+  const storageUrl = `${SUPABASE_URL}/storage/v1`;
+  _storageClient = new StorageClient(storageUrl, {
+    apikey: SUPABASE_SERVICE_ROLE,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+  });
+  
+  return _storageClient;
+}
 
 export interface PhotoUploadParams {
   tenantId: string;
@@ -85,6 +101,7 @@ export function generateFileKey(params: {
 export async function createSignedUploadUrl(
   params: PhotoUploadParams
 ): Promise<PhotoUploadResult> {
+  const storageClient = getStorageClient();
   const key = generatePhotoKey(params);
 
   const { data, error } = await storageClient
@@ -114,6 +131,7 @@ export async function createSignedViewUrl(
   key: string,
   expiresIn: number = 900
 ): Promise<string | null> {
+  const storageClient = getStorageClient();
   const { data, error } = await storageClient
     .from(BUCKET_NAME)
     .createSignedUrl(key, expiresIn);
@@ -144,6 +162,7 @@ export interface DirectUploadResult {
 export async function uploadPhotoToSupabase(
   params: DirectUploadParams
 ): Promise<DirectUploadResult> {
+  const storageClient = getStorageClient();
   const key = generatePhotoKey({
     tenantId: params.tenantId,
     jobId: params.jobId,
@@ -175,6 +194,7 @@ export async function uploadFileToSupabase(params: {
   contentType?: string; // e.g. "application/pdf"
   folder?: string; // default "docs"
 }): Promise<{ key: string }> {
+  const storageClient = getStorageClient();
   const key = generateFileKey({
     tenantId: params.tenantId,
     jobId: params.jobId,
@@ -204,6 +224,7 @@ export async function uploadFile(
   fileBuffer: Buffer,
   contentType: string = "image/jpeg"
 ): Promise<boolean> {
+  const storageClient = getStorageClient();
   const { error } = await storageClient.from(BUCKET_NAME).upload(key, fileBuffer, {
     contentType,
     upsert: true,
@@ -221,6 +242,7 @@ export async function uploadFile(
  * Delete a file from storage
  */
 export async function deleteFile(key: string): Promise<boolean> {
+  const storageClient = getStorageClient();
   const { error } = await storageClient.from(BUCKET_NAME).remove([key]);
 
   if (error) {
@@ -236,6 +258,7 @@ export async function deleteFile(key: string): Promise<boolean> {
  */
 export async function ensurePhotoBucketExists(): Promise<void> {
   try {
+    const storageClient = getStorageClient();
     const { data: buckets } = await storageClient.listBuckets();
     const exists = buckets?.some((b) => b.name === BUCKET_NAME);
 

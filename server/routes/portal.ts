@@ -3,6 +3,7 @@ import { Router } from "express";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import jobsRouter from "./jobs";
+import bcrypt from "bcryptjs";
 
 const portalRouter = Router();
 
@@ -31,6 +32,84 @@ async function getOrgIdBySlug(orgSlug: string): Promise<string | null> {
   `);
   return r?.[0]?.id || null;
 }
+
+// Add this to server/routes/portal.ts after the helper functions and before the equipment endpoints
+/* --------------------------------------------------
+   LOGIN
+-------------------------------------------------- */
+
+portalRouter.post("/portal/:org/login", async (req: any, res) => {
+  try {
+    const { email, password } = req.body;
+    const orgSlug = req.params.org;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password required" });
+    }
+
+    const orgId = await getOrgIdBySlug(orgSlug);
+    if (!orgId) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+
+    // Find customer user by email and org
+    const users: any = await db.execute(sql`
+      SELECT id, customer_id, email, password_hash, disabled_at
+      FROM customer_users
+      WHERE email = ${email}
+        AND org_id = ${orgId}::uuid
+      LIMIT 1
+    `);
+
+    if (!users.length) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const user = users[0];
+
+    // Check if account is disabled
+    if (user.disabled_at) {
+      return res.status(401).json({ error: "Account disabled" });
+    }
+
+    // Verify password
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Set session
+    req.session.customerId = user.customer_id;
+    req.session.customerUserEmail = user.email;
+
+    // Save session and return success
+    req.session.save((err: any) => {
+      if (err) {
+        console.error("[portal login] Session save error:", err);
+        return res.status(500).json({ error: "Login failed" });
+      }
+      res.json({ success: true, customerId: user.customer_id });
+    });
+
+  } catch (e: any) {
+    console.error("[portal login]", e);
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
+/* --------------------------------------------------
+   LOGOUT
+-------------------------------------------------- */
+
+portalRouter.post("/portal/:org/logout", async (req: any, res) => {
+  req.session.destroy((err: any) => {
+    if (err) {
+      console.error("[portal logout]", err);
+      return res.status(500).json({ error: "Logout failed" });
+    }
+    res.json({ success: true });
+  });
+});
 
 /* --------------------------------------------------
    Debug

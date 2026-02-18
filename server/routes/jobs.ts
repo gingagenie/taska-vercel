@@ -1702,7 +1702,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       
       try {
         const { generateServiceSheetPDF } = await import('../lib/service-sheet-generator');
-        const pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
+        const pdfBuffer = await generateServiceSheetPDF(completedResult.rows[0].id, orgId);
         
         const { uploadServiceSheet } = await import('../services/googleDrive');
         const dateStr = new Date().toISOString().split('T')[0];

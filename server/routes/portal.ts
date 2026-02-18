@@ -143,7 +143,7 @@ portalRouter.get("/portal/:org/equipment", async (req: any, res) => {
     if (!customerId) return res.status(401).json({ error: "Not authenticated" });
 
     const r: any = await db.execute(sql`
-      SELECT id, name, make, model, serial_number
+      SELECT id, name, make, model, serial_number, last_service_date, next_service_date
       FROM equipment
       WHERE org_id = ${orgId}::uuid
         AND customer_id = ${customerId}::uuid

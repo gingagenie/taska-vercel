@@ -1766,8 +1766,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         [nextJobId, jobId]
       );
     }
-
-   }
     
     // ── 11. Upload service sheet to Google Drive ──────────────────────
     const equipmentWithFolders = await client.query(

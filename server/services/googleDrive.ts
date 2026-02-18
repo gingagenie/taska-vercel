@@ -2,10 +2,15 @@ import { google } from "googleapis";
 import { Readable } from "stream";
 
 function getDriveClient() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_JSON");
+  let raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  
+  // Support base64-encoded JSON (for Railway compatibility)
+  if (!raw && process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64) {
+    raw = Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, 'base64').toString('utf-8');
+  }
+  
+  if (!raw) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_JSON_BASE64");
 
-  // Parse the JSON - it should already be valid JSON with escaped newlines
   const json = JSON.parse(raw);
 
   const auth = new google.auth.JWT({

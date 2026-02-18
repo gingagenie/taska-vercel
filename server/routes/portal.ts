@@ -180,13 +180,15 @@ portalRouter.get("/portal/:org/equipment/:id", async (req: any, res) => {
     if (!eq.length) return res.status(404).json({ error: "Equipment not found" });
 
     const jobs: any = await db.execute(sql`
-      SELECT id, title, completed_at
-      FROM completed_jobs
-      WHERE org_id = ${orgId}::uuid
-        AND customer_id = ${customerId}::uuid
-      ORDER BY completed_at DESC
-    `);
-
+      SELECT DISTINCT cj.id, cj.title, cj.completed_at
+      FROM completed_jobs cj
+      INNER JOIN completed_job_equipment cje ON cje.completed_job_id = cj.id
+      WHERE cj.org_id = ${orgId}::uuid
+       AND cj.customer_id = ${customerId}::uuid
+       AND cje.equipment_id = ${id}::uuid
+     ORDER BY cj.completed_at DESC
+   `);
+     
     res.json({ equipment: eq[0], jobs });
   } catch (e: any) {
     console.error("[portal equipment detail]", e);

@@ -1767,7 +1767,49 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       );
     }
 
-    // ── 11. Delete the original active job ─────────────────────────────
+   }
+    
+    // ── 11. Upload service sheet to Google Drive ──────────────────────
+    const equipmentWithFolders = await client.query(
+      `SELECT e.id, e.name, e.google_drive_folder_id
+       FROM job_equipment je
+       JOIN equipment e ON e.id = je.equipment_id
+       WHERE je.job_id = $1
+       LIMIT 1`,
+      [jobId]
+    );
+
+    if (equipmentWithFolders.rows.length > 0) {
+      const equip = equipmentWithFolders.rows[0];
+      
+      try {
+        const { generateServiceSheetPDF } = await import('../lib/service-sheet-generator');
+        const pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
+        
+        const { uploadServiceSheet } = await import('../services/googleDrive');
+        const dateStr = new Date().toISOString().split('T')[0];
+        
+        const { folderId } = await uploadServiceSheet({
+          equipmentName: equip.name,
+          pdfBuffer,
+          date: dateStr,
+          existingFolderId: equip.google_drive_folder_id,
+        });
+        
+        if (!equip.google_drive_folder_id) {
+          await client.query(
+            `UPDATE equipment SET google_drive_folder_id = $1 WHERE id = $2`,
+            [folderId, equip.id]
+          );
+        }
+        
+        console.log(`✅ Service sheet uploaded to Google Drive: ${equip.name} - ${dateStr}.pdf`);
+      } catch (driveErr) {
+        console.error('⚠️ Google Drive upload failed (non-fatal):', driveErr);
+      }
+    }
+    
+    // ── 12. Delete the original active job ─────────────────────────────
     // FK ON DELETE CASCADE automatically removes:
     //   job_assignments, job_equipment, job_photos,
     //   job_notes, job_hours, job_parts, job_charges
@@ -1775,10 +1817,9 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       `DELETE FROM jobs WHERE id = $1 AND org_id = $2`,
       [jobId, orgId]
     );
-
+    
     // ── Commit everything ───────────────────────────────────────────────
     await client.query("COMMIT");
-
     console.log(
       `[COMPLETE_JOB] ✅ Job ${jobId} → completedJobId=${completedJobId}` +
       (nextJobId

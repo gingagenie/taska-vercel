@@ -149,6 +149,9 @@ await db.execute(sql`
   where id=${id}::uuid and org_id=${orgId}::uuid
 `);
 
+res.json({ ok: true });
+});
+
 /* DELETE (safe: block if linked to jobs) */
 equipment.delete("/:id", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params;

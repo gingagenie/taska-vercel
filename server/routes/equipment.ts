@@ -132,22 +132,22 @@ equipment.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
 
-  let { name, make, model, serial, notes, customerId, serviceIntervalMonths } = req.body || {};
-  if (customerId === "") customerId = null;
+  let { name, make, model, serial, notes, customerId, serviceIntervalMonths, lastServiceDate, nextServiceDate } = req.body || {};
+if (customerId === "") customerId = null;
 
-  await db.execute(sql`
-    update equipment set
-      name         = coalesce(${name}, name),
-      make         = coalesce(${make}, make),
-      model        = coalesce(${model}, model),
-      serial_number = coalesce(${serial}, serial_number),
-      notes        = coalesce(${notes}, notes),
-      customer_id  = ${customerId ? sql`${customerId}::uuid` : null},
-      service_interval_months = ${serviceIntervalMonths !== undefined ? serviceIntervalMonths : sql`service_interval_months`}
-    where id=${id}::uuid and org_id=${orgId}::uuid
-  `);
-  res.json({ ok: true });
-});
+await db.execute(sql`
+  update equipment set
+    name         = coalesce(${name}, name),
+    make         = coalesce(${make}, make),
+    model        = coalesce(${model}, model),
+    serial_number = coalesce(${serial}, serial_number),
+    notes        = coalesce(${notes}, notes),
+    customer_id  = ${customerId ? sql`${customerId}::uuid` : null},
+    service_interval_months = ${serviceIntervalMonths !== undefined ? serviceIntervalMonths : sql`service_interval_months`},
+    last_service_date = ${lastServiceDate || null},
+    next_service_date = ${nextServiceDate || null}
+  where id=${id}::uuid and org_id=${orgId}::uuid
+`);
 
 /* DELETE (safe: block if linked to jobs) */
 equipment.delete("/:id", requireAuth, requireOrg, async (req, res) => {

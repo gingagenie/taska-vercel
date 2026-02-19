@@ -82,7 +82,7 @@ export default function PortalEquipmentList() {
 
           return (
             <Link key={e.id} href={`/portal/${org}/equipment/${e.id}`}>
-              <Card className="cursor-pointer hover:shadow transition-shadow">
+              <Card className="cursor-pointer hover:shadow transition-shadow border-2 border-gray-200">
                 <CardHeader className="space-y-2">
                   <CardTitle className="text-base">{e.name}</CardTitle>
 

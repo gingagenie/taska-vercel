@@ -57,7 +57,7 @@ export default function PortalLogin() {
           <div className="flex items-center justify-center mb-2">
             {/* You can replace this with your actual logo */}
             <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
-              <span className="text-white font-bold text-xl">FM</span>
+              <span className="text-white font-bold text-xl">FMF</span>
             </div>
           </div>
           <CardTitle className="text-center text-2xl">Customer Portal</CardTitle>

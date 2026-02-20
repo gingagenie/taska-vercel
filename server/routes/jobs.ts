@@ -378,7 +378,7 @@ jobs.get(
       if (pdfKey) {
         console.log(`[PDF] Serving pre-generated PDF from storage: ${pdfKey}`);
         
-        const { createSignedViewUrl } = await import("../services/supabase");
+        const { createSignedViewUrl } = await import("../services/supabase-storage");
         const signedUrl = await createSignedViewUrl(pdfKey, 900); // 15 min expiry
 
         if (signedUrl) {

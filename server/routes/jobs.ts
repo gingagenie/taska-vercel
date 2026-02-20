@@ -344,9 +344,6 @@ jobs.get("/completed/:completedJobId/parts", requireAuth, requireOrg, async (req
   }
 });
 
-jobs.get(
-  
- // Replace the entire service sheet endpoint (starting around line 400) with this optimized version:
 
 jobs.get(
   "/completed/:completedJobId/service-sheet",

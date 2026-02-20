@@ -1564,7 +1564,43 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       WHERE je.job_id = ${jobId}::uuid
     `);
 
-    // GOOGLE DRIVE UPLOAD
+   // Replace the GOOGLE DRIVE UPLOAD section with this:
+
+    // GENERATE AND STORE SERVICE SHEET PDF
+    let servicePdfKey: string | null = null;
+    try {
+      const { generateServiceSheetPDF } = await import('../lib/service-sheet-generator');
+      const { uploadFileToSupabase } = await import('../services/supabase');
+      
+      console.log(`[PDF] Generating service sheet for job ${completedJobId}...`);
+      const pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
+      
+      console.log(`[PDF] Uploading to Supabase Storage...`);
+      const { key } = await uploadFileToSupabase({
+        tenantId: orgId,
+        jobId: completedJobId,
+        ext: 'pdf',
+        fileBuffer: pdfBuffer,
+        contentType: 'application/pdf',
+        folder: 'service-sheets',
+      });
+      
+      servicePdfKey = key;
+      console.log(`✅ Service sheet PDF stored: ${key}`);
+      
+      // Update completed_jobs with the PDF key
+      await db.execute(sql`
+        UPDATE completed_jobs 
+        SET service_sheet_pdf_key = ${servicePdfKey}
+        WHERE id = ${completedJobId}::uuid
+      `);
+      
+    } catch (err: any) {
+      console.error('⚠️ Service sheet PDF generation/upload failed:', err?.message);
+      // Non-fatal - job completion continues
+    }
+
+    // OPTIONAL: GOOGLE DRIVE UPLOAD (keep if you want both)
     try {
       const equipmentRows: any = await db.execute(sql`
         SELECT e.id, e.name, e.google_drive_folder_id
@@ -1576,10 +1612,19 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
 
       if (equipmentRows.length > 0) {
         const equip = equipmentRows[0];
-        const { generateServiceSheetPDF } = await import('../lib/service-sheet-generator');
         const { uploadServiceSheet } = await import('../services/googleDrive');
+        const { generateServiceSheetPDF } = await import('../lib/service-sheet-generator');
         
-        const pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
+        // Re-use the already generated PDF buffer if available, otherwise generate again
+        let pdfBuffer: Buffer;
+        if (servicePdfKey) {
+          // We already generated it above, but we need the buffer for Drive
+          // Option 1: Generate again (simpler but slower)
+          pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
+        } else {
+          pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
+        }
+        
         const dateStr = new Date().toISOString().split('T')[0];
         
         const { folderId } = await uploadServiceSheet({
@@ -1590,6 +1635,18 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
         });
         
         if (!equip.google_drive_folder_id) {
+          await db.execute(sql`
+            UPDATE equipment SET google_drive_folder_id = ${folderId} WHERE id = ${equip.id}::uuid
+          `);
+        }
+        
+        console.log(`✅ Service sheet uploaded to Drive: ${equip.name} - ${dateStr}.pdf`);
+      }
+    } catch (err) {
+      console.error('⚠️ Drive upload failed:', err);
+      // Non-fatal
+    }
+
           await db.execute(sql`
             UPDATE equipment SET google_drive_folder_id = ${folderId} WHERE id = ${equip.id}::uuid
           `);

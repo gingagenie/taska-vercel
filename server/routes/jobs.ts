@@ -1328,17 +1328,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       // Non-fatal
     }
 
-          await db.execute(sql`
-            UPDATE equipment SET google_drive_folder_id = ${folderId} WHERE id = ${equip.id}::uuid
-          `);
-        }
-        
-        console.log(`✅ Service sheet uploaded: ${equip.name} - ${dateStr}.pdf`);
-      }
-    } catch (err) {
-      console.error('⚠️ Drive upload failed:', err);
-    }
-
+  
     await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_assignments WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_equipment WHERE job_id = ${jobId}::uuid`);

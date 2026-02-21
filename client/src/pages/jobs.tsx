@@ -9,9 +9,83 @@ import { Badge } from "@/components/ui/badge";
 import { JobModal } from "@/components/modals/job-modal";
 import { jobsApi } from "@/lib/api";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Edit, MoreHorizontal, Calendar, User, ArrowRight, CheckCircle } from "lucide-react";
+import { Edit, MoreHorizontal, Calendar, User, ArrowRight, CheckCircle, AlertCircle, Clock } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { trackClickButton } from "@/lib/tiktok-tracking";
+
+// Helper to get urgency status
+function getUrgencyStatus(scheduledAt: string | null): {
+  level: 'overdue' | 'today' | 'upcoming' | 'none';
+  label: string;
+  color: string;
+  icon: any;
+} {
+  if (!scheduledAt) {
+    return { level: 'none', label: '', color: '', icon: null };
+  }
+
+  const scheduled = new Date(scheduledAt);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const scheduledDay = new Date(scheduled.getFullYear(), scheduled.getMonth(), scheduled.getDate());
+  
+  const diffMs = scheduled.getTime() - now.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  // Overdue
+  if (diffMs < 0) {
+    const hoursOverdue = Math.abs(diffHours);
+    const daysOverdue = Math.abs(diffDays);
+    
+    if (hoursOverdue < 24) {
+      return {
+        level: 'overdue',
+        label: `Overdue by ${Math.floor(hoursOverdue)}h`,
+        color: 'bg-red-100 text-red-700 border-red-200',
+        icon: AlertCircle
+      };
+    } else {
+      return {
+        level: 'overdue',
+        label: `Overdue by ${daysOverdue}d`,
+        color: 'bg-red-100 text-red-700 border-red-200',
+        icon: AlertCircle
+      };
+    }
+  }
+  
+  // Due today
+  if (scheduledDay.getTime() === today.getTime()) {
+    if (diffHours < 2) {
+      return {
+        level: 'today',
+        label: `Due in ${Math.floor(diffHours * 60)}m`,
+        color: 'bg-orange-100 text-orange-700 border-orange-200',
+        icon: Clock
+      };
+    } else if (diffHours < 24) {
+      return {
+        level: 'today',
+        label: `Due in ${Math.floor(diffHours)}h`,
+        color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+        icon: Clock
+      };
+    }
+  }
+  
+  // Upcoming
+  if (diffDays <= 7) {
+    return {
+      level: 'upcoming',
+      label: `In ${diffDays}d`,
+      color: 'bg-blue-100 text-blue-700 border-blue-200',
+      icon: Calendar
+    };
+  }
+
+  return { level: 'none', label: '', color: '', icon: null };
+}
 
 export default function Jobs() {
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
@@ -59,6 +133,27 @@ export default function Jobs() {
       return matchesStatus && matchesSearch;
     });
   }, [jobs, statusFilter, searchQuery]);
+
+  // Sort by urgency (overdue first, then today, then upcoming)
+  const sortedJobs = useMemo(() => {
+    return [...filteredJobs].sort((a, b) => {
+      const urgencyA = getUrgencyStatus(a.scheduled_at);
+      const urgencyB = getUrgencyStatus(b.scheduled_at);
+      
+      const urgencyOrder = { overdue: 0, today: 1, upcoming: 2, none: 3 };
+      const orderA = urgencyOrder[urgencyA.level];
+      const orderB = urgencyOrder[urgencyB.level];
+      
+      if (orderA !== orderB) return orderA - orderB;
+      
+      // If same urgency level, sort by scheduled time
+      if (a.scheduled_at && b.scheduled_at) {
+        return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+      }
+      
+      return 0;
+    });
+  }, [filteredJobs]);
 
   if (isLoading) {
     return (
@@ -122,7 +217,7 @@ export default function Jobs() {
         </div>
       </div>
 
-      {filteredJobs.length === 0 ? (
+      {sortedJobs.length === 0 ? (
         <Card className="border-jobs bg-white">
           <CardContent className="py-12 text-center">
             <p className="text-gray-500">
@@ -132,114 +227,131 @@ export default function Jobs() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {filteredJobs.map((job: any) => (
-            <Card 
-              key={job.id} 
-              className="border-jobs bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
-              onClick={() => navigate(`/jobs/${job.id}`)}
-              data-testid={`card-job-${job.id}`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-start gap-3">
-                      <div className="font-semibold text-lg group-hover:text-blue-600 transition-colors">
-                        {job.title || "Untitled Job"}
+          {sortedJobs.map((job: any) => {
+            const urgency = getUrgencyStatus(job.scheduled_at);
+            const UrgencyIcon = urgency.icon;
+            
+            return (
+              <Card 
+                key={job.id} 
+                className={`bg-white hover:shadow-md transition-all cursor-pointer group ${
+                  urgency.level === 'overdue' 
+                    ? 'border-2 border-red-300 hover:border-red-400' 
+                    : urgency.level === 'today'
+                    ? 'border-2 border-yellow-300 hover:border-yellow-400'
+                    : 'border-jobs hover:bg-gray-50'
+                }`}
+                onClick={() => navigate(`/jobs/${job.id}`)}
+                data-testid={`card-job-${job.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-start gap-3 flex-wrap">
+                        <div className="font-semibold text-lg group-hover:text-blue-600 transition-colors">
+                          {job.title || "Untitled Job"}
+                        </div>
+                        <Badge className={getStatusBadgeClass(job.status)}>
+                          {(job.status || "new").replace("_", " ")}
+                        </Badge>
+                        {urgency.label && (
+                          <Badge variant="outline" className={`${urgency.color} border font-medium`}>
+                            {UrgencyIcon && <UrgencyIcon className="h-3 w-3 mr-1" />}
+                            {urgency.label}
+                          </Badge>
+                        )}
+                        {/* Member color dots */}
+                        {job.technicians?.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            {job.technicians.slice(0, 3).map((tech: any) => (
+                              <div
+                                key={tech.id}
+                                className="w-3 h-3 rounded-full border border-white shadow-sm"
+                                style={{ backgroundColor: tech.color || '#3b82f6' }}
+                                title={tech.name}
+                              />
+                            ))}
+                            {job.technicians.length > 3 && (
+                              <span className="text-xs text-gray-500 ml-1">+{job.technicians.length - 3}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <Badge className={getStatusBadgeClass(job.status)}>
-                        {(job.status || "new").replace("_", " ")}
-                      </Badge>
-                      {/* Member color dots */}
-                      {job.technicians?.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          {job.technicians.slice(0, 3).map((tech: any) => (
-                            <div
-                              key={tech.id}
-                              className="w-3 h-3 rounded-full border border-white shadow-sm"
-                              style={{ backgroundColor: tech.color || '#3b82f6' }}
-                              title={tech.name}
-                            />
-                          ))}
-                          {job.technicians.length > 3 && (
-                            <span className="text-xs text-gray-500 ml-1">+{job.technicians.length - 3}</span>
-                          )}
+                      
+                      {job.description && (
+                        <div className="text-sm text-gray-600">
+                          {job.description}
                         </div>
                       )}
-                    </div>
-                    
-                    {job.description && (
-                      <div className="text-sm text-gray-600">
-                        {job.description}
-                      </div>
-                    )}
 
-                    {job.equipment && job.equipment.length > 0 && (
-                      <div className="text-sm">
-                        <span className="text-gray-500">Equipment: </span>
-                        <span className="font-medium text-blue-600">
-                          {job.equipment.map((eq: any) => eq.name).join(", ")}
-                        </span>
-                      </div>
-                    )}
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <div className="text-gray-500">Customer</div>
-                        <div className="font-medium flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          {job.customer_name || "Not assigned"}
+                      {job.equipment && job.equipment.length > 0 && (
+                        <div className="text-sm">
+                          <span className="text-gray-500">Equipment: </span>
+                          <span className="font-medium text-blue-600">
+                            {job.equipment.map((eq: any) => eq.name).join(", ")}
+                          </span>
+                        </div>
+                      )}
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <div className="text-gray-500">Customer</div>
+                          <div className="font-medium flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {job.customer_name || "Not assigned"}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-gray-500">Scheduled</div>
+                          <div className="font-medium flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {job.scheduled_at ? utcIsoToLocalString(job.scheduled_at, { dateStyle: "medium" }) : "Not scheduled"}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-gray-500">Time</div>
+                          <div className="font-medium">
+                            {job.scheduled_at ? utcIsoToLocalString(job.scheduled_at, { timeStyle: "short" }) : "—"}
+                          </div>
                         </div>
                       </div>
                       
-                      <div>
-                        <div className="text-gray-500">Scheduled</div>
-                        <div className="font-medium flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {job.scheduled_at ? utcIsoToLocalString(job.scheduled_at, { dateStyle: "medium" }) : "Not scheduled"}
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <div className="text-gray-500">Time</div>
-                        <div className="font-medium">
-                          {job.scheduled_at ? utcIsoToLocalString(job.scheduled_at, { timeStyle: "short" }) : "—"}
-                        </div>
+                      <div className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-blue-500 transition-colors pt-1">
+                        <span>Click for details</span>
+                        <ArrowRight className="h-3 w-3" />
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-blue-500 transition-colors pt-1">
-                      <span>Click for details</span>
-                      <ArrowRight className="h-3 w-3" />
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 opacity-70 hover:opacity-100"
+                          data-testid={`button-actions-job-${job.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-36">
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/jobs/${job.id}/edit`);
+                        }}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 w-8 p-0 opacity-70 hover:opacity-100"
-                        data-testid={`button-actions-job-${job.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Actions</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-36">
-                      <DropdownMenuItem onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/jobs/${job.id}/edit`);
-                      }}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 

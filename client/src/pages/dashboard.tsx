@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
-import { CalendarDays, Briefcase, Users, Wrench } from "lucide-react";
+import { CalendarDays, Briefcase, Users, Wrench, Plus } from "lucide-react";
 import { JobModal } from "@/components/modals/job-modal";
 import { useSubscription } from "@/hooks/useSubscription";
 import { SubscriptionBanner } from "@/components/subscription/subscription-banner";
@@ -186,8 +186,21 @@ export default function Dashboard() {
             {isLoading ? (
               <div className="text-sm text-gray-500">Loading…</div>
             ) : todaysJobs.length === 0 ? (
-              <div className="text-sm text-gray-500">
-                No jobs scheduled for today.
+              <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                <div className="w-16 h-16 rounded-full bg-schedule/10 flex items-center justify-center mb-4">
+                  <CalendarDays className="h-8 w-8 text-schedule" />
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  No jobs scheduled for today
+                </p>
+                <Button
+                  onClick={() => setIsJobModalOpen(true)}
+                  size="sm"
+                  className="bg-schedule hover:bg-schedule/90 text-schedule-foreground"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Schedule a Job
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -228,7 +241,22 @@ export default function Dashboard() {
             {isLoading ? (
               <div className="text-sm text-gray-500">Loading…</div>
             ) : upcomingJobs.length === 0 ? (
-              <div className="text-sm text-gray-500">No upcoming jobs.</div>
+              <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                <div className="w-16 h-16 rounded-full bg-jobs/10 flex items-center justify-center mb-4">
+                  <Briefcase className="h-8 w-8 text-jobs" />
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  No upcoming jobs scheduled
+                </p>
+                <Button
+                  onClick={() => setIsJobModalOpen(true)}
+                  size="sm"
+                  className="bg-jobs hover:bg-jobs/90 text-jobs-foreground"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create a Job
+                </Button>
+              </div>
             ) : (
               <div className="space-y-3">
                 {upcomingJobs.map((j: any) => (

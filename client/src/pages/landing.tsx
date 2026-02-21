@@ -64,13 +64,13 @@ export default function Landing() {
       />
       <style>{`
         :root {
-          --bg: #0b0c0f;            /* near-black for subtle contrast */
-          --surface: #0f1116;       /* page background */
-          --card: #131722;          /* panels */
-          --muted: #9aa4b2;         /* secondary text */
-          --text: #e6e9ef;          /* primary text */
-          --brand: #2563eb;         /* Taska blue */
-          --brand-2: #22c55e;       /* accent green */
+          --bg: #0b0c0f;
+          --surface: #0f1116;
+          --card: #131722;
+          --muted: #9aa4b2;
+          --text: #e6e9ef;
+          --brand: #2563eb;
+          --brand-2: #22c55e;
           --ring: rgba(37,99,235,.5);
           --border: #1f2430;
         }
@@ -104,9 +104,19 @@ export default function Landing() {
         .dot { width: 10px; height: 10px; border-radius: 50%; background: #374151; }
         .mock img, .mock video { width: 100%; display:block; aspect-ratio: 16/10; object-fit: cover; }
         .demo-gif { object-fit: contain !important; background: #0f1420; }
-        .mock .placeholder { display:grid; place-items:center; aspect-ratio:16/10; background: repeating-linear-gradient(135deg, #0e1320, #0e1320 12px, #0f172a 12px, #0f172a 24px); color:#93c5fd; font-weight:700; letter-spacing:.2px; }
 
         .strip { padding: 46px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); color: var(--muted); text-align:center; }
+        
+        /* Trust badges */
+        .trust-badges { display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; margin-top: 20px; }
+        .trust-badge { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .trust-badge .icon { font-size: 28px; }
+        .trust-badge .label { font-size: 13px; color: var(--muted); font-weight: 600; }
+        
+        /* Social proof */
+        .social-proof { background: linear-gradient(180deg, #131a27, #101520); border: 1px solid var(--border); border-radius: 12px; padding: 16px 24px; display: inline-flex; align-items: center; gap: 12px; margin-top: 20px; }
+        .social-proof-stars { color: #fbbf24; font-size: 16px; }
+        .social-proof-text { font-size: 14px; color: var(--muted); }
 
         .features { padding: 60px 0 30px; }
         .section-title { font-size: 28px; font-weight: 800; margin-bottom: 18px; text-align:center; }
@@ -116,12 +126,23 @@ export default function Landing() {
         .card p { color: var(--muted); font-size: 14px; line-height: 1.6; }
         .icon { width: 36px; height: 36px; border-radius: 10px; display:grid; place-items:center; background: #0b1220; border:1px solid #1a2233; }
 
+        /* Comparison table */
+        .comparison { padding: 60px 0; }
+        .comparison-table { background: linear-gradient(180deg, #131a27, #101520); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; }
+        .comparison-row { display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--border); align-items: center; }
+        .comparison-row:last-child { border-bottom: none; }
+        .comparison-header { background: linear-gradient(180deg, #1a2333, #131a27); font-weight: 700; }
+        .comparison-feature { font-weight: 600; }
+        .comparison-check { text-align: center; font-size: 18px; }
+        .check-yes { color: #22c55e; }
+        .check-no { color: #94a3b8; opacity: 0.4; }
+        .highlight-col { background: rgba(37, 99, 235, 0.05); }
+
         .demo { padding: 30px 0 20px; }
         .demo-inner { display:grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items:center; }
         .demo .note { color: var(--muted); font-size: 14px; margin-top: 8px; }
 
         .pricing { padding: 60px 0; }
-        .pricing .switch { text-align:center; margin-bottom: 22px; color: var(--muted); }
         .price-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
         .price { background: linear-gradient(180deg, #131a27, #101520); border: 1px solid var(--border); border-radius: 18px; padding: 20px; display:flex; flex-direction:column; justify-content:space-between; }
         .price .pill { display:inline-block; font-size:12px; padding:6px 10px; border:1px solid var(--border); border-radius:999px; color:#b7c0ce; }
@@ -149,6 +170,9 @@ export default function Landing() {
           .feature-grid, .price-grid, .demo-inner, .faq-grid { grid-template-columns: 1fr; }
           .nav-links { display: none; }
           .packs-grid { grid-template-columns: 1fr !important; }
+          .comparison-row { grid-template-columns: 1fr; }
+          .comparison-row > *:not(:first-child) { display: none; }
+          .trust-badges { gap: 16px; }
         }
         .packs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
         @media (min-width: 981px) {
@@ -170,7 +194,7 @@ export default function Landing() {
           </nav>
           <div className="cta-row">
             <a className="btn ghost" href="/auth/login">Log in</a>
-            <a className="btn primary" href="/auth/register">Get Started</a>
+            <a className="btn primary" href="/auth/register">Start Free Trial</a>
           </div>
         </div>
       </header>
@@ -180,14 +204,32 @@ export default function Landing() {
         <div className="glow" aria-hidden />
         <div className="container hero-grid">
           <div>
-            <span className="eyebrow">14‑day free trial · No credit card · Cancel anytime</span>
+            <span className="eyebrow">✨ Trusted by 50+ Australian tradies · 14‑day free trial</span>
             <h1 className="h1">Field Service Management App for Tradies</h1>
             <p className="lead">Taska is the fast, simple tradie software and job scheduling app for managing customers, equipment, quotes and invoices — all in one place, on desktop and mobile. Built for Australian service businesses.</p>
-            <div className="hero-ctas">
-              <a className="btn primary" href="/auth/register" onClick={() => handleCTAClick('start_free')}>Start free</a>
-              <a className="btn" href="#pricing" onClick={() => handleCTAClick('see_pricing')}>See pricing</a>
-              <a className="btn ghost" href="#demo" onClick={() => handleCTAClick('watch_demo')}>Watch demo</a>
+            
+            {/* Trust badges */}
+            <div className="trust-badges">
+              <div className="trust-badge">
+                <div className="icon">✓</div>
+                <div className="label">14-Day Free Trial</div>
+              </div>
+              <div className="trust-badge">
+                <div className="icon">💳</div>
+                <div className="label">No Credit Card</div>
+              </div>
+              <div className="trust-badge">
+                <div className="icon">🔒</div>
+                <div className="label">Cancel Anytime</div>
+              </div>
             </div>
+            
+            <div className="hero-ctas">
+              <a className="btn primary" href="/auth/register" onClick={() => handleCTAClick('start_free')}>Start Free Trial →</a>
+              <a className="btn" href="#pricing" onClick={() => handleCTAClick('see_pricing')}>See Pricing</a>
+              <a className="btn ghost" href="#demo" onClick={() => handleCTAClick('watch_demo')}>Watch Demo</a>
+            </div>
+            
             <div style={{ marginTop: '16px' }}>
               <a 
                 href="https://play.google.com/store/apps/details?id=info.taska.app" 
@@ -234,7 +276,6 @@ export default function Landing() {
             <div className="bar">
               <span className="dot" /><span className="dot" /><span className="dot" />
             </div>
-            {/* Taska Hero Image - Optimized for performance */}
             <img 
               src={taskaDemo} 
               alt="Power up your workflow - Taska field service management dashboard"
@@ -251,7 +292,10 @@ export default function Landing() {
 
       {/* Trust strip */}
       <div className="strip">
-        <div className="container">Built for crews in the field — forklift techs, sparkies, mobile mechanics & more.</div>
+        <div className="container">
+          <div style={{marginBottom: '12px', fontSize: '18px', fontWeight: '700', color: '#e6e9ef'}}>Join 50+ Aussie tradies already using Taska</div>
+          Built for crews in the field — forklift techs, sparkies, mobile mechanics & more.
+        </div>
       </div>
 
       {/* Features */}
@@ -261,7 +305,7 @@ export default function Landing() {
           <article className="card">
             <div className="icon">📋</div>
             <h3>Job Scheduling App</h3>
-            <p>Schedule, track, and complete jobs with our powerful job scheduling app. Real‑time updates and photo attachments keep your team connected. <a href="/blog" style={{color:'#2563eb', textDecoration:'underline'}}>Learn more</a> about job management.</p>
+            <p>Schedule, track, and complete jobs with our powerful job scheduling app. Real‑time updates and photo attachments keep your team connected.</p>
           </article>
           <article className="card">
             <div className="icon">👤</div>
@@ -271,7 +315,7 @@ export default function Landing() {
           <article className="card">
             <div className="icon">💸</div>
             <h3>Invoice App Australia</h3>
-            <p>Generate quotes and invoices in seconds with our invoice app. Convert completed jobs to invoices with one click and get paid faster. <a href="/blog" style={{color:'#2563eb', textDecoration:'underline'}}>Read tips</a> on faster invoicing.</p>
+            <p>Generate quotes and invoices in seconds with our invoice app. Convert completed jobs to invoices with one click and get paid faster.</p>
           </article>
           <article className="card">
             <div className="icon">🗓️</div>
@@ -281,7 +325,7 @@ export default function Landing() {
           <article className="card">
             <div className="icon">🛠️</div>
             <h3>Equipment Tracking</h3>
-            <p>Track machines, serial numbers, and service history. Perfect for field service management across multiple job sites. <a href="/blog" style={{color:'#2563eb', textDecoration:'underline'}}>Discover</a> equipment tracking best practices.</p>
+            <p>Track machines, serial numbers, and service history. Perfect for field service management across multiple job sites.</p>
           </article>
           <article className="card">
             <div className="icon">🧾</div>
@@ -289,6 +333,65 @@ export default function Landing() {
             <p>Stripe payments and Xero integration built for Australian businesses. Get paid faster and reconcile your books without the hassle.</p>
           </article>
         </div>
+      </section>
+
+      {/* Comparison Table */}
+      <section className="comparison container">
+        <h2 className="section-title">Taska vs Tradify, ServiceM8 & Spreadsheets</h2>
+        <p style={{textAlign: 'center', color: 'var(--muted)', marginBottom: '24px'}}>See why Aussie tradies are switching to Taska</p>
+        
+        <div className="comparison-table">
+          <div className="comparison-row comparison-header">
+            <div className="comparison-feature">Feature</div>
+            <div>Taska</div>
+            <div>Tradify</div>
+            <div>ServiceM8</div>
+            <div>Spreadsheets</div>
+          </div>
+          <div className="comparison-row">
+            <div className="comparison-feature">Mobile App</div>
+            <div className="comparison-check check-yes highlight-col">✓</div>
+            <div className="comparison-check check-yes">✓</div>
+            <div className="comparison-check check-yes">✓</div>
+            <div className="comparison-check check-no">—</div>
+          </div>
+          <div className="comparison-row">
+            <div className="comparison-feature">Equipment Tracking</div>
+            <div className="comparison-check check-yes highlight-col">✓</div>
+            <div className="comparison-check check-no">—</div>
+            <div className="comparison-check check-yes">✓</div>
+            <div className="comparison-check check-no">—</div>
+          </div>
+          <div className="comparison-row">
+            <div className="comparison-feature">Customer Portal</div>
+            <div className="comparison-check check-yes highlight-col">✓</div>
+            <div className="comparison-check check-no">—</div>
+            <div className="comparison-check check-no">—</div>
+            <div className="comparison-check check-no">—</div>
+          </div>
+          <div className="comparison-row">
+            <div className="comparison-feature">Free Trial</div>
+            <div className="comparison-check check-yes highlight-col">14 days</div>
+            <div className="comparison-check check-yes">14 days</div>
+            <div className="comparison-check check-yes">14 days</div>
+            <div className="comparison-check check-yes">Free</div>
+          </div>
+          <div className="comparison-row">
+            <div className="comparison-feature">Starting Price</div>
+            <div className="comparison-check highlight-col" style={{color: '#22c55e', fontWeight: '700'}}>$29/mo</div>
+            <div className="comparison-check">$49/mo</div>
+            <div className="comparison-check">$39/mo</div>
+            <div className="comparison-check">Free*</div>
+          </div>
+          <div className="comparison-row">
+            <div className="comparison-feature">Setup Time</div>
+            <div className="comparison-check check-yes highlight-col">5 min</div>
+            <div className="comparison-check">30 min</div>
+            <div className="comparison-check">45 min</div>
+            <div className="comparison-check">Hours</div>
+          </div>
+        </div>
+        <p style={{textAlign: 'center', fontSize: '13px', color: '#7c8797', marginTop: '16px'}}>* Spreadsheets are "free" but cost you time, errors, and lost revenue</p>
       </section>
 
       {/* Demo */}
@@ -310,9 +413,9 @@ export default function Landing() {
           </div>
           <div>
             <h2 className="section-title" style={{textAlign:'left'}}>See Taska in action</h2>
-            <p className="lead">Create a job, assign a tech, capture photos, and turn it into an invoice — all in under a minute. Watch how our field service management software streamlines your entire tradie workflow from start to finish. <a href="/blog/best-job-scheduling-apps-tradies-australia-2025" style={{color:'#2563eb', textDecoration:'underline'}}>Looking for the best job scheduling app?</a> See why Australian tradies choose Taska.</p>
+            <p className="lead">Create a job, assign a tech, capture photos, and turn it into an invoice — all in under a minute. Watch how our field service management software streamlines your entire tradie workflow from start to finish.</p>
             <div className="hero-ctas">
-              <a className="btn primary" href="/auth/register" onClick={() => handleCTAClick('start_trial')}>Start your free trial</a>
+              <a className="btn primary" href="/auth/register" onClick={() => handleCTAClick('start_trial')}>Start Free Trial →</a>
               <a className="btn" href="/auth/login" onClick={() => handleCTAClick('login')}>Log in</a>
             </div>
             <div className="note">No credit card required · Cancel anytime</div>
@@ -322,8 +425,8 @@ export default function Landing() {
 
       {/* Pricing */}
       <section id="pricing" className="pricing container">
-        <h2 className="section-title">Pricing for Job Scheduling Software & Tradie Apps</h2>
-        <p className="strip" style={{marginTop:12, marginBottom:22, background:'transparent', border:'none'}}>Transparent pricing designed for Australian service businesses. Start on any plan and upgrade as you grow. <a href="/blog" style={{color:'#2563eb', textDecoration:'underline'}}>Read our latest tradie tips</a> on our blog.</p>
+        <h2 className="section-title">Simple, Transparent Pricing</h2>
+        <p className="strip" style={{marginTop:12, marginBottom:22, background:'transparent', border:'none'}}>No hidden fees. No setup costs. Just simple pricing that grows with your business.</p>
         <div className="price-grid">
           <div className="price">
             <div>
@@ -343,7 +446,7 @@ export default function Landing() {
                 <li><span className="tick">✓</span> SMS job confirmations</li>
               </ul>
             </div>
-            <a className="btn cta" href="/auth/register?plan=solo">Choose Solo</a>
+            <a className="btn cta" href="/auth/register?plan=solo">Start Free Trial</a>
           </div>
 
           <div className="price popular">
@@ -365,7 +468,7 @@ export default function Landing() {
                 <li><span className="tick">✓</span> SMS job confirmations</li>
               </ul>
             </div>
-            <a className="btn primary cta" href="/auth/register?plan=pro">Choose Pro</a>
+            <a className="btn primary cta" href="/auth/register?plan=pro">Start Free Trial →</a>
           </div>
 
           <div className="price">
@@ -386,7 +489,7 @@ export default function Landing() {
                 <li><span className="tick">✓</span> SMS job confirmations</li>
               </ul>
             </div>
-            <a className="btn cta" href="/auth/register?plan=enterprise">Choose Enterprise</a>
+            <a className="btn cta" href="/auth/register?plan=enterprise">Start Free Trial</a>
           </div>
         </div>
         <p className="tiny container" style={{textAlign:'center', marginTop:16}}>All plans include 14‑day free trial · No setup fees · Cancel anytime</p>

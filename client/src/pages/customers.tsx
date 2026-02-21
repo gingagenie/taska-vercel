@@ -1,13 +1,14 @@
 import { useMemo, useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { customersApi } from "@/lib/api";
+import { customersApi, jobsApi } from "@/lib/api";
 import { Link, useLocation } from "wouter";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
-import { Mail, Phone, MapPin, MoreHorizontal, Edit, ArrowRight, Upload } from "lucide-react";
+import { Mail, Phone, MapPin, MoreHorizontal, Edit, ArrowRight, Upload, Star, TrendingUp, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -37,10 +38,49 @@ function hueFrom(name?: string) {
   return h;
 }
 
+// Helper to get customer tier based on job count
+function getCustomerTier(jobCount: number): {
+  tier: 'vip' | 'regular' | 'new';
+  label: string;
+  color: string;
+  icon: any;
+} {
+  if (jobCount >= 10) {
+    return { tier: 'vip', label: 'VIP', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Star };
+  } else if (jobCount >= 3) {
+    return { tier: 'regular', label: 'Regular', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: TrendingUp };
+  } else {
+    return { tier: 'new', label: 'New', color: 'bg-gray-100 text-gray-600 border-gray-200', icon: null };
+  }
+}
+
+// Helper to format last contact time
+function getLastContactLabel(lastJobDate: string | null): string {
+  if (!lastJobDate) return "No jobs yet";
+  
+  const lastDate = new Date(lastJobDate);
+  const now = new Date();
+  const diffMs = now.getTime() - lastDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+  return `${Math.floor(diffDays / 365)} years ago`;
+}
+
 export default function Customers() {
   const { data: list = [], isLoading } = useQuery({
     queryKey: ["/api/customers"],
     queryFn: customersApi.getAll,
+  });
+
+  // Fetch all jobs to calculate last contact
+  const { data: allJobs = [] } = useQuery({
+    queryKey: ["/api/jobs"],
+    queryFn: jobsApi.getAll,
   });
 
   const queryClient = useQueryClient();
@@ -49,6 +89,31 @@ export default function Customers() {
   const [, navigate] = useLocation();
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Calculate job stats per customer
+  const customerStats = useMemo(() => {
+    const stats: Record<string, { jobCount: number; lastJobDate: string | null }> = {};
+    
+    (allJobs as any[]).forEach((job: any) => {
+      if (!job.customer_id) return;
+      
+      if (!stats[job.customer_id]) {
+        stats[job.customer_id] = { jobCount: 0, lastJobDate: null };
+      }
+      
+      stats[job.customer_id].jobCount++;
+      
+      // Track most recent job
+      if (job.scheduled_at) {
+        const jobDate = new Date(job.scheduled_at).toISOString();
+        if (!stats[job.customer_id].lastJobDate || jobDate > stats[job.customer_id].lastJobDate!) {
+          stats[job.customer_id].lastJobDate = jobDate;
+        }
+      }
+    });
+    
+    return stats;
+  }, [allJobs]);
 
   const filtered = useMemo(() => {
     const text = q.toLowerCase();
@@ -182,6 +247,11 @@ export default function Customers() {
           {filtered.map((c: any) => {
             const addr = addrLine(c);
             const hue = hueFrom(c.name);
+            const stats = customerStats[c.id] || { jobCount: 0, lastJobDate: null };
+            const tier = getCustomerTier(stats.jobCount);
+            const TierIcon = tier.icon;
+            const lastContact = getLastContactLabel(stats.lastJobDate);
+            
             return (
               <Card
                 key={c.id}
@@ -203,37 +273,69 @@ export default function Customers() {
                           {initials(c.name)}
                         </div>
                         <div className="flex-1">
-                          <div className="font-semibold text-lg group-hover:text-blue-600 transition-colors">
-                            {c.name || "Unnamed Customer"}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="font-semibold text-lg group-hover:text-blue-600 transition-colors">
+                              {c.name || "Unnamed Customer"}
+                            </div>
+                            {tier.tier !== 'new' && (
+                              <Badge variant="outline" className={`${tier.color} border font-medium`}>
+                                {TierIcon && <TierIcon className="h-3 w-3 mr-1" />}
+                                {tier.label}
+                              </Badge>
+                            )}
                           </div>
                           {c.contact_name && (
                             <div className="text-sm text-gray-600">Contact: {c.contact_name}</div>
                           )}
+                          <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                            <Calendar className="h-3 w-3" />
+                            <span>{stats.jobCount} jobs • Last: {lastContact}</span>
+                          </div>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                         <div>
                           <div className="text-gray-500">Email</div>
-                          <div className="font-medium flex items-center gap-1">
+                          <div className="font-medium flex items-center gap-2">
                             <Mail className="h-3 w-3" />
-                            {c.email || "—"}
+                            <span className="truncate">{c.email || "—"}</span>
+                            {c.email && (
+                              <a
+                                href={`mailto:${c.email}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-blue-600 hover:text-blue-700"
+                                title="Send email"
+                              >
+                                <Mail className="h-4 w-4" />
+                              </a>
+                            )}
                           </div>
                         </div>
 
                         <div>
                           <div className="text-gray-500">Phone</div>
-                          <div className="font-medium flex items-center gap-1">
+                          <div className="font-medium flex items-center gap-2">
                             <Phone className="h-3 w-3" />
-                            {c.phone || "—"}
+                            <span className="truncate">{c.phone || "—"}</span>
+                            {c.phone && (
+                              <a
+                                href={`tel:${c.phone}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-blue-600 hover:text-blue-700"
+                                title="Call"
+                              >
+                                <Phone className="h-4 w-4" />
+                              </a>
+                            )}
                           </div>
                         </div>
 
                         <div>
                           <div className="text-gray-500">Address</div>
-                          <div className="font-medium flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {addr || "—"}
+                          <div className="font-medium flex items-center gap-1 truncate">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{addr || "—"}</span>
                           </div>
                         </div>
                       </div>

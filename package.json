@@ -13,6 +13,7 @@
     "db:push": "drizzle-kit push",
     "test": "NODE_ENV=test vitest run",
     "test:watch": "NODE_ENV=test vitest",
+    "backfill-pdfs": "tsx server/scripts/backfill-service-pdfs.ts",
     "test:ui": "NODE_ENV=test vitest --ui"
   },
   "dependencies": {

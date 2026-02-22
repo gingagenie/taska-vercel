@@ -4,7 +4,6 @@ import { apiRequest } from "@/lib/queryClient";
 import Avatar from "boring-avatars";
 import { useState } from "react";
 import { ProfileModal } from "@/components/modals/profile-modal";
-import { useQuery } from "@tanstack/react-query";
 import { 
   Briefcase, 
   Users, 
@@ -59,55 +58,6 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
   
   const filteredNavigationItems = getFilteredNavigationItems(user?.role);
 
-  // Fetch counts for badges
-  const { data: jobsData } = useQuery({
-    queryKey: ["/api/jobs"],
-    queryFn: async () => {
-      const res = await fetch("/api/jobs", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
-
-  const { data: invoicesData } = useQuery({
-    queryKey: ["/api/invoices"],
-    queryFn: async () => {
-      const res = await fetch("/api/invoices", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
-
-  // Calculate counts
-  const jobsCount = Array.isArray(jobsData) ? jobsData.length : 0;
-  
-  // Count unpaid invoices (simpler and more reliable)
-  const unpaidInvoicesCount = Array.isArray(invoicesData) 
-    ? invoicesData.filter((inv: any) => inv.status !== 'paid').length 
-    : 0;
-
-  // Get badge for nav item
-  const getBadge = (path: string) => {
-    // Don't show badges when you're on that page
-    if (path === "/jobs" && location !== "/jobs" && jobsCount > 0) {
-      return (
-        <span className="ml-auto text-xs font-semibold text-gray-500">
-          {jobsCount}
-        </span>
-      );
-    }
-    
-    if (path === "/invoices" && !location.startsWith("/invoice") && unpaidInvoicesCount > 0) {
-      return (
-        <span className="ml-auto flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
-          {unpaidInvoicesCount}
-        </span>
-      );
-    }
-    
-    return null;
-  };
-
   // Separate primary and secondary items
   const primaryItems = filteredNavigationItems.filter(item => item.section === "primary");
   const secondaryItems = filteredNavigationItems.filter(item => item.section === "secondary");
@@ -131,7 +81,6 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
           const isActive = location === item.path;
           const isLocked = (item as any).isPro && !isProUser;
           const category = item.category as 'jobs' | 'people' | 'equipment' | 'schedule' | 'financial' | 'management';
-          const badge = getBadge(item.path);
           
           // Get category-specific colors
           const getCategoryStyles = () => {
@@ -173,7 +122,6 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
               >
                 <Icon className="w-4 h-4" />
                 {item.label}
-                {badge}
                 {(item as any).isPro && (
                   <div className="ml-auto flex items-center gap-1">
                     {!isProUser && <Crown className="w-3 h-3 text-amber-500" />}

@@ -80,14 +80,10 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
 
   // Calculate counts
   const jobsCount = Array.isArray(jobsData) ? jobsData.length : 0;
-  const overdueInvoicesCount = Array.isArray(invoicesData) 
-    ? invoicesData.filter((inv: any) => {
-        if (inv.status === 'paid') return false;
-        if (!inv.due_date) return false;
-        const dueDate = new Date(inv.due_date);
-        const now = new Date();
-        return dueDate < now;
-      }).length 
+  
+  // Count unpaid invoices (simpler and more reliable)
+  const unpaidInvoicesCount = Array.isArray(invoicesData) 
+    ? invoicesData.filter((inv: any) => inv.status !== 'paid').length 
     : 0;
 
   // Get badge for nav item
@@ -100,10 +96,10 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
       );
     }
     
-    if (path === "/invoices" && overdueInvoicesCount > 0) {
+    if (path === "/invoices" && unpaidInvoicesCount > 0) {
       return (
         <span className="ml-auto flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
-          {overdueInvoicesCount}
+          {unpaidInvoicesCount}
         </span>
       );
     }

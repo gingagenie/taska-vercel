@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import Avatar from "boring-avatars";
 import { useState } from "react";
 import { ProfileModal } from "@/components/modals/profile-modal";
+import { useQuery } from "@tanstack/react-query";
 import { 
   Briefcase, 
   Users, 
@@ -22,16 +23,16 @@ import {
 import logoUrl from "@assets/Taska_1755842483680.png";
 
 const navigationItems = [
-  { path: "/", label: "Dashboard", icon: BarChart3, category: "management" },
-  { path: "/jobs", label: "Jobs", icon: Briefcase, category: "jobs" },
-  { path: "/customers", label: "Customers", icon: Users, category: "people" },
-  { path: "/equipment", label: "Equipment", icon: Settings, category: "equipment" },
-  { path: "/members", label: "Members", icon: Users, category: "people" },
-  { path: "/schedule", label: "Schedule", icon: Calendar, category: "schedule" },
-  { path: "/quotes", label: "Quotes", icon: FileText, category: "financial" },
-  { path: "/invoices", label: "Invoices", icon: Receipt, category: "financial" },
-  { path: "/support", label: "Support", icon: LifeBuoy, category: "management" },
-  { path: "/settings", label: "Settings", icon: Cog, category: "management" },
+  { path: "/", label: "Dashboard", icon: BarChart3, category: "management", section: "primary" },
+  { path: "/jobs", label: "Jobs", icon: Briefcase, category: "jobs", section: "primary" },
+  { path: "/customers", label: "Customers", icon: Users, category: "people", section: "primary" },
+  { path: "/equipment", label: "Equipment", icon: Settings, category: "equipment", section: "primary" },
+  { path: "/members", label: "Members", icon: UsersRound, category: "people", section: "primary" },
+  { path: "/schedule", label: "Schedule", icon: Calendar, category: "schedule", section: "primary" },
+  { path: "/quotes", label: "Quotes", icon: FileText, category: "financial", section: "primary" },
+  { path: "/invoices", label: "Invoices", icon: Receipt, category: "financial", section: "primary" },
+  { path: "/support", label: "Support", icon: LifeBuoy, category: "management", section: "secondary" },
+  { path: "/settings", label: "Settings", icon: Cog, category: "management", section: "secondary" },
 ];
 
 interface SidebarContentProps {
@@ -58,6 +59,62 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
   
   const filteredNavigationItems = getFilteredNavigationItems(user?.role);
 
+  // Fetch counts for badges
+  const { data: jobsData } = useQuery({
+    queryKey: ["/api/jobs"],
+    queryFn: async () => {
+      const res = await fetch("/api/jobs", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const { data: invoicesData } = useQuery({
+    queryKey: ["/api/invoices"],
+    queryFn: async () => {
+      const res = await fetch("/api/invoices", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  // Calculate counts
+  const jobsCount = Array.isArray(jobsData) ? jobsData.length : 0;
+  const overdueInvoicesCount = Array.isArray(invoicesData) 
+    ? invoicesData.filter((inv: any) => {
+        if (inv.status === 'paid') return false;
+        if (!inv.due_date) return false;
+        const dueDate = new Date(inv.due_date);
+        const now = new Date();
+        return dueDate < now;
+      }).length 
+    : 0;
+
+  // Get badge for nav item
+  const getBadge = (path: string) => {
+    if (path === "/jobs" && jobsCount > 0) {
+      return (
+        <span className="ml-auto text-xs font-semibold text-gray-500">
+          {jobsCount}
+        </span>
+      );
+    }
+    
+    if (path === "/invoices" && overdueInvoicesCount > 0) {
+      return (
+        <span className="ml-auto flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+          {overdueInvoicesCount}
+        </span>
+      );
+    }
+    
+    return null;
+  };
+
+  // Separate primary and secondary items
+  const primaryItems = filteredNavigationItems.filter(item => item.section === "primary");
+  const secondaryItems = filteredNavigationItems.filter(item => item.section === "secondary");
+
   return (
     <div className="p-6 h-full flex flex-col">
       {/* Logo */}
@@ -70,13 +127,14 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
         <h1 className="text-xl font-bold text-gray-900">Taska</h1>
       </div>
 
-      {/* Navigation Menu */}
+      {/* Primary Navigation Menu */}
       <nav className="space-y-1 flex-1">
-        {filteredNavigationItems.map((item) => {
+        {primaryItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.path;
           const isLocked = (item as any).isPro && !isProUser;
           const category = item.category as 'jobs' | 'people' | 'equipment' | 'schedule' | 'financial' | 'management';
+          const badge = getBadge(item.path);
           
           // Get category-specific colors
           const getCategoryStyles = () => {
@@ -118,6 +176,7 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
               >
                 <Icon className="w-4 h-4" />
                 {item.label}
+                {badge}
                 {(item as any).isPro && (
                   <div className="ml-auto flex items-center gap-1">
                     {!isProUser && <Crown className="w-3 h-3 text-amber-500" />}
@@ -128,6 +187,65 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
                     </span>
                   </div>
                 )}
+              </div>
+            </Link>
+          );
+        })}
+
+        {/* Separator before secondary items */}
+        {secondaryItems.length > 0 && (
+          <div className="pt-4 pb-2">
+            <div className="h-px bg-gray-200" />
+          </div>
+        )}
+
+        {/* Secondary Navigation Menu (Support, Settings) */}
+        {secondaryItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location === item.path;
+          const isLocked = (item as any).isPro && !isProUser;
+          const category = item.category as 'jobs' | 'people' | 'equipment' | 'schedule' | 'financial' | 'management';
+          
+          // Get category-specific colors (slightly dimmed for secondary items)
+          const getCategoryStyles = () => {
+            if (isLocked) return "text-gray-400 cursor-not-allowed";
+            
+            const activeStyles = {
+              jobs: "bg-jobs text-jobs-foreground",
+              people: "bg-people text-people-foreground", 
+              equipment: "bg-equipment text-equipment-foreground",
+              schedule: "bg-schedule text-schedule-foreground",
+              financial: "bg-financial text-financial-foreground",
+              management: "bg-management text-management-foreground"
+            };
+            
+            const hoverStyles = {
+              jobs: "text-gray-600 hover:bg-jobs-light hover:text-jobs",
+              people: "text-gray-600 hover:bg-people-light hover:text-people",
+              equipment: "text-gray-600 hover:bg-equipment-light hover:text-equipment", 
+              schedule: "text-gray-600 hover:bg-schedule-light hover:text-schedule",
+              financial: "text-gray-600 hover:bg-financial-light hover:text-financial",
+              management: "text-gray-600 hover:bg-management-light hover:text-management"
+            };
+            
+            return isActive ? activeStyles[category] : hoverStyles[category];
+          };
+          
+          return (
+            <Link key={item.path} href={item.path}>
+              <div
+                className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors ${getCategoryStyles()}`}
+                onClick={(e) => {
+                  if (isLocked) {
+                    e.preventDefault();
+                    return;
+                  }
+                  onClose?.();
+                }}
+                data-testid={`nav-${item.label.toLowerCase()}`}
+              >
+                <Icon className="w-4 h-4" />
+                {item.label}
               </div>
             </Link>
           );

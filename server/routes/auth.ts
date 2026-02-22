@@ -400,7 +400,7 @@ router.put("/password", async (req, res) => {
 
 /* ----------------------------- Avatar upload ----------------------------- */
 
-router.put("/avatar", upload.single("avatar"), async (req, res) => {
+router.post("/avatar", upload.single("avatar"), async (req, res) => {
   const userId = req.session?.userId;
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   if (!req.file) return res.status(400).json({ error: "No avatar file provided" });

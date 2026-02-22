@@ -88,7 +88,8 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
 
   // Get badge for nav item
   const getBadge = (path: string) => {
-    if (path === "/jobs" && jobsCount > 0) {
+    // Don't show badges when you're on that page
+    if (path === "/jobs" && location !== "/jobs" && jobsCount > 0) {
       return (
         <span className="ml-auto text-xs font-semibold text-gray-500">
           {jobsCount}
@@ -96,7 +97,7 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
       );
     }
     
-    if (path === "/invoices" && unpaidInvoicesCount > 0) {
+    if (path === "/invoices" && !location.startsWith("/invoice") && unpaidInvoicesCount > 0) {
       return (
         <span className="ml-auto flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
           {unpaidInvoicesCount}

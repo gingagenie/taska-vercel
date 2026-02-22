@@ -7,6 +7,7 @@
 
 import { db } from '../db/client';
 import { sql } from 'drizzle-orm';
+import sharp from 'sharp';
 
 interface ServiceSheetData {
   job: any;
@@ -16,6 +17,41 @@ interface ServiceSheetData {
   parts: any[];
   photos: Array<{ url: string; created_at: string }>;
   orgName: string | null;
+}
+
+/**
+ * Compress and resize image to reduce PDF size
+ */
+async function compressImage(imageUrl: string): Promise<string> {
+  try {
+    // Fetch the image
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      console.warn(`[PDF] Failed to fetch image: ${imageUrl}`);
+      return imageUrl; // Return original if fetch fails
+    }
+
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+    // Resize and compress with sharp
+    const compressed = await sharp(imageBuffer)
+      .resize(800, 600, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .jpeg({
+        quality: 70,
+        progressive: true,
+      })
+      .toBuffer();
+
+    // Convert to base64 data URL
+    const base64 = compressed.toString('base64');
+    return `data:image/jpeg;base64,${base64}`;
+  } catch (error: any) {
+    console.warn(`[PDF] Image compression failed for ${imageUrl}:`, error.message);
+    return imageUrl; // Return original on error
+  }
 }
 
 /**
@@ -169,6 +205,16 @@ export async function generateServiceSheetPDF(
   const customer = data.job.customer_name || '—';
   const brandLine = data.orgName ? esc(data.orgName) : '';
 
+  // Compress all photos before embedding
+  console.log(`[PDF] Compressing ${data.photos.length} photos...`);
+  const compressedPhotos = await Promise.all(
+    data.photos.map(async (p) => ({
+      url: await compressImage(p.url),
+      created_at: p.created_at,
+    }))
+  );
+  console.log(`[PDF] Photo compression complete`);
+
   const html = `<!doctype html>
 <html>
 <head>
@@ -260,9 +306,9 @@ export async function generateServiceSheetPDF(
   <h2>Photos</h2>
   <div class="box">
     ${
-      data.photos.length
+      compressedPhotos.length
         ? `<div class="photos">
-            ${data.photos
+            ${compressedPhotos
               .map(
                 (p) => `
                 <div class="photo">
@@ -366,5 +412,6 @@ export async function generateServiceSheetPDF(
     });
   }
 
+  console.log(`[PDF] Generated PDF size: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
   return pdfBuffer;
 }

@@ -16,6 +16,7 @@ import { reconcilePendingFinalizations } from "./lib/pack-consumption";
 import { startContinuousCompensationProcessor, stopContinuousCompensationProcessor } from "./lib/continuous-compensation-processor";
 import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
 import portalRouter from "./routes/portal";
+import serviceRequestsRoutes from "./routes/service-requests";
 
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -271,6 +272,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/health", health);
 // ✅ Job photos routes (Supabase storage)
 app.use("/api/jobs", jobPhotos);
+app.use("/api/service-requests", serviceRequestsRoutes);
 
 app.use("/api/quotes", quotesRouter);
 

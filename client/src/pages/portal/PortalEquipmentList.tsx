@@ -3,6 +3,7 @@ import { Link, useParams } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { RequestServiceButton } from "@/components/RequestServiceButton";
 
 type Eq = {
   id: string;
@@ -64,6 +65,7 @@ export default function PortalEquipmentList() {
   const params = useParams() as any;
   const org = (params?.org || "fixmyforklift") as string;
   const [equipment, setEquipment] = useState<Eq[]>([]);
+  const [customerData, setCustomerData] = useState<any>(null);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -71,8 +73,22 @@ export default function PortalEquipmentList() {
     (async () => {
       try {
         setLoading(true);
-        const r = await fetch(`/api/portal/${org}/equipment`, { credentials: "include" });
-        if (r.ok) setEquipment(await r.json());
+        
+        // Fetch equipment
+        const equipmentRes = await fetch(`/api/portal/${org}/equipment`, { 
+          credentials: "include" 
+        });
+        if (equipmentRes.ok) {
+          setEquipment(await equipmentRes.json());
+        }
+
+        // Fetch customer info for Request Service button
+        const customerRes = await fetch(`/api/portal/${org}/me`, { 
+          credentials: "include" 
+        });
+        if (customerRes.ok) {
+          setCustomerData(await customerRes.json());
+        }
       } finally {
         setLoading(false);
       }
@@ -90,8 +106,28 @@ export default function PortalEquipmentList() {
     });
   }, [equipment, q]);
 
+  // Prepare equipment list for Request Service button
+  const equipmentForRequest = equipment.map(e => ({
+    id: e.id,
+    name: e.name,
+  }));
+
   return (
     <div className="p-4 sm:p-6 min-h-screen bg-gray-100 space-y-4">
+      {/* Request Service Button - Top of page */}
+      {customerData && (
+        <div className="max-w-md">
+          <RequestServiceButton
+            orgId={customerData.org_id}
+            customerId={customerData.customer_id}
+            customerName={customerData.customer_name || customerData.name}
+            customerEmail={customerData.email}
+            customerPhone={customerData.phone}
+            equipment={equipmentForRequest}
+          />
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">Your Equipment</h1>

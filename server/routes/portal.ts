@@ -112,6 +112,52 @@ portalRouter.post("/portal/:org/logout", async (req: any, res) => {
 });
 
 /* --------------------------------------------------
+   ME - Get current portal user info
+-------------------------------------------------- */
+
+portalRouter.get("/portal/:org/me", async (req: any, res) => {
+  try {
+    const orgSlug = req.params.org;
+    const customerId = getPortalCustomerId(req);
+    
+    if (!customerId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const orgId = await getOrgIdBySlug(orgSlug);
+    if (!orgId) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+
+    // Get customer details
+    const customerRows: any = await db.execute(sql`
+      SELECT id, name, email, phone
+      FROM customers
+      WHERE id = ${customerId}::uuid AND org_id = ${orgId}::uuid
+      LIMIT 1
+    `);
+
+    if (!customerRows || customerRows.length === 0) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    const customer = customerRows[0];
+
+    res.json({
+      customer_id: customer.id,
+      customer_name: customer.name,
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      org_id: orgId,
+    });
+  } catch (error: any) {
+    console.error("Error fetching portal customer info:", error);
+    res.status(500).json({ error: "Failed to fetch customer info" });
+  }
+});
+
+/* --------------------------------------------------
    Debug
 -------------------------------------------------- */
 

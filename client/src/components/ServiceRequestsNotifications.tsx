@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
 import {
   Sheet,
   SheetContent,
@@ -21,7 +20,6 @@ import {
   Calendar,
   Wrench,
   Image as ImageIcon,
-  ChevronRight
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -33,12 +31,24 @@ interface ServiceRequest {
   urgency: "normal" | "urgent";
   status: "pending" | "viewed" | "job_created" | "declined";
   created_at: string;
+  customer_id?: string;
   customer_name?: string;
+  equipment_id?: string;
   equipment_name?: string;
   photos?: Array<{ id: string; url: string }>;
 }
 
-export function ServiceRequestsNotifications() {
+interface ServiceRequestsNotificationsProps {
+  onCreateJob?: (data: {
+    title: string;
+    description: string;
+    customerId: string;
+    equipmentId: string;
+    serviceRequestId: string;
+  }) => void;
+}
+
+export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNotificationsProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -75,51 +85,29 @@ export function ServiceRequestsNotifications() {
     },
   });
 
-  // Convert to job mutation
-  const convertToJobMutation = useMutation({
-    mutationFn: async ({ id, scheduled_at }: { id: string; scheduled_at?: string }) => {
-      const response = await fetch(`/api/service-requests/${id}/convert-to-job`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduled_at }),
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to convert");
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
-      toast({
-        title: "Job created!",
-        description: "Service request converted to job successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create job",
-        variant: "destructive",
-      });
-    },
-  });
-
   const handleMarkAsViewed = (id: string) => {
     markAsViewedMutation.mutate(id);
   };
 
-  const handleConvertToJob = (id: string) => {
-    convertToJobMutation.mutate({ id });
+  const handleConvertToJob = (request: ServiceRequest) => {
+    if (!onCreateJob) return;
+    
+    // Close the panel
     setOpen(false);
+    
+    // Call the callback with prefill data
+    onCreateJob({
+      title: request.title,
+      description: request.description,
+      customerId: request.customer_id || '',
+      equipmentId: request.equipment_id || '',
+      serviceRequestId: request.id,
+    });
   };
 
   const pendingRequests = requests.filter(r => r.status === "pending");
   const viewedRequests = requests.filter(r => r.status === "viewed");
   const completedRequests = requests.filter(r => r.status === "job_created" || r.status === "declined");
-
-  const getUrgencyColor = (urgency: string) => {
-    return urgency === "urgent" ? "text-red-600 bg-red-50" : "text-blue-600 bg-blue-50";
-  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -190,9 +178,8 @@ export function ServiceRequestsNotifications() {
         <div className="flex gap-2 mt-3">
           <Button
             size="sm"
-            onClick={() => handleConvertToJob(request.id)}
+            onClick={() => handleConvertToJob(request)}
             className="flex-1"
-            disabled={convertToJobMutation.isPending}
           >
             Create Job
           </Button>
@@ -210,9 +197,8 @@ export function ServiceRequestsNotifications() {
       {request.status === "viewed" && (
         <Button
           size="sm"
-          onClick={() => handleConvertToJob(request.id)}
+          onClick={() => handleConvertToJob(request)}
           className="w-full mt-3"
-          disabled={convertToJobMutation.isPending}
         >
           Create Job
         </Button>

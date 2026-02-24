@@ -37,6 +37,7 @@ const navigationItems = [
 
 interface SidebarContentProps {
   onClose?: () => void;
+  onCreateJobFromServiceRequest?: (data: any) => void;
 }
 
 // Filter navigation items based on user role
@@ -52,7 +53,7 @@ function getFilteredNavigationItems(userRole: string | undefined) {
   return navigationItems;
 }
 
-export function SidebarContent({ onClose }: SidebarContentProps) {
+export function SidebarContent({ onClose, onCreateJobFromServiceRequest }: SidebarContentProps) {
   const [location] = useLocation();
   const { user, isProUser } = useAuth();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -76,7 +77,7 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
           />
           <h1 className="text-xl font-bold text-gray-900">Taska</h1>
         </div>
-        <ServiceRequestsNotifications />
+        <ServiceRequestsNotifications onCreateJob={onCreateJobFromServiceRequest} />
       </div>
 
       {/* Primary Navigation Menu */}
@@ -269,12 +270,13 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
 
 interface SidebarProps {
   onClose?: () => void;
+  onCreateJobFromServiceRequest?: (data: any) => void;
 }
 
-export function Sidebar({ onClose }: SidebarProps) {
+export function Sidebar({ onClose, onCreateJobFromServiceRequest }: SidebarProps) {
   return (
     <aside className="hidden sm:block w-64 bg-white border-r border-gray-200 fixed h-full z-30">
-      <SidebarContent onClose={onClose} />
+      <SidebarContent onClose={onClose} onCreateJobFromServiceRequest={onCreateJobFromServiceRequest} />
     </aside>
   );
 }

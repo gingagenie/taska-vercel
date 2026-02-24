@@ -16,9 +16,17 @@ type Props = {
   onOpenChange: (v: boolean) => void; 
   onCreated?: (id: string) => void;
   defaultCustomerId?: string;
+  // Service request pre-fill data
+  prefillData?: {
+    title?: string;
+    description?: string;
+    customerId?: string;
+    equipmentId?: string;
+    serviceRequestId?: string;
+  } | null;
 };
 
-export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: Props) {
+export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId, prefillData }: Props) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [jobType, setJobType] = useState<string>("");
@@ -66,7 +74,10 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
         if (!response.ok) throw new Error(`${response.status}: ${response.statusText}`);
         const eq = await response.json();
         setEquipment(eq || []);
-        setEquipmentId(""); // Reset selection when customer changes
+        // Don't reset equipmentId if we have prefill data
+        if (!prefillData?.equipmentId) {
+          setEquipmentId("");
+        }
       } catch (e: any) {
         setErr(e?.message || "Failed to load equipment");
         setEquipment([]);
@@ -79,6 +90,18 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
       setCustomerId(defaultCustomerId);
     }
   }, [open, defaultCustomerId]);
+
+  // Pre-fill form from service request data
+  useEffect(() => {
+    if (open && prefillData) {
+      if (prefillData.title) setTitle(prefillData.title);
+      if (prefillData.description) setDescription(prefillData.description);
+      if (prefillData.customerId) setCustomerId(prefillData.customerId);
+      if (prefillData.equipmentId) setEquipmentId(prefillData.equipmentId);
+      // Set job type to Service for service requests
+      setJobType("Service");
+    }
+  }, [open, prefillData]);
 
   async function createJob() {
     if (!title.trim()) {
@@ -98,6 +121,26 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
         assignedTechIds,
       };
       const r = await jobsApi.create(body);
+      
+      // If this came from a service request, mark it as converted
+      if (prefillData?.serviceRequestId) {
+        try {
+          await fetch(`/api/service-requests/${prefillData.serviceRequestId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ 
+              status: 'job_created',
+              converted_job_id: r?.id 
+            }),
+          });
+          // Invalidate service requests to update the list
+          queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
+        } catch (e) {
+          console.error('Failed to update service request status:', e);
+        }
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs/range"] });
       onOpenChange(false);
@@ -116,7 +159,9 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId }: P
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New Job</DialogTitle>
+          <DialogTitle>
+            {prefillData?.serviceRequestId ? "Create Job from Service Request" : "New Job"}
+          </DialogTitle>
         </DialogHeader>
 
         {err && <div className="text-red-600 text-sm">{err}</div>}

@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import Avatar from "boring-avatars";
 import { useState } from "react";
 import { ProfileModal } from "@/components/modals/profile-modal";
+import { ServiceRequestsNotifications } from "@/components/ServiceRequestsNotifications";
 import { 
   Briefcase, 
   Users, 
@@ -64,14 +65,18 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
 
   return (
     <div className="p-6 h-full flex flex-col">
-      {/* Logo */}
-      <div className="flex items-center gap-3 mb-8">
-        <img 
-          src={logoUrl} 
-          alt="Taska Logo" 
-          className="w-8 h-8 object-contain"
-        />
-        <h1 className="text-xl font-bold text-gray-900">Taska</h1>
+      
+     {/* Logo with Notifications */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <img 
+            src={logoUrl} 
+            alt="Taska Logo" 
+            className="w-8 h-8 object-contain"
+          />
+          <h1 className="text-xl font-bold text-gray-900">Taska</h1>
+        </div>
+        <ServiceRequestsNotifications />
       </div>
 
       {/* Primary Navigation Menu */}

@@ -7,7 +7,13 @@ import { RouteHeader } from "@/components/layout/route-header";
 import { UsageWidget } from "@/components/layout/usage-widget";
 import { ServiceRequestsNotifications } from "@/components/ServiceRequestsNotifications";
 
-export function MobileHeader({ title }: { title?: string }) {
+export function MobileHeader({ 
+  title,
+  onCreateJobFromServiceRequest 
+}: { 
+  title?: string;
+  onCreateJobFromServiceRequest?: (data: any) => void;
+}) {
   const [open, setOpen] = useState(false);
   
   return (
@@ -20,7 +26,10 @@ export function MobileHeader({ title }: { title?: string }) {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-72">
-            <SidebarContent onClose={() => setOpen(false)} />
+            <SidebarContent 
+              onClose={() => setOpen(false)} 
+              onCreateJobFromServiceRequest={onCreateJobFromServiceRequest}
+            />
           </SheetContent>
         </Sheet>
         
@@ -29,7 +38,7 @@ export function MobileHeader({ title }: { title?: string }) {
         </div>
         
         <div className="flex items-center gap-2">
-          <ServiceRequestsNotifications />
+          <ServiceRequestsNotifications onCreateJob={onCreateJobFromServiceRequest} />
           <UsageWidget variant="mobile" showText={false} />
         </div>
       </div>

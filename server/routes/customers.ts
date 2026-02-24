@@ -1,16 +1,3 @@
-import { Router } from "express";
-import { db } from "../db/client";
-import { sql } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
-import { requireOrg } from "../middleware/tenancy";
-import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
-import multer from "multer";
-import { parse } from "csv-parse";
-import { Readable } from "stream";
-
-export const customers = Router();
-const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
-
 // Configure multer for file uploads
 const upload = multer({ 
   storage: multer.memoryStorage(),

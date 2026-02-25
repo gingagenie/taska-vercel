@@ -3,7 +3,6 @@ import { Router } from "express";
 import multer from "multer";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
-import { uploadPdfToDriveFolder } from "../services/googleDrive";
 
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
@@ -1279,53 +1278,6 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     } catch (err: any) {
       console.error('⚠️ Service sheet PDF generation/upload failed:', err?.message);
       // Non-fatal - job completion continues
-    }
-
-    // OPTIONAL: GOOGLE DRIVE UPLOAD (keep if you want both)
-    try {
-      const equipmentRows: any = await db.execute(sql`
-        SELECT e.id, e.name, e.google_drive_folder_id
-        FROM job_equipment je
-        JOIN equipment e ON e.id = je.equipment_id
-        WHERE je.job_id = ${jobId}::uuid
-        LIMIT 1
-      `);
-
-      if (equipmentRows.length > 0) {
-        const equip = equipmentRows[0];
-        const { uploadServiceSheet } = await import('../services/googleDrive');
-        const { generateServiceSheetPDF } = await import('../lib/service-sheet-generator');
-        
-        // Re-use the already generated PDF buffer if available, otherwise generate again
-        let pdfBuffer: Buffer;
-        if (servicePdfKey) {
-          // We already generated it above, but we need the buffer for Drive
-          // Option 1: Generate again (simpler but slower)
-          pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
-        } else {
-          pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
-        }
-        
-        const dateStr = new Date().toISOString().split('T')[0];
-        
-        const { folderId } = await uploadServiceSheet({
-          equipmentName: equip.name,
-          pdfBuffer,
-          date: dateStr,
-          existingFolderId: equip.google_drive_folder_id,
-        });
-        
-        if (!equip.google_drive_folder_id) {
-          await db.execute(sql`
-            UPDATE equipment SET google_drive_folder_id = ${folderId} WHERE id = ${equip.id}::uuid
-          `);
-        }
-        
-        console.log(`✅ Service sheet uploaded to Drive: ${equip.name} - ${dateStr}.pdf`);
-      }
-    } catch (err) {
-      console.error('⚠️ Drive upload failed:', err);
-      // Non-fatal
     }
 
   /**

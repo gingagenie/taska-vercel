@@ -375,12 +375,12 @@ export default function InvoiceView() {
     <div className="page space-y-6">
       <Button 
         variant="ghost" 
-        onClick={() => nav('/invoices')}
+        onClick={() => nav('/completed-jobs')}
         className="mb-4"
-        data-testid="button-back-to-invoices"
+        data-testid="button-back-to-completed-jobs"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Invoices
+        Back to Completed Jobs
       </Button>
       
       <div className="header-row">

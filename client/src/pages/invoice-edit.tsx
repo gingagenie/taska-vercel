@@ -80,7 +80,7 @@ export default function InvoiceEdit() {
           due_at,
           lines,
         });
-        nav(`/invoices/${id}${fromCompletedJobs ? '?from=completed-jobs' : ''}`);`);
+        nav(`/invoices/${id}${fromCompletedJobs ? '?from=completed-jobs' : ''}`);
       } else {
         const r = await invoicesApi.create({
           title: payload.title,

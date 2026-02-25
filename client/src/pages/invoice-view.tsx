@@ -12,6 +12,7 @@ import { ExternalLink, Mail, Eye, ArrowLeft } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
+import { Eye } from "lucide-react";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
@@ -383,8 +384,16 @@ export default function InvoiceView() {
         Back to Completed Jobs
       </Button>
       
-      <div className="header-row">
-        <h1 className="text-2xl font-bold">{invoice.title}</h1>
+     <div className="header-row">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">{invoice.title}</h1>
+          {invoice.viewed_at && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm border border-green-200">
+              <Eye className="h-4 w-4" />
+              <span>Viewed {new Date(invoice.viewed_at).toLocaleDateString()}</span>
+            </div>
+          )}
+        </div>
         <div className="header-actions">
           <Button asChild variant="outline">
             <Link href={`/invoices/${id}/edit`}><a>Edit</a></Link>

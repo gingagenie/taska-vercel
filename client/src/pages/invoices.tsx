@@ -95,14 +95,15 @@ export default function InvoicesPage() {
   };
 
   function getStatusBadgeClass(status: string) {
-    switch (status) {
-      case 'sent': return 'bg-blue-100 text-blue-800';
-      case 'paid': return 'bg-green-100 text-green-800';
-      case 'overdue': return 'bg-red-100 text-red-800';
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  switch (status) {
+    case 'sent': return 'bg-blue-100 text-blue-800';
+    case 'viewed': return 'bg-purple-100 text-purple-800';  // Purple for viewed
+    case 'paid': return 'bg-green-100 text-green-800';
+    case 'overdue': return 'bg-red-100 text-red-800';
+    case 'draft': return 'bg-gray-100 text-gray-800';
+    default: return 'bg-gray-100 text-gray-800';
   }
+}
 
   return (
     <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
@@ -234,8 +235,10 @@ export default function InvoicesPage() {
                           {invoice.number || 'inv-0001'}
                         </div>
                       </div>
-                      <Badge className={getStatusBadgeClass(invoice.status)}>
-                        {(invoice.status || "draft").replace("_", " ")}
+                      <Badge className={getStatusBadgeClass(invoice.viewed_at ? 'viewed' : invoice.status)}>
+                        {invoice.viewed_at && invoice.status === 'sent' 
+                          ? 'viewed' 
+                          : (invoice.status || "draft").replace("_", " ")}
                       </Badge>
                     </div>
                     

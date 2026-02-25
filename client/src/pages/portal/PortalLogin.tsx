@@ -91,6 +91,18 @@ export default function PortalLogin() {
               }}
             />
           </div>
+
+          {/* Forgot Password Link */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => navigate(`/portal/${org}/forgot-password`)}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Forgot password?
+            </button>
+          </div>
+
           <Button 
             onClick={onLogin} 
             disabled={loading || !email || !password} 

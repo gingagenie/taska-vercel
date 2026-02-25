@@ -135,22 +135,23 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
   }
   
   const r: any = await db.execute(sql`
-    select 
-      i.id, 
-      i.title, 
-      i.number,
-      i.status, 
-      i.created_at,
-      i.due_at,
-      i.customer_id, 
-      c.name as customer_name,
-      COALESCE(i.grand_total, 0) as total_amount
-    from invoices i 
-    join customers c on c.id = i.customer_id
-    where i.org_id=${orgId}::uuid ${tabFilter}
-    order by i.created_at desc
-    limit ${pageSize} offset ${offset}
-  `);
+  select 
+    i.id, 
+    i.title, 
+    i.number,
+    i.status, 
+    i.created_at,
+    i.due_at,
+    i.customer_id, 
+    i.viewed_at,
+    c.name as customer_name,
+    COALESCE(i.grand_total, 0) as total_amount
+  from invoices i 
+  join customers c on c.id = i.customer_id
+  where i.org_id=${orgId}::uuid ${tabFilter}
+  order by i.created_at desc
+  limit ${pageSize} offset ${offset}
+`);
   console.log(`[DEBUG] Invoice list query result (tab=${tab}):`, r.map((inv: any) => ({ id: inv.id, title: inv.title, total_amount: inv.total_amount })));
   res.json(r);  // Match the working pattern from jobs.ts
 });

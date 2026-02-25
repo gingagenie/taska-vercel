@@ -16,19 +16,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Bell, 
   AlertCircle, 
-  Clock, 
-  CheckCircle2, 
-  XCircle,
-  Calendar,
   Wrench,
   Image as ImageIcon,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -63,58 +69,63 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
   const [open, setOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [requestToDelete, setRequestToDelete] = useState<string | null>(null);
 
-  // Fetch service requests
-  const { data: requests = [], isLoading } = useQuery<ServiceRequest[]>({
+  // Fetch service requests (pending only)
+  const { data: allRequests = [], isLoading } = useQuery<ServiceRequest[]>({
     queryKey: ["/api/service-requests"],
     refetchInterval: 30000, // Poll every 30 seconds
   });
 
-  // Fetch unread count
-  const { data: unreadData } = useQuery({
-    queryKey: ["/api/service-requests/stats/unread"],
-    refetchInterval: 30000,
-  });
+  // Filter to pending only
+  const requests = allRequests.filter(r => r.status === "pending");
 
-  const unreadCount = (unreadData as any)?.count || 0;
-
-  // Mark as viewed mutation
-  const markAsViewedMutation = useMutation({
+  // Delete mutation
+  const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await fetch(`/api/service-requests/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "viewed" }),
+        method: "DELETE",
         credentials: "include",
       });
-      if (!response.ok) throw new Error("Failed to update");
+      if (!response.ok) throw new Error("Failed to delete");
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests/stats/unread"] });
+      setDetailModalOpen(false);
       toast({
-        title: "Request marked as viewed",
-        description: "Status updated successfully",
+        title: "Request deleted",
+        description: "Service request has been removed",
       });
     },
     onError: () => {
       toast({
-        title: "Failed to update",
+        title: "Failed to delete",
         description: "Please try again",
         variant: "destructive",
       });
     },
   });
 
-  const handleMarkAsViewed = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Prevent card click
-    markAsViewedMutation.mutate(id);
-  };
-
   const handleCardClick = (request: ServiceRequest) => {
     setSelectedRequest(request);
     setDetailModalOpen(true);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, requestId: string) => {
+    e.stopPropagation(); // Prevent card click
+    setRequestToDelete(requestId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (requestToDelete) {
+      deleteMutation.mutate(requestToDelete);
+      setDeleteConfirmOpen(false);
+      setRequestToDelete(null);
+    }
   };
 
   const handleConvertToJob = (request: ServiceRequest) => {
@@ -134,46 +145,10 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
     });
   };
 
-  const pendingRequests = requests.filter(r => r.status === "pending");
-  const viewedRequests = requests.filter(r => r.status === "viewed");
-  const completedRequests = requests.filter(r => r.status === "job_created" || r.status === "declined");
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <Clock className="h-4 w-4" />;
-      case "viewed":
-        return <CheckCircle2 className="h-4 w-4" />;
-      case "job_created":
-        return <Calendar className="h-4 w-4" />;
-      case "declined":
-        return <XCircle className="h-4 w-4" />;
-      default:
-        return null;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-700">Pending</Badge>;
-      case "viewed":
-        return <Badge variant="secondary" className="bg-green-100 text-green-700">Viewed</Badge>;
-      case "job_created":
-        return <Badge variant="secondary" className="bg-purple-100 text-purple-700">Job Created</Badge>;
-      case "declined":
-        return <Badge variant="secondary" className="bg-gray-100 text-gray-700">Declined</Badge>;
-      default:
-        return null;
-    }
-  };
-
   const RequestCard = ({ request }: { request: ServiceRequest }) => (
     <div 
       onClick={() => handleCardClick(request)}
-      className={`p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer ${
-        request.status === "pending" ? "border-blue-200 bg-blue-50/50" : ""
-      }`}
+      className="p-4 border border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-100/50 transition-colors cursor-pointer"
     >
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1">
@@ -209,51 +184,30 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
             )}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2 ml-4">
-          <span className="text-xs text-gray-500">
-            {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
-          </span>
-          <div className="flex items-center gap-1">
-            {getStatusIcon(request.status)}
-          </div>
-        </div>
+        <span className="text-xs text-gray-500 ml-4">
+          {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
+        </span>
       </div>
 
-      {request.status === "pending" && (
-        <div className="flex gap-2 mt-3">
-          <Button
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleConvertToJob(request);
-            }}
-            className="flex-1"
-          >
-            Create Job
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => handleMarkAsViewed(e, request.id)}
-            disabled={markAsViewedMutation.isPending}
-          >
-            Mark Viewed
-          </Button>
-        </div>
-      )}
-
-      {request.status === "viewed" && (
+      <div className="flex gap-2 mt-3">
         <Button
           size="sm"
           onClick={(e) => {
             e.stopPropagation();
             handleConvertToJob(request);
           }}
-          className="w-full mt-3"
+          className="flex-1"
         >
           Create Job
         </Button>
-      )}
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={(e) => handleDeleteClick(e, request.id)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 
@@ -263,9 +217,9 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
         <SheetTrigger asChild>
           <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <Bell className="h-5 w-5 text-gray-600" />
-            {unreadCount > 0 && (
+            {requests.length > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
+                {requests.length > 9 ? "9+" : requests.length}
               </span>
             )}
           </button>
@@ -278,68 +232,21 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
             </SheetDescription>
           </SheetHeader>
 
-          <Tabs defaultValue="pending" className="mt-6">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="pending" className="relative">
-                Pending
-                {pendingRequests.length > 0 && (
-                  <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
-                    {pendingRequests.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="viewed">
-                Viewed
-                {viewedRequests.length > 0 && (
-                  <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
-                    {viewedRequests.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="completed">Completed</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="pending" className="space-y-3 mt-4">
-              {isLoading ? (
-                <div className="text-center py-8 text-gray-500">Loading...</div>
-              ) : pendingRequests.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>No pending requests</p>
-                </div>
-              ) : (
-                pendingRequests.map(request => (
-                  <RequestCard key={request.id} request={request} />
-                ))
-              )}
-            </TabsContent>
-
-            <TabsContent value="viewed" className="space-y-3 mt-4">
-              {viewedRequests.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>No viewed requests</p>
-                </div>
-              ) : (
-                viewedRequests.map(request => (
-                  <RequestCard key={request.id} request={request} />
-                ))
-              )}
-            </TabsContent>
-
-            <TabsContent value="completed" className="space-y-3 mt-4">
-              {completedRequests.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>No completed requests</p>
-                </div>
-              ) : (
-                completedRequests.map(request => (
-                  <RequestCard key={request.id} request={request} />
-                ))
-              )}
-            </TabsContent>
-          </Tabs>
+          <div className="mt-6 space-y-3">
+            {isLoading ? (
+              <div className="text-center py-8 text-gray-500">Loading...</div>
+            ) : requests.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p className="font-medium">No pending requests</p>
+                <p className="text-sm mt-1">You're all caught up!</p>
+              </div>
+            ) : (
+              requests.map(request => (
+                <RequestCard key={request.id} request={request} />
+              ))
+            )}
+          </div>
         </SheetContent>
       </Sheet>
 
@@ -354,15 +261,12 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
                   {new Date(selectedRequest?.created_at || '').toLocaleString()}
                 </DialogDescription>
               </div>
-              <div className="flex flex-col gap-2 items-end">
-                {selectedRequest?.urgency === "urgent" && (
-                  <Badge variant="destructive">
-                    <AlertCircle className="h-3 w-3 mr-1" />
-                    Urgent
-                  </Badge>
-                )}
-                {getStatusBadge(selectedRequest?.status || '')}
-              </div>
+              {selectedRequest?.urgency === "urgent" && (
+                <Badge variant="destructive">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Urgent
+                </Badge>
+              )}
             </div>
           </DialogHeader>
 
@@ -424,43 +328,51 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
           )}
 
           <DialogFooter className="flex gap-2">
-            {selectedRequest?.status === "pending" && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (selectedRequest) {
-                      markAsViewedMutation.mutate(selectedRequest.id);
-                      setDetailModalOpen(false);
-                    }
-                  }}
-                  disabled={markAsViewedMutation.isPending}
-                >
-                  Mark as Viewed
-                </Button>
-                <Button
-                  onClick={() => selectedRequest && handleConvertToJob(selectedRequest)}
-                >
-                  Create Job
-                </Button>
-              </>
-            )}
-            {selectedRequest?.status === "viewed" && (
-              <Button
-                onClick={() => selectedRequest && handleConvertToJob(selectedRequest)}
-                className="w-full"
-              >
-                Create Job
-              </Button>
-            )}
-            {(selectedRequest?.status === "job_created" || selectedRequest?.status === "declined") && (
-              <Button variant="outline" onClick={() => setDetailModalOpen(false)} className="w-full">
-                Close
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (selectedRequest) {
+                  setRequestToDelete(selectedRequest.id);
+                  setDeleteConfirmOpen(true);
+                }
+              }}
+              disabled={deleteMutation.isPending}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+            <Button
+              onClick={() => selectedRequest && handleConvertToJob(selectedRequest)}
+            >
+              Create Job
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete service request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this service request. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setRequestToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

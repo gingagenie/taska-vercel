@@ -10,9 +10,66 @@ import { sendEmail, generateInvoiceEmailTemplate } from "../services/email";
 import { generateInvoicePdf, generateInvoicePdfFilename } from "../services/pdf";
 import { trackEmailUsage, checkEmailQuota } from "./job-sms";
 import { finalizePackConsumption, releasePackReservation, durableFinalizePackConsumption } from "../lib/pack-consumption";
+import crypto from "crypto";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
+
+// Generate tracking token helper
+function generateTrackingToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+
+  /** PUBLIC: Tracking pixel endpoint - no auth required */
+router.get("/track/:token", async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    // Find invoice by tracking token
+    const invoices: any = await db.execute(sql`
+      SELECT id, viewed_at
+      FROM invoices
+      WHERE view_tracking_token = ${token}
+      LIMIT 1
+    `);
+
+    if (invoices.length > 0) {
+      const invoice = invoices[0];
+      
+      // Only update if not already viewed (first view only)
+      if (!invoice.viewed_at) {
+        await db.execute(sql`
+          UPDATE invoices
+          SET viewed_at = NOW()
+          WHERE id = ${invoice.id}::uuid
+        `);
+        
+        console.log(`[INVOICE_TRACKING] Invoice ${invoice.id} marked as viewed`);
+      }
+    }
+
+    // Return 1x1 transparent pixel
+    const pixel = Buffer.from(
+      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+      'base64'
+    );
+    
+    res.setHeader('Content-Type', 'image/gif');
+    res.setHeader('Content-Length', pixel.length);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.send(pixel);
+  } catch (error: any) {
+    console.error('[INVOICE_TRACKING] Error:', error);
+    // Still return pixel even on error (don't break email display)
+    const pixel = Buffer.from(
+      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+      'base64'
+    );
+    res.setHeader('Content-Type', 'image/gif');
+    res.send(pixel);
+  }
+});
 
 /** Get previous items for autocomplete */
 router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
@@ -405,6 +462,17 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
     const invoice = invoiceResult[0];
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
+    // Generate or get tracking token
+let trackingToken = invoice.view_tracking_token;
+if (!trackingToken) {
+  trackingToken = generateTrackingToken();
+  await db.execute(sql`
+    UPDATE invoices
+    SET view_tracking_token = ${trackingToken}
+    WHERE id = ${id}::uuid
+  `);
+}
+
     // Get invoice items (correct table name: invoice_lines)
     const items: any = await db.execute(sql`
       select * from invoice_lines where invoice_id=${id}::uuid order by position asc, created_at asc
@@ -510,7 +578,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     };
 
     // Generate email content with complete business and customer information
-    const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, organization, customer);
+    const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, organization, customer, trackingToken);
 
     // Generate PDF attachment
     let pdfAttachment = null;

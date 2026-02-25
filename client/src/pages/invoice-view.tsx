@@ -13,11 +13,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
 import { Eye } from "lucide-react";
+import { useRoute, useLocation, useSearch } from "wouter";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
   const [, nav] = useLocation();
+  const searchString = useSearch();
   const id = params?.id;
+  
+  // Check if we came from completed jobs
+  const urlParams = new URLSearchParams(searchString);
+  const fromCompletedJobs = urlParams.get('from') === 'completed-jobs';
 
   const [invoice, setInvoice] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -376,12 +382,12 @@ export default function InvoiceView() {
     <div className="page space-y-6">
       <Button 
         variant="ghost" 
-        onClick={() => nav('/completed-jobs')}
+        onClick={() => nav(fromCompletedJobs ? '/completed-jobs' : '/invoices')}
         className="mb-4"
-        data-testid="button-back-to-completed-jobs"
+        data-testid={fromCompletedJobs ? "button-back-to-completed-jobs" : "button-back-to-invoices"}
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Completed Jobs
+        {fromCompletedJobs ? 'Back to Completed Jobs' : 'Back to Invoices'}
       </Button>
       
      <div className="header-row">

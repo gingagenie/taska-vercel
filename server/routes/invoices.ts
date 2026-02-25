@@ -18,7 +18,7 @@ const router = Router();
 // Generate tracking token helper
 function generateTrackingToken(): string {
   return crypto.randomBytes(32).toString('hex');
-
+}
   /** PUBLIC: Tracking pixel endpoint - no auth required */
 router.get("/track/:token", async (req, res) => {
   const { token } = req.params;
@@ -546,6 +546,17 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     `);
     const invoice = invoiceResult[0];
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    // Generate or get tracking token
+let trackingToken = invoice.view_tracking_token;
+if (!trackingToken) {
+  trackingToken = generateTrackingToken();
+  await db.execute(sql`
+    UPDATE invoices
+    SET view_tracking_token = ${trackingToken}
+    WHERE id = ${id}::uuid
+  `);
+}
 
     // Get complete organization details for email template
     const orgResult: any = await db.execute(sql`

@@ -145,7 +145,7 @@ export default function CompletedJobView() {
         description: result.message || "Invoice created successfully",
       });
 
-      navigate(`/invoices/${result.invoiceId}`);
+      navigate(`/invoices/${result.invoiceId}/edit`);
     } catch (e: any) {
       toast({
         title: "Error",

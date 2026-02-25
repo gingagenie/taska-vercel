@@ -138,7 +138,8 @@ export async function sendQuoteEmailToCustomer(
 export function generateInvoiceEmailTemplate(
   invoice: any, 
   organization: any = {},
-  customer: any = {}
+  customer: any = {},
+  trackingToken?: string  // ADD THIS LINE
 ): { subject: string; html: string; text: string } {
   const orgName = organization.name || "Your Business";
   const subject = `Invoice ${invoice.title} from ${orgName}`;
@@ -279,10 +280,13 @@ export function generateInvoiceEmailTemplate(
         <p>Thank you for your business!</p>
         <p>This invoice was sent from ${orgName} via Taska field service management system.</p>
         ${organization.abn ? `<p>ABN: ${organization.abn}</p>` : ''}
-      </div>
+ </div>
+      
+      <!-- Tracking Pixel -->
+      ${trackingToken ? `<img src="${process.env.PUBLIC_URL || 'https://www.taska.info'}/api/invoices/track/${trackingToken}" width="1" height="1" style="display:none;" alt="" />` : ''}
     </body>
-    </html>
-  `;
+  </html>
+`;
 
   const text = `
 INVOICE

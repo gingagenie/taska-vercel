@@ -1,10 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { RequestServiceButton } from "@/components/RequestServiceButton";
-import { Search, AlertTriangle } from "lucide-react";
+import { Search, Settings, LogOut, Lock } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import ChangePasswordModal from "@/components/modals/ChangePasswordModal";
+import { useToast } from "@/hooks/use-toast";
 
 type Eq = {
   id: string;
@@ -65,10 +76,14 @@ function getServiceStatus(nextServiceDate?: string | null): {
 export default function PortalEquipmentList() {
   const params = useParams() as any;
   const org = (params?.org || "fixmyforklift") as string;
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  
   const [equipment, setEquipment] = useState<Eq[]>([]);
   const [customerData, setCustomerData] = useState<any>(null);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -113,6 +128,22 @@ export default function PortalEquipmentList() {
     name: e.name,
   }));
 
+  async function handleLogout() {
+    try {
+      await fetch(`/api/portal/${org}/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+      navigate(`/portal/${org}/login`);
+    } catch (err) {
+      toast({
+        title: "Logout failed",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#0f1419] text-gray-100">
       {/* Header */}
@@ -125,6 +156,37 @@ export default function PortalEquipmentList() {
                 {customerData?.customer_name || 'Equipment Portal'}
               </p>
             </div>
+
+            {/* User Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline"
+                  className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border-white/10 hover:border-orange-500/30 text-gray-300 hover:text-white transition-all"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span className="hidden sm:inline">Settings</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-gray-800 border-gray-700">
+                <DropdownMenuLabel className="text-gray-300">My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-gray-700" />
+                <DropdownMenuItem
+                  onClick={() => setChangePasswordOpen(true)}
+                  className="text-gray-300 hover:bg-gray-700 hover:text-white cursor-pointer"
+                >
+                  <Lock className="h-4 w-4 mr-2" />
+                  Change Password
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="text-red-400 hover:bg-gray-700 hover:text-red-300 cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -263,6 +325,13 @@ export default function PortalEquipmentList() {
           })}
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        open={changePasswordOpen}
+        onOpenChange={setChangePasswordOpen}
+        orgSlug={org}
+      />
     </div>
   );
 }

@@ -8,6 +8,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,6 +28,7 @@ import {
   Calendar,
   Wrench,
   Image as ImageIcon,
+  ExternalLink,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +61,8 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   // Fetch service requests
   const { data: requests = [], isLoading } = useQuery<ServiceRequest[]>({
@@ -82,17 +93,35 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests/stats/unread"] });
+      toast({
+        title: "Request marked as viewed",
+        description: "Status updated successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to update",
+        description: "Please try again",
+        variant: "destructive",
+      });
     },
   });
 
-  const handleMarkAsViewed = (id: string) => {
+  const handleMarkAsViewed = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Prevent card click
     markAsViewedMutation.mutate(id);
+  };
+
+  const handleCardClick = (request: ServiceRequest) => {
+    setSelectedRequest(request);
+    setDetailModalOpen(true);
   };
 
   const handleConvertToJob = (request: ServiceRequest) => {
     if (!onCreateJob) return;
     
-    // Close the panel
+    // Close both modals
+    setDetailModalOpen(false);
     setOpen(false);
     
     // Call the callback with prefill data
@@ -124,9 +153,25 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="secondary" className="bg-blue-100 text-blue-700">Pending</Badge>;
+      case "viewed":
+        return <Badge variant="secondary" className="bg-green-100 text-green-700">Viewed</Badge>;
+      case "job_created":
+        return <Badge variant="secondary" className="bg-purple-100 text-purple-700">Job Created</Badge>;
+      case "declined":
+        return <Badge variant="secondary" className="bg-gray-100 text-gray-700">Declined</Badge>;
+      default:
+        return null;
+    }
+  };
+
   const RequestCard = ({ request }: { request: ServiceRequest }) => (
     <div 
-      className={`p-4 border rounded-lg hover:bg-gray-50 transition-colors ${
+      onClick={() => handleCardClick(request)}
+      className={`p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer ${
         request.status === "pending" ? "border-blue-200 bg-blue-50/50" : ""
       }`}
     >
@@ -178,7 +223,10 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
         <div className="flex gap-2 mt-3">
           <Button
             size="sm"
-            onClick={() => handleConvertToJob(request)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleConvertToJob(request);
+            }}
             className="flex-1"
           >
             Create Job
@@ -186,7 +234,7 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
           <Button
             size="sm"
             variant="outline"
-            onClick={() => handleMarkAsViewed(request.id)}
+            onClick={(e) => handleMarkAsViewed(e, request.id)}
             disabled={markAsViewedMutation.isPending}
           >
             Mark Viewed
@@ -197,7 +245,10 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
       {request.status === "viewed" && (
         <Button
           size="sm"
-          onClick={() => handleConvertToJob(request)}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleConvertToJob(request);
+          }}
           className="w-full mt-3"
         >
           Create Job
@@ -207,88 +258,209 @@ export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNot
   );
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
-          <Bell className="h-5 w-5 text-gray-600" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
+    <>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <Bell className="h-5 w-5 text-gray-600" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+        </SheetTrigger>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Service Requests</SheetTitle>
+            <SheetDescription>
+              Customer-initiated service requests from the portal
+            </SheetDescription>
+          </SheetHeader>
+
+          <Tabs defaultValue="pending" className="mt-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="pending" className="relative">
+                Pending
+                {pendingRequests.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
+                    {pendingRequests.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="viewed">
+                Viewed
+                {viewedRequests.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
+                    {viewedRequests.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pending" className="space-y-3 mt-4">
+              {isLoading ? (
+                <div className="text-center py-8 text-gray-500">Loading...</div>
+              ) : pendingRequests.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>No pending requests</p>
+                </div>
+              ) : (
+                pendingRequests.map(request => (
+                  <RequestCard key={request.id} request={request} />
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="viewed" className="space-y-3 mt-4">
+              {viewedRequests.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>No viewed requests</p>
+                </div>
+              ) : (
+                viewedRequests.map(request => (
+                  <RequestCard key={request.id} request={request} />
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="completed" className="space-y-3 mt-4">
+              {completedRequests.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>No completed requests</p>
+                </div>
+              ) : (
+                completedRequests.map(request => (
+                  <RequestCard key={request.id} request={request} />
+                ))
+              )}
+            </TabsContent>
+          </Tabs>
+        </SheetContent>
+      </Sheet>
+
+      {/* Detail Modal */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <DialogTitle className="text-xl">{selectedRequest?.title}</DialogTitle>
+                <DialogDescription className="mt-2">
+                  {new Date(selectedRequest?.created_at || '').toLocaleString()}
+                </DialogDescription>
+              </div>
+              <div className="flex flex-col gap-2 items-end">
+                {selectedRequest?.urgency === "urgent" && (
+                  <Badge variant="destructive">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    Urgent
+                  </Badge>
+                )}
+                {getStatusBadge(selectedRequest?.status || '')}
+              </div>
+            </div>
+          </DialogHeader>
+
+          {selectedRequest && (
+            <div className="space-y-6">
+              {/* Customer & Equipment Info */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                {selectedRequest.customer_name && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-500">Customer</div>
+                    <div className="mt-1 font-medium">{selectedRequest.customer_name}</div>
+                  </div>
+                )}
+                {selectedRequest.equipment_name && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-500">Equipment</div>
+                    <div className="mt-1 font-medium">{selectedRequest.equipment_name}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Description */}
+              <div>
+                <div className="text-sm font-medium text-gray-700 mb-2">Description</div>
+                <div className="p-4 bg-gray-50 rounded-lg whitespace-pre-wrap">
+                  {selectedRequest.description}
+                </div>
+              </div>
+
+              {/* Photos */}
+              {selectedRequest.photos && selectedRequest.photos.length > 0 && (
+                <div>
+                  <div className="text-sm font-medium text-gray-700 mb-3">
+                    Photos ({selectedRequest.photos.length})
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedRequest.photos.map((photo) => (
+                      <a
+                        key={photo.id}
+                        href={photo.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-500 transition-colors"
+                      >
+                        <img
+                          src={photo.url}
+                          alt="Service request"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                          <ExternalLink className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
-        </button>
-      </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Service Requests</SheetTitle>
-          <SheetDescription>
-            Customer-initiated service requests from the portal
-          </SheetDescription>
-        </SheetHeader>
 
-        <Tabs defaultValue="pending" className="mt-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="pending" className="relative">
-              Pending
-              {pendingRequests.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
-                  {pendingRequests.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="viewed">
-              Viewed
-              {viewedRequests.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
-                  {viewedRequests.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="pending" className="space-y-3 mt-4">
-            {isLoading ? (
-              <div className="text-center py-8 text-gray-500">Loading...</div>
-            ) : pendingRequests.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>No pending requests</p>
-              </div>
-            ) : (
-              pendingRequests.map(request => (
-                <RequestCard key={request.id} request={request} />
-              ))
+          <DialogFooter className="flex gap-2">
+            {selectedRequest?.status === "pending" && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedRequest) {
+                      markAsViewedMutation.mutate(selectedRequest.id);
+                      setDetailModalOpen(false);
+                    }
+                  }}
+                  disabled={markAsViewedMutation.isPending}
+                >
+                  Mark as Viewed
+                </Button>
+                <Button
+                  onClick={() => selectedRequest && handleConvertToJob(selectedRequest)}
+                >
+                  Create Job
+                </Button>
+              </>
             )}
-          </TabsContent>
-
-          <TabsContent value="viewed" className="space-y-3 mt-4">
-            {viewedRequests.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>No viewed requests</p>
-              </div>
-            ) : (
-              viewedRequests.map(request => (
-                <RequestCard key={request.id} request={request} />
-              ))
+            {selectedRequest?.status === "viewed" && (
+              <Button
+                onClick={() => selectedRequest && handleConvertToJob(selectedRequest)}
+                className="w-full"
+              >
+                Create Job
+              </Button>
             )}
-          </TabsContent>
-
-          <TabsContent value="completed" className="space-y-3 mt-4">
-            {completedRequests.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>No completed requests</p>
-              </div>
-            ) : (
-              completedRequests.map(request => (
-                <RequestCard key={request.id} request={request} />
-              ))
+            {(selectedRequest?.status === "job_created" || selectedRequest?.status === "declined") && (
+              <Button variant="outline" onClick={() => setDetailModalOpen(false)} className="w-full">
+                Close
+              </Button>
             )}
-          </TabsContent>
-        </Tabs>
-      </SheetContent>
-    </Sheet>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

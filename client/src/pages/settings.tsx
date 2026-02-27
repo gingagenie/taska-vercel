@@ -1075,7 +1075,23 @@ const filteredPresets = presets.filter(p =>
     }
     setSaving(false);
   }
-
+async function savePresetEdit(id: string) {
+  if (!presetEditForm.name.trim()) return;
+  setSaving(true);
+  try {
+    await itemPresetsApi.update(id, {
+      name: presetEditForm.name.trim(),
+      unit_amount: Number(presetEditForm.unit || 0),
+      tax_rate: Number(presetEditForm.tax || 0),
+    });
+    setPresetEditId(null);
+    await loadPresets();
+    toast({ title: "Preset updated" });
+  } catch (error: any) {
+    toast({ title: "Error", description: error?.message || "Failed to update preset", variant: "destructive" });
+  }
+  setSaving(false);
+}
   // Load presets when component mounts
   useEffect(() => {
     loadPresets();
@@ -1550,8 +1566,8 @@ const filteredPresets = presets.filter(p =>
         <TabsContent value="subscription" className="mt-4">
           <SubscriptionTab />
         </TabsContent>
-
-        {/* Items */}
+        
+       {/* Items */}
         <TabsContent value="items" className="mt-4">
           <div className="space-y-6">
             <Card>
@@ -1560,28 +1576,29 @@ const filteredPresets = presets.filter(p =>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-4 gap-3 max-w-3xl">
-                  <Input 
-                    placeholder="Name (e.g., Labour)" 
-                    value={presetForm.name} 
-                    onChange={e=>setPresetForm(p=>({...p, name: e.target.value}))}
+                  <Input
+                    placeholder="Name (e.g., Labour)"
+                    value={presetForm.name}
+                    onChange={e => setPresetForm(p => ({ ...p, name: e.target.value }))}
+                    onKeyDown={e => e.key === "Enter" && addPreset()}
                     data-testid="input-preset-name"
                   />
-                  <Input 
-                    placeholder="Unit $" 
-                    inputMode="decimal" 
-                    value={presetForm.unit} 
-                    onChange={e=>setPresetForm(p=>({...p, unit: e.target.value}))}
+                  <Input
+                    placeholder="Unit $"
+                    inputMode="decimal"
+                    value={presetForm.unit}
+                    onChange={e => setPresetForm(p => ({ ...p, unit: e.target.value }))}
                     data-testid="input-preset-unit"
                   />
-                  <Input 
-                    placeholder="Tax %" 
-                    inputMode="decimal" 
-                    value={presetForm.tax} 
-                    onChange={e=>setPresetForm(p=>({...p, tax: e.target.value}))}
+                  <Input
+                    placeholder="Tax %"
+                    inputMode="decimal"
+                    value={presetForm.tax}
+                    onChange={e => setPresetForm(p => ({ ...p, tax: e.target.value }))}
                     data-testid="input-preset-tax"
                   />
-                  <Button 
-                    onClick={addPreset} 
+                  <Button
+                    onClick={addPreset}
                     disabled={saving || !presetForm.name.trim()}
                     data-testid="button-add-preset"
                   >
@@ -1593,59 +1610,125 @@ const filteredPresets = presets.filter(p =>
 
             <Card>
               <CardHeader>
-                <CardTitle>Existing Item Presets</CardTitle>
+                <CardTitle>
+                  Existing Item Presets
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    ({filteredPresets.length}{presetSearch ? ` of ${presets.length}` : ""})
+                  </span>
+                </CardTitle>
               </CardHeader>
               <CardContent>
+                {/* Search */}
+                <div className="mb-3">
+                  <Input
+                    placeholder="Search presets…"
+                    value={presetSearch}
+                    onChange={e => setPresetSearch(e.target.value)}
+                    className="max-w-xs"
+                  />
+                </div>
+
                 {presetsLoading ? (
                   <div className="text-center py-4">Loading presets...</div>
                 ) : (
-                  <div className="max-w-3xl overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-medium">Name</th>
-                          <th className="px-3 py-2 text-right font-medium">Unit Price</th>
-                          <th className="px-3 py-2 text-right font-medium">Tax %</th>
-                          <th className="px-3 py-2 text-center font-medium">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {presets.length === 0 ? (
+                  <div className="max-w-3xl rounded-md border">
+                    <div className="overflow-y-auto max-h-[420px]">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
                           <tr>
-                            <td colSpan={4} className="px-3 py-4 text-center text-gray-500">
-                              No presets yet. Add some common items above to speed up billing.
-                            </td>
+                            <th className="px-3 py-2 text-left font-medium">Name</th>
+                            <th className="px-3 py-2 text-right font-medium">Unit Price</th>
+                            <th className="px-3 py-2 text-right font-medium">Tax %</th>
+                            <th className="px-3 py-2 text-center font-medium">Actions</th>
                           </tr>
-                        ) : (
-                          presets.map((p:any)=>(
-                            <tr key={p.id} className="border-b dark:border-gray-700" data-testid={`row-preset-${p.name.toLowerCase().replace(/\s+/g, '-')}`}>
-                              <td className="px-3 py-2 font-medium">{p.name}</td>
-                              <td className="px-3 py-2 text-right font-mono">${Number(p.unit_amount).toFixed(2)}</td>
-                              <td className="px-3 py-2 text-right font-mono">{Number(p.tax_rate).toFixed(2)}%</td>
-                              <td className="px-3 py-2 text-center">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => deletePreset(p.id, p.name)}
-                                  disabled={saving}
-                                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
-                                  data-testid={`button-delete-preset-${p.name.toLowerCase().replace(/\s+/g, '-')}`}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                        </thead>
+                        <tbody>
+                          {filteredPresets.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="px-3 py-4 text-center text-gray-500">
+                                {presetSearch ? `No presets matching "${presetSearch}"` : "No presets yet. Add some common items above to speed up billing."}
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : (
+                            filteredPresets.map((p: any) =>
+                              presetEditId === p.id ? (
+                                // Inline edit row
+                                <tr key={p.id} className="border-b dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
+                                  <td className="px-2 py-1">
+                                    <Input
+                                      value={presetEditForm.name}
+                                      onChange={e => setPresetEditForm(f => ({ ...f, name: e.target.value }))}
+                                      className="h-8 text-sm"
+                                      autoFocus
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    <Input
+                                      value={presetEditForm.unit}
+                                      onChange={e => setPresetEditForm(f => ({ ...f, unit: e.target.value }))}
+                                      inputMode="decimal"
+                                      className="h-8 text-sm text-right"
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    <Input
+                                      value={presetEditForm.tax}
+                                      onChange={e => setPresetEditForm(f => ({ ...f, tax: e.target.value }))}
+                                      inputMode="decimal"
+                                      className="h-8 text-sm text-right"
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1 text-center">
+                                    <div className="flex gap-1 justify-center">
+                                      <Button size="sm" className="h-7 px-2 text-xs" onClick={() => savePresetEdit(p.id)} disabled={saving}>
+                                        {saving ? "…" : "Save"}
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setPresetEditId(null)}>
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : (
+                                // Normal row
+                                <tr
+                                  key={p.id}
+                                  className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                  data-testid={`row-preset-${p.name.toLowerCase().replace(/\s+/g, "-")}`}
+                                  onDoubleClick={() => { setPresetEditId(p.id); setPresetEditForm({ name: p.name, unit: String(p.unit_amount), tax: String(p.tax_rate) }); }}
+                                >
+                                  <td className="px-3 py-2 font-medium">{p.name}</td>
+                                  <td className="px-3 py-2 text-right font-mono">${Number(p.unit_amount).toFixed(2)}</td>
+                                  <td className="px-3 py-2 text-right font-mono">{Number(p.tax_rate).toFixed(2)}%</td>
+                                  <td className="px-3 py-2 text-center">
+                                    <div className="flex gap-1 justify-center">
+                                      <button
+                                        onClick={() => { setPresetEditId(p.id); setPresetEditForm({ name: p.name, unit: String(p.unit_amount), tax: String(p.tax_rate) }); }}
+                                        className="text-xs text-blue-500 hover:text-blue-700 px-1"
+                                        title="Edit"
+                                      >✏️</button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => deletePreset(p.id, p.name)}
+                                        disabled={saving}
+                                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        data-testid={`button-delete-preset-${p.name.toLowerCase().replace(/\s+/g, "-")}`}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
           </div>
         </TabsContent>
-      </Tabs>
-    </div>
-  );
-}

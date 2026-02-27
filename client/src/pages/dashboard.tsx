@@ -13,6 +13,7 @@ import { UsageWidget } from "@/components/layout/usage-widget";
 import { trackViewContent } from "@/lib/tiktok-tracking";
 import React from "react";
 import { QuotesAcceptedCard } from "@/components/dashboard/QuotesAcceptedCard";
+import { InvoiceSummaryCard } from "@/components/dashboard/InvoiceSummaryCard";
 
 // --- date helpers ---
 function startOfDay(d = new Date()) {
@@ -161,6 +162,7 @@ export default function Dashboard() {
 
         {/* New Accepted Quotes card */}
         <QuotesAcceptedCard />
+        <InvoiceSummaryCard />
       </div>
 
       {/* Today's Schedule + Upcoming */}

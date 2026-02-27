@@ -1732,3 +1732,7 @@ async function savePresetEdit(id: string) {
             </Card>
           </div>
         </TabsContent>
+        </Tabs>
+    </div>
+  );
+}

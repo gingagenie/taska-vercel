@@ -1578,7 +1578,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
           ${orgId}::uuid,
           ${invoiceId}::uuid,
           ${position},
-          ${hour.description || "Labor Hours"},
+          ${hour.description || "Labour Hours"},
           ${quantity},
           ${unitAmount},
           ${taxRate}

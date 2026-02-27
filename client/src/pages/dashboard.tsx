@@ -119,49 +119,46 @@ export default function Dashboard() {
       )}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Link href="/schedule">
-          <a>
-            <Card className="border-schedule bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
-              <CardContent className="card-pad flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-gray-500 font-medium">
-                    Jobs Today
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Column 1: Jobs Today + Total Jobs stacked */}
+        <div className="flex flex-col gap-4">
+          <Link href="/schedule">
+            <a>
+              <Card className="border-schedule bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
+                <CardContent className="card-pad flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-500 font-medium">Jobs Today</div>
+                    <div className="text-2xl font-semibold">{todaysJobs.length}</div>
                   </div>
-                  <div className="text-2xl font-semibold">
-                    {todaysJobs.length}
+                  <div className="p-3 rounded-lg bg-schedule text-schedule-foreground">
+                    <CalendarDays className="h-6 w-6" />
                   </div>
-                </div>
-                <div className="p-3 rounded-lg bg-schedule text-schedule-foreground">
-                  <CalendarDays className="h-6 w-6" />
-                </div>
-              </CardContent>
-            </Card>
-          </a>
-        </Link>
+                </CardContent>
+              </Card>
+            </a>
+          </Link>
 
-        <Link href="/jobs">
-          <a>
-            <Card className="border-jobs bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
-              <CardContent className="card-pad flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-gray-500 font-medium">
-                    Total Jobs
+          <Link href="/jobs">
+            <a>
+              <Card className="border-jobs bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
+                <CardContent className="card-pad flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-500 font-medium">Total Jobs</div>
+                    <div className="text-2xl font-semibold">{(jobs as any[]).length}</div>
                   </div>
-                  <div className="text-2xl font-semibold">
-                    {(jobs as any[]).length}
+                  <div className="p-3 rounded-lg bg-jobs text-jobs-foreground">
+                    <Briefcase className="h-6 w-6" />
                   </div>
-                </div>
-                <div className="p-3 rounded-lg bg-jobs text-jobs-foreground">
-                  <Briefcase className="h-6 w-6" />
-                </div>
-              </CardContent>
-            </Card>
-          </a>
-        </Link>
+                </CardContent>
+              </Card>
+            </a>
+          </Link>
+        </div>
 
-        {/* New Accepted Quotes card */}
+        {/* Column 2: Quotes Accepted */}
         <QuotesAcceptedCard />
+
+        {/* Column 3: Invoice Summary */}
         <InvoiceSummaryCard />
       </div>
 

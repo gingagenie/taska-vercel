@@ -15,7 +15,7 @@ itemPresets.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSu
     where org_id=${orgId}::uuid
       and (${q === ""} or lower(name) like ${"%" + q.toLowerCase() + "%"})
     order by name asc
-    limit 20
+    limit 500
   `);
   res.json(r);
 });

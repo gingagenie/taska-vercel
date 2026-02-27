@@ -852,6 +852,12 @@ export default function SettingsPage() {
   const [presetsLoading, setPresetsLoading] = useState(false);
   
   const [saving, setSaving] = useState(false);
+  const [presetSearch, setPresetSearch] = useState("");
+const [presetEditId, setPresetEditId] = useState<string | null>(null);
+const [presetEditForm, setPresetEditForm] = useState({ name: "", unit: "0", tax: "10" });
+const filteredPresets = presets.filter(p =>
+  p.name.toLowerCase().includes(presetSearch.toLowerCase())
+);
 
   // Xero integration state and hooks
   const { data: xeroStatus, refetch: refetchXeroStatus } = useQuery<{

@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { invoicesApi } from "@/lib/api";
 
 type InvoiceSummary = {
-  paidThisMonth: number;
-  paidThisMonthCount: number;
+  paid: number;
+  paidCount: number;
   outstanding: number;
   outstandingCount: number;
   overdue: number;
@@ -24,7 +24,6 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-AU", {
     day: "2-digit",
     month: "short",
-    year: "numeric",
   });
 
 export const InvoiceSummaryCard: React.FC = () => {
@@ -40,59 +39,56 @@ export const InvoiceSummaryCard: React.FC = () => {
         setStatus("loading");
         setError(null);
 
-        const invoices = await invoicesApi.getAll();
+        // Use counts endpoint for accurate server-side totals
+        const [counts, unpaidInvoices, paidInvoices] = await Promise.all([
+          fetch("/api/invoices/counts", { credentials: "include" }).then(r => r.json()),
+          fetch("/api/invoices?tab=unpaid&pageSize=50", { credentials: "include" }).then(r => r.json()),
+          fetch("/api/invoices?tab=paid&pageSize=100", { credentials: "include" }).then(r => r.json()),
+        ]);
 
         if (cancelled) return;
 
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        // Calculate outstanding (all unpaid amounts)
+        const outstanding = (unpaidInvoices as any[]).reduce(
+          (sum: number, inv: any) => sum + Number(inv.total_amount || 0), 0
+        );
 
-        let paidThisMonth = 0;
-        let paidThisMonthCount = 0;
-        let outstanding = 0;
-        let outstandingCount = 0;
+        // Calculate overdue from unpaid list
+        const now = new Date();
         let overdue = 0;
         let overdueCount = 0;
-        const recentUnpaid: any[] = [];
-
-        for (const inv of invoices as any[]) {
-          const total = Number(inv.total_amount || inv.total || 0);
-          const isPaid = inv.status === "paid";
-          const isDraft = inv.status === "draft";
-          const dueDate = inv.due_date ? new Date(inv.due_date) : null;
-          const paidAt = inv.paid_at ? new Date(inv.paid_at) : null;
-
-          if (isPaid && paidAt && paidAt >= startOfMonth) {
-            paidThisMonth += total;
-            paidThisMonthCount++;
-          }
-
-          if (!isPaid && !isDraft) {
-            outstanding += total;
-            outstandingCount++;
-
-            if (dueDate && dueDate < now) {
-              overdue += total;
-              overdueCount++;
-            }
-
-            recentUnpaid.push(inv);
+        for (const inv of unpaidInvoices as any[]) {
+          if (inv.due_at && new Date(inv.due_at) < now) {
+            overdue += Number(inv.total_amount || 0);
+            overdueCount++;
           }
         }
 
-        // Sort by most recent first, take top 3
-        recentUnpaid.sort((a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+        // Calculate paid this month
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        let paidThisMonth = 0;
+        let paidThisMonthCount = 0;
+        for (const inv of paidInvoices as any[]) {
+          const createdAt = new Date(inv.created_at);
+          if (createdAt >= startOfMonth) {
+            paidThisMonth += Number(inv.total_amount || 0);
+            paidThisMonthCount++;
+          }
+        }
+
+        // Recent unpaid - sort by created_at desc, take top 3
+        const recentUnpaid = [...(unpaidInvoices as any[])]
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 3);
 
         setSummary({
-          paidThisMonth,
-          paidThisMonthCount,
+          paid: paidThisMonth,
+          paidCount: paidThisMonthCount,
           outstanding,
-          outstandingCount,
+          outstandingCount: Number(counts.unpaid || 0),
           overdue,
-          overdueCount,
-          recentUnpaid: recentUnpaid.slice(0, 3),
+          overdueCount: Number(counts.overdue || 0),
+          recentUnpaid,
         });
         setStatus("success");
       } catch (err) {
@@ -127,10 +123,10 @@ export const InvoiceSummaryCard: React.FC = () => {
         <div className="rounded-lg bg-emerald-50 px-2 py-2 text-center">
           <div className="text-xs text-emerald-600 font-medium mb-0.5">Paid</div>
           <div className="text-sm font-semibold text-emerald-800">
-            {status === "success" ? formatMoney(summary!.paidThisMonth) : "—"}
+            {status === "success" ? formatMoney(summary!.paid) : "—"}
           </div>
           <div className="text-[10px] text-emerald-600">
-            {status === "success" ? `${summary!.paidThisMonthCount} inv` : ""}
+            {status === "success" ? `${summary!.paidCount} this mo` : ""}
           </div>
         </div>
 
@@ -185,15 +181,18 @@ export const InvoiceSummaryCard: React.FC = () => {
                 >
                   <div className="min-w-0">
                     <div className="truncate font-medium text-slate-800">
-                      {inv.title || inv.invoice_number || "Invoice"}
+                      {inv.customer_name || "Invoice"}
                     </div>
                     <div className="truncate text-[11px] text-slate-500">
-                      {inv.customer_name} • {formatDate(inv.created_at)}
+                      {inv.number} • {formatDate(inv.created_at)}
+                      {inv.due_at && new Date(inv.due_at) < new Date() && (
+                        <span className="ml-1 text-red-500 font-medium">overdue</span>
+                      )}
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="text-xs font-semibold text-slate-900">
-                      {formatMoney(Number(inv.total_amount || inv.total || 0))}
+                      {formatMoney(Number(inv.total_amount || 0))}
                     </div>
                     <button
                       type="button"

@@ -96,7 +96,7 @@ export default function Jobs() {
 
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ["/api/jobs"],
-    queryFn: jobsApi.getAll, // expects id,title,status,scheduled_at,customer_id,customer_name
+    queryFn: jobsApi.getAll,
   });
 
   const getStatusBadgeClass = (status: string) => {
@@ -134,7 +134,6 @@ export default function Jobs() {
     });
   }, [jobs, statusFilter, searchQuery]);
 
-  // Sort by urgency (overdue first, then today, then upcoming)
   const sortedJobs = useMemo(() => {
     return [...filteredJobs].sort((a, b) => {
       const urgencyA = getUrgencyStatus(a.scheduled_at);
@@ -146,7 +145,6 @@ export default function Jobs() {
       
       if (orderA !== orderB) return orderA - orderB;
       
-      // If same urgency level, sort by scheduled time
       if (a.scheduled_at && b.scheduled_at) {
         return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
       }
@@ -259,22 +257,6 @@ export default function Jobs() {
                             {UrgencyIcon && <UrgencyIcon className="h-3 w-3 mr-1" />}
                             {urgency.label}
                           </Badge>
-                        )}
-                        {/* Member color dots */}
-                        {job.technicians?.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            {job.technicians.slice(0, 3).map((tech: any) => (
-                              <div
-                                key={tech.id}
-                                className="w-3 h-3 rounded-full border border-white shadow-sm"
-                                style={{ backgroundColor: tech.color || '#3b82f6' }}
-                                title={tech.name}
-                              />
-                            ))}
-                            {job.technicians.length > 3 && (
-                              <span className="text-xs text-gray-500 ml-1">+{job.technicians.length - 3}</span>
-                            )}
-                          </div>
                         )}
                       </div>
                       

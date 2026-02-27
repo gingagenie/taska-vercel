@@ -2,16 +2,13 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
 import { generateAuthTokens, refreshAuthTokens, isJwtAuthDisabled } from "../lib/jwt-auth-tokens";
 import Stripe from "stripe";
 import { subscriptionPlans } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 
 const stripe = new Stripe((process.env.STRIPE_SECRET_KEY || "").trim(), {
-  apiVersion: "2023-10-16", // stable api version
+  apiVersion: "2023-10-16",
 });
 
 declare module "express-session" {
@@ -23,30 +20,6 @@ declare module "express-session" {
 
 const router = Router();
 
-/* ------------------------------- Multer ---------------------------------- */
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadsDir = path.join(process.cwd(), "uploads", "avatars");
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const userId = (req.session as any).userId;
-    const ext = path.extname(file.originalname);
-    cb(null, `${userId}-${Date.now()}${ext}`);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) cb(null, true);
-    else cb(new Error("Only image files are allowed"));
-  },
-});
-
 /* --------------------------- Basic email signup -------------------------- */
 
 router.post("/register", async (req, res) => {
@@ -56,11 +29,9 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    // Create org
     const orgIns: any = await db.execute(sql`insert into orgs (name) values (${orgName}) returning id`);
     const orgId = orgIns[0].id;
 
-    // Create user with password hash
     const hash = await bcrypt.hash(password, 10);
     const userIns: any = await db.execute(sql`
       insert into users (org_id, name, email, password_hash, role)
@@ -69,7 +40,6 @@ router.post("/register", async (req, res) => {
     `);
     const user = userIns[0];
 
-    // Seed a 14-day trial locally (legacy path)
     const trialEndDate = new Date();
     trialEndDate.setDate(trialEndDate.getDate() + 14);
 
@@ -77,23 +47,6 @@ router.post("/register", async (req, res) => {
       insert into org_subscriptions (org_id, plan_id, status, trial_end, current_period_end)
       values (${orgId}, 'pro', 'trial', ${trialEndDate.toISOString()}, ${trialEndDate.toISOString()})
     `);
-
-    // TikTok fire-and-forget
-    try {
-      const customerInfo: CustomerInfo = {
-        email,
-        firstName: name?.split(" ")[0] || undefined,
-        lastName: name?.split(" ").slice(1).join(" ") || undefined,
-        ip: req.ip || (req.connection as any).remoteAddress || "",
-        userAgent: req.get("User-Agent") || "",
-        country: "AU",
-      };
-      tiktokEvents
-        .trackCompleteRegistration(customerInfo, { value: 100, currency: "AUD", status: "completed", contentName: "User Registration - New Account Created" }, req.get("Referer") || undefined, req.get("Referer") || undefined)
-        .catch((e) => console.error("[REGISTRATION] TikTok tracking failed:", e));
-    } catch (e) {
-      console.error("[REGISTRATION] TikTok tracking error:", e);
-    }
 
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ error: "session error" });
@@ -114,7 +67,6 @@ router.post("/register", async (req, res) => {
 });
 
 /* ----------------- New: trial with card (create user first) -------------- */
-/* This is the one you’ll use for live onboarding. */
 
 router.post("/register-with-trial", async (req, res) => {
   const { orgName, name, email, password, planId } = req.body || {};
@@ -129,7 +81,6 @@ router.post("/register-with-trial", async (req, res) => {
   try {
     const normalizedEmail = String(email).trim().toLowerCase();
 
-    // Prevent duplicate users
     const existing: any = await db.execute(sql`
       select id from users where lower(email) = lower(${normalizedEmail}) limit 1
     `);
@@ -137,18 +88,15 @@ router.post("/register-with-trial", async (req, res) => {
       return res.status(400).json({ error: "Email already exists" });
     }
 
-    // Pull plan + price (AUD)
     const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, planId));
     if (!plan?.stripePriceId) {
       return res.status(500).json({ error: "Billing not configured for selected plan." });
     }
 
-    // 1) Create org
     const orgIns: any = await db.execute(sql`insert into orgs (name) values (${orgName}) returning id, name`);
     const orgId = orgIns[0].id;
     const orgNameFinal = orgIns[0].name;
 
-    // 2) Create user NOW with password hash (fixes the 401 issue)
     const passwordHash = await bcrypt.hash(password, 12);
     const userIns: any = await db.execute(sql`
       insert into users (org_id, name, email, password_hash, role)
@@ -157,14 +105,12 @@ router.post("/register-with-trial", async (req, res) => {
     `);
     const user = userIns[0];
 
-    // 3) Create Stripe Customer tagged with org/user
     const customer = await stripe.customers.create({
       email: normalizedEmail,
       name: name || orgNameFinal,
       metadata: { orgId: String(orgId), userId: String(user.id) },
     });
 
-    // 4) Create checkout session (14-day trial, card required)
     const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "").trim() || `${req.protocol}://${req.get("host")}`;
     const trialDays = 14;
 
@@ -178,7 +124,6 @@ router.post("/register-with-trial", async (req, res) => {
         trial_period_days: trialDays,
         metadata: { orgId: String(orgId), planId },
       },
-      // Collect business/contact names and sync them
       customer_update: { name: "auto", address: "auto" },
       custom_fields: [
         {
@@ -200,7 +145,6 @@ router.post("/register-with-trial", async (req, res) => {
       metadata: { orgId: String(orgId), planId },
     });
 
-    // 5) (Optional) Seed a placeholder trial record; webhook will reconcile
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + trialDays);
     await db.execute(sql`
@@ -209,7 +153,6 @@ router.post("/register-with-trial", async (req, res) => {
       on conflict do nothing
     `);
 
-    // 6) Return Checkout URL
     return res.json({ checkoutUrl: session.url });
   } catch (error: any) {
     console.error("[TRIAL REG] Error:", error);
@@ -217,8 +160,7 @@ router.post("/register-with-trial", async (req, res) => {
   }
 });
 
-/* --------- Legacy complete-registration (kept for back-compat) ----------- */
-/* New flow no longer uses pending_registrations; safe to keep this route.  */
+/* --------- Legacy complete-registration --------- */
 
 router.get("/complete-registration", async (req, res) => {
   const { session_id } = req.query;
@@ -231,8 +173,6 @@ router.get("/complete-registration", async (req, res) => {
     if (checkoutSession.status !== "complete") {
       return res.redirect("/auth/register?error=payment_incomplete");
     }
-
-    // Nothing else required for the new flow; user/org already exist.
     return res.redirect("/?welcome=true");
   } catch (error: any) {
     console.error("[TRIAL REG] Complete registration error:", error);
@@ -275,13 +215,13 @@ router.post("/login", async (req, res) => {
         const tokens = await generateAuthTokens(user.id, user.org_id, user.role);
         return res.json({
           ok: true,
-            authMethod: "jwt",
-            platform: "token-mode",
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken,
-            expiresIn: tokens.expiresIn,
-            orgId: user.org_id,
-            user: { id: user.id, name: user.name, email: user.email, role: user.role },
+          authMethod: "jwt",
+          platform: "token-mode",
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresIn: tokens.expiresIn,
+          orgId: user.org_id,
+          user: { id: user.id, name: user.name, email: user.email, role: user.role },
         });
       } catch (e) {
         // fall through to session mode
@@ -399,19 +339,33 @@ router.put("/password", async (req, res) => {
 });
 
 /* ----------------------------- Avatar upload ----------------------------- */
+/* Stores resized base64 image directly in DB - works across all deployments */
 
-router.post("/avatar", upload.single("avatar"), async (req, res) => {
+router.post("/avatar", async (req, res) => {
   const userId = req.session?.userId;
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
-  if (!req.file) return res.status(400).json({ error: "No avatar file provided" });
+
+  const { avatar } = req.body || {};
+  if (!avatar || typeof avatar !== "string") {
+    return res.status(400).json({ error: "No avatar data provided" });
+  }
+
+  // Validate it's a base64 image
+  if (!avatar.startsWith("data:image/")) {
+    return res.status(400).json({ error: "Invalid image format" });
+  }
+
+  // Enforce ~500KB limit on the base64 string (roughly 375KB image)
+  if (avatar.length > 600_000) {
+    return res.status(400).json({ error: "Image too large, please use a smaller image" });
+  }
 
   try {
-    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-    await db.execute(sql`update users set avatar_url = ${avatarUrl} where id = ${userId}`);
-    res.json({ ok: true, avatar_url: avatarUrl });
+    await db.execute(sql`update users set avatar_url = ${avatar} where id = ${userId}`);
+    res.json({ ok: true, avatar_url: avatar });
   } catch (error) {
     console.error("Avatar upload error:", error);
-    res.status(500).json({ error: "Failed to upload avatar" });
+    res.status(500).json({ error: "Failed to save avatar" });
   }
 });
 

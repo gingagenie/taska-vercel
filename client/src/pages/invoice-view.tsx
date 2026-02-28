@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { ExternalLink, Mail, Eye, ArrowLeft } from "lucide-react";
+import { Mail, Eye, ArrowLeft } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
@@ -28,7 +28,6 @@ export default function InvoiceView() {
   const [invoice, setInvoice] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [creatingXero, setCreatingXero] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailAddress, setEmailAddress] = useState("");
   const [sending, setSending] = useState(false);
@@ -122,40 +121,6 @@ export default function InvoiceView() {
     const total = subtotal + gst;
     
     return { subtotal, gst, total };
-  }
-
-  async function handleCreateInXero() {
-    if (!id) return;
-    
-    // Track the Create in Xero button click
-    const items = invoice?.items || [];
-    const { total } = calculateTotals(items);
-    trackClickButton({
-      contentName: "Create Invoice in Xero Button",
-      contentCategory: "integration",
-    });
-    
-    setCreatingXero(true);
-    try {
-      const response = await api(`/api/invoices/${id}/xero`, { method: 'POST' });
-      
-      toast({
-        title: "Invoice created in Xero",
-        description: `Invoice #${response.xeroNumber} created successfully`,
-      });
-      
-      // Refresh invoice data to show Xero ID
-      const updatedInvoice = await invoicesApi.get(id);
-      setInvoice(updatedInvoice);
-    } catch (e: any) {
-      toast({
-        title: "Failed to create in Xero",
-        description: e.message || "Unable to create invoice in Xero",
-        variant: "destructive",
-      });
-    } finally {
-      setCreatingXero(false);
-    }
   }
 
   function openEmailDialog() {
@@ -424,25 +389,6 @@ export default function InvoiceView() {
           </Button>
           {invoice.status !== 'paid' && invoice.status !== 'void' && (
             <Button onClick={handleMarkPaid}>Mark Paid</Button>
-          )}
-          {!invoice.xero_id && (
-            <Button 
-              disabled={true}
-              variant="outline"
-              data-testid="button-create-xero"
-              className="opacity-50 cursor-not-allowed"
-            >
-              Create in Xero - Coming Soon
-            </Button>
-          )}
-          {invoice.xero_id && (
-            <Button 
-              variant="outline"
-              onClick={() => window.open('https://my.xero.com', '_blank')}
-              data-testid="button-view-xero"
-            >
-              View in Xero <ExternalLink className="h-3 w-3 ml-1" />
-            </Button>
           )}
         </div>
       </div>

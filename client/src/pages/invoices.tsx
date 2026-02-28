@@ -12,6 +12,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { trackClickButton } from "@/lib/tiktok-tracking";
+import { FileText, User, ArrowRight, Edit, Trash, Eye } from "lucide-react";
+
 
 export default function InvoicesPage() {
   const qc = useQueryClient();
@@ -93,14 +95,15 @@ export default function InvoicesPage() {
   };
 
   function getStatusBadgeClass(status: string) {
-    switch (status) {
-      case 'sent': return 'bg-blue-100 text-blue-800';
-      case 'paid': return 'bg-green-100 text-green-800';
-      case 'overdue': return 'bg-red-100 text-red-800';
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  switch (status) {
+    case 'sent': return 'bg-blue-100 text-blue-800';
+    case 'viewed': return 'bg-purple-100 text-purple-800';  // Purple for viewed
+    case 'paid': return 'bg-green-100 text-green-800';
+    case 'overdue': return 'bg-red-100 text-red-800';
+    case 'draft': return 'bg-gray-100 text-gray-800';
+    default: return 'bg-gray-100 text-gray-800';
   }
+}
 
   return (
     <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
@@ -217,15 +220,25 @@ export default function InvoicesPage() {
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start gap-3">
                       <div className="space-y-1">
-                        <div className="font-semibold text-lg group-hover:text-financial transition-colors">
-                          {invoice.title || "Untitled Invoice"}
+                        <div className="flex items-center gap-2">
+                          <div className="font-semibold text-lg group-hover:text-financial transition-colors">
+                            {invoice.title || "Untitled Invoice"}
+                          </div>
+                          {invoice.viewed_at && (
+                            <Eye 
+                              className="h-4 w-4 text-green-600" 
+                              title={`Viewed ${new Date(invoice.viewed_at).toLocaleDateString()}`}
+                            />
+                          )}
                         </div>
                         <div className="text-sm text-gray-500 font-medium">
                           {invoice.number || 'inv-0001'}
                         </div>
                       </div>
-                      <Badge className={getStatusBadgeClass(invoice.status)}>
-                        {(invoice.status || "draft").replace("_", " ")}
+                      <Badge className={getStatusBadgeClass(invoice.viewed_at ? 'viewed' : invoice.status)}>
+                        {invoice.viewed_at && invoice.status === 'sent' 
+                          ? 'viewed' 
+                          : (invoice.status || "draft").replace("_", " ")}
                       </Badge>
                     </div>
                     

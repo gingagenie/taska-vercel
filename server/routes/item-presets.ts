@@ -4,9 +4,7 @@ import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
-
 export const itemPresets = Router();
-
 /** GET /api/item-presets?search=lab */
 itemPresets.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
@@ -17,11 +15,10 @@ itemPresets.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSu
     where org_id=${orgId}::uuid
       and (${q === ""} or lower(name) like ${"%" + q.toLowerCase() + "%"})
     order by name asc
-    limit 20
+    limit 500
   `);
   res.json(r);
 });
-
 /** POST /api/item-presets  { name, unit_amount, tax_rate }  (manual add in Settings) */
 itemPresets.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
   const orgId = (req as any).orgId;
@@ -54,7 +51,6 @@ itemPresets.post("/", requireAuth, requireOrg, checkSubscription, requireActiveS
     }
   }
 });
-
 /** POST /api/item-presets/ensure  { name, unit_amount, tax_rate }
  * Creates if not exists (used by auto-save on first use)
  */
@@ -71,7 +67,6 @@ itemPresets.post("/ensure", requireAuth, requireOrg, async (req, res) => {
     returning id, name, unit_amount, tax_rate
   `);
   if (r?.[0]) return res.json(r[0]);
-
   // existed — return existing
   const e: any = await db.execute(sql`
     select id, name, unit_amount, tax_rate
@@ -82,6 +77,41 @@ itemPresets.post("/ensure", requireAuth, requireOrg, async (req, res) => {
   res.json(e?.[0]);
 });
 
+/** PUT /api/item-presets/:id  { name, unit_amount, tax_rate }  (inline edit in Settings) */
+itemPresets.put("/:id", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
+  const orgId = (req as any).orgId;
+  const { id } = req.params;
+  const { name, unit_amount, tax_rate } = req.body || {};
+
+  if (!name || String(name).trim() === "") {
+    return res.status(400).json({ error: "name required" });
+  }
+
+  try {
+    const r: any = await db.execute(sql`
+      update item_presets
+      set name = ${name.trim()},
+          unit_amount = ${Number(unit_amount) || 0},
+          tax_rate = ${Number(tax_rate) ?? 0}
+      where id = ${id}::uuid and org_id = ${orgId}::uuid
+      returning id, name, unit_amount, tax_rate
+    `);
+
+    if (!r?.[0]) {
+      return res.status(404).json({ error: "Preset not found" });
+    }
+
+    res.json(r[0]);
+  } catch (error: any) {
+    // Duplicate name conflict
+    if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
+      return res.status(409).json({ error: "An item with that name already exists" });
+    }
+    console.error("Error updating item preset:", error);
+    res.status(500).json({ error: "Failed to update preset" });
+  }
+});
+
 /** DELETE /api/item-presets/:id */
 itemPresets.delete("/:id", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
@@ -90,7 +120,6 @@ itemPresets.delete("/:id", requireAuth, requireOrg, async (req, res) => {
   if (!id) {
     return res.status(400).json({ error: "ID required" });
   }
-
   const r: any = await db.execute(sql`
     delete from item_presets
     where id=${id}::uuid and org_id=${orgId}::uuid

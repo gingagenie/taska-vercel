@@ -4,15 +4,71 @@ import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
 import { checkSubscription, requireActiveSubscription } from "../middleware/subscription";
-import { xeroService } from "../services/xero";
 import { sumLines } from "../lib/totals";
 import { sendEmail, generateInvoiceEmailTemplate } from "../services/email";
 import { generateInvoicePdf, generateInvoicePdfFilename } from "../services/pdf";
 import { trackEmailUsage, checkEmailQuota } from "./job-sms";
 import { finalizePackConsumption, releasePackReservation, durableFinalizePackConsumption } from "../lib/pack-consumption";
+import crypto from "crypto";
 
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const router = Router();
+
+// Generate tracking token helper
+function generateTrackingToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+  /** PUBLIC: Tracking pixel endpoint - no auth required */
+router.get("/track/:token", async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    // Find invoice by tracking token
+    const invoices: any = await db.execute(sql`
+      SELECT id, viewed_at
+      FROM invoices
+      WHERE view_tracking_token = ${token}
+      LIMIT 1
+    `);
+
+    if (invoices.length > 0) {
+      const invoice = invoices[0];
+      
+      // Only update if not already viewed (first view only)
+      if (!invoice.viewed_at) {
+        await db.execute(sql`
+          UPDATE invoices
+          SET viewed_at = NOW()
+          WHERE id = ${invoice.id}::uuid
+        `);
+        
+        console.log(`[INVOICE_TRACKING] Invoice ${invoice.id} marked as viewed`);
+      }
+    }
+
+    // Return 1x1 transparent pixel
+    const pixel = Buffer.from(
+      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+      'base64'
+    );
+    
+    res.setHeader('Content-Type', 'image/gif');
+    res.setHeader('Content-Length', pixel.length);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.send(pixel);
+  } catch (error: any) {
+    console.error('[INVOICE_TRACKING] Error:', error);
+    // Still return pixel even on error (don't break email display)
+    const pixel = Buffer.from(
+      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+      'base64'
+    );
+    res.setHeader('Content-Type', 'image/gif');
+    res.send(pixel);
+  }
+});
 
 /** Get previous items for autocomplete */
 router.get("/previous-items", requireAuth, requireOrg, async (req, res) => {
@@ -78,22 +134,23 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
   }
   
   const r: any = await db.execute(sql`
-    select 
-      i.id, 
-      i.title, 
-      i.number,
-      i.status, 
-      i.created_at,
-      i.due_at,
-      i.customer_id, 
-      c.name as customer_name,
-      COALESCE(i.grand_total, 0) as total_amount
-    from invoices i 
-    join customers c on c.id = i.customer_id
-    where i.org_id=${orgId}::uuid ${tabFilter}
-    order by i.created_at desc
-    limit ${pageSize} offset ${offset}
-  `);
+  select 
+    i.id, 
+    i.title, 
+    i.number,
+    i.status, 
+    i.created_at,
+    i.due_at,
+    i.customer_id, 
+    i.viewed_at,
+    c.name as customer_name,
+    COALESCE(i.grand_total, 0) as total_amount
+  from invoices i 
+  join customers c on c.id = i.customer_id
+  where i.org_id=${orgId}::uuid ${tabFilter}
+  order by i.created_at desc
+  limit ${pageSize} offset ${offset}
+`);
   console.log(`[DEBUG] Invoice list query result (tab=${tab}):`, r.map((inv: any) => ({ id: inv.id, title: inv.title, total_amount: inv.total_amount })));
   res.json(r);  // Match the working pattern from jobs.ts
 });
@@ -324,67 +381,6 @@ router.post("/:id/pay", requireAuth, requireOrg, async (req, res) => {
   res.json({ ok: true });
 });
 
-/** Push to Xero */
-router.post("/:id/xero", requireAuth, requireOrg, async (req, res) => {
-  const { id } = req.params; 
-  const orgId = (req as any).orgId;
-  
-  try {
-    // Get invoice with customer details and items
-    const r: any = await db.execute(sql`
-      select i.*, c.name as customer_name, c.email as customer_email
-      from invoices i join customers c on c.id=i.customer_id
-      where i.id=${id}::uuid and i.org_id=${orgId}::uuid
-    `);
-    const invoice = r[0];
-    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
-
-    // Get invoice items
-    const items: any = await db.execute(sql`
-      select * from invoice_lines where invoice_id=${id}::uuid order by created_at nulls last, id
-    `);
-
-    // Check if already pushed to Xero
-    if (invoice.xero_id) {
-      return res.status(400).json({ error: "Invoice already exists in Xero", xeroId: invoice.xero_id });
-    }
-
-    // Push to Xero
-    const xeroInvoice = await xeroService.createInvoiceInXero(orgId, {
-      customerName: invoice.customer_name,
-      customerEmail: invoice.customer_email,
-      currency: invoice.currency || 'AUD',
-      dueAt: invoice.due_at,
-      items: items.map((item: any) => ({
-        name: item.description,
-        description: item.description,
-        price: item.unit_price,
-        quantity: item.quantity
-      }))
-    });
-
-    // Update invoice with Xero ID
-    await db.execute(sql`
-      update invoices 
-      set xero_id=${xeroInvoice?.invoiceID}, updated_at=now() 
-      where id=${id}::uuid and org_id=${orgId}::uuid
-    `);
-
-    res.json({ 
-      ok: true, 
-      xeroId: xeroInvoice?.invoiceID,
-      xeroNumber: xeroInvoice?.invoiceNumber,
-      message: "Invoice successfully created in Xero"
-    });
-
-  } catch (error) {
-    console.error('Error pushing invoice to Xero:', error);
-    if (error instanceof Error && error.message.includes('not found or tokens expired')) {
-      return res.status(401).json({ error: "Xero integration not connected. Please connect Xero in Settings." });
-    }
-    res.status(500).json({ error: "Failed to create invoice in Xero" });
-  }
-});
 
 /** Preview invoice email without sending */
 router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
@@ -404,6 +400,17 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
     `);
     const invoice = invoiceResult[0];
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    // Generate or get tracking token
+let trackingToken = invoice.view_tracking_token;
+if (!trackingToken) {
+  trackingToken = generateTrackingToken();
+  await db.execute(sql`
+    UPDATE invoices
+    SET view_tracking_token = ${trackingToken}
+    WHERE id = ${id}::uuid
+  `);
+}
 
     // Get invoice items (correct table name: invoice_lines)
     const items: any = await db.execute(sql`
@@ -479,6 +486,17 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     const invoice = invoiceResult[0];
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
+    // Generate or get tracking token
+let trackingToken = invoice.view_tracking_token;
+if (!trackingToken) {
+  trackingToken = generateTrackingToken();
+  await db.execute(sql`
+    UPDATE invoices
+    SET view_tracking_token = ${trackingToken}
+    WHERE id = ${id}::uuid
+  `);
+}
+
     // Get complete organization details for email template
     const orgResult: any = await db.execute(sql`
       select name, abn, street, suburb, state, postcode, 
@@ -510,7 +528,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     };
 
     // Generate email content with complete business and customer information
-    const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, organization, customer);
+    const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, organization, customer, trackingToken);
 
     // Generate PDF attachment
     let pdfAttachment = null;

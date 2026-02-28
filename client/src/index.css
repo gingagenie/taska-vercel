@@ -113,9 +113,33 @@
     @apply border-border;
   }
 
-  body {
-    @apply font-sans antialiased bg-background text-foreground;
-  }
+ body {
+  @apply font-sans antialiased text-foreground;
+  background-color: var(--background);
+  background-image: url('/bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  -webkit-tap-highlight-color: transparent;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-color: rgba(255, 255, 255, 0.88);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 /* Global button styling - thin borders for all buttons */

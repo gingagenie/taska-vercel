@@ -269,6 +269,9 @@ function AuthenticatedApp() {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  
+  // 🆕 Service request prefill data
+  const [jobModalPrefillData, setJobModalPrefillData] = useState<any>(null);
 
   // Page configuration
   const getPageConfig = () => {
@@ -339,10 +342,22 @@ function AuthenticatedApp() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      <Sidebar />
+      {/* 🆕 Pass callback to Sidebar */}
+      <Sidebar 
+        onCreateJobFromServiceRequest={(data) => {
+          setJobModalPrefillData(data);
+          setIsJobModalOpen(true);
+        }}
+      />
 
       <div className="flex-1 sm:ml-64 flex flex-col min-h-0">
-        <MobileHeader />
+        {/* 🆕 Pass callback to MobileHeader */}
+        <MobileHeader 
+          onCreateJobFromServiceRequest={(data) => {
+            setJobModalPrefillData(data);
+            setIsJobModalOpen(true);
+          }}
+        />
 
         <main className="flex-1 overflow-y-auto page">
           <Switch>
@@ -468,7 +483,15 @@ function AuthenticatedApp() {
         </main>
       </div>
 
-      <JobModal open={isJobModalOpen} onOpenChange={setIsJobModalOpen} />
+      {/* 🆕 Pass prefill data to JobModal */}
+      <JobModal 
+        open={isJobModalOpen} 
+        onOpenChange={(open) => {
+          setIsJobModalOpen(open);
+          if (!open) setJobModalPrefillData(null);
+        }}
+        prefillData={jobModalPrefillData}
+      />
       <CustomerModal open={isCustomerModalOpen} onOpenChange={setIsCustomerModalOpen} />
       <UpgradeModal open={isUpgradeModalOpen} onOpenChange={setIsUpgradeModalOpen} />
 

@@ -3,9 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { jobsApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
-import { CalendarDays, Briefcase, Users, Wrench, Plus } from "lucide-react";
+import { CalendarDays, Briefcase, Plus } from "lucide-react";
 import { JobModal } from "@/components/modals/job-modal";
 import { useSubscription } from "@/hooks/useSubscription";
 import { SubscriptionBanner } from "@/components/subscription/subscription-banner";
@@ -13,6 +12,7 @@ import { UsageWidget } from "@/components/layout/usage-widget";
 import { trackViewContent } from "@/lib/tiktok-tracking";
 import React from "react";
 import { QuotesAcceptedCard } from "@/components/dashboard/QuotesAcceptedCard";
+import { InvoiceSummaryCard } from "@/components/dashboard/InvoiceSummaryCard";
 
 // --- date helpers ---
 function startOfDay(d = new Date()) {
@@ -71,14 +71,13 @@ export default function Dashboard() {
     return { todaysJobs: todays, upcomingJobs: upcoming };
   }, [jobs]);
 
-  // Track TikTok ViewContent event for dashboard page when jobs data loads
   useEffect(() => {
     if (!isLoading && jobs.length >= 0) {
       trackViewContent({
         contentType: "dashboard",
         contentName: "Main Dashboard",
         contentCategory: "dashboard_overview",
-        value: (jobs as any[]).length, // Use job count as a value metric
+        value: (jobs as any[]).length,
       });
     }
   }, [isLoading, jobs]);
@@ -118,49 +117,47 @@ export default function Dashboard() {
       )}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Link href="/schedule">
-          <a>
-            <Card className="border-schedule bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
-              <CardContent className="card-pad flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-gray-500 font-medium">
-                    Jobs Today
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Column 1: Jobs Today + Total Jobs stacked */}
+        <div className="flex flex-col gap-4">
+          <Link href="/schedule">
+            <a>
+              <Card className="border-schedule bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
+                <CardContent className="card-pad flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-500 font-medium">Jobs Today</div>
+                    <div className="text-2xl font-semibold">{todaysJobs.length}</div>
                   </div>
-                  <div className="text-2xl font-semibold">
-                    {todaysJobs.length}
+                  <div className="p-3 rounded-lg bg-schedule text-schedule-foreground">
+                    <CalendarDays className="h-6 w-6" />
                   </div>
-                </div>
-                <div className="p-3 rounded-lg bg-schedule text-schedule-foreground">
-                  <CalendarDays className="h-6 w-6" />
-                </div>
-              </CardContent>
-            </Card>
-          </a>
-        </Link>
+                </CardContent>
+              </Card>
+            </a>
+          </Link>
 
-        <Link href="/jobs">
-          <a>
-            <Card className="border-jobs bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
-              <CardContent className="card-pad flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-gray-500 font-medium">
-                    Total Jobs
+          <Link href="/jobs">
+            <a>
+              <Card className="border-jobs bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer">
+                <CardContent className="card-pad flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-500 font-medium">Total Jobs</div>
+                    <div className="text-2xl font-semibold">{(jobs as any[]).length}</div>
                   </div>
-                  <div className="text-2xl font-semibold">
-                    {(jobs as any[]).length}
+                  <div className="p-3 rounded-lg bg-jobs text-jobs-foreground">
+                    <Briefcase className="h-6 w-6" />
                   </div>
-                </div>
-                <div className="p-3 rounded-lg bg-jobs text-jobs-foreground">
-                  <Briefcase className="h-6 w-6" />
-                </div>
-              </CardContent>
-            </Card>
-          </a>
-        </Link>
+                </CardContent>
+              </Card>
+            </a>
+          </Link>
+        </div>
 
-        {/* New Accepted Quotes card */}
+        {/* Column 2: Quotes Accepted */}
         <QuotesAcceptedCard />
+
+        {/* Column 3: Invoice Summary */}
+        <InvoiceSummaryCard />
       </div>
 
       {/* Today's Schedule + Upcoming */}
@@ -276,61 +273,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <Card className="border-management bg-white">
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="card-pad">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Button
-              data-mobile-full="true"
-              onClick={() => setIsJobModalOpen(true)}
-              className="bg-jobs hover:bg-jobs/90 text-jobs-foreground"
-            >
-              <Briefcase className="h-4 w-4 mr-2" /> New Job
-            </Button>
-            <Button
-              asChild
-              data-mobile-full="true"
-              variant="outline"
-              className="border-schedule text-schedule hover:bg-schedule-light"
-            >
-              <Link href="/schedule">
-                <a>
-                  <CalendarDays className="h-4 w-4 mr-2" /> Schedule
-                </a>
-              </Link>
-            </Button>
-            <Button
-              asChild
-              data-mobile-full="true"
-              variant="outline"
-              className="border-people text-people hover:bg-people-light"
-            >
-              <Link href="/customers">
-                <a>
-                  <Users className="h-4 w-4 mr-2" /> Customers
-                </a>
-              </Link>
-            </Button>
-            <Button
-              asChild
-              data-mobile-full="true"
-              variant="outline"
-              className="border-equipment text-equipment hover:bg-equipment-light"
-            >
-              <Link href="/equipment">
-                <a>
-                  <Wrench className="h-4 w-4 mr-2" /> Equipment
-                </a>
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Reuse existing New Job modal */}
       <JobModal open={isJobModalOpen} onOpenChange={setIsJobModalOpen} />
     </div>
   );

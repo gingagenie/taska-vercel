@@ -13,7 +13,6 @@ import { schedule } from "./routes/schedule";
 import { members } from "./routes/members";
 import { jobSms } from "./routes/job-sms";
 import { twilioWebhooks } from "./routes/twilio-webhooks";
-import xero from "./routes/xero";
 import { itemPresets } from "./routes/item-presets";
 import tzRouter from "./routes/_tz";
 import objectsRouter from "./routes/objects";
@@ -56,7 +55,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log("[mount] /api/quotes (customer-only)");
   app.use("/api/invoices", blockSupportStaffFromCustomerData, invoices);
   console.log("[mount] /api/invoices (customer-only)");
-  app.use("/api/xero", blockSupportStaffFromCustomerData, xero);
   app.use("/api/item-presets", blockSupportStaffFromCustomerData, itemPresets);
   console.log("[mount] /api/xero (customer-only)");
   console.log("[mount] /api/item-presets (customer-only)");

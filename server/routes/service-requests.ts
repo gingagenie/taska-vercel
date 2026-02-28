@@ -233,6 +233,41 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+/* ---------------------- DELETE: Delete Service Request ------------------- */
+
+router.delete("/:id", async (req, res) => {
+  const orgId = req.session?.orgId;
+  if (!orgId) return res.status(401).json({ error: "Not authenticated" });
+
+  const { id } = req.params;
+
+  try {
+    console.log(`[TRACE] DELETE /api/service-requests/${id}`);
+
+    // Delete photos first (cascade)
+    await db.execute(sql`
+      DELETE FROM service_request_photos
+      WHERE service_request_id = ${id}::uuid AND org_id = ${orgId}::uuid
+    `);
+
+    // Delete service request
+    const result: any = await db.execute(sql`
+      DELETE FROM service_requests
+      WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+      RETURNING id
+    `);
+
+    if (!result || result.length === 0) {
+      return res.status(404).json({ error: "Service request not found" });
+    }
+
+    res.json({ success: true, message: "Service request deleted" });
+  } catch (error: any) {
+    console.error("Error deleting service request:", error);
+    res.status(500).json({ error: "Failed to delete service request" });
+  }
+});
+
 /* ----------------- POST: Convert Service Request to Job ------------------ */
 
 router.post("/:id/convert-to-job", async (req, res) => {

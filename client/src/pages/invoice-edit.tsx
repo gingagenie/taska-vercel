@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, useSearch } from "wouter";
 import { invoicesApi, customersApi, meApi } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -9,7 +9,11 @@ export default function InvoiceEdit() {
   const [isNewMatch] = useRoute("/invoices/new");
   const [isEditMatch, params] = useRoute("/invoices/:id/edit");
   const [, nav] = useLocation();
+  const searchString = useSearch();
   const id = params?.id;
+  
+  // Check if we came from completed jobs
+  const fromCompletedJobs = new URLSearchParams(searchString).get('from') === 'completed-jobs';
 
   const [saving, setSaving] = useState(false);
   const qc = useQueryClient();
@@ -76,7 +80,7 @@ export default function InvoiceEdit() {
           due_at,
           lines,
         });
-        nav(`/invoices/${id}`);
+        nav(`/invoices/${id}${fromCompletedJobs ? '?from=completed-jobs' : ''}`);
       } else {
         const r = await invoicesApi.create({
           title: payload.title,
@@ -86,7 +90,7 @@ export default function InvoiceEdit() {
           lines,
         });
         qc.invalidateQueries({ queryKey: ["/api/invoices"] });
-        nav(`/invoices/${r.id}`);
+        nav(`/invoices/${r.id}${fromCompletedJobs ? '?from=completed-jobs' : ''}`);
       }
       toast({
         title: "Invoice saved",

@@ -7,6 +7,7 @@ import { checkSubscription, requireActiveSubscription } from "../middleware/subs
 import multer from "multer";
 import { parse } from "csv-parse";
 import { Readable } from "stream";
+import bcrypt from "bcryptjs";
 
 export const customers = Router();
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
@@ -16,6 +17,16 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
+
+// Generate random password helper
+function generatePassword(length = 12): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
 
 /* LIST */
 customers.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
@@ -196,6 +207,104 @@ customers.delete("/:id", requireAuth, requireOrg, async (req, res) => {
     res.status(500).json({ error: error?.message || "Failed to delete customer" });
   }
 });
+
+/* GENERATE PORTAL LOGIN */
+customers.post(
+  "/:id/generate-portal-login",
+  requireAuth,
+  requireOrg,
+  checkSubscription,
+  requireActiveSubscription,
+  async (req, res) => {
+    const { id } = req.params;
+    const orgId = (req as any).orgId;
+
+    if (!isUuid(id)) {
+      return res.status(400).json({ error: "Invalid customer ID" });
+    }
+
+    try {
+      // Check if customer exists
+      const customerResult: any = await db.execute(sql`
+        SELECT id, name, email, org_id
+        FROM customers
+        WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+        LIMIT 1
+      `);
+
+      if (!customerResult.length) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      const customer = customerResult[0];
+
+      if (!customer.email) {
+        return res.status(400).json({ 
+          error: "Customer must have an email address to create portal login" 
+        });
+      }
+
+      // Check if portal login already exists
+      const existingLogin: any = await db.execute(sql`
+        SELECT id, email
+        FROM customer_users
+        WHERE customer_id = ${id}::uuid AND org_id = ${orgId}::uuid
+        LIMIT 1
+      `);
+
+      if (existingLogin.length > 0) {
+        return res.status(400).json({ 
+          error: "Portal login already exists for this customer",
+          existingEmail: existingLogin[0].email
+        });
+      }
+
+      // Get org slug for URL
+      const orgResult: any = await db.execute(sql`
+        SELECT slug FROM orgs WHERE id = ${orgId}::uuid LIMIT 1
+      `);
+
+      if (!orgResult.length) {
+        return res.status(500).json({ error: "Organization not found" });
+      }
+
+      const orgSlug = orgResult[0].slug;
+
+      // Generate random password
+      const password = generatePassword(12);
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Create customer_user
+      await db.execute(sql`
+        INSERT INTO customer_users (org_id, customer_id, email, password_hash, name)
+        VALUES (
+          ${orgId}::uuid,
+          ${id}::uuid,
+          ${customer.email},
+          ${passwordHash},
+          ${customer.name + ' Portal'}
+        )
+      `);
+
+      // Construct portal URL
+      const portalUrl = `${req.protocol}://${req.get('host')}/portal/${orgSlug}/login`;
+
+      res.json({
+        success: true,
+        email: customer.email,
+        password: password,
+        url: portalUrl,
+        message: "Portal login created successfully"
+      });
+
+    } catch (error: any) {
+      console.error("Error generating portal login:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to generate portal login" 
+      });
+    }
+  }
+);
 
 /* CSV IMPORT */
 customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'), async (req, res) => {

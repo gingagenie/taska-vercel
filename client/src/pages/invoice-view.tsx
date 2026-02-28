@@ -8,20 +8,26 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { ExternalLink, Mail, Eye, ArrowLeft } from "lucide-react";
+import { Mail, Eye, ArrowLeft } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
+import { Eye } from "lucide-react";
+import { useRoute, useLocation, useSearch } from "wouter";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
   const [, nav] = useLocation();
+  const searchString = useSearch();
   const id = params?.id;
+  
+  // Check if we came from completed jobs
+  const urlParams = new URLSearchParams(searchString);
+  const fromCompletedJobs = urlParams.get('from') === 'completed-jobs';
 
   const [invoice, setInvoice] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [creatingXero, setCreatingXero] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailAddress, setEmailAddress] = useState("");
   const [sending, setSending] = useState(false);
@@ -115,40 +121,6 @@ export default function InvoiceView() {
     const total = subtotal + gst;
     
     return { subtotal, gst, total };
-  }
-
-  async function handleCreateInXero() {
-    if (!id) return;
-    
-    // Track the Create in Xero button click
-    const items = invoice?.items || [];
-    const { total } = calculateTotals(items);
-    trackClickButton({
-      contentName: "Create Invoice in Xero Button",
-      contentCategory: "integration",
-    });
-    
-    setCreatingXero(true);
-    try {
-      const response = await api(`/api/invoices/${id}/xero`, { method: 'POST' });
-      
-      toast({
-        title: "Invoice created in Xero",
-        description: `Invoice #${response.xeroNumber} created successfully`,
-      });
-      
-      // Refresh invoice data to show Xero ID
-      const updatedInvoice = await invoicesApi.get(id);
-      setInvoice(updatedInvoice);
-    } catch (e: any) {
-      toast({
-        title: "Failed to create in Xero",
-        description: e.message || "Unable to create invoice in Xero",
-        variant: "destructive",
-      });
-    } finally {
-      setCreatingXero(false);
-    }
   }
 
   function openEmailDialog() {
@@ -375,16 +347,24 @@ export default function InvoiceView() {
     <div className="page space-y-6">
       <Button 
         variant="ghost" 
-        onClick={() => nav('/invoices')}
+        onClick={() => nav(fromCompletedJobs ? '/completed-jobs' : '/invoices')}
         className="mb-4"
-        data-testid="button-back-to-invoices"
+        data-testid={fromCompletedJobs ? "button-back-to-completed-jobs" : "button-back-to-invoices"}
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Invoices
+        {fromCompletedJobs ? 'Back to Completed Jobs' : 'Back to Invoices'}
       </Button>
       
-      <div className="header-row">
-        <h1 className="text-2xl font-bold">{invoice.title}</h1>
+     <div className="header-row">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">{invoice.title}</h1>
+          {invoice.viewed_at && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm border border-green-200">
+              <Eye className="h-4 w-4" />
+              <span>Viewed {new Date(invoice.viewed_at).toLocaleDateString()}</span>
+            </div>
+          )}
+        </div>
         <div className="header-actions">
           <Button asChild variant="outline">
             <Link href={`/invoices/${id}/edit`}><a>Edit</a></Link>
@@ -409,25 +389,6 @@ export default function InvoiceView() {
           </Button>
           {invoice.status !== 'paid' && invoice.status !== 'void' && (
             <Button onClick={handleMarkPaid}>Mark Paid</Button>
-          )}
-          {!invoice.xero_id && (
-            <Button 
-              disabled={true}
-              variant="outline"
-              data-testid="button-create-xero"
-              className="opacity-50 cursor-not-allowed"
-            >
-              Create in Xero - Coming Soon
-            </Button>
-          )}
-          {invoice.xero_id && (
-            <Button 
-              variant="outline"
-              onClick={() => window.open('https://my.xero.com', '_blank')}
-              data-testid="button-view-xero"
-            >
-              View in Xero <ExternalLink className="h-3 w-3 ml-1" />
-            </Button>
           )}
         </div>
       </div>

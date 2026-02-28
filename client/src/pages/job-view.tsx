@@ -439,22 +439,16 @@ export default function JobView() {
           <CardHeader><CardTitle>Assigned Technicians</CardTitle></CardHeader>
           <CardContent>
             {job.technicians?.length ? (
-              <div className="space-y-2">
-                {job.technicians.map((t: any) => (
-                  <div key={t.id} className="flex items-center gap-2">
-                    <div 
-                      className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                      style={{ backgroundColor: t.color || '#3b82f6' }}
-                      title={`${t.name}'s color`}
-                    />
-                    <span className="font-medium">{t.name}</span>
-                    <span className="text-gray-500">({t.email})</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-gray-500">No technicians assigned</div>
-            )}
+  <div className="space-y-2">
+    {job.technicians.map((t: any) => (
+      <div key={t.id} className="flex items-center gap-2">
+        <span className="font-medium">{t.name}</span>
+      </div>
+    ))}
+  </div>
+) : (
+  <div className="text-gray-500">No technicians assigned</div>
+)}
           </CardContent>
         </Card>
 

@@ -3,7 +3,6 @@ import { Router } from "express";
 import multer from "multer";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
-import { uploadPdfToDriveFolder } from "../services/googleDrive";
 
 import { requireAuth } from "../middleware/auth";
 import { requireOrg } from "../middleware/tenancy";
@@ -1281,54 +1280,106 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       // Non-fatal - job completion continues
     }
 
-    // OPTIONAL: GOOGLE DRIVE UPLOAD (keep if you want both)
-    try {
-      const equipmentRows: any = await db.execute(sql`
-        SELECT e.id, e.name, e.google_drive_folder_id
-        FROM job_equipment je
-        JOIN equipment e ON e.id = je.equipment_id
-        WHERE je.job_id = ${jobId}::uuid
-        LIMIT 1
-      `);
+  /**
+ * AUTO-SERVICE LOGIC FOR server/routes/jobs.ts
+ * 
+ * ADD THIS CODE at line ~1185 in the jobs.post("/:jobId/complete") endpoint
+ * 
+ * LOCATION: Right after the Google Drive upload try/catch block ends
+ *           Right BEFORE the line: await db.execute(sql`DELETE FROM job_notifications...`)
+ * 
+ * SEARCH FOR THIS LINE:
+ *     } catch (err) {
+ *       console.error('⚠️ Drive upload failed:', err);
+ *       // Non-fatal
+ *     }
+ *   
+ *     await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
+ * 
+ * INSERT THE CODE BELOW between those two sections
+ */
 
-      if (equipmentRows.length > 0) {
-        const equip = equipmentRows[0];
-        const { uploadServiceSheet } = await import('../services/googleDrive');
-        const { generateServiceSheetPDF } = await import('../lib/service-sheet-generator');
+    // 🆕 AUTO-SERVICE: Update equipment dates and create follow-up job
+    if (job.job_type === 'Service' || job.job_type === 'service') {
+      try {
+        console.log('[AUTO-SERVICE] Service job completed, updating equipment and creating follow-up...');
         
-        // Re-use the already generated PDF buffer if available, otherwise generate again
-        let pdfBuffer: Buffer;
-        if (servicePdfKey) {
-          // We already generated it above, but we need the buffer for Drive
-          // Option 1: Generate again (simpler but slower)
-          pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
-        } else {
-          pdfBuffer = await generateServiceSheetPDF(completedJobId, orgId);
-        }
+        // Get equipment from this job
+        const equipmentRows: any = await db.execute(sql`
+          SELECT equipment_id, equipment_name
+          FROM completed_job_equipment
+          WHERE completed_job_id = ${completedJobId}::uuid
+          LIMIT 1
+        `);
         
-        const dateStr = new Date().toISOString().split('T')[0];
-        
-        const { folderId } = await uploadServiceSheet({
-          equipmentName: equip.name,
-          pdfBuffer,
-          date: dateStr,
-          existingFolderId: equip.google_drive_folder_id,
-        });
-        
-        if (!equip.google_drive_folder_id) {
+        if (equipmentRows.length > 0) {
+          const equipmentId = equipmentRows[0].equipment_id;
+          const today = new Date();
+          const sixMonthsLater = new Date(today);
+          sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+          
+          // Update equipment service dates
           await db.execute(sql`
-            UPDATE equipment SET google_drive_folder_id = ${folderId} WHERE id = ${equip.id}::uuid
+            UPDATE equipment
+            SET 
+              last_service_date = ${today.toISOString().split('T')[0]},
+              next_service_date = ${sixMonthsLater.toISOString().split('T')[0]}
+            WHERE id = ${equipmentId}::uuid AND org_id = ${orgId}::uuid
           `);
+          
+          console.log(`✅ Updated equipment ${equipmentId}: last_service=${today.toISOString().split('T')[0]}, next_service=${sixMonthsLater.toISOString().split('T')[0]}`);
+          
+          // Create follow-up service job
+          const followUpTitle = `Service: ${equipmentRows[0].equipment_name}`;
+          const followUpResult: any = await db.execute(sql`
+            INSERT INTO jobs (
+              org_id, 
+              customer_id, 
+              title, 
+              description, 
+              job_type,
+              scheduled_at, 
+              status, 
+              created_by
+            )
+            VALUES (
+              ${orgId}::uuid,
+              ${job.customer_id}::uuid,
+              ${followUpTitle},
+              ${'Scheduled 6-month service follow-up'},
+              'Service',
+              ${sixMonthsLater.toISOString()},
+              'scheduled',
+              ${userId}
+            )
+            RETURNING id
+          `);
+          
+          const followUpJobId = followUpResult[0].id;
+          
+          // Link equipment to follow-up job
+          await db.execute(sql`
+            INSERT INTO job_equipment (job_id, equipment_id)
+            VALUES (${followUpJobId}::uuid, ${equipmentId}::uuid)
+          `);
+          
+          console.log(`✅ Created follow-up service job ${followUpJobId} scheduled for ${sixMonthsLater.toISOString()}`);
+        } else {
+          console.log('[AUTO-SERVICE] No equipment found for this service job, skipping auto-service');
         }
-        
-        console.log(`✅ Service sheet uploaded to Drive: ${equip.name} - ${dateStr}.pdf`);
+      } catch (autoServiceError: any) {
+        console.error('⚠️ Auto-service failed (non-fatal):', autoServiceError?.message);
+        // Non-fatal - job completion continues
       }
-    } catch (err) {
-      console.error('⚠️ Drive upload failed:', err);
-      // Non-fatal
     }
 
-  
+/**
+ * END OF AUTO-SERVICE LOGIC
+ * 
+ * The next line in your file should be:
+ *     await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
+ */
+    
     await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_assignments WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_equipment WHERE job_id = ${jobId}::uuid`);
@@ -1527,7 +1578,7 @@ jobs.post("/completed/:completedJobId/convert-to-invoice", requireAuth, requireO
           ${orgId}::uuid,
           ${invoiceId}::uuid,
           ${position},
-          ${hour.description || "Labor Hours"},
+          ${hour.description || "Labour Hours"},
           ${quantity},
           ${unitAmount},
           ${taxRate}

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
 import {
   Sheet,
   SheetContent,
@@ -9,19 +8,33 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Bell, 
   AlertCircle, 
-  Clock, 
-  CheckCircle2, 
-  XCircle,
-  Calendar,
   Wrench,
   Image as ImageIcon,
-  ChevronRight
+  ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -33,114 +46,109 @@ interface ServiceRequest {
   urgency: "normal" | "urgent";
   status: "pending" | "viewed" | "job_created" | "declined";
   created_at: string;
+  customer_id?: string;
   customer_name?: string;
+  equipment_id?: string;
   equipment_name?: string;
   photos?: Array<{ id: string; url: string }>;
 }
 
-export function ServiceRequestsNotifications() {
+interface ServiceRequestsNotificationsProps {
+  onCreateJob?: (data: {
+    title: string;
+    description: string;
+    customerId: string;
+    equipmentId: string;
+    serviceRequestId: string;
+  }) => void;
+}
+
+export function ServiceRequestsNotifications({ onCreateJob }: ServiceRequestsNotificationsProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [requestToDelete, setRequestToDelete] = useState<string | null>(null);
 
-  // Fetch service requests
-  const { data: requests = [], isLoading } = useQuery<ServiceRequest[]>({
+  // Fetch service requests (pending only)
+  const { data: allRequests = [], isLoading } = useQuery<ServiceRequest[]>({
     queryKey: ["/api/service-requests"],
     refetchInterval: 30000, // Poll every 30 seconds
   });
 
-  // Fetch unread count
-  const { data: unreadData } = useQuery({
-    queryKey: ["/api/service-requests/stats/unread"],
-    refetchInterval: 30000,
-  });
+  // Filter to pending only
+  const requests = allRequests.filter(r => r.status === "pending");
 
-  const unreadCount = (unreadData as any)?.count || 0;
-
-  // Mark as viewed mutation
-  const markAsViewedMutation = useMutation({
+  // Delete mutation
+  const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await fetch(`/api/service-requests/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "viewed" }),
+        method: "DELETE",
         credentials: "include",
       });
-      if (!response.ok) throw new Error("Failed to update");
+      if (!response.ok) throw new Error("Failed to delete");
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests/stats/unread"] });
-    },
-  });
-
-  // Convert to job mutation
-  const convertToJobMutation = useMutation({
-    mutationFn: async ({ id, scheduled_at }: { id: string; scheduled_at?: string }) => {
-      const response = await fetch(`/api/service-requests/${id}/convert-to-job`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduled_at }),
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to convert");
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      setDetailModalOpen(false);
       toast({
-        title: "Job created!",
-        description: "Service request converted to job successfully",
+        title: "Request deleted",
+        description: "Service request has been removed",
       });
     },
-    onError: (error: any) => {
+    onError: () => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to create job",
+        title: "Failed to delete",
+        description: "Please try again",
         variant: "destructive",
       });
     },
   });
 
-  const handleMarkAsViewed = (id: string) => {
-    markAsViewedMutation.mutate(id);
+  const handleCardClick = (request: ServiceRequest) => {
+    setSelectedRequest(request);
+    setDetailModalOpen(true);
   };
 
-  const handleConvertToJob = (id: string) => {
-    convertToJobMutation.mutate({ id });
-    setOpen(false);
+  const handleDeleteClick = (e: React.MouseEvent, requestId: string) => {
+    e.stopPropagation(); // Prevent card click
+    setRequestToDelete(requestId);
+    setDeleteConfirmOpen(true);
   };
 
-  const pendingRequests = requests.filter(r => r.status === "pending");
-  const viewedRequests = requests.filter(r => r.status === "viewed");
-  const completedRequests = requests.filter(r => r.status === "job_created" || r.status === "declined");
-
-  const getUrgencyColor = (urgency: string) => {
-    return urgency === "urgent" ? "text-red-600 bg-red-50" : "text-blue-600 bg-blue-50";
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <Clock className="h-4 w-4" />;
-      case "viewed":
-        return <CheckCircle2 className="h-4 w-4" />;
-      case "job_created":
-        return <Calendar className="h-4 w-4" />;
-      case "declined":
-        return <XCircle className="h-4 w-4" />;
-      default:
-        return null;
+  const confirmDelete = () => {
+    if (requestToDelete) {
+      deleteMutation.mutate(requestToDelete);
+      setDeleteConfirmOpen(false);
+      setRequestToDelete(null);
     }
+  };
+
+  const handleConvertToJob = (request: ServiceRequest) => {
+    if (!onCreateJob) return;
+    
+    // Close both modals
+    setDetailModalOpen(false);
+    setOpen(false);
+    
+    // Call the callback with prefill data
+    onCreateJob({
+      title: request.title,
+      description: request.description,
+      customerId: request.customer_id || '',
+      equipmentId: request.equipment_id || '',
+      serviceRequestId: request.id,
+    });
   };
 
   const RequestCard = ({ request }: { request: ServiceRequest }) => (
     <div 
-      className={`p-4 border rounded-lg hover:bg-gray-50 transition-colors ${
-        request.status === "pending" ? "border-blue-200 bg-blue-50/50" : ""
-      }`}
+      onClick={() => handleCardClick(request)}
+      className="p-4 border border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-100/50 transition-colors cursor-pointer"
     >
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1">
@@ -176,133 +184,195 @@ export function ServiceRequestsNotifications() {
             )}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2 ml-4">
-          <span className="text-xs text-gray-500">
-            {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
-          </span>
-          <div className="flex items-center gap-1">
-            {getStatusIcon(request.status)}
-          </div>
-        </div>
+        <span className="text-xs text-gray-500 ml-4">
+          {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
+        </span>
       </div>
 
-      {request.status === "pending" && (
-        <div className="flex gap-2 mt-3">
-          <Button
-            size="sm"
-            onClick={() => handleConvertToJob(request.id)}
-            className="flex-1"
-            disabled={convertToJobMutation.isPending}
-          >
-            Create Job
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleMarkAsViewed(request.id)}
-            disabled={markAsViewedMutation.isPending}
-          >
-            Mark Viewed
-          </Button>
-        </div>
-      )}
-
-      {request.status === "viewed" && (
+      <div className="flex gap-2 mt-3">
         <Button
           size="sm"
-          onClick={() => handleConvertToJob(request.id)}
-          className="w-full mt-3"
-          disabled={convertToJobMutation.isPending}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleConvertToJob(request);
+          }}
+          className="flex-1"
         >
           Create Job
         </Button>
-      )}
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={(e) => handleDeleteClick(e, request.id)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
-          <Bell className="h-5 w-5 text-gray-600" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </button>
-      </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Service Requests</SheetTitle>
-          <SheetDescription>
-            Customer-initiated service requests from the portal
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <Bell className="h-5 w-5 text-gray-600" />
+            {requests.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                {requests.length > 9 ? "9+" : requests.length}
+              </span>
+            )}
+          </button>
+        </SheetTrigger>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Service Requests</SheetTitle>
+            <SheetDescription>
+              Customer-initiated service requests from the portal
+            </SheetDescription>
+          </SheetHeader>
 
-        <Tabs defaultValue="pending" className="mt-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="pending" className="relative">
-              Pending
-              {pendingRequests.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
-                  {pendingRequests.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="viewed">
-              Viewed
-              {viewedRequests.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
-                  {viewedRequests.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="pending" className="space-y-3 mt-4">
+          <div className="mt-6 space-y-3">
             {isLoading ? (
               <div className="text-center py-8 text-gray-500">Loading...</div>
-            ) : pendingRequests.length === 0 ? (
+            ) : requests.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>No pending requests</p>
+                <p className="font-medium">No pending requests</p>
+                <p className="text-sm mt-1">You're all caught up!</p>
               </div>
             ) : (
-              pendingRequests.map(request => (
+              requests.map(request => (
                 <RequestCard key={request.id} request={request} />
               ))
             )}
-          </TabsContent>
+          </div>
+        </SheetContent>
+      </Sheet>
 
-          <TabsContent value="viewed" className="space-y-3 mt-4">
-            {viewedRequests.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>No viewed requests</p>
+      {/* Detail Modal */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <DialogTitle className="text-xl">{selectedRequest?.title}</DialogTitle>
+                <DialogDescription className="mt-2">
+                  {new Date(selectedRequest?.created_at || '').toLocaleString()}
+                </DialogDescription>
               </div>
-            ) : (
-              viewedRequests.map(request => (
-                <RequestCard key={request.id} request={request} />
-              ))
-            )}
-          </TabsContent>
+              {selectedRequest?.urgency === "urgent" && (
+                <Badge variant="destructive">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Urgent
+                </Badge>
+              )}
+            </div>
+          </DialogHeader>
 
-          <TabsContent value="completed" className="space-y-3 mt-4">
-            {completedRequests.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>No completed requests</p>
+          {selectedRequest && (
+            <div className="space-y-6">
+              {/* Customer & Equipment Info */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                {selectedRequest.customer_name && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-500">Customer</div>
+                    <div className="mt-1 font-medium">{selectedRequest.customer_name}</div>
+                  </div>
+                )}
+                {selectedRequest.equipment_name && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-500">Equipment</div>
+                    <div className="mt-1 font-medium">{selectedRequest.equipment_name}</div>
+                  </div>
+                )}
               </div>
-            ) : (
-              completedRequests.map(request => (
-                <RequestCard key={request.id} request={request} />
-              ))
-            )}
-          </TabsContent>
-        </Tabs>
-      </SheetContent>
-    </Sheet>
+
+              {/* Description */}
+              <div>
+                <div className="text-sm font-medium text-gray-700 mb-2">Description</div>
+                <div className="p-4 bg-gray-50 rounded-lg whitespace-pre-wrap">
+                  {selectedRequest.description}
+                </div>
+              </div>
+
+              {/* Photos */}
+              {selectedRequest.photos && selectedRequest.photos.length > 0 && (
+                <div>
+                  <div className="text-sm font-medium text-gray-700 mb-3">
+                    Photos ({selectedRequest.photos.length})
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedRequest.photos.map((photo) => (
+                      <a
+                        key={photo.id}
+                        href={photo.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-500 transition-colors"
+                      >
+                        <img
+                          src={photo.url}
+                          alt="Service request"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                          <ExternalLink className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (selectedRequest) {
+                  setRequestToDelete(selectedRequest.id);
+                  setDeleteConfirmOpen(true);
+                }
+              }}
+              disabled={deleteMutation.isPending}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+            <Button
+              onClick={() => selectedRequest && handleConvertToJob(selectedRequest)}
+            >
+              Create Job
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete service request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this service request. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setRequestToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

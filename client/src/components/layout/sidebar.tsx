@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import Avatar from "boring-avatars";
 import { useState } from "react";
 import { ProfileModal } from "@/components/modals/profile-modal";
+import { ServiceRequestsNotifications } from "@/components/ServiceRequestsNotifications";
 import { 
   Briefcase, 
   Users, 
@@ -36,6 +37,7 @@ const navigationItems = [
 
 interface SidebarContentProps {
   onClose?: () => void;
+  onCreateJobFromServiceRequest?: (data: any) => void;
 }
 
 // Filter navigation items based on user role
@@ -51,7 +53,7 @@ function getFilteredNavigationItems(userRole: string | undefined) {
   return navigationItems;
 }
 
-export function SidebarContent({ onClose }: SidebarContentProps) {
+export function SidebarContent({ onClose, onCreateJobFromServiceRequest }: SidebarContentProps) {
   const [location] = useLocation();
   const { user, isProUser } = useAuth();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -64,14 +66,18 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
 
   return (
     <div className="p-6 h-full flex flex-col">
-      {/* Logo */}
-      <div className="flex items-center gap-3 mb-8">
-        <img 
-          src={logoUrl} 
-          alt="Taska Logo" 
-          className="w-8 h-8 object-contain"
-        />
-        <h1 className="text-xl font-bold text-gray-900">Taska</h1>
+      
+     {/* Logo with Notifications */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <img 
+            src={logoUrl} 
+            alt="Taska Logo" 
+            className="w-8 h-8 object-contain"
+          />
+          <h1 className="text-xl font-bold text-gray-900">Taska</h1>
+        </div>
+        <ServiceRequestsNotifications onCreateJob={onCreateJobFromServiceRequest} />
       </div>
 
       {/* Primary Navigation Menu */}
@@ -264,12 +270,13 @@ export function SidebarContent({ onClose }: SidebarContentProps) {
 
 interface SidebarProps {
   onClose?: () => void;
+  onCreateJobFromServiceRequest?: (data: any) => void;
 }
 
-export function Sidebar({ onClose }: SidebarProps) {
+export function Sidebar({ onClose, onCreateJobFromServiceRequest }: SidebarProps) {
   return (
     <aside className="hidden sm:block w-64 bg-white border-r border-gray-200 fixed h-full z-30">
-      <SidebarContent onClose={onClose} />
+      <SidebarContent onClose={onClose} onCreateJobFromServiceRequest={onCreateJobFromServiceRequest} />
     </aside>
   );
 }

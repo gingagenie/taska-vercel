@@ -113,9 +113,13 @@
     @apply border-border;
   }
 
+  @layer base {
+  * {
+    @apply border-border;
+  }
+
   body {
     @apply font-sans antialiased text-foreground;
-    background-color: var(--background);
     background-image: url('/bg.jpg');
     background-size: cover;
     background-position: center;
@@ -128,7 +132,6 @@
     padding-right: env(safe-area-inset-right);
   }
 }
-
 body::before {
   content: '';
   position: fixed;
@@ -238,15 +241,9 @@ body::before {
     -webkit-overflow-scrolling: touch;
   }
   
-  body {
-    /* iOS optimizations */
-    -webkit-tap-highlight-color: transparent;
-    /* Safe area support for notched devices */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
+ body {
+  /* iOS optimizations */
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer components {

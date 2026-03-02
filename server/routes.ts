@@ -34,51 +34,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Public routes - no authentication required
   app.use("/api/public", publicRouter);
-  console.log("[mount] /api/public");
   
   // Customer data routes - block support staff from accessing these
   app.use("/api/customers", blockSupportStaffFromCustomerData, customers);
-  console.log("[mount] /api/customers (customer-only)");
   app.use("/api/equipment", blockSupportStaffFromCustomerData, equipment);
-  console.log("[mount] /api/equipment (customer-only)");
   app.use("/api/teams", blockSupportStaffFromCustomerData, teams);
   app.use("/api/jobs", blockSupportStaffFromCustomerData, jobs);
   app.use("/api/jobs", blockSupportStaffFromCustomerData, jobSms);
   app.use("/api/twilio", twilioWebhooks);
-  console.log("[mount] /api/twilio");
-  console.log("[mount] /api/jobs (customer-only)");
   app.use("/api/schedule", blockSupportStaffFromCustomerData, schedule);
-  console.log("[mount] /api/schedule (customer-only)");
+  
   app.use("/api/members", blockSupportStaffFromCustomerData, members);
-  console.log("[mount] /api/members (customer-only)");
+  
   app.use("/api/quotes", blockSupportStaffFromCustomerData, quotes);
-  console.log("[mount] /api/quotes (customer-only)");
+ 
   app.use("/api/invoices", blockSupportStaffFromCustomerData, invoices);
-  console.log("[mount] /api/invoices (customer-only)");
+  
   app.use("/api/item-presets", blockSupportStaffFromCustomerData, itemPresets);
-  console.log("[mount] /api/xero (customer-only)");
-  console.log("[mount] /api/item-presets (customer-only)");
+  
   
   app.use("/api/_tz", tzRouter);
-  console.log("[mount] /api/_tz");
+
   app.use("/api/objects", objectsRouter);
-  console.log("[mount] /api/objects");
+  
   app.use("/api/media", blockSupportStaffFromCustomerData, mediaRouter);
-  console.log("[mount] /api/media (customer-only)");
+  
   app.use("/api/subscriptions", subscriptions);
-  console.log("[mount] /api/subscriptions");
+ 
   app.use("/api/usage", usage);
-  console.log("[mount] /api/usage");
+  
   app.use("/api/debug", debug);
-  console.log("[mount] /api/debug");
+  
   app.use("/api/ai-support", aiSupportRouter);
-  console.log("[mount] /api/ai-support");
+  
   app.use("/api/support-tickets", supportTickets);
-  console.log("[mount] /api/support-tickets");
+  
   
   // Admin routes - requires admin authentication
   app.use("/api/admin", adminRoutes);
-  console.log("[mount] /api/admin");
+  
   
   // Migration export tool
   app.get("/migration-export.html", (_req, res) => {

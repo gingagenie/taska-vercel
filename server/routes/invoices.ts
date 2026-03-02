@@ -140,6 +140,7 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
     i.number,
     i.status, 
     i.created_at,
+    i.updated_at,
     i.due_at,
     i.customer_id, 
     i.viewed_at,

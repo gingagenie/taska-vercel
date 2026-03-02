@@ -229,10 +229,7 @@ async function tenantGuard(req: Request, res: Response, next: NextFunction) {
 
 /* ---------------- Tracing & Health ---------------- */
 
-app.use((req, _res, next) => {
-  if (req.path.startsWith("/api")) console.log(`[TRACE] ${req.method} ${req.path}`);
-  next();
-});
+
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/health/db", async (_req, res) => {

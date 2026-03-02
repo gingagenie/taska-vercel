@@ -43,29 +43,28 @@
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
   --radius: 0.75rem;
-  
-  /* Functional Color Categories - Lighter/Softer */
-  --jobs: hsl(220 70% 65%);           /* Lighter Blue - Jobs/Work */
+
+  --jobs: hsl(220 70% 65%);
   --jobs-light: hsl(220 70% 96%);
   --jobs-foreground: hsl(0 0% 100%);
-  
-  --people: hsl(142 60% 55%);         /* Lighter Green - People */
+
+  --people: hsl(142 60% 55%);
   --people-light: hsl(142 60% 95%);
   --people-foreground: hsl(0 0% 100%);
-  
-  --equipment: hsl(32 80% 60%);       /* Lighter Orange - Equipment */
+
+  --equipment: hsl(32 80% 60%);
   --equipment-light: hsl(32 80% 95%);
   --equipment-foreground: hsl(0 0% 100%);
-  
-  --schedule: hsl(267 50% 65%);       /* Lighter Purple - Calendar */
+
+  --schedule: hsl(267 50% 65%);
   --schedule-light: hsl(267 50% 96%);
   --schedule-foreground: hsl(0 0% 100%);
-  
-  --financial: hsl(173 50% 55%);      /* Lighter Teal - Financial */
+
+  --financial: hsl(173 50% 55%);
   --financial-light: hsl(173 50% 95%);
   --financial-foreground: hsl(0 0% 100%);
-  
-  --management: hsl(331 45% 65%);     /* Lighter Pink - Management */
+
+  --management: hsl(331 45% 65%);
   --management-light: hsl(331 45% 96%);
   --management-foreground: hsl(0 0% 100%);
 }
@@ -113,9 +112,9 @@
     @apply border-border;
   }
 
-  @layer base {
-  * {
-    @apply border-border;
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-overflow-scrolling: touch;
   }
 
   body {
@@ -132,6 +131,7 @@
     padding-right: env(safe-area-inset-right);
   }
 }
+
 body::before {
   content: '';
   position: fixed;
@@ -145,34 +145,39 @@ body::before {
   position: relative;
   z-index: 1;
 }
-/* Global button styling - thin borders for all buttons */
+
 @layer components {
   .btn-default,
   button:not(.no-border) {
     @apply border border-gray-400/80;
   }
-  
-  /* Primary buttons */
+
   button[class*="bg-jobs"]:not(.no-border),
   button[class*="bg-blue"]:not(.no-border) {
     @apply border border-blue-600/50;
   }
-  
-  /* Secondary buttons */
+
   button[variant="secondary"]:not(.no-border),
   button[class*="bg-gray"]:not(.no-border) {
     @apply border border-gray-500/70;
   }
-  
-  /* Outline buttons */
+
   button[variant="outline"]:not(.no-border) {
     @apply border border-gray-500/90;
   }
-  
-  /* Destructive buttons */
+
   button[variant="destructive"]:not(.no-border),
   button[class*="bg-red"]:not(.no-border) {
     @apply border border-red-600/60;
+  }
+
+  .touch-optimized {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .btn-touch-friendly {
+    @apply min-h-[44px] min-w-[44px];
   }
 }
 
@@ -180,142 +185,64 @@ body::before {
   @apply px-2 py-1 text-xs font-medium rounded-full;
 }
 
-.status-new {
-  @apply bg-gray-100 text-gray-800;
-}
+.status-new { @apply bg-gray-100 text-gray-800; }
+.status-scheduled { @apply bg-blue-100 text-blue-800; }
+.status-confirmed { @apply bg-green-100 text-green-800; }
+.status-in-progress { @apply bg-yellow-100 text-yellow-800; }
+.status-completed { @apply bg-green-100 text-green-800; }
+.status-sent { @apply bg-blue-100 text-blue-800; }
+.status-accepted { @apply bg-green-100 text-green-800; }
+.status-rejected { @apply bg-red-100 text-red-800; }
+.status-draft { @apply bg-gray-100 text-gray-800; }
+.status-paid { @apply bg-green-100 text-green-800; }
+.status-overdue { @apply bg-red-100 text-red-800; }
 
-.status-scheduled {
-  @apply bg-blue-100 text-blue-800;
-}
+.metric-trend-positive { @apply text-success; }
+.metric-trend-negative { @apply text-warning; }
 
-.status-confirmed {
-  @apply bg-green-100 text-green-800;
-}
-
-.status-in-progress {
-  @apply bg-yellow-100 text-yellow-800;
-}
-
-.status-completed {
-  @apply bg-green-100 text-green-800;
-}
-
-.status-sent {
-  @apply bg-blue-100 text-blue-800;
-}
-
-.status-accepted {
-  @apply bg-green-100 text-green-800;
-}
-
-.status-rejected {
-  @apply bg-red-100 text-red-800;
-}
-
-.status-draft {
-  @apply bg-gray-100 text-gray-800;
-}
-
-.status-paid {
-  @apply bg-green-100 text-green-800;
-}
-
-.status-overdue {
-  @apply bg-red-100 text-red-800;
-}
-
-.metric-trend-positive {
-  @apply text-success;
-}
-
-.metric-trend-negative {
-  @apply text-warning;
-}
-
-/* iOS PWA Optimizations */
-@layer base {
-  html {
-    /* Prevent iOS zoom on input focus */
-    -webkit-text-size-adjust: 100%;
-    /* iOS smooth scrolling */
-    -webkit-overflow-scrolling: touch;
-  }
-  
- body {
-  /* iOS optimizations */
-  -webkit-tap-highlight-color: transparent;
-}
-
-@layer components {
-  /* iOS-specific touch optimizations */
-  .touch-optimized {
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-  
-  /* Better touch targets for mobile */
-  .btn-touch-friendly {
-    @apply min-h-[44px] min-w-[44px];
-  }
-}
-
-/* iOS Safari fixes */
 @supports (-webkit-touch-callout: none) {
   .ios-min-height {
     min-height: -webkit-fill-available;
   }
-  
-  /* Fix iOS Safari bottom bar issues */
+
   .min-h-screen {
     min-height: -webkit-fill-available;
   }
 }
 
-/* iOS input styling fixes */
-input[type="text"], input[type="email"], input[type="password"], 
-input[type="tel"], input[type="url"], input[type="search"], 
+input[type="text"], input[type="email"], input[type="password"],
+input[type="tel"], input[type="url"], input[type="search"],
 textarea, select {
   -webkit-appearance: none;
   border-radius: 0;
-  /* Prevent iOS zoom on focus with 16px minimum */
   font-size: max(16px, 1rem);
 }
 
-/* iOS modal and overlay fixes */
 .fixed {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
 
-/* iOS scrolling improvements */
 .overflow-y-auto, .overflow-auto, .scroll-area {
   -webkit-overflow-scrolling: touch;
 }
 
-/* iOS status bar styling for PWA */
 @media (display-mode: standalone) {
   body {
-    /* PWA status bar area */
     padding-top: env(safe-area-inset-top);
   }
-  
-  /* Hide elements that shouldn't show in PWA mode */
+
   .web-only {
     display: none !important;
   }
 }
 
-/* iOS device-specific optimizations */
 @media (max-width: 768px) {
-  /* Larger touch targets on mobile */
   button, a, [role="button"] {
     @apply min-h-[44px];
   }
-  
-  /* Improve spacing for thumbs */
+
   .mobile-spacing > * + * {
     @apply mt-4;
   }
 }
-
-/* Cache buster 1755992880 */

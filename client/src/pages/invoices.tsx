@@ -1,19 +1,17 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { invoicesApi } from "@/lib/api";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, useLocation, useSearch } from "wouter";
-import { FileText, User, ArrowRight, Edit, Trash } from "lucide-react";
+import { FileText, User, ArrowRight, Edit, Eye, CheckCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { trackClickButton } from "@/lib/tiktok-tracking";
-import { FileText, User, ArrowRight, Edit, Trash, Eye } from "lucide-react";
-
 
 export default function InvoicesPage() {
   const qc = useQueryClient();
@@ -22,70 +20,45 @@ export default function InvoicesPage() {
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const currentTab = (params.get('tab') || 'all') as 'all' | 'paid' | 'unpaid' | 'overdue';
-  
+
   const { data: counts = { all: 0, paid: 0, unpaid: 0, overdue: 0 } } = useQuery<{
-    all: number;
-    paid: number;
-    unpaid: number;
-    overdue: number;
-  }>({ 
-    queryKey: ["/api/invoices/counts"],
-  });
-  
-  const { data: list = [], isLoading } = useQuery<any[]>({ 
+    all: number; paid: number; unpaid: number; overdue: number;
+  }>({ queryKey: ["/api/invoices/counts"] });
+
+  const { data: list = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/invoices", { tab: currentTab }],
   });
-  
+
   const [q, setQ] = useState("");
 
-  const deleteInvoiceMutation = useMutation({
-    mutationFn: (invoiceId: string) => invoicesApi.delete(invoiceId),
+  const markPaidMutation = useMutation({
+    mutationFn: (invoiceId: string) => invoicesApi.markPaid(invoiceId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices"] });
       qc.invalidateQueries({ queryKey: ["/api/invoices/counts"] });
-      toast({
-        title: "Invoice deleted",
-        description: "The invoice has been successfully deleted.",
-      });
+      toast({ title: "Invoice marked as paid" });
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to delete invoice. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to mark invoice as paid.", variant: "destructive" });
     },
   });
-  
-  const handleTabChange = (tab: string) => {
-    navigate(`/invoices?tab=${tab}`);
-  };
 
-  const handleDeleteInvoice = (invoice: any) => {
-    if (window.confirm(`Are you sure you want to delete "${invoice.title}"? This action cannot be undone.`)) {
-      deleteInvoiceMutation.mutate(invoice.id);
-    }
-  };
+  const handleTabChange = (tab: string) => navigate(`/invoices?tab=${tab}`);
 
-  const filtered = (list || []).filter((x: any) => [x.title,x.customer_name,x.status].join(" ").toLowerCase().includes(q.toLowerCase()));
+  const filtered = (list || []).filter((x: any) =>
+    [x.title, x.customer_name, x.status].join(" ").toLowerCase().includes(q.toLowerCase())
+  );
 
-  // Calculate totals based on current tab
   const calculateTotal = () => {
     const invoices = filtered || [];
-    
-    // For "All" tab, only include unpaid and overdue (Outstanding)
-    const invoicesToSum = currentTab === 'all' 
+    const invoicesToSum = currentTab === 'all'
       ? invoices.filter((inv: any) => inv.status !== 'paid' && inv.status !== 'void')
       : invoices;
-    
-    const sum = invoicesToSum.reduce((acc: number, inv: any) => {
-      return acc + (Number(inv.total_amount) || 0);
-    }, 0);
-    return sum;
+    return invoicesToSum.reduce((acc: number, inv: any) => acc + (Number(inv.total_amount) || 0), 0);
   };
 
   const getTabTitle = () => {
-    switch(currentTab) {
+    switch (currentTab) {
       case 'unpaid': return 'Unpaid Total';
       case 'paid': return 'Paid Total';
       case 'overdue': return 'Overdue Total';
@@ -95,38 +68,33 @@ export default function InvoicesPage() {
   };
 
   function getStatusBadgeClass(status: string) {
-  switch (status) {
-    case 'sent': return 'bg-blue-100 text-blue-800';
-    case 'viewed': return 'bg-purple-100 text-purple-800';  // Purple for viewed
-    case 'paid': return 'bg-green-100 text-green-800';
-    case 'overdue': return 'bg-red-100 text-red-800';
-    case 'draft': return 'bg-gray-100 text-gray-800';
-    default: return 'bg-gray-100 text-gray-800';
+    switch (status) {
+      case 'sent': return 'bg-blue-100 text-blue-800';
+      case 'viewed': return 'bg-purple-100 text-purple-800';
+      case 'paid': return 'bg-green-100 text-green-800';
+      case 'overdue': return 'bg-red-100 text-red-800';
+      case 'draft': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
   }
-}
 
   return (
     <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-financial">Invoices</h1>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <Input 
-            className="w-full sm:w-64" 
-            placeholder="Search invoices…" 
-            value={q} 
-            onChange={(e)=>setQ(e.target.value)} 
+          <Input
+            className="w-full sm:w-64"
+            placeholder="Search invoices…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
           />
           <Link href="/invoices/new">
             <a>
-              <Button 
-                data-mobile-full="true" 
+              <Button
+                data-mobile-full="true"
                 className="bg-financial hover:bg-financial/90 text-financial-foreground w-full sm:w-auto"
-                onClick={() => {
-                  trackClickButton({
-                    contentName: "New Invoice Button (Header)",
-                    contentCategory: "lead_generation",
-                  });
-                }}
+                onClick={() => trackClickButton({ contentName: "New Invoice Button (Header)", contentCategory: "lead_generation" })}
                 data-testid="button-new-invoice-header"
               >
                 <FileText className="h-4 w-4 mr-2" />
@@ -164,12 +132,8 @@ export default function InvoicesPage() {
         <Card className="bg-financial/5 border-financial/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-600" data-testid="text-total-label">
-                {getTabTitle()}
-              </span>
-              <span className="text-2xl font-bold text-financial" data-testid="text-total-amount">
-                ${calculateTotal().toFixed(2)}
-              </span>
+              <span className="text-sm font-medium text-gray-600" data-testid="text-total-label">{getTabTitle()}</span>
+              <span className="text-2xl font-bold text-financial" data-testid="text-total-amount">${calculateTotal().toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
@@ -180,23 +144,14 @@ export default function InvoicesPage() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-12">
           <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <div className="text-xl font-semibold text-gray-600 mb-2">
-            {q ? "No invoices found" : "No invoices yet"}
-          </div>
-          <div className="text-gray-500 mb-4">
-            {q ? "Try adjusting your search terms" : "Create your first invoice to get started"}
-          </div>
+          <div className="text-xl font-semibold text-gray-600 mb-2">{q ? "No invoices found" : "No invoices yet"}</div>
+          <div className="text-gray-500 mb-4">{q ? "Try adjusting your search terms" : "Create your first invoice to get started"}</div>
           {!q && (
             <Link href="/invoices/new">
               <a>
-                <Button 
+                <Button
                   className="bg-financial hover:bg-financial/90 text-financial-foreground"
-                  onClick={() => {
-                    trackClickButton({
-                      contentName: "New Invoice Button (Empty State)",
-                      contentCategory: "lead_generation",
-                    });
-                  }}
+                  onClick={() => trackClickButton({ contentName: "New Invoice Button (Empty State)", contentCategory: "lead_generation" })}
                   data-testid="button-new-invoice-empty"
                 >
                   <FileText className="h-4 w-4 mr-2" />
@@ -209,8 +164,8 @@ export default function InvoicesPage() {
       ) : (
         <div className="grid gap-4">
           {filtered.map((invoice: any) => (
-            <Card 
-              key={invoice.id} 
+            <Card
+              key={invoice.id}
               className="border-financial bg-white hover:shadow-md hover:bg-gray-50 transition-all cursor-pointer group"
               onClick={() => navigate(`/invoices/${invoice.id}`)}
               data-testid={`card-invoice-${invoice.id}`}
@@ -225,23 +180,16 @@ export default function InvoicesPage() {
                             {invoice.title || "Untitled Invoice"}
                           </div>
                           {invoice.viewed_at && (
-                            <Eye 
-                              className="h-4 w-4 text-green-600" 
-                              title={`Viewed ${new Date(invoice.viewed_at).toLocaleDateString()}`}
-                            />
+                            <Eye className="h-4 w-4 text-green-600" title={`Viewed ${new Date(invoice.viewed_at).toLocaleDateString()}`} />
                           )}
                         </div>
-                        <div className="text-sm text-gray-500 font-medium">
-                          {invoice.number || 'inv-0001'}
-                        </div>
+                        <div className="text-sm text-gray-500 font-medium">{invoice.number || 'inv-0001'}</div>
                       </div>
                       <Badge className={getStatusBadgeClass(invoice.viewed_at ? 'viewed' : invoice.status)}>
-                        {invoice.viewed_at && invoice.status === 'sent' 
-                          ? 'viewed' 
-                          : (invoice.status || "draft").replace("_", " ")}
+                        {invoice.viewed_at && invoice.status === 'sent' ? 'viewed' : (invoice.status || "draft").replace("_", " ")}
                       </Badge>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
                         <div className="text-gray-500">Customer</div>
@@ -250,7 +198,6 @@ export default function InvoicesPage() {
                           {invoice.customer_name || "No customer assigned"}
                         </div>
                       </div>
-                      
                       <div>
                         <div className="text-gray-500">Total</div>
                         <div className="font-medium">
@@ -258,13 +205,13 @@ export default function InvoicesPage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-financial transition-colors pt-1">
                       <span>Click for details</span>
                       <ArrowRight className="h-3 w-3" />
                     </div>
                   </div>
-                  
+
                   <div className="ml-4" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -273,20 +220,20 @@ export default function InvoicesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => {
-                          navigate(`/invoices/${invoice.id}/edit`);
-                        }}>
+                        <DropdownMenuItem onClick={() => navigate(`/invoices/${invoice.id}/edit`)}>
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteInvoice(invoice)}
-                          className="text-red-600 focus:text-red-600"
-                          data-testid={`delete-invoice-${invoice.id}`}
-                        >
-                          <Trash className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
+                        {invoice.status !== 'paid' && invoice.status !== 'void' && (
+                          <DropdownMenuItem
+                            onClick={() => markPaidMutation.mutate(invoice.id)}
+                            className="text-green-600 focus:text-green-600"
+                            data-testid={`mark-paid-invoice-${invoice.id}`}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Mark Paid
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>

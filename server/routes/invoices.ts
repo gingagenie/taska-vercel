@@ -151,7 +151,7 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
   order by i.created_at desc
   limit ${pageSize} offset ${offset}
 `);
-  console.log(`[DEBUG] Invoice list query result (tab=${tab}):`, r.map((inv: any) => ({ id: inv.id, title: inv.title, total_amount: inv.total_amount })));
+
   res.json(r);  // Match the working pattern from jobs.ts
 });
 

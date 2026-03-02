@@ -140,7 +140,7 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
     i.number,
     i.status, 
     i.created_at,
-    i.updated_at,
+    i.paid_at,
     i.due_at,
     i.customer_id, 
     i.viewed_at,
@@ -368,8 +368,8 @@ router.post("/:id/pay", requireAuth, requireOrg, async (req, res) => {
   
   // Update with org scoping and prevent paying void invoices
   const r: any = await db.execute(sql`
-    update invoices
-    set status = 'paid'
+   update invoices
+    set status = 'paid', paid_at = NOW()
     where id = ${id}::uuid
       and org_id = ${orgId}::uuid
       and status <> 'void'

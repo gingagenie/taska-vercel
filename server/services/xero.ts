@@ -45,7 +45,8 @@ export class XeroService {
     const client = this.ensureClient();
     console.log('Xero callback: Processing code:', code.substring(0, 20) + '...');
     
-    const tokenSet = await client.apiCallback(code);
+    const callbackUrl = `https://taska.info/api/xero/callback?code=${code}`;
+    const tokenSet = await client.apiCallback(callbackUrl);
     console.log('Xero callback: Token set received:', !!tokenSet.access_token);
     
     if (!tokenSet.access_token) {

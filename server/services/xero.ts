@@ -13,7 +13,7 @@ export class XeroService {
         clientId: process.env.XERO_CLIENT_ID,
         clientSecret: process.env.XERO_CLIENT_SECRET,
         redirectUris: ['https://taska.info/api/xero/callback'],
-        scopes: ['openid', 'profile', 'email', 'accounting.transactions'],
+        scopes: ['openid', 'profile', 'email', 'accounting.transactions', 'accounting.settings'],
       });
     }
   }
@@ -35,7 +35,7 @@ export class XeroService {
       response_type: 'code',
       client_id: process.env.XERO_CLIENT_ID!,
       redirect_uri: 'https://taska.info/api/xero/callback',
-      scope: 'openid profile email accounting.transactions',
+      scope: 'openid profile email accounting.transactions accounting.settings',
       state,
     });
     return `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
@@ -54,12 +54,12 @@ export class XeroService {
     }
 
     console.log('Xero callback: Updating tenants...');
-try {
-  await client.updateTenants();
-} catch (tenantError: any) {
-  console.error('Xero callback: updateTenants failed:', JSON.stringify(tenantError));
-  throw tenantError;
-}
+    try {
+      await client.updateTenants();
+    } catch (tenantError: any) {
+      console.error('Xero callback: updateTenants failed:', JSON.stringify(tenantError));
+      throw tenantError;
+    }
     console.log('Xero callback: Tenant count:', client.tenants?.length);
     console.log('Xero callback: First tenant:', client.tenants?.[0]?.tenantName, client.tenants?.[0]?.tenantId);
 

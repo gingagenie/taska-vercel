@@ -25,25 +25,31 @@ router.get('/connect', requireAuth, requireOrg, checkSubscription, requireActive
 // Handle OAuth2 callback
 router.get('/callback', async (req: Request, res: Response) => {
   const { code, state } = req.query;
-
   const protocol = req.get('X-Forwarded-Proto') || req.protocol;
   const host = req.get('Host');
   const baseUrl = `${protocol}://${host}`;
 
+  console.log('[XERO CALLBACK] code:', !!code, 'state:', state);
+
   if (!code || typeof code !== 'string') {
+    console.log('[XERO CALLBACK] Missing or invalid code');
     return res.redirect(`${baseUrl}/settings?xero_error=invalid_code`);
   }
 
   const orgId = state as string;
   if (!orgId) {
+    console.log('[XERO CALLBACK] Missing orgId in state');
     return res.redirect(`${baseUrl}/settings?xero_error=missing_org`);
   }
 
   try {
+    console.log('[XERO CALLBACK] Calling handleCallback with orgId:', orgId);
     const result = await xeroService.handleCallback(code, orgId);
+    console.log('[XERO CALLBACK] Success:', result);
     res.redirect(`${baseUrl}/settings?xero_success=true&tenant=${encodeURIComponent(result.tenantName)}`);
-  } catch (error) {
-    console.error('Xero callback error:', error);
+  } catch (error: any) {
+    console.error('[XERO CALLBACK] Error message:', error?.message);
+    console.error('[XERO CALLBACK] Error stack:', error?.stack);
     res.redirect(`${baseUrl}/settings?xero_error=connection_failed`);
   }
 });
@@ -52,7 +58,7 @@ router.get('/callback', async (req: Request, res: Response) => {
 router.get('/status', requireAuth, requireOrg, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const integration = await xeroService.getOrgIntegration(req.orgId);
-    
+
     if (!integration) {
       return res.json({ connected: false });
     }
@@ -72,7 +78,7 @@ router.get('/status', requireAuth, requireOrg, async (req: AuthenticatedRequest,
 router.delete('/disconnect', requireAuth, requireOrg, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const integration = await xeroService.getOrgIntegration(req.orgId);
-    
+
     if (integration) {
       await xeroService.disconnectIntegration(req.orgId);
     }

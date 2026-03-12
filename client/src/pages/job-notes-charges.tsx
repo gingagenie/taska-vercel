@@ -142,9 +142,11 @@ export default function JobNotesCharges() {
     try {
       // Upload files one by one since our API expects single file uploads
       for (const file of Array.from(files)) {
-        const photo = await photosApi.upload(jobId, file);
-        setPhotos(prev => [photo, ...prev]);
-      }
+  await photosApi.upload(jobId, file);
+}
+      // Refetch fresh signed URLs for all photos
+  const freshPhotos = await photosApi.list(jobId);
+      setPhotos(asArray(freshPhotos));
     } catch (e: any) {
       setErr(e?.message || "Failed to upload photo");
     } finally {

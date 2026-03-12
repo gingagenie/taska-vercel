@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { meApi, itemPresetsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -7,280 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, AlertCircle, Trash2, Crown, Star, Zap, CreditCard, Users, Mail, BarChart3, ShoppingCart, Package } from "lucide-react";
+import {
+  CheckCircle, AlertCircle, Trash2, Crown, Star, Zap,
+  CreditCard, Users, Mail, BarChart3, ShoppingCart, Package, MessageCircle
+} from "lucide-react";
 import { useSubscription, useCancelSubscription } from "@/hooks/useSubscription";
 import { UpgradeModal } from "@/components/subscription/upgrade-modal";
 import { Badge } from "@/components/ui/badge";
 import { useSmsUsage } from "@/hooks/useSmsUsage";
 import { Progress } from "@/components/ui/progress";
-import { MessageCircle } from "lucide-react";
 import { useUsageAlerts, UsageAlertList, UsageData } from "@/components/usage/usage-alerts";
 import { PackSelectionModal } from "@/components/packs/PackSelectionModal";
 import { PurchasedPacksList } from "@/components/packs/PurchasedPacksList";
 import { usePackPurchase } from "@/hooks/usePackPurchase";
 
-// Usage Tab Component
-function UsageTab() {
-  const { data: usageData, isLoading, error } = useQuery({
-    queryKey: ["/api/usage"],
-    refetchOnWindowFocus: true,
-    staleTime: 60000,
-    refetchInterval: 60000,
-    refetchIntervalInBackground: true,
-  });
-
-  const isValidUsageData = (data: any): data is {
-    users: { used: number; quota: number; percent: number };
-    sms: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
-    email: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
-    periodEnd: string;
-    planId: string;
-    subscriptionStatus: string;
-  } => {
-    return data &&
-           data.users && typeof data.users.used === 'number' && typeof data.users.quota === 'number' &&
-           data.sms && typeof data.sms.used === 'number' && typeof data.sms.quota === 'number' &&
-           data.email && typeof data.email.used === 'number' && typeof data.email.quota === 'number' &&
-           typeof data.periodEnd === 'string' &&
-           typeof data.planId === 'string' &&
-           typeof data.subscriptionStatus === 'string';
-  };
-
-  const formatPercentage = (percent: number) => Math.round(percent);
-
-  const getUsageColor = (percent: number, exceeded: boolean = false) => {
-    if (exceeded || percent >= 100) return "text-red-600";
-    if (percent >= 80) return "text-orange-600";
-    return "text-green-600";
-  };
-
-  const getProgressColor = (percent: number, exceeded: boolean = false) => {
-    if (exceeded || percent >= 100) return "bg-red-500";
-    if (percent >= 80) return "bg-orange-500";
-    return "bg-green-500";
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-AU', {
-      day: 'numeric', month: 'short', year: 'numeric'
-    });
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardContent className="p-6">
-              <div className="animate-pulse space-y-4">
-                <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-                <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-                <div className="h-2 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  if (error || !usageData || !isValidUsageData(usageData)) {
-    return (
-      <Card>
-        <CardContent className="p-6 text-center">
-          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-          <p className="text-gray-500">Unable to load usage information</p>
-          <p className="text-sm text-gray-400 mt-1">Please try refreshing the page</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const { users, sms, email, periodEnd, planId, subscriptionStatus } = usageData;
-  const resetDate = formatDate(periodEnd);
-  const { alerts, dismissAlert } = useUsageAlerts(usageData as UsageData);
-
-  return (
-    <div className="space-y-6">
-      {alerts.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-orange-500" />
-            Usage Alerts
-          </h3>
-          <UsageAlertList alerts={alerts} currentPlan={planId} onDismiss={dismissAlert} variant="compact" showUpgrade={true} />
-        </div>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-500" />
-            Team Members
-          </CardTitle>
-          <CardDescription>Active users in your organization</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-2xl font-bold" data-testid="text-users-usage">{users.used} of {users.quota}</span>
-            <span className={`text-sm font-medium ${getUsageColor(users.percent)}`}>{formatPercentage(users.percent)}% used</span>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm"><span>Usage</span><span>{formatPercentage(users.percent)}%</span></div>
-            <Progress value={Math.min(users.percent, 100)} className={`h-2 [&>div]:${getProgressColor(users.percent)}`} data-testid="progress-users-usage" />
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span>Available slots:</span>
-            <span className={`font-semibold ${users.used >= users.quota ? 'text-red-600' : 'text-green-600'}`}>{Math.max(0, users.quota - users.used)} remaining</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-green-500" />
-            SMS Notifications
-          </CardTitle>
-          <CardDescription>SMS messages sent this billing period</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-2xl font-bold" data-testid="text-sms-usage-detailed">{sms.used} of {sms.quota}</span>
-            <span className={`text-sm font-medium ${getUsageColor(sms.percent, sms.quotaExceeded)}`}>{formatPercentage(sms.percent)}% used</span>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm"><span>Usage</span><span>{formatPercentage(sms.percent)}%</span></div>
-            <Progress value={Math.min(sms.percent, 100)} className={`h-2 [&>div]:${getProgressColor(sms.percent, sms.quotaExceeded)}`} data-testid="progress-sms-usage-detailed" />
-          </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center justify-between">
-              <span>Remaining:</span>
-              <span className={`font-semibold ${sms.remaining <= 5 ? 'text-red-600' : 'text-green-600'}`}>{sms.remaining} SMS</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Resets:</span>
-              <span className="font-semibold text-gray-600">{resetDate}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-purple-500" />
-            Email Notifications
-          </CardTitle>
-          <CardDescription>Email messages sent this billing period</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-2xl font-bold" data-testid="text-email-usage">{email.used} of {email.quota}</span>
-            <span className={`text-sm font-medium ${getUsageColor(email.percent, email.quotaExceeded)}`}>{formatPercentage(email.percent)}% used</span>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm"><span>Usage</span><span>{formatPercentage(email.percent)}%</span></div>
-            <Progress value={Math.min(email.percent, 100)} className={`h-2 [&>div]:${getProgressColor(email.percent, email.quotaExceeded)}`} data-testid="progress-email-usage" />
-          </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center justify-between">
-              <span>Remaining:</span>
-              <span className={`font-semibold ${email.remaining <= 10 ? 'text-red-600' : 'text-green-600'}`}>{email.remaining} emails</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Resets:</span>
-              <span className="font-semibold text-gray-600">{resetDate}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-indigo-500" />
-            Usage Summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-              <span>Plan:</span>
-              <span className="font-semibold capitalize">{planId || 'N/A'}</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-              <span>Status:</span>
-              <Badge variant={subscriptionStatus === 'active' ? 'default' : 'secondary'}>{subscriptionStatus || 'Unknown'}</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-              <span>Period ends:</span>
-              <span className="font-semibold">{resetDate}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <PackManagementSection />
-    </div>
-  );
-}
-
-function PackManagementSection() {
-  const [selectedPackType, setSelectedPackType] = useState<'all' | 'sms' | 'email'>('all');
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'expired' | 'used_up'>('all');
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-green-500" />
-                Communication Packs
-              </CardTitle>
-              <CardDescription>Manage your SMS and Email pack inventory and track usage</CardDescription>
-            </div>
-            <PackSelectionModal open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
-              <Button className="flex items-center gap-2" data-testid="button-buy-packs" onClick={() => setShowPurchaseModal(true)}>
-                <ShoppingCart className="w-4 h-4" />
-                Buy Packs
-              </Button>
-            </PackSelectionModal>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex items-center gap-2">
-              <Label className="text-sm font-medium">Type:</Label>
-              <div className="flex gap-1">
-                <Button variant={selectedPackType === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setSelectedPackType('all')} data-testid="filter-pack-type-all">All</Button>
-                <Button variant={selectedPackType === 'sms' ? 'default' : 'outline'} size="sm" onClick={() => setSelectedPackType('sms')} data-testid="filter-pack-type-sms" className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />SMS</Button>
-                <Button variant={selectedPackType === 'email' ? 'default' : 'outline'} size="sm" onClick={() => setSelectedPackType('email')} data-testid="filter-pack-type-email" className="flex items-center gap-1"><Mail className="w-3 h-3" />Email</Button>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label className="text-sm font-medium">Status:</Label>
-              <div className="flex gap-1">
-                <Button variant={selectedStatus === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setSelectedStatus('all')} data-testid="filter-status-all">All</Button>
-                <Button variant={selectedStatus === 'active' ? 'default' : 'outline'} size="sm" onClick={() => setSelectedStatus('active')} data-testid="filter-status-active">Active</Button>
-                <Button variant={selectedStatus === 'expired' ? 'default' : 'outline'} size="sm" onClick={() => setSelectedStatus('expired')} data-testid="filter-status-expired">Expired</Button>
-                <Button variant={selectedStatus === 'used_up' ? 'default' : 'outline'} size="sm" onClick={() => setSelectedStatus('used_up')} data-testid="filter-status-used-up">Used Up</Button>
-              </div>
-            </div>
-          </div>
-          <PackUsageStats packType={selectedPackType === 'all' ? undefined : selectedPackType} />
-        </CardContent>
-      </Card>
-
-      <PurchasedPacksList status={selectedStatus === 'all' ? 'all' : selectedStatus} packType={selectedPackType === 'all' ? undefined : selectedPackType} className="space-y-4" />
-    </div>
-  );
-}
-
+// ── Pack Usage Stats ─────────────────────────────────────────────
 function PackUsageStats({ packType }: { packType?: 'sms' | 'email' }) {
   const queryParams = new URLSearchParams();
   if (packType) queryParams.append('packType', packType);
@@ -296,42 +37,79 @@ function PackUsageStats({ packType }: { packType?: 'sms' | 'email' }) {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-pulse">
-        {[1, 2, 3, 4].map((i) => (<div key={i} className="h-16 bg-gray-200 rounded"></div>))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-pulse">
+        {[1, 2, 3, 4].map(i => <div key={i} className="h-16 bg-gray-200 rounded" />)}
       </div>
     );
   }
 
-  const totalPacks = packs.length;
-  const activePacks = packs.filter((p: any) => p.status === 'active').length;
-  const totalQuantity = packs.reduce((sum: number, p: any) => sum + p.quantity, 0);
-  const remainingQuantity = packs.reduce((sum: number, p: any) => sum + p.remainingQuantity, 0);
-
   const stats = [
-    { label: 'Total Packs', value: totalPacks, color: 'text-blue-600' },
-    { label: 'Active Packs', value: activePacks, color: 'text-green-600' },
-    { label: 'Total Credits', value: totalQuantity.toLocaleString(), color: 'text-purple-600' },
-    { label: 'Available Credits', value: remainingQuantity.toLocaleString(), color: 'text-orange-600' }
+    { label: 'Total Packs', value: packs.length, color: 'text-blue-600' },
+    { label: 'Active Packs', value: packs.filter((p: any) => p.status === 'active').length, color: 'text-green-600' },
+    { label: 'Total Credits', value: packs.reduce((s: number, p: any) => s + p.quantity, 0).toLocaleString(), color: 'text-purple-600' },
+    { label: 'Available Credits', value: packs.reduce((s: number, p: any) => s + p.remainingQuantity, 0).toLocaleString(), color: 'text-orange-600' },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-      {stats.map((stat) => (
-        <div key={stat.label} className="bg-gray-50 rounded-lg p-4">
-          <div className="text-sm text-gray-600">{stat.label}</div>
-          <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {stats.map(s => (
+        <div key={s.label} className="bg-gray-50 rounded-lg p-3">
+          <div className="text-xs text-gray-500">{s.label}</div>
+          <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
         </div>
       ))}
     </div>
   );
 }
 
-function SubscriptionTab() {
-  const { data: subscription, isLoading: subscriptionLoading } = useSubscription();
+// ── Billing Tab ──────────────────────────────────────────────────
+// Merges: Subscription + Usage + Communication Packs
+function BillingTab() {
+  const { data: subscription, isLoading: subLoading } = useSubscription();
   const { data: smsUsage, isLoading: smsLoading } = useSmsUsage();
   const cancelMutation = useCancelSubscription();
+  const [selectedPackType, setSelectedPackType] = useState<'all' | 'sms' | 'email'>('all');
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'expired' | 'used_up'>('all');
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
 
+  const { data: usageData, isLoading: usageLoading, error: usageError } = useQuery({
+    queryKey: ["/api/usage"],
+    refetchOnWindowFocus: true,
+    staleTime: 60000,
+    refetchInterval: 60000,
+    refetchIntervalInBackground: true,
+  });
+
+  const isValidUsageData = (data: any): data is {
+    users: { used: number; quota: number; percent: number };
+    sms: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
+    email: { used: number; quota: number; remaining: number; percent: number; quotaExceeded: boolean };
+    periodEnd: string; planId: string; subscriptionStatus: string;
+  } => {
+    return data &&
+      data.users && typeof data.users.used === 'number' && typeof data.users.quota === 'number' &&
+      data.sms && typeof data.sms.used === 'number' && typeof data.sms.quota === 'number' &&
+      data.email && typeof data.email.used === 'number' && typeof data.email.quota === 'number' &&
+      typeof data.periodEnd === 'string' && typeof data.planId === 'string' && typeof data.subscriptionStatus === 'string';
+  };
+
+  const pct = (p: number) => Math.round(p);
+  const usageColor = (p: number, exceeded = false) =>
+    exceeded || p >= 100 ? "text-red-600" : p >= 80 ? "text-orange-600" : "text-green-600";
+  const progressColor = (p: number, exceeded = false) =>
+    exceeded || p >= 100 ? "bg-red-500" : p >= 80 ? "bg-orange-500" : "bg-green-500";
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
   const formatPrice = (cents: number) => `$${(cents / 100).toFixed(0)}`;
+
+  const getPlanIcon = (planId: string) => {
+    switch (planId) {
+      case 'solo': return <Star className="w-5 h-5 text-blue-500" />;
+      case 'pro': return <Zap className="w-5 h-5 text-purple-500" />;
+      case 'enterprise': return <Crown className="w-5 h-5 text-orange-500" />;
+      default: return <CreditCard className="w-5 h-5 text-gray-500" />;
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -343,172 +121,248 @@ function SubscriptionTab() {
     }
   };
 
-  const getPlanIcon = (planId: string) => {
-    switch (planId) {
-      case 'solo': return <Star className="w-5 h-5 text-blue-500" />;
-      case 'pro': return <Zap className="w-5 h-5 text-purple-500" />;
-      case 'enterprise': return <Crown className="w-5 h-5 text-orange-500" />;
-      default: return <CreditCard className="w-5 h-5 text-gray-500" />;
-    }
-  };
-
-  if (subscriptionLoading) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!subscription) {
-    return (
-      <Card>
-        <CardContent className="p-6 text-center">
-          <p className="text-gray-500">Unable to load subscription information</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const valid = usageData && isValidUsageData(usageData);
 
   return (
     <div className="space-y-6">
+
+      {/* ── Current Plan ── */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            {getPlanIcon(subscription.subscription.planId)}
+            {subscription ? getPlanIcon(subscription.subscription.planId) : <CreditCard className="w-5 h-5 text-gray-500" />}
             Current Plan
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span>Plan:</span>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold" data-testid="text-subscription-plan">{subscription.plan.name}</span>
-              {getStatusBadge(subscription.subscription.status)}
+          {subLoading ? (
+            <div className="animate-pulse space-y-3">
+              <div className="h-4 bg-gray-200 rounded w-1/3" />
+              <div className="h-4 bg-gray-200 rounded w-1/2" />
+              <div className="h-8 bg-gray-200 rounded w-1/3" />
             </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Price:</span>
-            <span className="font-semibold" data-testid="text-subscription-price">{formatPrice(subscription.plan.priceMonthly)}/month</span>
-          </div>
-          {subscription.subscription.currentPeriodEnd && (
-            <div className="flex items-center justify-between">
-              <span>Next billing:</span>
-              <span data-testid="text-subscription-renewal">{new Date(subscription.subscription.currentPeriodEnd).toLocaleDateString()}</span>
-            </div>
-          )}
-          {subscription.subscription.trialEnd && subscription.subscription.status === 'trial' && (
-            <div className="flex items-center justify-between">
-              <span>Trial ends:</span>
-              <span data-testid="text-trial-end">{new Date(subscription.subscription.trialEnd).toLocaleDateString()}</span>
-            </div>
-          )}
-          {subscription.subscription.cancelAtPeriodEnd && (
-            <div className="p-3 bg-orange-50 border border-orange-200 rounded">
-              <p className="text-sm text-orange-800">Your subscription will be canceled at the end of the current billing period.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>Plan Features</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {subscription.plan.features.map((feature: string, index: number) => (
-              <div key={index} className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                <span className="text-sm">{feature}</span>
+          ) : !subscription ? (
+            <p className="text-gray-500">Unable to load subscription information</p>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span>Plan:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold" data-testid="text-subscription-plan">{subscription.plan.name}</span>
+                  {getStatusBadge(subscription.subscription.status)}
+                </div>
               </div>
-            ))}
-          </div>
+              <div className="flex items-center justify-between">
+                <span>Price:</span>
+                <span className="font-semibold" data-testid="text-subscription-price">{formatPrice(subscription.plan.priceMonthly)}/month</span>
+              </div>
+              {subscription.subscription.currentPeriodEnd && (
+                <div className="flex items-center justify-between">
+                  <span>Next billing:</span>
+                  <span data-testid="text-subscription-renewal">
+                    {new Date(subscription.subscription.currentPeriodEnd).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+              {subscription.subscription.trialEnd && subscription.subscription.status === 'trial' && (
+                <div className="flex items-center justify-between">
+                  <span>Trial ends:</span>
+                  <span data-testid="text-trial-end">
+                    {new Date(subscription.subscription.trialEnd).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+              {subscription.subscription.cancelAtPeriodEnd && (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded">
+                  <p className="text-sm text-orange-800">Your subscription will be canceled at the end of the current billing period.</p>
+                </div>
+              )}
+
+              <div className="border rounded-lg p-4 bg-gray-50">
+                <p className="text-sm font-medium text-gray-700 mb-3">Plan Features</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {subscription.plan.features.map((feature: string, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm text-gray-600">
+                      <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      {feature}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <UpgradeModal currentPlan={subscription.subscription.planId}>
+                  <Button className="flex-1" data-testid="button-upgrade-plan">Upgrade Plan</Button>
+                </UpgradeModal>
+                {subscription.subscription.status === 'active' && !subscription.subscription.cancelAtPeriodEnd && (
+                  <Button
+                    variant="outline"
+                    onClick={() => cancelMutation.mutate()}
+                    disabled={cancelMutation.isPending}
+                    className="flex-1"
+                    data-testid="button-cancel-subscription"
+                  >
+                    {cancelMutation.isPending ? "Canceling..." : "Cancel Subscription"}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">Changes will be prorated and reflected in your next billing cycle.</p>
+            </>
+          )}
         </CardContent>
       </Card>
 
+      {/* ── Usage This Period ── */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-blue-500" />
-            SMS Usage
+            <BarChart3 className="w-5 h-5 text-indigo-500" />
+            Usage This Period
           </CardTitle>
-          <CardDescription>Track your monthly SMS notifications to customers</CardDescription>
+          {valid && <CardDescription>Resets {formatDate(usageData.periodEnd)}</CardDescription>}
         </CardHeader>
-        <CardContent className="space-y-4">
-          {smsLoading ? (
-            <div className="animate-pulse space-y-3">
-              <div className="h-4 bg-gray-200 rounded w-1/3"></div>
-              <div className="h-2 bg-gray-200 rounded"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+        <CardContent>
+          {usageLoading ? (
+            <div className="animate-pulse space-y-4">
+              {[1, 2, 3].map(i => <div key={i} className="h-4 bg-gray-200 rounded" />)}
             </div>
-          ) : smsUsage ? (
-            <>
-              <div className="flex items-center justify-between">
-                <span>This month ({smsUsage.month}):</span>
-                <span className="font-semibold" data-testid="text-sms-usage">{smsUsage.usage} / {smsUsage.quota} SMS</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm"><span>Usage</span><span>{smsUsage.usagePercentage}%</span></div>
-                <Progress value={smsUsage.usagePercentage} className="h-2" data-testid="progress-sms-usage" />
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Remaining:</span>
-                <span className={`font-semibold ${smsUsage.remaining <= 5 ? 'text-red-600' : 'text-green-600'}`}>{smsUsage.remaining} SMS</span>
-              </div>
-              {smsUsage.quotaExceeded && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-red-800">SMS Quota Exceeded</p>
-                      <p className="text-xs text-red-600">Upgrade your plan to send more SMS notifications</p>
-                    </div>
-                    <UpgradeModal currentPlan={subscription?.subscription.planId}>
-                      <Button size="sm" variant="destructive" data-testid="button-upgrade-sms">Upgrade Now</Button>
-                    </UpgradeModal>
-                  </div>
-                </div>
-              )}
-              {smsUsage.remaining <= 5 && smsUsage.remaining > 0 && !smsUsage.quotaExceeded && (
-                <div className="p-3 bg-orange-50 border border-orange-200 rounded">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-orange-800">Low SMS Remaining</p>
-                      <p className="text-xs text-orange-600">Consider upgrading to avoid interruptions</p>
-                    </div>
-                    <UpgradeModal currentPlan={subscription?.subscription.planId}>
-                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700" data-testid="button-upgrade-sms-low">Upgrade Plan</Button>
-                    </UpgradeModal>
-                  </div>
-                </div>
-              )}
-            </>
+          ) : !valid ? (
+            <div className="flex items-center gap-2 text-gray-500">
+              <AlertCircle className="w-5 h-5 text-red-400" />
+              Unable to load usage information
+            </div>
           ) : (
-            <p className="text-gray-500">Unable to load SMS usage data</p>
+            <div className="space-y-5">
+              {/* Team Members */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 font-medium"><Users className="w-4 h-4 text-blue-500" />Team Members</span>
+                  <span className={`font-semibold ${usageColor(usageData.users.percent)}`} data-testid="text-users-usage">
+                    {usageData.users.used} / {usageData.users.quota}
+                  </span>
+                </div>
+                <Progress value={Math.min(usageData.users.percent, 100)} className={`h-2 [&>div]:${progressColor(usageData.users.percent)}`} data-testid="progress-users-usage" />
+                <p className="text-xs text-gray-500">{Math.max(0, usageData.users.quota - usageData.users.used)} slots remaining</p>
+              </div>
+
+              {/* SMS */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 font-medium"><MessageCircle className="w-4 h-4 text-green-500" />SMS</span>
+                  <span className={`font-semibold ${usageColor(usageData.sms.percent, usageData.sms.quotaExceeded)}`} data-testid="text-sms-usage-detailed">
+                    {usageData.sms.used} / {usageData.sms.quota}
+                  </span>
+                </div>
+                <Progress value={Math.min(usageData.sms.percent, 100)} className={`h-2 [&>div]:${progressColor(usageData.sms.percent, usageData.sms.quotaExceeded)}`} data-testid="progress-sms-usage-detailed" />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs">
+                    <span className={`font-medium ${usageData.sms.remaining <= 5 ? 'text-red-600' : 'text-green-600'}`}>{usageData.sms.remaining} remaining</span>
+                  </p>
+                  {usageData.sms.quotaExceeded && (
+                    <UpgradeModal currentPlan={subscription?.subscription.planId}>
+                      <button className="text-xs text-blue-600 underline" data-testid="button-upgrade-sms">Upgrade plan</button>
+                    </UpgradeModal>
+                  )}
+                </div>
+              </div>
+
+              {/* Email */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 font-medium"><Mail className="w-4 h-4 text-purple-500" />Email</span>
+                  <span className={`font-semibold ${usageColor(usageData.email.percent, usageData.email.quotaExceeded)}`} data-testid="text-email-usage">
+                    {usageData.email.used} / {usageData.email.quota}
+                  </span>
+                </div>
+                <Progress value={Math.min(usageData.email.percent, 100)} className={`h-2 [&>div]:${progressColor(usageData.email.percent, usageData.email.quotaExceeded)}`} data-testid="progress-email-usage" />
+                <p className="text-xs">
+                  <span className={`font-medium ${usageData.email.remaining <= 10 ? 'text-red-600' : 'text-green-600'}`}>{usageData.email.remaining} remaining</span>
+                </p>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
 
+      {/* ── Communication Packs ── */}
       <Card>
-        <CardHeader><CardTitle>Manage Subscription</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <UpgradeModal currentPlan={subscription.subscription.planId}>
-              <Button className="flex-1" data-testid="button-upgrade-plan">Upgrade Plan</Button>
-            </UpgradeModal>
-            {subscription.subscription.status === 'active' && !subscription.subscription.cancelAtPeriodEnd && (
-              <Button variant="outline" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending} className="flex-1" data-testid="button-cancel-subscription">
-                {cancelMutation.isPending ? "Canceling..." : "Cancel Subscription"}
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-green-500" />
+                Communication Packs
+              </CardTitle>
+              <CardDescription>Top up your SMS and email credits</CardDescription>
+            </div>
+            <PackSelectionModal open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
+              <Button className="flex items-center gap-2" data-testid="button-buy-packs" onClick={() => setShowPurchaseModal(true)}>
+                <ShoppingCart className="w-4 h-4" />
+                Buy Packs
               </Button>
-            )}
+            </PackSelectionModal>
           </div>
-          <p className="text-xs text-gray-500">Changes to your subscription will be prorated and reflected in your next billing cycle.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">Type:</span>
+              <div className="flex gap-1">
+                {(['all', 'sms', 'email'] as const).map(t => (
+                  <Button key={t} variant={selectedPackType === t ? 'default' : 'outline'} size="sm"
+                    onClick={() => setSelectedPackType(t)} data-testid={`filter-pack-type-${t}`}
+                    className="flex items-center gap-1"
+                  >
+                    {t === 'sms' && <MessageCircle className="w-3 h-3" />}
+                    {t === 'email' && <Mail className="w-3 h-3" />}
+                    {t === 'all' ? 'All' : t.toUpperCase()}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">Status:</span>
+              <div className="flex gap-1">
+                {(['all', 'active', 'expired', 'used_up'] as const).map(s => (
+                  <Button key={s} variant={selectedStatus === s ? 'default' : 'outline'} size="sm"
+                    onClick={() => setSelectedStatus(s)} data-testid={`filter-status-${s}`}
+                  >
+                    {s === 'used_up' ? 'Used Up' : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <PackUsageStats packType={selectedPackType === 'all' ? undefined : selectedPackType} />
         </CardContent>
       </Card>
+
+      <PurchasedPacksList
+        status={selectedStatus === 'all' ? 'all' : selectedStatus}
+        packType={selectedPackType === 'all' ? undefined : selectedPackType}
+        className="space-y-4"
+      />
+
+      {/* ── Billing Info Footer ── */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+              <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+              <div><div className="font-medium">Secure Payments</div><div className="text-gray-500 text-xs">Processed by Stripe</div></div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+              <CreditCard className="w-5 h-5 text-blue-500 flex-shrink-0" />
+              <div><div className="font-medium">Instant Activation</div><div className="text-gray-500 text-xs">Credits available immediately</div></div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
+              <Star className="w-5 h-5 text-purple-500 flex-shrink-0" />
+              <div><div className="font-medium">Never Expire</div><div className="text-gray-500 text-xs">Use credits anytime</div></div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
     </div>
   );
 }
@@ -588,13 +442,11 @@ function IntegrationsTab() {
             <img src="https://www.xero.com/favicon.ico" alt="Xero" className="w-5 h-5" />
             Xero Accounting
           </CardTitle>
-          <CardDescription>
-            Connect your Xero account to automatically sync invoices and quotes
-          </CardDescription>
+          <CardDescription>Connect your Xero account to automatically sync invoices and quotes</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {xeroLoading ? (
-            <div className="animate-pulse h-10 bg-gray-200 rounded w-1/3"></div>
+            <div className="animate-pulse h-10 bg-gray-200 rounded w-1/3" />
           ) : xeroStatus?.connected ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -605,49 +457,22 @@ function IntegrationsTab() {
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  Invoices sync to Xero as drafts
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  Quotes sync to Xero as drafts
-                </div>
+                <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" />Invoices sync to Xero as drafts</div>
+                <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" />Quotes sync to Xero as drafts</div>
               </div>
-              <Button
-                variant="outline"
-                onClick={disconnectXero}
-                disabled={disconnecting}
-                className="text-red-600 border-red-200 hover:bg-red-50"
-              >
+              <Button variant="outline" onClick={disconnectXero} disabled={disconnecting} className="text-red-600 border-red-200 hover:bg-red-50">
                 {disconnecting ? "Disconnecting..." : "Disconnect Xero"}
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-blue-500" />
-                  Auto-sync invoices to Xero
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-blue-500" />
-                  Auto-sync quotes to Xero
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-blue-500" />
-                  Customers matched automatically
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-blue-500" />
-                  All amounts in AUD
-                </div>
+                <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-blue-500" />Auto-sync invoices to Xero</div>
+                <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-blue-500" />Auto-sync quotes to Xero</div>
+                <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-blue-500" />Customers matched automatically</div>
+                <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-blue-500" />All amounts in AUD</div>
               </div>
-              <Button
-                onClick={connectXero}
-                disabled={connecting}
-                className="bg-[#13B5EA] hover:bg-[#0da0d4] text-white"
-              >
+              <Button onClick={connectXero} disabled={connecting} className="bg-[#13B5EA] hover:bg-[#0da0d4] text-white">
                 {connecting ? "Connecting..." : "Connect to Xero"}
               </Button>
             </div>
@@ -658,6 +483,7 @@ function IntegrationsTab() {
   );
 }
 
+// ── Main Settings Page ───────────────────────────────────────────
 export default function SettingsPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -665,7 +491,10 @@ export default function SettingsPage() {
   const { data, isLoading } = useQuery({ queryKey: ["/api/me"], queryFn: meApi.get });
 
   const [profile, setProfile] = useState({ name: "", role: "", phone: "" });
-  const [org, setOrg] = useState({ name: "", abn: "", street: "", suburb: "", state: "", postcode: "", invoice_terms: "", quote_terms: "", account_name: "", bsb: "", account_number: "" });
+  const [org, setOrg] = useState({
+    name: "", abn: "", street: "", suburb: "", state: "", postcode: "",
+    invoice_terms: "", quote_terms: "", account_name: "", bsb: "", account_number: ""
+  });
   const [presets, setPresets] = useState<any[]>([]);
   const [presetForm, setPresetForm] = useState({ name: "", unit: "0", tax: "10" });
   const [presetsLoading, setPresetsLoading] = useState(false);
@@ -694,10 +523,8 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!data?.user) return;
     const timer = setTimeout(() => {
-      const originalProfile = data.user || {};
-      const hasChanges = profile.name !== (originalProfile.name || "") ||
-                        profile.role !== (originalProfile.role || "") ||
-                        profile.phone !== (originalProfile.phone || "");
+      const u = data.user || {};
+      const hasChanges = profile.name !== (u.name || "") || profile.role !== (u.role || "") || profile.phone !== (u.phone || "");
       if (hasChanges && !saving) saveProfile();
     }, 1000);
     return () => clearTimeout(timer);
@@ -708,12 +535,10 @@ export default function SettingsPage() {
     try {
       await meApi.updateProfile({ name: profile.name || null, role: profile.role || null, phone: profile.phone || null });
       qc.invalidateQueries({ queryKey: ["/api/me"] });
-      toast({ title: "Profile updated", description: "Your profile information has been saved successfully." });
+      toast({ title: "Profile updated" });
     } catch (error: any) {
       toast({ title: "Error", description: error?.message || "Failed to update profile", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
   async function saveOrg() {
@@ -726,12 +551,10 @@ export default function SettingsPage() {
         account_name: org.account_name || null, bsb: org.bsb || null, account_number: org.account_number || null
       });
       qc.invalidateQueries({ queryKey: ["/api/me"] });
-      toast({ title: "Organisation updated", description: "Your organisation information has been saved successfully." });
+      toast({ title: "Organisation updated" });
     } catch (error: any) {
       toast({ title: "Error", description: error?.message || "Failed to update organisation", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
   async function loadPresets() {
@@ -752,7 +575,7 @@ export default function SettingsPage() {
       await itemPresetsApi.create({ name: presetForm.name.trim(), unit_amount: Number(presetForm.unit || 0), tax_rate: Number(presetForm.tax || 0) });
       setPresetForm({ name: "", unit: "0", tax: "10" });
       await loadPresets();
-      toast({ title: "Preset added", description: `${presetForm.name} has been added to your item presets.` });
+      toast({ title: "Preset added", description: `${presetForm.name} added.` });
     } catch (error: any) {
       toast({ title: "Error", description: error?.message || "Failed to create preset", variant: "destructive" });
     }
@@ -765,7 +588,7 @@ export default function SettingsPage() {
     try {
       await itemPresetsApi.delete(id);
       await loadPresets();
-      toast({ title: "Preset deleted", description: `${name} has been removed from your item presets.` });
+      toast({ title: "Preset deleted" });
     } catch (error: any) {
       toast({ title: "Error", description: error?.message || "Failed to delete preset", variant: "destructive" });
     }
@@ -817,103 +640,122 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-management">Settings</h1>
 
       <Tabs defaultValue={getDefaultTab()} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
-          <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>
-          <TabsTrigger value="terms" data-testid="tab-terms" className="text-xs px-2 py-2">T&C</TabsTrigger>
+          <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Organisation</TabsTrigger>
           <TabsTrigger value="items" data-testid="tab-items" className="text-xs px-2 py-2">Items</TabsTrigger>
-          <TabsTrigger value="usage" data-testid="tab-usage" className="text-xs px-2 py-2">Usage</TabsTrigger>
           <TabsTrigger value="billing" data-testid="tab-billing" className="text-xs px-2 py-2">Billing</TabsTrigger>
-          <TabsTrigger value="subscription" data-testid="tab-subscription" className="text-xs px-2 py-2">Sub</TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
         </TabsList>
 
-        {/* Profile */}
+        {/* ── Profile ── */}
         <TabsContent value="profile" className="mt-4">
           <Card>
             <CardHeader><CardTitle>Profile</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Name</Label>
-                <Input value={profile.name} onChange={(e) => setProfile(p => ({ ...p, name: e.target.value }))} data-testid="input-profile-name" />
+                <Input value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} data-testid="input-profile-name" />
               </div>
               <div>
                 <Label>Role / Title</Label>
-                <Input value={profile.role} onChange={(e) => setProfile(p => ({ ...p, role: e.target.value }))} data-testid="input-profile-role" />
+                <Input value={profile.role} onChange={e => setProfile(p => ({ ...p, role: e.target.value }))} data-testid="input-profile-role" />
               </div>
               <div>
                 <Label>Phone</Label>
-                <Input value={profile.phone} onChange={(e) => setProfile(p => ({ ...p, phone: e.target.value }))} data-testid="input-profile-phone" />
+                <Input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} data-testid="input-profile-phone" />
               </div>
-              <div className="md:col-span-2">
-                <div className="grid grid-cols-1 max-w-md ml-auto">
-                  <Button onClick={saveProfile} disabled={saving} data-testid="button-save-profile" className="w-full">
-                    {saving ? "Saving..." : "Save Profile"}
+              <div className="md:col-span-2 flex justify-end">
+                <Button onClick={saveProfile} disabled={saving} data-testid="button-save-profile">
+                  {saving ? "Saving..." : "Save Profile"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Organisation + T&C ── */}
+        <TabsContent value="org" className="mt-4">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader><CardTitle>Organisation</CardTitle></CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label>Company Name</Label><Input value={org.name} onChange={e => setOrg(o => ({ ...o, name: e.target.value }))} data-testid="input-org-name" /></div>
+                <div><Label>ABN / Company No</Label><Input value={org.abn} onChange={e => setOrg(o => ({ ...o, abn: e.target.value }))} data-testid="input-org-abn" /></div>
+                <div><Label>Street</Label><Input value={org.street} onChange={e => setOrg(o => ({ ...o, street: e.target.value }))} data-testid="input-org-street" /></div>
+                <div><Label>Suburb</Label><Input value={org.suburb} onChange={e => setOrg(o => ({ ...o, suburb: e.target.value }))} data-testid="input-org-suburb" /></div>
+                <div><Label>State</Label><Input value={org.state} onChange={e => setOrg(o => ({ ...o, state: e.target.value }))} data-testid="input-org-state" /></div>
+                <div><Label>Postcode</Label><Input value={org.postcode} onChange={e => setOrg(o => ({ ...o, postcode: e.target.value }))} data-testid="input-org-postcode" /></div>
+
+                <div className="md:col-span-2 border-t pt-4">
+                  <h3 className="font-medium text-gray-900 mb-4">Payment Details (for Invoices)</h3>
+                </div>
+                <div><Label>Account Name</Label><Input value={org.account_name} onChange={e => setOrg(o => ({ ...o, account_name: e.target.value }))} placeholder="Business Account Name" data-testid="input-org-account-name" /></div>
+                <div><Label>BSB</Label><Input value={org.bsb} onChange={e => setOrg(o => ({ ...o, bsb: e.target.value }))} placeholder="123-456" data-testid="input-org-bsb" /></div>
+                <div className="md:col-span-2">
+                  <Label>Account Number</Label>
+                  <Input value={org.account_number} onChange={e => setOrg(o => ({ ...o, account_number: e.target.value }))} placeholder="123456789" data-testid="input-org-account-number" />
+                </div>
+                <div className="md:col-span-2 flex justify-end">
+                  <Button onClick={saveOrg} disabled={saving} data-testid="button-save-organization">
+                    {saving ? "Saving..." : "Save Organisation"}
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardContent>
+            </Card>
 
-        {/* Organisation */}
-        <TabsContent value="org" className="mt-4">
-          <Card>
-            <CardHeader><CardTitle>Organisation</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><Label>Company name</Label><Input value={org.name} onChange={(e) => setOrg(o => ({ ...o, name: e.target.value }))} data-testid="input-org-name" /></div>
-              <div><Label>ABN / Company No</Label><Input value={org.abn} onChange={(e) => setOrg(o => ({ ...o, abn: e.target.value }))} data-testid="input-org-abn" /></div>
-              <div><Label>Street</Label><Input value={org.street} onChange={(e) => setOrg(o => ({ ...o, street: e.target.value }))} data-testid="input-org-street" /></div>
-              <div><Label>Suburb</Label><Input value={org.suburb} onChange={(e) => setOrg(o => ({ ...o, suburb: e.target.value }))} data-testid="input-org-suburb" /></div>
-              <div><Label>State</Label><Input value={org.state} onChange={(e) => setOrg(o => ({ ...o, state: e.target.value }))} data-testid="input-org-state" /></div>
-              <div><Label>Postcode</Label><Input value={org.postcode} onChange={(e) => setOrg(o => ({ ...o, postcode: e.target.value }))} data-testid="input-org-postcode" /></div>
-              <div className="md:col-span-2">
-                <h3 className="font-medium text-gray-900 mb-3 border-t pt-4">Payment Details (for Invoices)</h3>
-              </div>
-              <div><Label>Account Name</Label><Input value={org.account_name} onChange={(e) => setOrg(o => ({ ...o, account_name: e.target.value }))} placeholder="Business Account Name" data-testid="input-org-account-name" /></div>
-              <div><Label>BSB</Label><Input value={org.bsb} onChange={(e) => setOrg(o => ({ ...o, bsb: e.target.value }))} placeholder="123-456" data-testid="input-org-bsb" /></div>
-              <div className="md:col-span-2"><Label>Account Number</Label><Input value={org.account_number} onChange={(e) => setOrg(o => ({ ...o, account_number: e.target.value }))} placeholder="123456789" data-testid="input-org-account-number" /></div>
-              <div className="md:col-span-2">
-                <div className="grid grid-cols-1 max-w-md ml-auto">
-                  <Button onClick={saveOrg} disabled={saving} data-testid="button-save-organization" className="w-full">{saving ? "Saving..." : "Save Organisation"}</Button>
+            {/* T&C folded in */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Default Terms &amp; Conditions</CardTitle>
+                <CardDescription>Automatically added to new quotes and invoices</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Quote Terms</Label>
+                  <textarea
+                    value={org.quote_terms}
+                    onChange={e => setOrg(o => ({ ...o, quote_terms: e.target.value }))}
+                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    rows={5}
+                    placeholder="Default terms for quotes..."
+                    data-testid="textarea-quote-terms"
+                  />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+                <div>
+                  <Label>Invoice Terms</Label>
+                  <textarea
+                    value={org.invoice_terms}
+                    onChange={e => setOrg(o => ({ ...o, invoice_terms: e.target.value }))}
+                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    rows={5}
+                    placeholder="Default terms for invoices..."
+                    data-testid="textarea-invoice-terms"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={saveOrg} disabled={saving} data-testid="button-save-terms">
+                    {saving ? "Saving..." : "Save Terms"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
-        {/* Terms & Conditions */}
-        <TabsContent value="terms" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Default Terms & Conditions</CardTitle>
-              <CardDescription>Set default terms that will automatically appear on new quotes and invoices</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <Label className="text-sm font-medium">Quote Terms</Label>
-                <textarea value={org.quote_terms} onChange={(e) => setOrg(o => ({ ...o, quote_terms: e.target.value }))} className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" rows={6} placeholder="Default terms for quotes..." data-testid="textarea-quote-terms" />
-              </div>
-              <div>
-                <Label className="text-sm font-medium">Invoice Terms</Label>
-                <textarea value={org.invoice_terms} onChange={(e) => setOrg(o => ({ ...o, invoice_terms: e.target.value }))} className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" rows={6} placeholder="Default terms for invoices..." data-testid="textarea-invoice-terms" />
-              </div>
-              <Button onClick={saveOrg} disabled={saving} data-testid="button-save-terms">{saving ? "Saving..." : "Save Terms"}</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Items */}
+        {/* ── Items ── */}
         <TabsContent value="items" className="mt-4">
           <div className="space-y-6">
             <Card>
-              <CardHeader><CardTitle>Add New Item Preset</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Add Item Preset</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-4 gap-3 max-w-3xl">
                   <Input placeholder="Name (e.g., Labour)" value={presetForm.name} onChange={e => setPresetForm(p => ({ ...p, name: e.target.value }))} onKeyDown={e => e.key === "Enter" && addPreset()} data-testid="input-preset-name" />
                   <Input placeholder="Unit $" inputMode="decimal" value={presetForm.unit} onChange={e => setPresetForm(p => ({ ...p, unit: e.target.value }))} data-testid="input-preset-unit" />
                   <Input placeholder="Tax %" inputMode="decimal" value={presetForm.tax} onChange={e => setPresetForm(p => ({ ...p, tax: e.target.value }))} data-testid="input-preset-tax" />
-                  <Button onClick={addPreset} disabled={saving || !presetForm.name.trim()} data-testid="button-add-preset">{saving ? "Adding..." : "Add / Update"}</Button>
+                  <Button onClick={addPreset} disabled={saving || !presetForm.name.trim()} data-testid="button-add-preset">
+                    {saving ? "Adding..." : "Add"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -921,8 +763,10 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>
-                  Existing Item Presets
-                  <span className="ml-2 text-sm font-normal text-gray-500">({filteredPresets.length}{presetSearch ? ` of ${presets.length}` : ""})</span>
+                  Item Presets
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    ({filteredPresets.length}{presetSearch ? ` of ${presets.length}` : ""})
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -935,7 +779,7 @@ export default function SettingsPage() {
                   <div className="max-w-3xl rounded-md border">
                     <div className="overflow-y-auto max-h-[420px]">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+                        <thead className="bg-gray-50 sticky top-0 z-10">
                           <tr>
                             <th className="px-3 py-2 text-left font-medium">Name</th>
                             <th className="px-3 py-2 text-right font-medium">Unit Price</th>
@@ -945,36 +789,45 @@ export default function SettingsPage() {
                         </thead>
                         <tbody>
                           {filteredPresets.length === 0 ? (
-                            <tr><td colSpan={4} className="px-3 py-4 text-center text-gray-500">{presetSearch ? `No presets matching "${presetSearch}"` : "No presets yet. Add some common items above to speed up billing."}</td></tr>
-                          ) : (
-                            filteredPresets.map((p: any) =>
-                              presetEditId === p.id ? (
-                                <tr key={p.id} className="border-b dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
-                                  <td className="px-2 py-1"><Input value={presetEditForm.name} onChange={e => setPresetEditForm(f => ({ ...f, name: e.target.value }))} className="h-8 text-sm" autoFocus /></td>
-                                  <td className="px-2 py-1"><Input value={presetEditForm.unit} onChange={e => setPresetEditForm(f => ({ ...f, unit: e.target.value }))} inputMode="decimal" className="h-8 text-sm text-right" /></td>
-                                  <td className="px-2 py-1"><Input value={presetEditForm.tax} onChange={e => setPresetEditForm(f => ({ ...f, tax: e.target.value }))} inputMode="decimal" className="h-8 text-sm text-right" /></td>
-                                  <td className="px-2 py-1 text-center">
-                                    <div className="flex gap-1 justify-center">
-                                      <Button size="sm" className="h-7 px-2 text-xs" onClick={() => savePresetEdit(p.id)} disabled={saving}>{saving ? "…" : "Save"}</Button>
-                                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setPresetEditId(null)}>Cancel</Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ) : (
-                                <tr key={p.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800" data-testid={`row-preset-${p.name.toLowerCase().replace(/\s+/g, "-")}`} onDoubleClick={() => { setPresetEditId(p.id); setPresetEditForm({ name: p.name, unit: String(p.unit_amount), tax: String(p.tax_rate) }); }}>
-                                  <td className="px-3 py-2 font-medium">{p.name}</td>
-                                  <td className="px-3 py-2 text-right font-mono">${Number(p.unit_amount).toFixed(2)}</td>
-                                  <td className="px-3 py-2 text-right font-mono">{Number(p.tax_rate).toFixed(2)}%</td>
-                                  <td className="px-3 py-2 text-center">
-                                    <div className="flex gap-1 justify-center">
-                                      <button onClick={() => { setPresetEditId(p.id); setPresetEditForm({ name: p.name, unit: String(p.unit_amount), tax: String(p.tax_rate) }); }} className="text-xs text-blue-500 hover:text-blue-700 px-1" title="Edit">✏️</button>
-                                      <Button variant="ghost" size="sm" onClick={() => deletePreset(p.id, p.name)} disabled={saving} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" data-testid={`button-delete-preset-${p.name.toLowerCase().replace(/\s+/g, "-")}`}>
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )
+                            <tr><td colSpan={4} className="px-3 py-4 text-center text-gray-500">
+                              {presetSearch ? `No presets matching "${presetSearch}"` : "No presets yet. Add common items above to speed up billing."}
+                            </td></tr>
+                          ) : filteredPresets.map((p: any) =>
+                            presetEditId === p.id ? (
+                              <tr key={p.id} className="border-b bg-blue-50">
+                                <td className="px-2 py-1"><Input value={presetEditForm.name} onChange={e => setPresetEditForm(f => ({ ...f, name: e.target.value }))} className="h-8 text-sm" autoFocus /></td>
+                                <td className="px-2 py-1"><Input value={presetEditForm.unit} onChange={e => setPresetEditForm(f => ({ ...f, unit: e.target.value }))} inputMode="decimal" className="h-8 text-sm text-right" /></td>
+                                <td className="px-2 py-1"><Input value={presetEditForm.tax} onChange={e => setPresetEditForm(f => ({ ...f, tax: e.target.value }))} inputMode="decimal" className="h-8 text-sm text-right" /></td>
+                                <td className="px-2 py-1 text-center">
+                                  <div className="flex gap-1 justify-center">
+                                    <Button size="sm" className="h-7 px-2 text-xs" onClick={() => savePresetEdit(p.id)} disabled={saving}>{saving ? "…" : "Save"}</Button>
+                                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setPresetEditId(null)}>Cancel</Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : (
+                              <tr key={p.id} className="border-b hover:bg-gray-50"
+                                data-testid={`row-preset-${p.name.toLowerCase().replace(/\s+/g, "-")}`}
+                                onDoubleClick={() => { setPresetEditId(p.id); setPresetEditForm({ name: p.name, unit: String(p.unit_amount), tax: String(p.tax_rate) }); }}
+                              >
+                                <td className="px-3 py-2 font-medium">{p.name}</td>
+                                <td className="px-3 py-2 text-right font-mono">${Number(p.unit_amount).toFixed(2)}</td>
+                                <td className="px-3 py-2 text-right font-mono">{Number(p.tax_rate).toFixed(2)}%</td>
+                                <td className="px-3 py-2 text-center">
+                                  <div className="flex gap-1 justify-center">
+                                    <button
+                                      onClick={() => { setPresetEditId(p.id); setPresetEditForm({ name: p.name, unit: String(p.unit_amount), tax: String(p.tax_rate) }); }}
+                                      className="text-xs text-blue-500 hover:text-blue-700 px-1" title="Edit"
+                                    >✏️</button>
+                                    <Button variant="ghost" size="sm" onClick={() => deletePreset(p.id, p.name)} disabled={saving}
+                                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      data-testid={`button-delete-preset-${p.name.toLowerCase().replace(/\s+/g, "-")}`}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
                             )
                           )}
                         </tbody>
@@ -987,99 +840,12 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
 
-        {/* Usage */}
-        <TabsContent value="usage" className="mt-4">
-          <UsageTab />
-        </TabsContent>
-
-        {/* Billing */}
+        {/* ── Billing ── */}
         <TabsContent value="billing" className="mt-4">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-blue-500" />
-                  Billing & Pack Purchases
-                </CardTitle>
-                <CardDescription>Purchase communication packs to extend your SMS and email allowances</CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5 text-green-500" />
-                  Purchase Communication Packs
-                </CardTitle>
-                <CardDescription>Top up your account with additional SMS and email credits</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-3">
-                    <h4 className="font-medium flex items-center gap-2"><MessageCircle className="w-4 h-4 text-green-500" />SMS Packs</h4>
-                    <p className="text-sm text-gray-600">Send notifications, confirmations, and updates to customers</p>
-                    <PackSelectionModal initialType="sms">
-                      <Button className="w-full" data-testid="button-buy-sms-packs"><MessageCircle className="w-4 h-4 mr-2" />Buy SMS Packs</Button>
-                    </PackSelectionModal>
-                  </div>
-                  <div className="space-y-3">
-                    <h4 className="font-medium flex items-center gap-2"><Mail className="w-4 h-4 text-purple-500" />Email Packs</h4>
-                    <p className="text-sm text-gray-600">Send invoices, quotes, and follow-up communications</p>
-                    <PackSelectionModal initialType="email">
-                      <Button className="w-full" data-testid="button-buy-email-packs"><Mail className="w-4 h-4 mr-2" />Buy Email Packs</Button>
-                    </PackSelectionModal>
-                  </div>
-                </div>
-                <div className="pt-4 border-t">
-                  <PackSelectionModal>
-                    <Button variant="outline" className="w-full" data-testid="button-view-all-packs"><Package className="w-4 h-4 mr-2" />View All Pack Options</Button>
-                  </PackSelectionModal>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Package className="w-5 h-5 text-orange-500" />Your Purchased Packs</CardTitle>
-                <CardDescription>View and manage your active communication packs</CardDescription>
-              </CardHeader>
-              <CardContent><PurchasedPacksList /></CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Billing Information</CardTitle>
-                <CardDescription>Pack purchase details and security</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
-                    <div><div className="font-medium">Secure Payments</div><div className="text-gray-600">Processed by Stripe</div></div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                    <CreditCard className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                    <div><div className="font-medium">Instant Activation</div><div className="text-gray-600">Credits available immediately</div></div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
-                    <Star className="w-5 h-5 text-purple-500 flex-shrink-0" />
-                    <div><div className="font-medium">Never Expire</div><div className="text-gray-600">Use credits anytime</div></div>
-                  </div>
-                </div>
-                <div className="pt-4 border-t text-xs text-gray-500">
-                  <p><strong>How it works:</strong> Purchase packs to add credits to your account. Credits are automatically used when you send SMS or emails, starting with the oldest packs first. All packs include GST and are processed securely through Stripe.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <BillingTab />
         </TabsContent>
 
-        {/* Subscription */}
-        <TabsContent value="subscription" className="mt-4">
-          <SubscriptionTab />
-        </TabsContent>
-
-        {/* Integrations */}
+        {/* ── Integrations ── */}
         <TabsContent value="integrations" className="mt-4">
           <IntegrationsTab />
         </TabsContent>

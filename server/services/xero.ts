@@ -54,7 +54,12 @@ export class XeroService {
     }
 
     console.log('Xero callback: Updating tenants...');
-    await client.updateTenants();
+try {
+  await client.updateTenants();
+} catch (tenantError: any) {
+  console.error('Xero callback: updateTenants failed:', JSON.stringify(tenantError));
+  throw tenantError;
+}
     console.log('Xero callback: Tenant count:', client.tenants?.length);
     console.log('Xero callback: First tenant:', client.tenants?.[0]?.tenantName, client.tenants?.[0]?.tenantId);
 

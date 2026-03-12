@@ -683,6 +683,31 @@ if (!trackingToken) {
       `);
     }
 
+    // Sync to Xero if connected
+    try {
+      const { xeroService } = await import('../services/xero');
+      if (xeroService.isConfigured()) {
+        const integration = await xeroService.getOrgIntegration(orgId);
+        if (integration) {
+          await xeroService.createInvoiceInXero(orgId, {
+            customerName: invoice.customer_name,
+            customerEmail: recipientEmails[0],
+            items: items.map((item: any) => ({
+              description: item.description || 'Item',
+              quantity: Number(item.quantity || 1),
+              price: Number(item.unit_amount || 0),
+            })),
+            dueAt: invoice.due_at,
+            currency: 'AUD',
+          });
+          console.log(`[XERO] Invoice ${invoice.number} synced to Xero for org ${orgId}`);
+        }
+      }
+    } catch (xeroError) {
+      // Never fail the invoice send because of a Xero sync issue
+      console.error('[XERO] Failed to sync invoice to Xero:', xeroError);
+    }
+
     const recipientText = recipientEmails.length === 1 
       ? recipientEmails[0] 
       : `${recipientEmails.length} recipients`;

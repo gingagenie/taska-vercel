@@ -63,7 +63,6 @@ function PackUsageStats({ packType }: { packType?: 'sms' | 'email' }) {
 }
 
 // ── Billing Tab ──────────────────────────────────────────────────
-// Merges: Subscription + Usage + Communication Packs
 function BillingTab() {
   const { data: subscription, isLoading: subLoading } = useSubscription();
   const { data: smsUsage, isLoading: smsLoading } = useSmsUsage();
@@ -640,12 +639,12 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-management">Settings</h1>
 
       <Tabs defaultValue={getDefaultTab()} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-2 h-auto gap-1">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Organisation</TabsTrigger>
-          <TabsTrigger value="items" data-testid="tab-items" className="text-xs px-2 py-2">Items</TabsTrigger>
           <TabsTrigger value="billing" data-testid="tab-billing" className="text-xs px-2 py-2">Billing</TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
+          <TabsTrigger value="items" data-testid="tab-items" className="col-span-2 text-xs px-2 py-2">Items</TabsTrigger>
         </TabsList>
 
         {/* ── Profile ── */}

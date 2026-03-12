@@ -30,9 +30,16 @@ export class XeroService {
   }
 
   async getAuthUrl(state: string): Promise<string> {
-    const client = this.ensureClient();
-    return await client.buildConsentUrl(state);
-  }
+  this.ensureClient();
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: process.env.XERO_CLIENT_ID!,
+    redirect_uri: 'https://taska.info/api/xero/callback',
+    scope: 'openid profile email accounting.transactions',
+    state,
+  });
+  return `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
+}
 
   async handleCallback(code: string, orgId: string) {
     const client = this.ensureClient();

@@ -17,6 +17,7 @@ import { startContinuousCompensationProcessor, stopContinuousCompensationProcess
 import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
 import portalRouter from "./routes/portal";
 import serviceRequestsRoutes from "./routes/service-requests";
+import xeroRouter from "./routes/xero";
 
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -272,6 +273,7 @@ app.use("/api/jobs", jobPhotos);
 app.use("/api/service-requests", serviceRequestsRoutes);
 
 app.use("/api/quotes", quotesRouter);
+app.use("/api/xero", xeroRouter);
 
 app.use("/support/api/auth", supportAuth);
 app.use("/support/api/admin", blockCustomersFromSupportAdmin, supportAdmin);

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { MessageCircle, Mail, Calendar, TrendingDown, Package, AlertCircle } from "lucide-react";
+import { MessageCircle, Mail, Calendar, TrendingDown, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PurchasedPack {
@@ -63,7 +63,6 @@ export function PurchasedPacksList({
   compact = false,
   className 
 }: PurchasedPacksListProps) {
-  // Build query parameters
   const queryParams = new URLSearchParams();
   if (status !== 'all') queryParams.append('status', status);
   if (packType) queryParams.append('packType', packType);
@@ -71,15 +70,14 @@ export function PurchasedPacksList({
   const queryString = queryParams.toString();
   const endpoint = queryString ? `/api/usage/packs?${queryString}` : '/api/usage/packs';
 
-  const { data: packsResponse, isLoading, error } = useQuery<PurchasedPacksResponse>({
+  const { data: packsResponse, isLoading } = useQuery<PurchasedPacksResponse>({
     queryKey: [endpoint, status, packType],
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: true,
   });
 
   const packs = packsResponse?.data || [];
 
-  // Group packs by type for better organization
   const smsPacks = packs.filter(pack => pack.packType === 'sms');
   const emailPacks = packs.filter(pack => pack.packType === 'email');
 
@@ -102,30 +100,9 @@ export function PurchasedPacksList({
     );
   }
 
-  if (error) {
-    return (
-      <Card className={cn("", className)}>
-        <CardContent className="p-6 text-center">
-          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-          <p className="text-gray-500">Unable to load purchased packs</p>
-          <p className="text-sm text-gray-400 mt-1">Please try refreshing the page</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
+  // No packs — show nothing, no error card
   if (packs.length === 0) {
-    return (
-      <Card className={cn("", className)}>
-        <CardContent className="p-6 text-center">
-          <Package className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-500">No packs found</p>
-          <p className="text-sm text-gray-400 mt-1">
-            {status === 'active' ? 'No active packs available' : 'No purchased packs yet'}
-          </p>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   const PackCard = ({ pack }: { pack: PurchasedPack }) => {
@@ -161,7 +138,6 @@ export function PurchasedPacksList({
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Usage Progress */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>Usage</span>
@@ -184,7 +160,6 @@ export function PurchasedPacksList({
             </div>
           </div>
 
-          {/* Pack Details */}
           {!compact && (
             <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
               <div className="flex items-center gap-2">
@@ -204,7 +179,6 @@ export function PurchasedPacksList({
             </div>
           )}
 
-          {/* Compact view details */}
           {compact && (
             <div className="text-xs text-gray-500">
               Purchased {formatDate(pack.purchasedAt)} • Expires {formatDate(pack.expiresAt)}
@@ -215,7 +189,6 @@ export function PurchasedPacksList({
     );
   };
 
-  // If filtering by type, show that type only
   if (packType) {
     return (
       <div className={cn("space-y-4", className)}>
@@ -224,7 +197,6 @@ export function PurchasedPacksList({
     );
   }
 
-  // Show all packs grouped by type
   return (
     <div className={cn("space-y-6", className)}>
       {smsPacks.length > 0 && (

@@ -268,7 +268,7 @@ export default function InvoiceView() {
             </div>
             <div class="invoice-info">
               <h2>INVOICE</h2>
-              <p><strong>Date:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+              <p><strong>Date:</strong> ${new Date(invoice.created_at).toLocaleDateString()}</p>
               <p><strong>Invoice #:</strong> ${safeData.number}</p>
             </div>
           </div>

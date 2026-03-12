@@ -30,31 +30,34 @@ export class XeroService {
   }
 
   async getAuthUrl(state: string): Promise<string> {
-  this.ensureClient();
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: process.env.XERO_CLIENT_ID!,
-    redirect_uri: 'https://taska.info/api/xero/callback',
-    scope: 'openid profile email accounting.transactions',
-    state,
-  });
-  return `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
-}
+    this.ensureClient();
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: process.env.XERO_CLIENT_ID!,
+      redirect_uri: 'https://taska.info/api/xero/callback',
+      scope: 'openid profile email accounting.transactions',
+      state,
+    });
+    return `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
+  }
 
   async handleCallback(code: string, orgId: string) {
     const client = this.ensureClient();
     console.log('Xero callback: Processing code:', code.substring(0, 20) + '...');
-    
+
     const callbackUrl = `https://taska.info/api/xero/callback?code=${code}`;
     const tokenSet = await client.apiCallback(callbackUrl);
     console.log('Xero callback: Token set received:', !!tokenSet.access_token);
-    
+
     if (!tokenSet.access_token) {
       throw new Error('Failed to get access token from Xero');
     }
-    
+
+    console.log('Xero callback: Updating tenants...');
     await client.updateTenants();
-    
+    console.log('Xero callback: Tenant count:', client.tenants?.length);
+    console.log('Xero callback: First tenant:', client.tenants?.[0]?.tenantName, client.tenants?.[0]?.tenantId);
+
     const activeTenant = client.tenants[0];
     if (!activeTenant) {
       throw new Error('No Xero tenants available');
@@ -71,6 +74,7 @@ export class XeroService {
       isActive: true,
     };
 
+    console.log('Xero callback: Checking for existing integration for orgId:', orgId);
     const existingIntegration = await db
       .select()
       .from(orgIntegrations)
@@ -80,13 +84,19 @@ export class XeroService {
       ))
       .limit(1);
 
+    console.log('Xero callback: Existing integration found:', existingIntegration.length > 0);
+
     if (existingIntegration.length > 0) {
+      console.log('Xero callback: Updating existing integration...');
       await db
         .update(orgIntegrations)
         .set({ ...integration, updatedAt: new Date() })
         .where(eq(orgIntegrations.id, existingIntegration[0].id));
+      console.log('Xero callback: Update complete');
     } else {
+      console.log('Xero callback: Inserting new integration...');
       await db.insert(orgIntegrations).values(integration);
+      console.log('Xero callback: Insert complete');
     }
 
     return { tenantName: activeTenant.tenantName, tenantId: activeTenant.tenantId };
@@ -123,7 +133,7 @@ export class XeroService {
         });
 
         const newTokenSet = await client.refreshToken();
-        
+
         await db
           .update(orgIntegrations)
           .set({

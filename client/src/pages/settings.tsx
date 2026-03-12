@@ -513,6 +513,151 @@ function SubscriptionTab() {
   );
 }
 
+// ── Integrations Tab ─────────────────────────────────────────────
+function IntegrationsTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const { data: xeroStatus, isLoading: xeroLoading } = useQuery({
+    queryKey: ["/api/xero/status"],
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const xeroSuccess = params.get('xero_success');
+    const xeroError = params.get('xero_error');
+    const tenant = params.get('tenant');
+
+    if (xeroSuccess === 'true') {
+      toast({ title: "Xero connected!", description: `Connected to ${tenant || 'your Xero organisation'} successfully.` });
+      qc.invalidateQueries({ queryKey: ["/api/xero/status"] });
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('xero_success');
+      newUrl.searchParams.delete('tenant');
+      window.history.replaceState({}, '', newUrl.toString());
+    } else if (xeroError) {
+      const messages: Record<string, string> = {
+        invalid_code: 'Invalid authorisation code from Xero.',
+        missing_org: 'Session expired. Please try again.',
+        connection_failed: 'Failed to connect to Xero. Please try again.',
+      };
+      toast({ title: "Xero connection failed", description: messages[xeroError] || 'Something went wrong.', variant: "destructive" });
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('xero_error');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  }, []);
+
+  async function connectXero() {
+    setConnecting(true);
+    try {
+      const res = await fetch('/api/xero/connect', { credentials: 'include' });
+      const data = await res.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error('No auth URL returned');
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error?.message || "Failed to initiate Xero connection", variant: "destructive" });
+      setConnecting(false);
+    }
+  }
+
+  async function disconnectXero() {
+    if (!confirm('Disconnect Xero? This will stop syncing invoices and quotes.')) return;
+    setDisconnecting(true);
+    try {
+      await fetch('/api/xero/disconnect', { method: 'DELETE', credentials: 'include' });
+      qc.invalidateQueries({ queryKey: ["/api/xero/status"] });
+      toast({ title: "Xero disconnected", description: "Your Xero integration has been removed." });
+    } catch (error: any) {
+      toast({ title: "Error", description: error?.message || "Failed to disconnect Xero", variant: "destructive" });
+    }
+    setDisconnecting(false);
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <img src="https://www.xero.com/favicon.ico" alt="Xero" className="w-5 h-5" />
+            Xero Accounting
+          </CardTitle>
+          <CardDescription>
+            Connect your Xero account to automatically sync invoices and quotes
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {xeroLoading ? (
+            <div className="animate-pulse h-10 bg-gray-200 rounded w-1/3"></div>
+          ) : xeroStatus?.connected ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <div>
+                  <p className="text-sm font-medium text-green-800">Connected to Xero</p>
+                  <p className="text-xs text-green-600">{xeroStatus.tenantName}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Invoices sync to Xero as drafts
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Quotes sync to Xero as drafts
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={disconnectXero}
+                disabled={disconnecting}
+                className="text-red-600 border-red-200 hover:bg-red-50"
+              >
+                {disconnecting ? "Disconnecting..." : "Disconnect Xero"}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-blue-500" />
+                  Auto-sync invoices to Xero
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-blue-500" />
+                  Auto-sync quotes to Xero
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-blue-500" />
+                  Customers matched automatically
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-blue-500" />
+                  All amounts in AUD
+                </div>
+              </div>
+              <Button
+                onClick={connectXero}
+                disabled={connecting}
+                className="bg-[#13B5EA] hover:bg-[#0da0d4] text-white"
+              >
+                {connecting ? "Connecting..." : "Connect to Xero"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -672,7 +817,7 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-management">Settings</h1>
 
       <Tabs defaultValue={getDefaultTab()} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 h-auto">
+        <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile" className="text-xs px-2 py-2">Profile</TabsTrigger>
           <TabsTrigger value="org" data-testid="tab-organization" className="text-xs px-2 py-2">Org</TabsTrigger>
           <TabsTrigger value="terms" data-testid="tab-terms" className="text-xs px-2 py-2">T&C</TabsTrigger>
@@ -680,6 +825,7 @@ export default function SettingsPage() {
           <TabsTrigger value="usage" data-testid="tab-usage" className="text-xs px-2 py-2">Usage</TabsTrigger>
           <TabsTrigger value="billing" data-testid="tab-billing" className="text-xs px-2 py-2">Billing</TabsTrigger>
           <TabsTrigger value="subscription" data-testid="tab-subscription" className="text-xs px-2 py-2">Sub</TabsTrigger>
+          <TabsTrigger value="integrations" data-testid="tab-integrations" className="text-xs px-2 py-2">Integrations</TabsTrigger>
         </TabsList>
 
         {/* Profile */}
@@ -932,6 +1078,12 @@ export default function SettingsPage() {
         <TabsContent value="subscription" className="mt-4">
           <SubscriptionTab />
         </TabsContent>
+
+        {/* Integrations */}
+        <TabsContent value="integrations" className="mt-4">
+          <IntegrationsTab />
+        </TabsContent>
+
       </Tabs>
     </div>
   );

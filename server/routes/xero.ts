@@ -14,6 +14,7 @@ const router = Router();
 router.get('/connect', requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const authUrl = await xeroService.getAuthUrl(req.orgId);
+    res.setHeader('Cache-Control', 'no-store');
     res.json({ authUrl });
   } catch (error) {
     console.error('Xero connect error:', error);

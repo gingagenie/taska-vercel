@@ -683,16 +683,15 @@ if (!trackingToken) {
       `);
     }
 
-    // Sync to Xero if connected
+   // Sync to Xero if connected
     try {
       const { xeroService } = await import('../services/xero');
       if (xeroService.isConfigured()) {
         const integration = await xeroService.getOrgIntegration(orgId);
         if (integration) {
-          await xeroService.createInvoiceInXero(orgId, {
+          const xeroInvoice = await xeroService.createInvoiceInXero(orgId, {
             customerName: invoice.customer_name,
             customerEmail: recipientEmails[0],
-            invoiceNumber: invoice.number,
             items: items.map((item: any) => ({
               description: item.description || 'Item',
               quantity: Number(item.quantity || 1),
@@ -701,7 +700,15 @@ if (!trackingToken) {
             dueAt: invoice.due_at,
             currency: 'AUD',
           });
-          console.log(`[XERO] Invoice ${invoice.number} synced to Xero for org ${orgId}`);
+          // Write Xero's invoice number back to Taska so numbers match everywhere
+          if (xeroInvoice?.invoiceNumber) {
+            await db.execute(sql`
+              UPDATE invoices 
+              SET number = ${xeroInvoice.invoiceNumber}
+              WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+            `);
+            console.log(`[XERO] Invoice number updated: ${invoice.number} → ${xeroInvoice.invoiceNumber}`);
+          }
         }
       }
     } catch (xeroError) {

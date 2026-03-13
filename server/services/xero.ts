@@ -1,5 +1,5 @@
 import { XeroClient } from 'xero-node';
-import { Invoice, Quote, Contact } from 'xero-node';
+import { Invoice, Quote, Contact, Payment } from 'xero-node';
 import { db } from '../db/client';
 import { orgIntegrations } from '../../shared/schema';
 import { eq, and } from 'drizzle-orm';
@@ -60,8 +60,6 @@ export class XeroService {
       console.error('Xero callback: updateTenants failed:', JSON.stringify(tenantError));
       throw tenantError;
     }
-    console.log('Xero callback: Tenant count:', client.tenants?.length);
-    console.log('Xero callback: First tenant:', client.tenants?.[0]?.tenantName, client.tenants?.[0]?.tenantId);
 
     const activeTenant = client.tenants[0];
     if (!activeTenant) {
@@ -79,7 +77,6 @@ export class XeroService {
       isActive: true,
     };
 
-    console.log('Xero callback: Checking for existing integration for orgId:', orgId);
     const existingIntegration = await db
       .select()
       .from(orgIntegrations)
@@ -89,19 +86,13 @@ export class XeroService {
       ))
       .limit(1);
 
-    console.log('Xero callback: Existing integration found:', existingIntegration.length > 0);
-
     if (existingIntegration.length > 0) {
-      console.log('Xero callback: Updating existing integration...');
       await db
         .update(orgIntegrations)
         .set({ ...integration, updatedAt: new Date() })
         .where(eq(orgIntegrations.id, existingIntegration[0].id));
-      console.log('Xero callback: Update complete');
     } else {
-      console.log('Xero callback: Inserting new integration...');
       await db.insert(orgIntegrations).values(integration);
-      console.log('Xero callback: Insert complete');
     }
 
     return { tenantName: activeTenant.tenantName, tenantId: activeTenant.tenantId };
@@ -122,50 +113,117 @@ export class XeroService {
   }
 
   async refreshTokensIfNeeded(orgId: string) {
-  const integration = await this.getOrgIntegration(orgId);
-  if (!integration) return null;
+    const integration = await this.getOrgIntegration(orgId);
+    if (!integration) return null;
 
-  const client = this.ensureClient();
+    const client = this.ensureClient();
 
-  const now = new Date();
-  const expiresAt = new Date(integration.tokenExpiresAt || 0);
-  const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000);
+    const now = new Date();
+    const expiresAt = new Date(integration.tokenExpiresAt || 0);
+    const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000);
 
-  if (needsRefresh && integration.refreshToken) {
-    try {
-      client.setTokenSet({
-        access_token: integration.accessToken || undefined,
-        refresh_token: integration.refreshToken || undefined,
-      });
+    if (needsRefresh && integration.refreshToken) {
+      try {
+        client.setTokenSet({
+          access_token: integration.accessToken || undefined,
+          refresh_token: integration.refreshToken || undefined,
+        });
 
-      const newTokenSet = await client.refreshToken();
+        const newTokenSet = await client.refreshToken();
 
-      await db
-        .update(orgIntegrations)
-        .set({
-          accessToken: newTokenSet.access_token || null,
-          refreshToken: newTokenSet.refresh_token || null,
-          tokenExpiresAt: new Date(Date.now() + (newTokenSet.expires_in || 1800) * 1000),
-          updatedAt: new Date(),
-        })
-        .where(eq(orgIntegrations.id, integration.id));
+        await db
+          .update(orgIntegrations)
+          .set({
+            accessToken: newTokenSet.access_token || null,
+            refreshToken: newTokenSet.refresh_token || null,
+            tokenExpiresAt: new Date(Date.now() + (newTokenSet.expires_in || 1800) * 1000),
+            updatedAt: new Date(),
+          })
+          .where(eq(orgIntegrations.id, integration.id));
 
-      integration.accessToken = newTokenSet.access_token || null;
-      integration.refreshToken = newTokenSet.refresh_token || null;
-    } catch (error) {
-      console.error('Failed to refresh Xero token:', error);
-      return null;
+        integration.accessToken = newTokenSet.access_token || null;
+        integration.refreshToken = newTokenSet.refresh_token || null;
+      } catch (error) {
+        console.error('Failed to refresh Xero token:', error);
+        return null;
+      }
     }
+
+    // Always re-hydrate the client from DB tokens, even if no refresh was needed
+    client.setTokenSet({
+      access_token: integration.accessToken || undefined,
+      refresh_token: integration.refreshToken || undefined,
+    });
+
+    return integration;
   }
 
-  // Always re-hydrate the client from DB tokens, even if no refresh was needed
-  client.setTokenSet({
-    access_token: integration.accessToken || undefined,
-    refresh_token: integration.refreshToken || undefined,
-  });
+  async getAccounts(orgId: string) {
+    const integration = await this.refreshTokensIfNeeded(orgId);
+    if (!integration) {
+      throw new Error('Xero integration not found or tokens expired');
+    }
 
-  return integration;
-}
+    const client = this.ensureClient();
+    const response = await client.accountingApi.getAccounts(
+      integration.tenantId || ''
+    );
+
+    return (response.body.accounts || []).map((a: any) => ({
+      code: a.code,
+      name: a.name,
+      type: a.type,
+    }));
+  }
+
+  async savePaymentAccountCode(orgId: string, accountCode: string) {
+    const integration = await this.getOrgIntegration(orgId);
+    if (!integration) throw new Error('Xero integration not found');
+
+    await db.execute(
+      (await import('drizzle-orm')).sql`
+        UPDATE org_integrations
+        SET xero_payment_account_code = ${accountCode}, updated_at = NOW()
+        WHERE id = ${integration.id}::uuid
+      `
+    );
+  }
+
+  async createPayment(orgId: string, xeroInvoiceId: string, amount: number, date: string) {
+    const integration = await this.refreshTokensIfNeeded(orgId);
+    if (!integration) {
+      throw new Error('Xero integration not found or tokens expired');
+    }
+
+    // Read account code directly from DB via raw SQL since schema doesn't have it typed yet
+    const { db: dbClient } = await import('../db/client');
+    const { sql } = await import('drizzle-orm');
+    const result: any = await dbClient.execute(sql`
+      SELECT xero_payment_account_code FROM org_integrations WHERE id = ${integration.id}::uuid
+    `);
+    const accountCode = result[0]?.xero_payment_account_code;
+
+    if (!accountCode) {
+      throw new Error('No Xero payment account configured. Set one in Settings → Integrations.');
+    }
+
+    const client = this.ensureClient();
+
+    const payment: Payment = {
+      invoice: { invoiceID: xeroInvoiceId },
+      account: { code: accountCode },
+      amount,
+      date,
+    };
+
+    const response = await client.accountingApi.createPayment(
+      integration.tenantId || '',
+      payment
+    );
+
+    return response.body.payments?.[0];
+  }
+
   async createInvoiceInXero(orgId: string, invoiceData: any) {
     const integration = await this.refreshTokensIfNeeded(orgId);
     if (!integration) {
@@ -183,7 +241,6 @@ export class XeroService {
       emailAddress: invoiceData.customerEmail,
     };
 
-    // Let Xero assign the invoice number - we write it back to Taska after creation
     const xeroInvoice: Invoice = {
       type: Invoice.TypeEnum.ACCREC,
       contact,

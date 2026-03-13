@@ -723,13 +723,19 @@ if (!trackingToken) {
           });
           // Write Xero's invoice number back to Taska so numbers match everywhere
           if (xeroInvoice?.invoiceNumber) {
-            await db.execute(sql`
-              UPDATE invoices 
-              SET number = ${xeroInvoice.invoiceNumber}
-              WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
-            `);
-            console.log(`[XERO] Invoice number updated: ${invoice.number} → ${xeroInvoice.invoiceNumber}`);
-          }
+  await db.execute(sql`
+    UPDATE invoices 
+    SET number = ${xeroInvoice.invoiceNumber}
+    WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+  `);
+  console.log(`[XERO] Invoice number updated: ${invoice.number} → ${xeroInvoice.invoiceNumber}`);
+}
+if (xeroInvoice?.invoiceID) {
+  await db.execute(sql`
+    UPDATE invoices SET xero_id = ${xeroInvoice.invoiceID}
+    WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+  `);
+}
         }
       }
     } catch (xeroError) {

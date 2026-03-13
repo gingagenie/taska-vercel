@@ -7,11 +7,13 @@ import { QuoteInvoicePage } from "@/components/quotes/QuoteInvoicePage";
 
 export default function InvoiceEdit() {
   const [isNewMatch] = useRoute("/invoices/new");
-  const [isEditMatch, params] = useRoute("/invoices/:id/edit");
+  const [isEditMatch, editParams] = useRoute("/invoices/:id/edit");
   const [, nav] = useLocation();
   const searchString = useSearch();
-  const id = params?.id;
-  
+
+  // Always derive id from editParams directly
+  const id = editParams?.id;
+
   // Check if we came from completed jobs
   const fromCompletedJobs = new URLSearchParams(searchString).get('from') === 'completed-jobs';
 
@@ -19,7 +21,6 @@ export default function InvoiceEdit() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  // Fetch customers and item presets
   const { data: customers = [] } = useQuery({
     queryKey: ["/api/customers"],
   });
@@ -30,15 +31,13 @@ export default function InvoiceEdit() {
 
   const { data: meData } = useQuery({ queryKey: ["/api/me"] });
 
-  // Fetch invoice data if editing
   const { data: invoice, isLoading: invoiceLoading } = useQuery({
     queryKey: ["/api/invoices", id],
     enabled: !!id,
   });
 
-  const loading = invoiceLoading;
+  const loading = !!id && invoiceLoading;
 
-  // Transform invoice data for the new component
   const initial = invoice ? {
     id: id,
     customer: { id: (invoice as any).customer_id },

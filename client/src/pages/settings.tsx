@@ -363,11 +363,24 @@ function IntegrationsTab() {
   const qc = useQueryClient();
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<string>('');
 
   const { data: xeroStatus, isLoading: xeroLoading } = useQuery({
     queryKey: ["/api/xero/status"],
     refetchOnWindowFocus: true,
   });
+
+  const { data: xeroAccounts, isLoading: accountsLoading } = useQuery({
+    queryKey: ["/api/xero/accounts"],
+    enabled: !!(xeroStatus as any)?.connected,
+  });
+
+  // Pre-select saved account when data loads
+  useEffect(() => {
+    const savedCode = (xeroStatus as any)?.paymentAccountCode;
+    if (savedCode) setSelectedAccount(savedCode);
+  }, [xeroStatus]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -424,6 +437,27 @@ function IntegrationsTab() {
     setDisconnecting(false);
   }
 
+  async function savePaymentAccount() {
+    if (!selectedAccount) return;
+    setSavingAccount(true);
+    try {
+      const res = await fetch('/api/xero/payment-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ accountCode: selectedAccount }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      qc.invalidateQueries({ queryKey: ["/api/xero/status"] });
+      toast({ title: "Payment account saved", description: "Payments will be posted to this account in Xero." });
+    } catch (error: any) {
+      toast({ title: "Error", description: error?.message || "Failed to save payment account", variant: "destructive" });
+    }
+    setSavingAccount(false);
+  }
+
+  const accounts = (xeroAccounts as any)?.accounts || [];
+
   return (
     <div className="space-y-6">
       <Card>
@@ -437,19 +471,61 @@ function IntegrationsTab() {
         <CardContent className="space-y-4">
           {xeroLoading ? (
             <div className="animate-pulse h-10 bg-gray-200 rounded w-1/3" />
-          ) : xeroStatus?.connected ? (
+          ) : (xeroStatus as any)?.connected ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-green-500" />
                 <div>
                   <p className="text-sm font-medium text-green-800">Connected to Xero</p>
-                  <p className="text-xs text-green-600">{xeroStatus.tenantName}</p>
+                  <p className="text-xs text-green-600">{(xeroStatus as any).tenantName}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600">
                 <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" />Invoices sync to Xero as drafts</div>
                 <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" />Quotes sync to Xero as drafts</div>
               </div>
+
+              {/* Payment account picker */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Payment Account</p>
+                  <p className="text-xs text-gray-500 mt-1">When you mark an invoice as paid in Taska, the payment will be posted to this account in Xero.</p>
+                </div>
+                {accountsLoading ? (
+                  <div className="animate-pulse h-9 bg-gray-200 rounded" />
+                ) : accounts.length === 0 ? (
+                  <p className="text-sm text-gray-500">No bank accounts found in Xero.</p>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedAccount}
+                      onChange={e => setSelectedAccount(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select a bank account...</option>
+                      {accounts.map((a: any) => (
+                        <option key={a.code} value={a.code}>
+                          {a.name} ({a.code})
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      onClick={savePaymentAccount}
+                      disabled={savingAccount || !selectedAccount}
+                      size="sm"
+                    >
+                      {savingAccount ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                )}
+                {(xeroStatus as any)?.paymentAccountCode && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    Payment account configured
+                  </p>
+                )}
+              </div>
+
               <Button variant="outline" onClick={disconnectXero} disabled={disconnecting} className="text-red-600 border-red-200 hover:bg-red-50">
                 {disconnecting ? "Disconnecting..." : "Disconnect Xero"}
               </Button>

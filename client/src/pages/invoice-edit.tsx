@@ -107,7 +107,18 @@ export default function InvoiceEdit() {
       setSaving(false);
     }
   }
-
+  async function handleDelete() {
+      if (!id) return;
+      if (!confirm('Delete this invoice? This cannot be undone.')) return;
+      try {
+        await invoicesApi.delete(id);
+        qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+        toast({ title: "Invoice deleted" });
+        nav('/invoices');
+      } catch (e: any) {
+        toast({ title: "Delete failed", description: e.message, variant: "destructive" });
+      }
+    }
   async function handleSend(payload: any) {
     await handleSave(payload);
     // TODO: Add send functionality

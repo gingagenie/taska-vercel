@@ -284,7 +284,7 @@ function BillingTab() {
       </Card>
 
       {/* ── Communication Packs ── */}
-     <div className="flex flex-col gap-3">
+    <CardHeader>
   <div className="flex items-start justify-between gap-2">
     <CardTitle className="flex items-center gap-2">
       <Package className="w-5 h-5 text-green-500" />
@@ -298,8 +298,7 @@ function BillingTab() {
     </PackSelectionModal>
   </div>
   <CardDescription>Top up your SMS and email credits</CardDescription>
-</div>
-        </CardHeader>
+</CardHeader>
         <CardContent className="space-y-4">
           {/* ── FIXED: flex-wrap so buttons don't overflow on mobile ── */}
           <div className="space-y-3">

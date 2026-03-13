@@ -176,7 +176,6 @@ function BillingTab() {
                   <p className="text-sm text-orange-800">Your subscription will be canceled at the end of the current billing period.</p>
                 </div>
               )}
-
               <div className="border rounded-lg p-4 bg-gray-50">
                 <p className="text-sm font-medium text-gray-700 mb-3">Plan Features</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -188,7 +187,6 @@ function BillingTab() {
                   ))}
                 </div>
               </div>
-
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <UpgradeModal currentPlan={subscription.subscription.planId}>
                   <Button className="flex-1" data-testid="button-upgrade-plan">Upgrade Plan</Button>
@@ -232,7 +230,6 @@ function BillingTab() {
             </div>
           ) : (
             <div className="space-y-5">
-              {/* Team Members */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 font-medium"><Users className="w-4 h-4 text-blue-500" />Team Members</span>
@@ -243,8 +240,6 @@ function BillingTab() {
                 <Progress value={Math.min(usageData.users.percent, 100)} className={`h-2 [&>div]:${progressColor(usageData.users.percent)}`} data-testid="progress-users-usage" />
                 <p className="text-xs text-gray-500">{Math.max(0, usageData.users.quota - usageData.users.used)} slots remaining</p>
               </div>
-
-              {/* SMS */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 font-medium"><MessageCircle className="w-4 h-4 text-green-500" />SMS</span>
@@ -264,8 +259,6 @@ function BillingTab() {
                   )}
                 </div>
               </div>
-
-              {/* Email */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 font-medium"><Mail className="w-4 h-4 text-purple-500" />Email</span>
@@ -284,23 +277,23 @@ function BillingTab() {
       </Card>
 
       {/* ── Communication Packs ── */}
-    <CardHeader>
-  <div className="flex items-start justify-between gap-2">
-    <CardTitle className="flex items-center gap-2">
-      <Package className="w-5 h-5 text-green-500" />
-      Communication Packs
-    </CardTitle>
-    <PackSelectionModal open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
-      <Button className="flex items-center gap-2 shrink-0" data-testid="button-buy-packs" onClick={() => setShowPurchaseModal(true)}>
-        <ShoppingCart className="w-4 h-4" />
-        Buy Packs
-      </Button>
-    </PackSelectionModal>
-  </div>
-  <CardDescription>Top up your SMS and email credits</CardDescription>
-</CardHeader>
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-green-500" />
+              Communication Packs
+            </CardTitle>
+            <PackSelectionModal open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
+              <Button className="flex items-center gap-2 shrink-0" data-testid="button-buy-packs" onClick={() => setShowPurchaseModal(true)}>
+                <ShoppingCart className="w-4 h-4" />
+                Buy Packs
+              </Button>
+            </PackSelectionModal>
+          </div>
+          <CardDescription>Top up your SMS and email credits</CardDescription>
+        </CardHeader>
         <CardContent className="space-y-4">
-          {/* ── FIXED: flex-wrap so buttons don't overflow on mobile ── */}
           <div className="space-y-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium text-gray-600">Type:</span>
@@ -683,7 +676,6 @@ export default function SettingsPage() {
                 <div><Label>Suburb</Label><Input value={org.suburb} onChange={e => setOrg(o => ({ ...o, suburb: e.target.value }))} data-testid="input-org-suburb" /></div>
                 <div><Label>State</Label><Input value={org.state} onChange={e => setOrg(o => ({ ...o, state: e.target.value }))} data-testid="input-org-state" /></div>
                 <div><Label>Postcode</Label><Input value={org.postcode} onChange={e => setOrg(o => ({ ...o, postcode: e.target.value }))} data-testid="input-org-postcode" /></div>
-
                 <div className="md:col-span-2 border-t pt-4">
                   <h3 className="font-medium text-gray-900 mb-4">Payment Details (for Invoices)</h3>
                 </div>

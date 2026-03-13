@@ -692,6 +692,7 @@ if (!trackingToken) {
           await xeroService.createInvoiceInXero(orgId, {
             customerName: invoice.customer_name,
             customerEmail: recipientEmails[0],
+            invoiceNumber: invoice.number,
             items: items.map((item: any) => ({
               description: item.description || 'Item',
               quantity: Number(item.quantity || 1),

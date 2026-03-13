@@ -284,23 +284,21 @@ function BillingTab() {
       </Card>
 
       {/* ── Communication Packs ── */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-green-500" />
-                Communication Packs
-              </CardTitle>
-              <CardDescription>Top up your SMS and email credits</CardDescription>
-            </div>
-            <PackSelectionModal open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
-              <Button className="flex items-center gap-2" data-testid="button-buy-packs" onClick={() => setShowPurchaseModal(true)}>
-                <ShoppingCart className="w-4 h-4" />
-                Buy Packs
-              </Button>
-            </PackSelectionModal>
-          </div>
+     <div className="flex flex-col gap-3">
+  <div className="flex items-start justify-between gap-2">
+    <CardTitle className="flex items-center gap-2">
+      <Package className="w-5 h-5 text-green-500" />
+      Communication Packs
+    </CardTitle>
+    <PackSelectionModal open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
+      <Button className="flex items-center gap-2 shrink-0" data-testid="button-buy-packs" onClick={() => setShowPurchaseModal(true)}>
+        <ShoppingCart className="w-4 h-4" />
+        Buy Packs
+      </Button>
+    </PackSelectionModal>
+  </div>
+  <CardDescription>Top up your SMS and email credits</CardDescription>
+</div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* ── FIXED: flex-wrap so buttons don't overflow on mobile ── */}

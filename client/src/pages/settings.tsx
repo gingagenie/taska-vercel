@@ -303,10 +303,11 @@ function BillingTab() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex items-center gap-2">
+          {/* ── FIXED: flex-wrap so buttons don't overflow on mobile ── */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium text-gray-600">Type:</span>
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 {(['all', 'sms', 'email'] as const).map(t => (
                   <Button key={t} variant={selectedPackType === t ? 'default' : 'outline'} size="sm"
                     onClick={() => setSelectedPackType(t)} data-testid={`filter-pack-type-${t}`}
@@ -319,9 +320,9 @@ function BillingTab() {
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium text-gray-600">Status:</span>
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 {(['all', 'active', 'expired', 'used_up'] as const).map(s => (
                   <Button key={s} variant={selectedStatus === s ? 'default' : 'outline'} size="sm"
                     onClick={() => setSelectedStatus(s)} data-testid={`filter-status-${s}`}
@@ -703,7 +704,6 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            {/* T&C folded in */}
             <Card>
               <CardHeader>
                 <CardTitle>Default Terms &amp; Conditions</CardTitle>

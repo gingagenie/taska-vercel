@@ -362,23 +362,44 @@ router.delete("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) =>
 router.post("/:id/pay", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params;
   const orgId = (req as any).orgId;
-  
-  // Validate UUID format
+
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
-  
-  // Update with org scoping and prevent paying void invoices
+
   const r: any = await db.execute(sql`
-   update invoices
-    set status = 'paid', paid_at = NOW()
-    where id = ${id}::uuid
-      and org_id = ${orgId}::uuid
-      and status <> 'void'
-    returning id, status
+    UPDATE invoices
+    SET status = 'paid', paid_at = NOW()
+    WHERE id = ${id}::uuid
+      AND org_id = ${orgId}::uuid
+      AND status <> 'void'
+    RETURNING id, status, xero_id, grand_total
   `);
-  
-  // Return 404 if invoice not found or doesn't belong to org
+
   if (!r?.length) return res.status(404).json({ error: "not found" });
-  
+
+  const invoice = r[0];
+
+  // Push payment to Xero if connected and invoice has a xero_id
+  if (invoice.xero_id) {
+    try {
+      const { xeroService } = await import('../services/xero');
+      if (xeroService.isConfigured()) {
+        const integration = await xeroService.getOrgIntegration(orgId);
+        if (integration) {
+          await xeroService.createPayment(
+            orgId,
+            invoice.xero_id,
+            Number(invoice.grand_total || 0),
+            new Date().toISOString().split('T')[0]
+          );
+          console.log(`[XERO] Payment pushed for invoice ${id}, xeroId: ${invoice.xero_id}`);
+        }
+      }
+    } catch (xeroError: any) {
+      // Never fail the mark paid because of a Xero sync issue
+      console.error('[XERO] Failed to push payment to Xero:', xeroError?.message);
+    }
+  }
+
   res.json({ ok: true });
 });
 

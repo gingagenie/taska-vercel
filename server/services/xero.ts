@@ -180,6 +180,7 @@ export class XeroService {
     const xeroInvoice: Invoice = {
       type: Invoice.TypeEnum.ACCREC,
       contact,
+      invoiceNumber: invoiceData.invoiceNumber || undefined,
       lineItems: invoiceData.items.map((item: any) => ({
         description: item.name || item.description,
         quantity: item.quantity || 1,

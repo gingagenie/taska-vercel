@@ -177,6 +177,7 @@ export class XeroService {
       emailAddress: invoiceData.customerEmail,
     };
 
+    // Let Xero assign the invoice number - we write it back to Taska after creation
     const xeroInvoice: Invoice = {
       type: Invoice.TypeEnum.ACCREC,
       contact,

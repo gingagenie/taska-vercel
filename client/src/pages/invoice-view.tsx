@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, useSearch } from "wouter";
 import { invoicesApi } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,6 @@ import { Mail, Eye, ArrowLeft } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
-import { Eye } from "lucide-react";
-import { useRoute, useLocation, useSearch } from "wouter";
 
 export default function InvoiceView() {
   const [match, params] = useRoute("/invoices/:id");
@@ -21,7 +19,6 @@ export default function InvoiceView() {
   const searchString = useSearch();
   const id = params?.id;
   
-  // Check if we came from completed jobs
   const urlParams = new URLSearchParams(searchString);
   const fromCompletedJobs = urlParams.get('from') === 'completed-jobs';
 
@@ -34,7 +31,6 @@ export default function InvoiceView() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch customers and user data for preview
   const { data: customers = [] } = useQuery({
     queryKey: ["/api/customers"],
   });
@@ -63,7 +59,6 @@ export default function InvoiceView() {
         const i = await invoicesApi.get(id);
         setInvoice(i);
         
-        // Calculate invoice total for tracking
         const items = i.items || [];
         const subtotal = items.reduce((sum: number, item: any) => {
           return sum + (Number(item.quantity || 0) * Number(item.unit_price || 0));
@@ -75,7 +70,6 @@ export default function InvoiceView() {
         }, 0);
         const total = subtotal + gst;
         
-        // Track TikTok ViewContent event for invoice page
         trackViewContent({
           contentId: i.id,
           contentType: 'invoice',
@@ -94,47 +88,47 @@ export default function InvoiceView() {
 
   async function handleMarkPaid() {
     if (!id) return;
-    
-    // Track the Mark Paid button click
     const items = invoice?.items || [];
     const { total } = calculateTotals(items);
     trackClickButton({
       contentName: "Mark Invoice Paid Button",
       contentCategory: "conversion",
     });
-    
     markPaidMutation.mutate(id);
   }
 
-  // Calculate totals from invoice items (consistent with quotes)
+  async function handleDelete() {
+    if (!id) return;
+    if (!confirm('Delete this invoice? This cannot be undone.')) return;
+    try {
+      await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: "Invoice deleted" });
+      nav('/invoices');
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
+    }
+  }
+
   function calculateTotals(items: any[]) {
     const subtotal = items.reduce((sum, item) => {
       return sum + (Number(item.quantity || 0) * Number(item.unit_price || 0));
     }, 0);
-    
     const gst = items.reduce((sum, item) => {
       const itemTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
       const taxRate = Number(item.tax_rate || 0) / 100;
       return sum + (itemTotal * taxRate);
     }, 0);
-    
     const total = subtotal + gst;
-    
     return { subtotal, gst, total };
   }
 
   function openEmailDialog() {
-    // Track the Email Invoice button click
     trackClickButton({
       contentName: "Email Invoice Button",
       contentCategory: "engagement",
     });
-    
     const customer = (customers as any[]).find((c: any) => c.id === invoice.customer_id) || {};
-    console.log("DEBUG: Invoice customer_id:", invoice.customer_id);
-    console.log("DEBUG: Customers data:", customers);
-    console.log("DEBUG: Found customer:", customer);
-    console.log("DEBUG: Customer email:", customer.email);
     setEmailAddress(customer.email || "");
     setEmailOpen(true);
   }
@@ -142,7 +136,6 @@ export default function InvoiceView() {
   async function sendEmail() {
     if (!id || !emailAddress.trim()) return;
     
-    // Parse comma-separated email addresses
     const emails = emailAddress
       .split(',')
       .map(e => e.trim())
@@ -150,7 +143,6 @@ export default function InvoiceView() {
     
     if (emails.length === 0) return;
     
-    // Track the Send Invoice button click
     const items = invoice?.items || [];
     const { total } = calculateTotals(items);
     trackClickButton({
@@ -169,7 +161,6 @@ export default function InvoiceView() {
         description: `Invoice sent successfully to ${recipientText}`,
       });
       setEmailOpen(false);
-      // Refresh invoice to potentially update status
       const updatedInvoice = await invoicesApi.get(id);
       setInvoice(updatedInvoice);
     } catch (e: any) {
@@ -183,7 +174,6 @@ export default function InvoiceView() {
     }
   }
 
-  // Safe HTML escaping function to prevent XSS
   function escapeHtml(text: string): string {
     const div = document.createElement('div');
     div.textContent = text;
@@ -193,13 +183,11 @@ export default function InvoiceView() {
   function handlePreview() {
     if (!invoice) return;
     
-    // Track the Preview Invoice button click
     trackClickButton({
       contentName: "Preview Invoice Button",
       contentCategory: "engagement",
     });
     
-    // Open preview window synchronously from user click to avoid popup blocking
     const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');
     if (!previewWindow) {
       toast({
@@ -215,7 +203,6 @@ export default function InvoiceView() {
     const items = invoice.items || [];
     const totals = calculateTotals(items);
     
-    // Safely escape all user data to prevent XSS
     const safeData = {
       title: escapeHtml(invoice.title || ''),
       orgName: escapeHtml(org.name || 'Your Company'),
@@ -325,20 +312,15 @@ export default function InvoiceView() {
             </table>
           </div>
 
-          <script>
-            // Preview only - email sending handled in main app
-          </script>
           <div style="position: fixed; top: 10px; right: 10px; z-index: 1000;">
             <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
             <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
-            <button onclick="alert('Please use the Email button in the main app to send this invoice.')" style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">📧 Send via App</button>
           </div>
         </body>
       </html>
     `);
     previewWindow.document.close();
   }
-
 
   if (loading) return <div className="page">Loading…</div>;
   if (!invoice) return <div className="page">Invoice not found</div>;
@@ -355,7 +337,7 @@ export default function InvoiceView() {
         {fromCompletedJobs ? 'Back to Completed Jobs' : 'Back to Invoices'}
       </Button>
       
-     <div className="header-row">
+      <div className="header-row">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">{invoice.title}</h1>
           {invoice.viewed_at && (
@@ -366,8 +348,18 @@ export default function InvoiceView() {
           )}
         </div>
         <div className="header-actions">
-          <Button asChild variant="outline">
-            <Link href={`/invoices/${id}/edit`}><a>Edit</a></Link>
+          <Button
+            variant="outline"
+            onClick={() => nav(`/invoices/${id}/edit`)}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            className="text-red-600 border-red-300 hover:bg-red-50"
+            onClick={handleDelete}
+          >
+            Delete
           </Button>
           <Button 
             variant="outline"

@@ -122,44 +122,50 @@ export class XeroService {
   }
 
   async refreshTokensIfNeeded(orgId: string) {
-    const integration = await this.getOrgIntegration(orgId);
-    if (!integration) return null;
+  const integration = await this.getOrgIntegration(orgId);
+  if (!integration) return null;
 
-    const now = new Date();
-    const expiresAt = new Date(integration.tokenExpiresAt || 0);
-    const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000);
+  const client = this.ensureClient();
 
-    if (needsRefresh && integration.refreshToken) {
-      try {
-        const client = this.ensureClient();
-        client.setTokenSet({
-          access_token: integration.accessToken || undefined,
-          refresh_token: integration.refreshToken || undefined,
-        });
+  const now = new Date();
+  const expiresAt = new Date(integration.tokenExpiresAt || 0);
+  const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000);
 
-        const newTokenSet = await client.refreshToken();
+  if (needsRefresh && integration.refreshToken) {
+    try {
+      client.setTokenSet({
+        access_token: integration.accessToken || undefined,
+        refresh_token: integration.refreshToken || undefined,
+      });
 
-        await db
-          .update(orgIntegrations)
-          .set({
-            accessToken: newTokenSet.access_token || null,
-            refreshToken: newTokenSet.refresh_token || null,
-            tokenExpiresAt: new Date(Date.now() + (newTokenSet.expires_in || 1800) * 1000),
-            updatedAt: new Date(),
-          })
-          .where(eq(orgIntegrations.id, integration.id));
+      const newTokenSet = await client.refreshToken();
 
-        integration.accessToken = newTokenSet.access_token || null;
-        integration.refreshToken = newTokenSet.refresh_token || null;
-      } catch (error) {
-        console.error('Failed to refresh Xero token:', error);
-        return null;
-      }
+      await db
+        .update(orgIntegrations)
+        .set({
+          accessToken: newTokenSet.access_token || null,
+          refreshToken: newTokenSet.refresh_token || null,
+          tokenExpiresAt: new Date(Date.now() + (newTokenSet.expires_in || 1800) * 1000),
+          updatedAt: new Date(),
+        })
+        .where(eq(orgIntegrations.id, integration.id));
+
+      integration.accessToken = newTokenSet.access_token || null;
+      integration.refreshToken = newTokenSet.refresh_token || null;
+    } catch (error) {
+      console.error('Failed to refresh Xero token:', error);
+      return null;
     }
-
-    return integration;
   }
 
+  // Always re-hydrate the client from DB tokens, even if no refresh was needed
+  client.setTokenSet({
+    access_token: integration.accessToken || undefined,
+    refresh_token: integration.refreshToken || undefined,
+  });
+
+  return integration;
+}
   async createInvoiceInXero(orgId: string, invoiceData: any) {
     const integration = await this.refreshTokensIfNeeded(orgId);
     if (!integration) {

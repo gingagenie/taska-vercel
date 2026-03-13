@@ -40,7 +40,7 @@ export default function InvoiceEdit() {
 
   // Transform invoice data for the new component
   const initial = invoice ? {
-    id: id, // Add the ID for email functionality
+    id: id,
     customer: { id: (invoice as any).customer_id },
     title: (invoice as any).title,
     notes: (invoice as any).notes,
@@ -61,7 +61,6 @@ export default function InvoiceEdit() {
   async function handleSave(payload: any) {
     setSaving(true);
     try {
-      // Transform payload back to API format
       const lines = payload.items.map((item: any) => ({
         description: item.description || item.itemName,
         quantity: item.qty,
@@ -69,7 +68,6 @@ export default function InvoiceEdit() {
         tax_rate: item.tax === 'GST' ? 10 : 0,
       }));
 
-      // Convert due date to ISO string if present
       const due_at = payload.header?.dueDate ? new Date(payload.header.dueDate).toISOString() : null;
 
       if (id) {
@@ -107,25 +105,25 @@ export default function InvoiceEdit() {
       setSaving(false);
     }
   }
+
   async function handleDelete() {
-      if (!id) return;
-      if (!confirm('Delete this invoice? This cannot be undone.')) return;
-      try {
-        await invoicesApi.delete(id);
-        qc.invalidateQueries({ queryKey: ["/api/invoices"] });
-        toast({ title: "Invoice deleted" });
-        nav('/invoices');
-      } catch (e: any) {
-        toast({ title: "Delete failed", description: e.message, variant: "destructive" });
-      }
+    if (!id) return;
+    if (!confirm('Delete this invoice? This cannot be undone.')) return;
+    try {
+      await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: "Invoice deleted" });
+      nav('/invoices');
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
     }
+  }
+
   async function handleSend(payload: any) {
     await handleSave(payload);
-    // TODO: Add send functionality
   }
 
   function handlePreview(payload: any) {
-    // Create a preview window with the invoice data
     const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');
     if (!previewWindow) return;
 
@@ -258,6 +256,7 @@ export default function InvoiceEdit() {
       onSave={handleSave}
       onSend={handleSend}
       onPreview={handlePreview}
+      onDelete={id ? handleDelete : undefined}
       loading={loading}
       saving={saving}
     />

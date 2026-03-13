@@ -79,6 +79,7 @@ interface QuoteInvoicePageProps {
   onSave?: (payload: Payload) => Promise<void>;
   onSend?: (payload: Payload) => Promise<void>;
   onPreview?: (payload: Payload) => void;
+  onDelete?: () => void;
   loading?: boolean;
   saving?: boolean;
 }
@@ -91,6 +92,7 @@ export function QuoteInvoicePage({
   onSave,
   onSend,
   onPreview,
+  onDelete,
   loading = false,
   saving = false,
 }: QuoteInvoicePageProps) {
@@ -240,6 +242,14 @@ export function QuoteInvoicePage({
                 >
                   {saving ? 'Saving...' : 'Save & close'}
                 </button>
+                {onDelete && (
+                  <button
+                    className="w-full px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    onClick={onDelete}
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -267,6 +277,14 @@ export function QuoteInvoicePage({
               >
                 {saving ? 'Saving...' : 'Save & close'}
               </button>
+              {onDelete && (
+                <button
+                  className="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  onClick={onDelete}
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         </div>

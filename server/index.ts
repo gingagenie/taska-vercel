@@ -155,6 +155,32 @@ app.use("/support", supportSessionConfig);
 
 (async () => {
   try {
+    console.log("[STARTUP] 🔑 Hydrating Xero client from DB tokens...");
+    const { xeroService } = await import("./services/xero");
+    if (xeroService.isConfigured()) {
+      // Find any active Xero integrations and hydrate the client
+      const { db } = await import("./db/client");
+      const { sql } = await import("drizzle-orm");
+      const integrations: any = await db.execute(sql`
+        SELECT org_id FROM org_integrations 
+        WHERE provider = 'xero' AND is_active = true
+        LIMIT 1
+      `);
+      if (integrations.length > 0) {
+        await xeroService.refreshTokensIfNeeded(integrations[0].org_id);
+        console.log("[STARTUP] ✅ Xero client hydrated from DB tokens");
+      } else {
+        console.log("[STARTUP] ℹ️ No active Xero integrations found");
+      }
+    }
+  } catch (error: any) {
+    console.error("[STARTUP] ⚠️ Xero hydration failed:", error?.message);
+    console.error("[STARTUP] Continuing - Xero will re-hydrate on first use");
+  }
+})();
+
+(async () => {
+  try {
     const { assertStorageEnv } = await import("./storage/paths");
     const { storageSelfTest } = await import("./storage/selftest");
     console.log("[STARTUP] 🗄️ Validating object storage configuration...");

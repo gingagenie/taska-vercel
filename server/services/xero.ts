@@ -131,13 +131,11 @@ export class XeroService {
     });
 
     // Also restore tenants so xero-node knows which org to talk to.
-    client.tenants = [{
-      tenantId: integration.tenantId || '',
-      tenantName: integration.tenantName || '',
-      tenantType: 'ORGANISATION',
-      createdDateUtc: new Date(),
-      updatedDateUtc: new Date(),
-    }];
+    client.setTokenSet({
+  access_token: integration.accessToken || undefined,
+  refresh_token: integration.refreshToken || undefined,
+});
+await client.updateTenants();
 
     const now = new Date();
     const expiresAt = new Date(integration.tokenExpiresAt || 0);

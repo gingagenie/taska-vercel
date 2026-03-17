@@ -112,23 +112,40 @@ export class XeroService {
     return integration[0] || null;
   }
 
+  /**
+   * Hydrates the xero-node client from DB tokens, refreshes if needed.
+   * Always call this before any Xero API request.
+   * Returns null if integration is missing or refresh has failed (user needs to reconnect).
+   */
   async refreshTokensIfNeeded(orgId: string) {
     const integration = await this.getOrgIntegration(orgId);
     if (!integration) return null;
 
     const client = this.ensureClient();
 
+    // Always hydrate client from DB — Railway processes are stateless and the
+    // singleton XeroClient loses its token set on every cold start.
+    client.setTokenSet({
+      access_token: integration.accessToken || undefined,
+      refresh_token: integration.refreshToken || undefined,
+    });
+
+    // Also restore tenants so xero-node knows which org to talk to.
+    client.tenants = [{
+      tenantId: integration.tenantId || '',
+      tenantName: integration.tenantName || '',
+      tenantType: 'ORGANISATION',
+      createdDateUtc: new Date(),
+      updatedDateUtc: new Date(),
+    }];
+
     const now = new Date();
     const expiresAt = new Date(integration.tokenExpiresAt || 0);
-    const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000);
+    const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000); // refresh 5 min early
 
     if (needsRefresh && integration.refreshToken) {
       try {
-        client.setTokenSet({
-          access_token: integration.accessToken || undefined,
-          refresh_token: integration.refreshToken || undefined,
-        });
-
+        console.log('[Xero] Access token expired or expiring soon, refreshing...');
         const newTokenSet = await client.refreshToken();
 
         await db
@@ -141,19 +158,27 @@ export class XeroService {
           })
           .where(eq(orgIntegrations.id, integration.id));
 
+        // Update in-memory token set with the new tokens
+        client.setTokenSet({
+          access_token: newTokenSet.access_token || undefined,
+          refresh_token: newTokenSet.refresh_token || undefined,
+        });
+
         integration.accessToken = newTokenSet.access_token || null;
         integration.refreshToken = newTokenSet.refresh_token || null;
+
+        console.log('[Xero] Token refreshed successfully');
       } catch (error) {
-        console.error('Failed to refresh Xero token:', error);
+        console.error('[Xero] Failed to refresh token:', error);
+        // Mark integration inactive so the user is prompted to reconnect
+        // rather than silently failing on every invoice send.
+        await db
+          .update(orgIntegrations)
+          .set({ isActive: false, updatedAt: new Date() })
+          .where(eq(orgIntegrations.id, integration.id));
         return null;
       }
     }
-
-    // Always re-hydrate the client from DB tokens, even if no refresh was needed
-    client.setTokenSet({
-      access_token: integration.accessToken || undefined,
-      refresh_token: integration.refreshToken || undefined,
-    });
 
     return integration;
   }
@@ -195,7 +220,6 @@ export class XeroService {
       throw new Error('Xero integration not found or tokens expired');
     }
 
-    // Read account code directly from DB via raw SQL since schema doesn't have it typed yet
     const { db: dbClient } = await import('../db/client');
     const { sql } = await import('drizzle-orm');
     const result: any = await dbClient.execute(sql`
@@ -224,6 +248,11 @@ export class XeroService {
     return response.body.payments?.[0];
   }
 
+  /**
+   * Creates an invoice in Xero as a DRAFT.
+   * Passes Taska's invoice number to Xero's InvoiceNumber field so both
+   * systems stay in sync (e.g. INV-0042 in Taska = INV-0042 in Xero).
+   */
   async createInvoiceInXero(orgId: string, invoiceData: any) {
     const integration = await this.refreshTokensIfNeeded(orgId);
     if (!integration) {
@@ -231,10 +260,6 @@ export class XeroService {
     }
 
     const client = this.ensureClient();
-    client.setTokenSet({
-      access_token: integration.accessToken || undefined,
-      refresh_token: integration.refreshToken || undefined,
-    });
 
     const contact: Contact = {
       name: invoiceData.customerName,
@@ -244,6 +269,9 @@ export class XeroService {
     const xeroInvoice: Invoice = {
       type: Invoice.TypeEnum.ACCREC,
       contact,
+      // Push Taska invoice number to Xero so they match across both systems
+      invoiceNumber: invoiceData.invoiceNumber || undefined,
+      reference: invoiceData.invoiceNumber || undefined,
       lineItems: invoiceData.items.map((item: any) => ({
         description: item.name || item.description,
         quantity: item.quantity || 1,
@@ -270,10 +298,6 @@ export class XeroService {
     }
 
     const client = this.ensureClient();
-    client.setTokenSet({
-      access_token: integration.accessToken || undefined,
-      refresh_token: integration.refreshToken || undefined,
-    });
 
     const contact: Contact = {
       name: quoteData.customerName,

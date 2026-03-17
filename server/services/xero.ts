@@ -222,12 +222,12 @@ export class XeroService {
     );
 
     return (response.body.accounts || [])
-  .filter((a: any) => a.type === 'BANK')
-  .map((a: any) => ({
-    code: a.code,
-    name: a.name,
-    type: a.type,
-  }));
+      .filter((a: any) => a.type === 'BANK')
+      .map((a: any) => ({
+        code: a.code,
+        name: a.name,
+        type: a.type,
+      }));
   }
 
   async savePaymentAccountCode(orgId: string, accountCode: string) {
@@ -278,9 +278,11 @@ export class XeroService {
   }
 
   /**
-   * Creates an invoice in Xero as a DRAFT.
-   * Passes Taska's invoice number as the Xero InvoiceNumber so both
-   * systems stay in sync (e.g. INV-0042 in Taska = INV-0042 in Xero).
+   * Creates an invoice in Xero as AUTHORISED (approved, awaiting payment).
+   * Xero generates the invoice number — written back to Taska after creation.
+   * If not connected to Xero, Taska generates its own inv-XXXX number instead.
+   * accountCode 200 = Sales (standard AU Xero)
+   * taxType OUTPUT2 = GST on income (10%), NONE = no tax
    */
   async createInvoiceInXero(orgId: string, invoiceData: any) {
     const integration = await this.refreshTokensIfNeeded(orgId);
@@ -298,12 +300,12 @@ export class XeroService {
     const xeroInvoice: Invoice = {
       type: Invoice.TypeEnum.ACCREC,
       contact,
-      invoiceNumber: invoiceData.invoiceNumber || undefined,
-      reference: invoiceData.invoiceNumber || undefined,
       lineItems: invoiceData.items.map((item: any) => ({
         description: item.name || item.description,
         quantity: item.quantity || 1,
         unitAmount: parseFloat(item.price || '0'),
+        accountCode: '200',
+        taxType: Number(item.taxRate || 0) > 0 ? 'OUTPUT2' : 'NONE',
       })),
       date: new Date().toISOString().split('T')[0],
       dueDate: invoiceData.dueAt ? new Date(invoiceData.dueAt).toISOString().split('T')[0] : undefined,

@@ -13,7 +13,17 @@ export class XeroService {
         clientId: process.env.XERO_CLIENT_ID,
         clientSecret: process.env.XERO_CLIENT_SECRET,
         redirectUris: ['https://taska.info/api/xero/callback'],
-        scopes: ['openid', 'profile', 'email', 'accounting.transactions', 'accounting.settings'],
+        // offline_access is required to receive a long-lived refresh token
+        // Without it Xero does not issue a refresh token and the connection
+        // drops after every 30-minute access token expiry.
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'accounting.transactions',
+          'accounting.settings',
+          'offline_access',
+        ],
       });
     }
   }
@@ -35,7 +45,8 @@ export class XeroService {
       response_type: 'code',
       client_id: process.env.XERO_CLIENT_ID!,
       redirect_uri: 'https://taska.info/api/xero/callback',
-      scope: 'openid profile email accounting.transactions accounting.settings',
+      // offline_access must be in the auth URL scope as well
+      scope: 'openid profile email accounting.transactions accounting.settings offline_access',
       state,
     });
     return `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
@@ -48,9 +59,14 @@ export class XeroService {
     const callbackUrl = `https://taska.info/api/xero/callback?code=${code}`;
     const tokenSet = await client.apiCallback(callbackUrl);
     console.log('Xero callback: Token set received:', !!tokenSet.access_token);
+    console.log('Xero callback: Refresh token received:', !!tokenSet.refresh_token);
 
     if (!tokenSet.access_token) {
       throw new Error('Failed to get access token from Xero');
+    }
+
+    if (!tokenSet.refresh_token) {
+      console.warn('Xero callback: WARNING - No refresh token received. offline_access scope may be missing from Xero app config.');
     }
 
     console.log('Xero callback: Updating tenants...');
@@ -141,6 +157,12 @@ export class XeroService {
         console.log('[Xero] Access token expired or expiring soon, refreshing...');
         const newTokenSet = await client.refreshToken();
 
+        if (!newTokenSet.access_token) {
+          throw new Error('Refresh returned no access token');
+        }
+
+        // CRITICAL: Always save the new refresh token — Xero refresh tokens
+        // are one-time use. If we don't save the new one the chain is broken.
         await db
           .update(orgIntegrations)
           .set({
@@ -160,7 +182,7 @@ export class XeroService {
         integration.accessToken = newTokenSet.access_token || null;
         integration.refreshToken = newTokenSet.refresh_token || null;
 
-        console.log('[Xero] Token refreshed successfully');
+        console.log('[Xero] Token refreshed successfully, new expiry in', newTokenSet.expires_in, 'seconds');
       } catch (error) {
         console.error('[Xero] Token refresh failed:', error);
         // Mark inactive so user gets a clean "reconnect" prompt
@@ -178,7 +200,6 @@ export class XeroService {
       await client.updateTenants();
     } catch (error) {
       console.error('[Xero] updateTenants failed:', error);
-      // If we can't fetch tenants, mark inactive
       await db
         .update(orgIntegrations)
         .set({ isActive: false, updatedAt: new Date() })

@@ -305,7 +305,7 @@ export class XeroService {
         quantity: item.quantity || 1,
         unitAmount: parseFloat(item.price || '0'),
         accountCode: '200',
-        taxType: Number(item.taxRate || 0) > 0 ? 'OUTPUT2' : 'NONE',
+        taxType: Number(item.taxRate || 0) > 0 ? 'OUTPUT' : 'NONE',
       })),
       date: new Date().toISOString().split('T')[0],
       dueDate: invoiceData.dueAt ? new Date(invoiceData.dueAt).toISOString().split('T')[0] : undefined,

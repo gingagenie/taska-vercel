@@ -221,12 +221,13 @@ export class XeroService {
       integration.tenantId || ''
     );
 
-    return (response.body.accounts || []).map((a: any) => ({
-      code: a.code,
-      name: a.name,
-      type: a.type,
-    }));
-  }
+    return (response.body.accounts || [])
+  .filter((a: any) => a.type === 'BANK')
+  .map((a: any) => ({
+    code: a.code,
+    name: a.name,
+    type: a.type,
+  }));
 
   async savePaymentAccountCode(orgId: string, accountCode: string) {
     const integration = await this.getOrgIntegration(orgId);
@@ -305,7 +306,7 @@ export class XeroService {
       })),
       date: new Date().toISOString().split('T')[0],
       dueDate: invoiceData.dueAt ? new Date(invoiceData.dueAt).toISOString().split('T')[0] : undefined,
-      status: Invoice.StatusEnum.DRAFT,
+      status: Invoice.StatusEnum.AUTHORISED,
       currencyCode: invoiceData.currency || 'AUD',
     };
 

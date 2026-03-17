@@ -153,7 +153,7 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
   limit ${pageSize} offset ${offset}
 `);
 
-  res.json(r);  // Match the working pattern from jobs.ts
+  res.json(r);
 });
 
 /** Create */
@@ -193,7 +193,7 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
       RETURNING id
     `);
     
-    const invoiceId = (result as any)[0].id;  // Match the pattern used in jobs.ts
+    const invoiceId = (result as any)[0].id;
     
     // Insert lines
     for (const [i, line] of lines.entries()) {
@@ -230,7 +230,7 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
     from invoices i join customers c on c.id=i.customer_id
     where i.id=${id}::uuid and i.org_id=${orgId}::uuid
   `);
-  const inv = r[0];  // Match the working pattern from jobs.ts
+  const inv = r[0];
   if (!inv) return res.status(404).json({ error: "not found" });
 
   const lr: any = await db.execute(sql`
@@ -239,16 +239,14 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
     order by position asc, created_at asc
   `);
   
-  // Transform lines to items format that frontend expects
   const items = lr.map((line: any) => ({
     id: line.id,
     description: line.description,
     quantity: line.quantity,
-    unit_price: line.unit_amount, // Map unit_amount to unit_price
+    unit_price: line.unit_amount,
     tax_rate: line.tax_rate
   }));
   
-  // Map backend field names to frontend expected names
   const response = {
     ...inv,
     items,
@@ -266,7 +264,6 @@ router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
   const { title, customer_id, notes, lines = [], due_at } = req.body || {};
   
-  // Update header
   await db.execute(sql`
     update invoices set
       title=coalesce(${title}, title),
@@ -276,10 +273,8 @@ router.put("/:id", requireAuth, requireOrg, async (req, res) => {
     where id=${id}::uuid and org_id=${orgId}::uuid
   `);
   
-  // Replace lines (simple path)
   await db.execute(sql`delete from invoice_lines where invoice_id=${id}::uuid and org_id=${orgId}::uuid`);
   
-  // Insert new lines
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
     await db.execute(sql`
@@ -288,7 +283,6 @@ router.put("/:id", requireAuth, requireOrg, async (req, res) => {
     `);
   }
   
-  // Recompute and store totals
   const sums = sumLines(lines);
   await db.execute(sql`
     update invoices set
@@ -308,13 +302,11 @@ router.delete("/:id", requireAuth, requireOrg, async (req, res) => {
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
 
   try {
-    // Delete invoice lines first (due to foreign key constraints)
     await db.execute(sql`
       delete from invoice_lines 
       where invoice_id=${id}::uuid and org_id=${orgId}::uuid
     `);
     
-    // Delete the invoice
     await db.execute(sql`
       delete from invoices
       where id=${id}::uuid and org_id=${orgId}::uuid
@@ -395,14 +387,12 @@ router.post("/:id/pay", requireAuth, requireOrg, async (req, res) => {
         }
       }
     } catch (xeroError: any) {
-      // Never fail the mark paid because of a Xero sync issue
       console.error('[XERO] Failed to push payment to Xero:', xeroError?.message);
     }
   }
 
   res.json({ ok: true });
 });
-
 
 /** Preview invoice email without sending */
 router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
@@ -414,7 +404,6 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
   if (!email) return res.status(400).json({ error: "Customer email is required" });
   
   try {
-    // Get invoice with customer details and items
     const invoiceResult: any = await db.execute(sql`
       select i.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
       from invoices i join customers c on c.id=i.customer_id
@@ -423,23 +412,20 @@ router.post("/:id/email-preview", requireAuth, requireOrg, checkSubscription, re
     const invoice = invoiceResult[0];
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
-    // Generate or get tracking token
-let trackingToken = invoice.view_tracking_token;
-if (!trackingToken) {
-  trackingToken = generateTrackingToken();
-  await db.execute(sql`
-    UPDATE invoices
-    SET view_tracking_token = ${trackingToken}
-    WHERE id = ${id}::uuid
-  `);
-}
+    let trackingToken = invoice.view_tracking_token;
+    if (!trackingToken) {
+      trackingToken = generateTrackingToken();
+      await db.execute(sql`
+        UPDATE invoices
+        SET view_tracking_token = ${trackingToken}
+        WHERE id = ${id}::uuid
+      `);
+    }
 
-    // Get invoice items (correct table name: invoice_lines)
     const items: any = await db.execute(sql`
       select * from invoice_lines where invoice_id=${id}::uuid order by position asc, created_at asc
     `);
 
-    // Prepare invoice data for email template
     const invoiceData = {
       ...invoice,
       items: items.map((item: any) => ({
@@ -449,21 +435,14 @@ if (!trackingToken) {
       }))
     };
 
-    // Get organization name for branding
     const orgResult: any = await db.execute(sql`
       select name from orgs where id=${orgId}::uuid
     `);
     const orgName = orgResult[0]?.name || "Your Business";
 
-    // Generate email content for preview
     const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, orgName);
 
-    res.json({ 
-      subject,
-      html,
-      text,
-      to: email
-    });
+    res.json({ subject, html, text, to: email });
 
   } catch (error) {
     console.error('Error generating invoice email preview:', error);
@@ -477,10 +456,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
   const orgId = (req as any).orgId;
   const { email, emails, fromEmail = "noreply@taska.info", fromName = "Taska" } = req.body;
   
-  // Support both single email (legacy) and multiple emails (new)
   let recipientEmails = emails || (email ? [email] : []);
-  
-  // Trim whitespace from all email addresses
   recipientEmails = recipientEmails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
   
   if (!isUuid(id)) return res.status(400).json({ error: "Invalid invoice ID" });
@@ -488,18 +464,13 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     return res.status(400).json({ error: "At least one recipient email is required" });
   }
   
-  // Basic email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const invalidEmails = recipientEmails.filter((e: string) => !emailRegex.test(e));
   if (invalidEmails.length > 0) {
-    return res.status(400).json({ 
-      error: "Invalid email address(es)", 
-      invalidEmails 
-    });
+    return res.status(400).json({ error: "Invalid email address(es)", invalidEmails });
   }
   
   try {
-    // Get invoice with customer details and items
     const invoiceResult: any = await db.execute(sql`
       select i.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
       from invoices i join customers c on c.id=i.customer_id
@@ -508,18 +479,16 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
     const invoice = invoiceResult[0];
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
-    // Generate or get tracking token
-let trackingToken = invoice.view_tracking_token;
-if (!trackingToken) {
-  trackingToken = generateTrackingToken();
-  await db.execute(sql`
-    UPDATE invoices
-    SET view_tracking_token = ${trackingToken}
-    WHERE id = ${id}::uuid
-  `);
-}
+    let trackingToken = invoice.view_tracking_token;
+    if (!trackingToken) {
+      trackingToken = generateTrackingToken();
+      await db.execute(sql`
+        UPDATE invoices
+        SET view_tracking_token = ${trackingToken}
+        WHERE id = ${id}::uuid
+      `);
+    }
 
-    // Get complete organization details for email template
     const orgResult: any = await db.execute(sql`
       select name, abn, street, suburb, state, postcode, 
              account_name, bsb, account_number, invoice_terms
@@ -527,32 +496,27 @@ if (!trackingToken) {
     `);
     const organization = orgResult[0] || {};
 
-    // Get complete customer details for email template  
     const customerResult: any = await db.execute(sql`
       select name, contact_name, email, phone, street, suburb, state, postcode, address
       from customers where id=${invoice.customer_id}::uuid and org_id=${orgId}::uuid
     `);
     const customer = customerResult[0] || {};
 
-    // Get invoice items
     const items: any = await db.execute(sql`
       select * from invoice_lines where invoice_id=${id}::uuid order by created_at nulls last, id
     `);
 
-    // Prepare invoice data for email template
     const invoiceData = {
       ...invoice,
       items: items.map((item: any) => ({
         description: item.description || 'Item',
         quantity: Number(item.quantity || 1),
-        unit_price: Number(item.unit_amount || 0)  // Fixed: use unit_amount from database
+        unit_price: Number(item.unit_amount || 0)
       }))
     };
 
-    // Generate email content with complete business and customer information
     const { subject, html, text } = generateInvoiceEmailTemplate(invoiceData, organization, customer, trackingToken);
 
-    // Generate PDF attachment
     let pdfAttachment = null;
     let pdfGenerationFailed = false;
     
@@ -560,32 +524,23 @@ if (!trackingToken) {
       console.log(`[PDF] Generating PDF attachment for invoice ${invoiceData.number || invoiceData.id}`);
       const pdfBuffer = await generateInvoicePdf(invoiceData, organization, customer);
       const filename = await generateInvoicePdfFilename(invoiceData);
-      
-      pdfAttachment = {
-        filename,
-        content: pdfBuffer.toString('base64')
-      };
+      pdfAttachment = { filename, content: pdfBuffer.toString('base64') };
       console.log(`[PDF] Successfully generated PDF: ${filename} (${Math.round(pdfBuffer.length / 1024)}KB)`);
     } catch (pdfError) {
       console.error(`[PDF] Failed to generate PDF attachment:`, pdfError);
       pdfGenerationFailed = true;
-      // Continue without PDF attachment - don't fail the entire email
     }
 
-    // PHASE 1: Check email quota and reserve pack unit if needed
     const quotaCheck = await checkEmailQuota(orgId);
     if (!quotaCheck.canSend) {
-      // Distinguish between different failure types for proper error handling
-      let statusCode = 429; // Default to quota exceeded
+      let statusCode = 429;
       let errorMessage = "Email quota exceeded";
-      
       if (quotaCheck.error === 'db_error') {
         statusCode = 500;
         errorMessage = quotaCheck.errorMessage || "Database error checking email quota";
       } else if (quotaCheck.error === 'no_packs') {
         errorMessage = "Email quota exceeded and no packs available";
       }
-      
       return res.status(statusCode).json({ 
         error: errorMessage,
         usage: quotaCheck.usage,
@@ -604,13 +559,10 @@ if (!trackingToken) {
       });
     }
 
-    // Log if pack was reserved for this email
     if (quotaCheck.reservationId) {
       console.log(`[EMAIL] Pack reserved for org ${orgId}: ${quotaCheck.packType} pack reserved, ${quotaCheck.remainingPacks} packs remaining after send`);
     }
 
-    // PHASE 2: Attempt to send email (to all recipients)
-    let finalizeSuccess = true;
     const emailSent = await sendEmail({
       to: recipientEmails,
       from: `${fromName} <${fromEmail}>`,
@@ -621,7 +573,6 @@ if (!trackingToken) {
     });
 
     if (!emailSent) {
-      // PHASE 3B: Email send failed - release pack reservation
       if (quotaCheck.reservationId) {
         console.log(`[EMAIL] Send failed, releasing pack reservation: ${quotaCheck.reservationId}`);
         const releaseResult = await releasePackReservation(quotaCheck.reservationId);
@@ -635,37 +586,24 @@ if (!trackingToken) {
       });
     }
 
-    // PHASE 3A: Email sent successfully - CRITICAL: MUST finalize pack consumption
-    // Using fail-safe approach: prefer failing request over under-billing
     if (quotaCheck.reservationId) {
       try {
         console.log(`[EMAIL] Invoice email sent successfully, finalizing pack consumption: ${quotaCheck.reservationId}`);
-        
-        // Use durable finalization with retry logic and fail-safe approach
         const finalizeResult = await durableFinalizePackConsumption(
           quotaCheck.reservationId,
           {
             maxAttempts: 3,
             baseDelayMs: 1000,
-            failRequestOnPersistentFailure: true, // CRITICAL: Fail request if can't charge
+            failRequestOnPersistentFailure: true,
           }
         );
-        
         if (!finalizeResult.success) {
-          // This should rarely happen due to retry logic, but if it does, it's critical
           console.error(`[EMAIL] CRITICAL: Failed to finalize pack consumption after retry attempts: ${finalizeResult.errorMessage}`);
-          
-          // The durable finalize function should have thrown an error if failRequestOnPersistentFailure is true
-          // If we reach here, something went wrong with the fail-safe logic
           throw new Error(`BILLING ERROR: Email delivered but failed to charge after ${finalizeResult.attemptCount} attempts`);
         }
-        
         console.log(`[EMAIL] Pack consumption finalized successfully after ${finalizeResult.attemptCount} attempts`);
       } catch (error) {
-        // CRITICAL BILLING ERROR: Email was delivered but we cannot charge for it
         console.error(`[EMAIL] CRITICAL BILLING ERROR: Invoice email sent to ${recipientEmails.join(', ')} but pack finalization failed:`, error);
-        
-        // Log the critical billing error for manual intervention
         await db.execute(sql`
           INSERT INTO invoice_lines (org_id, invoice_id, position, description, quantity, unit_amount, tax_rate)
           VALUES (${orgId}::uuid, ${id}::uuid, 999, ${'BILLING_ERROR: Email sent but not charged - ' + String(error).slice(0, 200)}, 0, 0, 0)
@@ -673,10 +611,6 @@ if (!trackingToken) {
         `).catch(logError => {
           console.error(`[EMAIL] Failed to log billing error:`, logError);
         });
-        
-        // FAIL-SAFE: Return error to prevent under-billing
-        // This means user sees the email as "failed" even though it was delivered
-        // This is better than allowing free email delivery
         return res.status(500).json({
           error: "Email delivered but billing failed - contact support immediately",
           severity: "critical",
@@ -687,15 +621,12 @@ if (!trackingToken) {
       }
     }
 
-    // Track email usage for quota management
     try {
       await trackEmailUsage(orgId);
     } catch (error) {
       console.error('Failed to track email usage:', error);
-      // Don't fail the request if usage tracking fails
     }
 
-    // Update invoice status to 'sent' if it was 'draft'
     if (invoice.status === 'draft') {
       await db.execute(sql`
         update invoices 
@@ -704,7 +635,9 @@ if (!trackingToken) {
       `);
     }
 
-   // Sync to Xero if connected
+    // Sync to Xero if connected.
+    // Xero generates the invoice number — written back to Taska after creation.
+    // If not connected, Taska's inv-XXXX number stays as-is.
     try {
       const { xeroService } = await import('../services/xero');
       if (xeroService.isConfigured()) {
@@ -717,29 +650,33 @@ if (!trackingToken) {
               description: item.description || 'Item',
               quantity: Number(item.quantity || 1),
               price: Number(item.unit_amount || 0),
+              taxRate: Number(item.tax_rate || 0),
             })),
             dueAt: invoice.due_at,
             currency: 'AUD',
           });
-          // Write Xero's invoice number back to Taska so numbers match everywhere
+
+          // Write Xero's generated invoice number back to Taska
           if (xeroInvoice?.invoiceNumber) {
-  await db.execute(sql`
-    UPDATE invoices 
-    SET number = ${xeroInvoice.invoiceNumber}
-    WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
-  `);
-  console.log(`[XERO] Invoice number updated: ${invoice.number} → ${xeroInvoice.invoiceNumber}`);
-}
-if (xeroInvoice?.invoiceID) {
-  await db.execute(sql`
-    UPDATE invoices SET xero_id = ${xeroInvoice.invoiceID}
-    WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
-  `);
-}
+            await db.execute(sql`
+              UPDATE invoices
+              SET number = ${xeroInvoice.invoiceNumber}
+              WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+            `);
+            console.log(`[XERO] Invoice number updated: ${invoice.number} → ${xeroInvoice.invoiceNumber}`);
+          }
+
+          // Store Xero internal ID for payment sync when marking paid
+          if (xeroInvoice?.invoiceID) {
+            await db.execute(sql`
+              UPDATE invoices SET xero_id = ${xeroInvoice.invoiceID}
+              WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+            `);
+            console.log(`[XERO] Invoice synced, xeroId: ${xeroInvoice.invoiceID}`);
+          }
         }
       }
     } catch (xeroError) {
-      // Never fail the invoice send because of a Xero sync issue
       console.error('[XERO] Failed to sync invoice to Xero:', xeroError);
     }
 
@@ -752,7 +689,7 @@ if (xeroInvoice?.invoiceID) {
       message: pdfGenerationFailed 
         ? `Invoice sent successfully to ${recipientText} (PDF attachment failed - email sent without attachment)`
         : `Invoice sent successfully to ${recipientText}`,
-      email: recipientEmails[0], // Backward compatibility: first recipient
+      email: recipientEmails[0],
       recipients: recipientEmails,
       recipientCount: recipientEmails.length,
       packUsed: !!quotaCheck.reservationId,

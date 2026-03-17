@@ -228,6 +228,7 @@ export class XeroService {
     name: a.name,
     type: a.type,
   }));
+  }
 
   async savePaymentAccountCode(orgId: string, accountCode: string) {
     const integration = await this.getOrgIntegration(orgId);

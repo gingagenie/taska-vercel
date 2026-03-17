@@ -113,9 +113,9 @@ export class XeroService {
   }
 
   /**
-   * Hydrates the xero-node client from DB tokens, refreshes if needed.
+   * Hydrates the xero-node client from DB tokens, refreshes if needed,
+   * then calls updateTenants() with a valid token.
    * Always call this before any Xero API request.
-   * Returns null if integration is missing or refresh has failed (user needs to reconnect).
    */
   async refreshTokensIfNeeded(orgId: string) {
     const integration = await this.getOrgIntegration(orgId);
@@ -123,23 +123,18 @@ export class XeroService {
 
     const client = this.ensureClient();
 
-    // Always hydrate client from DB — Railway processes are stateless and the
-    // singleton XeroClient loses its token set on every cold start.
+    // Step 1: Always hydrate client from DB — Railway is stateless,
+    // the singleton XeroClient loses its token on every cold start.
     client.setTokenSet({
       access_token: integration.accessToken || undefined,
       refresh_token: integration.refreshToken || undefined,
     });
 
-    // Also restore tenants so xero-node knows which org to talk to.
-    client.setTokenSet({
-  access_token: integration.accessToken || undefined,
-  refresh_token: integration.refreshToken || undefined,
-});
-await client.updateTenants();
-
+    // Step 2: Refresh token if expired or expiring within 5 minutes.
+    // Do this BEFORE calling updateTenants so we always have a valid token.
     const now = new Date();
     const expiresAt = new Date(integration.tokenExpiresAt || 0);
-    const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000); // refresh 5 min early
+    const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000);
 
     if (needsRefresh && integration.refreshToken) {
       try {
@@ -156,7 +151,7 @@ await client.updateTenants();
           })
           .where(eq(orgIntegrations.id, integration.id));
 
-        // Update in-memory token set with the new tokens
+        // Update in-memory token set with fresh tokens
         client.setTokenSet({
           access_token: newTokenSet.access_token || undefined,
           refresh_token: newTokenSet.refresh_token || undefined,
@@ -167,15 +162,28 @@ await client.updateTenants();
 
         console.log('[Xero] Token refreshed successfully');
       } catch (error) {
-        console.error('[Xero] Failed to refresh token:', error);
-        // Mark integration inactive so the user is prompted to reconnect
-        // rather than silently failing on every invoice send.
+        console.error('[Xero] Token refresh failed:', error);
+        // Mark inactive so user gets a clean "reconnect" prompt
         await db
           .update(orgIntegrations)
           .set({ isActive: false, updatedAt: new Date() })
           .where(eq(orgIntegrations.id, integration.id));
         return null;
       }
+    }
+
+    // Step 3: Restore tenants AFTER we have a valid token.
+    // updateTenants() makes a live API call — must have a non-expired token.
+    try {
+      await client.updateTenants();
+    } catch (error) {
+      console.error('[Xero] updateTenants failed:', error);
+      // If we can't fetch tenants, mark inactive
+      await db
+        .update(orgIntegrations)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(orgIntegrations.id, integration.id));
+      return null;
     }
 
     return integration;
@@ -248,7 +256,7 @@ await client.updateTenants();
 
   /**
    * Creates an invoice in Xero as a DRAFT.
-   * Passes Taska's invoice number to Xero's InvoiceNumber field so both
+   * Passes Taska's invoice number as the Xero InvoiceNumber so both
    * systems stay in sync (e.g. INV-0042 in Taska = INV-0042 in Xero).
    */
   async createInvoiceInXero(orgId: string, invoiceData: any) {
@@ -267,7 +275,6 @@ await client.updateTenants();
     const xeroInvoice: Invoice = {
       type: Invoice.TypeEnum.ACCREC,
       contact,
-      // Push Taska invoice number to Xero so they match across both systems
       invoiceNumber: invoiceData.invoiceNumber || undefined,
       reference: invoiceData.invoiceNumber || undefined,
       lineItems: invoiceData.items.map((item: any) => ({

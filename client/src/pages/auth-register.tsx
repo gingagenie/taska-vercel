@@ -36,13 +36,6 @@ export default function Register() {
       features: ["5 users", "500 SMS/month", "500 emails/month"],
       popular: true
     },
-    {
-//      id: "enterprise" as const,
-//      name: "Enterprise",
- //     price: 99,
-//      features: ["12 users", "2000 SMS/month", "2000 emails/month"]
-  //  }
-  ];
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

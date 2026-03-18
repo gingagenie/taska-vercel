@@ -1,8 +1,6 @@
-import { Link } from "wouter";
 import { useEffect } from "react";
 
 export default function Landing() {
-  // Load Google Fonts
   useEffect(() => {
     const link = document.createElement("link");
     link.href = "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500;600&display=swap";
@@ -53,12 +51,6 @@ export default function Landing() {
         }
         .lp-nav-logo img {
           height: 36px; width: auto;
-          filter: brightness(0) invert(1);
-        }
-        .lp-nav-logo-text {
-          font-family: var(--font-display);
-          font-size: 1.5rem; font-weight: 900;
-          color: #fff; letter-spacing: 0.02em;
         }
         .lp-nav-links {
           display: flex; gap: 2rem; align-items: center;
@@ -77,7 +69,7 @@ export default function Landing() {
           font-weight: 600 !important;
           box-shadow: 0 4px 14px rgba(26,172,232,0.3);
         }
-        .lp-nav-cta:hover { opacity: 0.88 !important; }
+        .lp-nav-cta:hover { opacity: 0.88 !important; color: #fff !important; }
 
         /* ── HERO ── */
         .lp-hero {
@@ -153,7 +145,7 @@ export default function Landing() {
           display: inline-block;
           box-shadow: 0 6px 20px rgba(26,172,232,0.35);
         }
-        .lp-btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+        .lp-btn-primary:hover { opacity: 0.88; transform: translateY(-1px); color: #fff; }
         .lp-btn-secondary {
           background: transparent; color: var(--text);
           border: 1px solid var(--border); cursor: pointer;
@@ -227,16 +219,11 @@ export default function Landing() {
           display: block; margin-top: 0.75rem;
           font-size: 0.82rem; color: var(--muted); font-style: normal;
         }
-
-        /* ── LOGO IN STORY ── */
         .lp-story-logo {
           display: flex; align-items: center; gap: 0.75rem;
           margin-bottom: 1.5rem;
         }
-        .lp-story-logo img {
-          height: 48px; width: auto;
-          filter: brightness(0) invert(1);
-        }
+        .lp-story-logo img { height: 56px; width: auto; }
 
         /* ── FLOW ── */
         .lp-flow { padding: 100px 5%; }
@@ -373,7 +360,7 @@ export default function Landing() {
           background: var(--grad); color: #fff;
           box-shadow: 0 4px 16px rgba(26,172,232,0.3);
         }
-        .lp-pricing-btn-primary:hover { opacity: 0.88; }
+        .lp-pricing-btn-primary:hover { opacity: 0.88; color: #fff; }
         .lp-pricing-btn-outline { border: 1px solid var(--border); color: var(--text); }
         .lp-pricing-btn-outline:hover { border-color: #1AACE8; color: #1AACE8; }
         .lp-pricing-note {
@@ -492,14 +479,7 @@ export default function Landing() {
           flex-wrap: wrap; gap: 1rem;
         }
         .lp-footer-logo { display: flex; align-items: center; gap: 0.5rem; }
-        .lp-footer-logo img {
-          height: 28px; width: auto;
-          filter: brightness(0) invert(1);
-        }
-        .lp-footer-logo-text {
-          font-family: var(--font-display);
-          font-size: 1.2rem; font-weight: 900; color: #fff;
-        }
+        .lp-footer-logo img { height: 32px; width: auto; }
         .lp-footer p { color: var(--muted); font-size: 0.82rem; }
         .lp-footer-links { display: flex; gap: 1.5rem; }
         .lp-footer-links a { color: var(--muted); text-decoration: none; font-size: 0.82rem; transition: color 0.2s; }
@@ -525,16 +505,16 @@ export default function Landing() {
 
         {/* NAV */}
         <nav className="lp-nav">
-          <Link href="/" className="lp-nav-logo">
+          <a href="/" className="lp-nav-logo">
             <img src="/taska-logo.png" alt="Taska" />
-          </Link>
+          </a>
           <div className="lp-nav-links">
             <a href="#features">Features</a>
             <a href="#pricing">Pricing</a>
             <a href="#compare">Compare</a>
             <a href="#faq">FAQ</a>
-            <Link href="/auth/login">Log in</Link>
-            <Link href="/auth/register" className="lp-nav-cta">Start Free Trial</Link>
+            <a href="/auth/login">Log in</a>
+            <a href="/auth/register" className="lp-nav-cta">Start Free Trial</a>
           </div>
         </nav>
 
@@ -548,7 +528,7 @@ export default function Landing() {
             <strong>From $29/month AUD.</strong>
           </p>
           <div className="lp-hero-actions">
-            <Link href="/auth/register" className="lp-btn-primary">Start 14-Day Free Trial</Link>
+            <a href="/auth/register" className="lp-btn-primary">Start 14-Day Free Trial</a>
             <a href="#features" className="lp-btn-secondary">See How It Works</a>
           </div>
           <p className="lp-reassurance">🔒 14-day free trial. Cancel anytime before and you won't be charged.</p>
@@ -674,7 +654,7 @@ export default function Landing() {
                 <li><strong>100 emails/month included</strong></li>
                 <li><strong>50 SMS/month included</strong></li>
               </ul>
-              <Link href="/auth/register" className="lp-pricing-btn lp-pricing-btn-outline">Start Free Trial</Link>
+              <a href="/auth/register" className="lp-pricing-btn lp-pricing-btn-outline">Start Free Trial</a>
             </div>
 
             <div className="lp-pricing-card featured">
@@ -698,7 +678,7 @@ export default function Landing() {
                 <li>Customer portal</li>
                 <li>Priority support</li>
               </ul>
-              <Link href="/auth/register" className="lp-pricing-btn lp-pricing-btn-primary">Start Free Trial</Link>
+              <a href="/auth/register" className="lp-pricing-btn lp-pricing-btn-primary">Start Free Trial</a>
             </div>
 
           </div>
@@ -802,7 +782,7 @@ export default function Landing() {
         <section className="lp-cta">
           <h2>Ready To Get<br /><em>Your Time Back?</em></h2>
           <p>Join tradies already running their business on Taska. 14 days free, no lock-in.</p>
-          <Link href="/auth/register" className="lp-btn-primary">Start Free Trial — It's $0 Today</Link>
+          <a href="/auth/register" className="lp-btn-primary">Start Free Trial — It's $0 Today</a>
         </section>
 
         {/* FOOTER */}
@@ -812,7 +792,7 @@ export default function Landing() {
           </div>
           <p>© 2026 Taska. Built in Australia for Australian tradies.</p>
           <div className="lp-footer-links">
-            <Link href="/privacy">Privacy</Link>
+            <a href="/privacy">Privacy</a>
             <a href="mailto:support@taska.info">Support</a>
           </div>
         </footer>

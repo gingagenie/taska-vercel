@@ -18,7 +18,7 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState<"solo" | "pro" | "enterprise">("solo");
+  const [selectedPlan, setSelectedPlan] = useState<"solo" | "team">("solo");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
@@ -30,12 +30,13 @@ export default function Register() {
       features: ["1 user", "100 SMS/month", "100 emails/month"]
     },
     {
-      id: "team" as const,
-      name: "team",
+      id: "pro" as const,
+      name: "Team",
       price: 49,
       features: ["5 users", "500 SMS/month", "500 emails/month"],
       popular: true
     },
+  ];
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

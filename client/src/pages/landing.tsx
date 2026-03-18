@@ -107,16 +107,10 @@ export default function Landing() {
 
         .strip { padding: 46px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); color: var(--muted); text-align:center; }
         
-        /* Trust badges */
         .trust-badges { display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; margin-top: 20px; }
         .trust-badge { display: flex; flex-direction: column; align-items: center; gap: 6px; }
         .trust-badge .icon { font-size: 28px; }
         .trust-badge .label { font-size: 13px; color: var(--muted); font-weight: 600; }
-        
-        /* Social proof */
-        .social-proof { background: linear-gradient(180deg, #131a27, #101520); border: 1px solid var(--border); border-radius: 12px; padding: 16px 24px; display: inline-flex; align-items: center; gap: 12px; margin-top: 20px; }
-        .social-proof-stars { color: #fbbf24; font-size: 16px; }
-        .social-proof-text { font-size: 14px; color: var(--muted); }
 
         .features { padding: 60px 0 30px; }
         .section-title { font-size: 28px; font-weight: 800; margin-bottom: 18px; text-align:center; }
@@ -126,7 +120,6 @@ export default function Landing() {
         .card p { color: var(--muted); font-size: 14px; line-height: 1.6; }
         .icon { width: 36px; height: 36px; border-radius: 10px; display:grid; place-items:center; background: #0b1220; border:1px solid #1a2233; }
 
-        /* Comparison table */
         .comparison { padding: 60px 0; }
         .comparison-table { background: linear-gradient(180deg, #131a27, #101520); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; }
         .comparison-row { display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--border); align-items: center; }
@@ -143,7 +136,7 @@ export default function Landing() {
         .demo .note { color: var(--muted); font-size: 14px; margin-top: 8px; }
 
         .pricing { padding: 60px 0; }
-        .price-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+        .price-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 18px; max-width: 760px; margin: 0 auto; }
         .price { background: linear-gradient(180deg, #131a27, #101520); border: 1px solid var(--border); border-radius: 18px; padding: 20px; display:flex; flex-direction:column; justify-content:space-between; }
         .price .pill { display:inline-block; font-size:12px; padding:6px 10px; border:1px solid var(--border); border-radius:999px; color:#b7c0ce; }
         .price h4 { margin:10px 0 8px; font-size: 18px; }
@@ -208,7 +201,6 @@ export default function Landing() {
             <h1 className="h1">Field Service Management App for Tradies</h1>
             <p className="lead">Taska is the fast, simple tradie software and job scheduling app for managing customers, equipment, quotes and invoices — all in one place, on desktop and mobile. Built for Australian service businesses.</p>
             
-            {/* Trust badges */}
             <div className="trust-badges">
               <div className="trust-badge">
                 <div className="icon">✓</div>
@@ -236,7 +228,6 @@ export default function Landing() {
                 target="_blank" 
                 rel="noopener noreferrer"
                 onClick={() => handleCTAClick('play_store')}
-                data-testid="button-play-store"
                 style={{
                   display: 'inline-block',
                   backgroundColor: '#000',
@@ -278,11 +269,9 @@ export default function Landing() {
             </div>
             <img 
               src={taskaDemo} 
-              alt="Power up your workflow - Taska field service management dashboard"
+              alt="Taska field service management dashboard"
               className="demo-gif"
               loading="eager"
-              fetchPriority="high"
-              decoding="async"
               width="1400"
               height="900"
             />
@@ -339,7 +328,6 @@ export default function Landing() {
       <section className="comparison container">
         <h2 className="section-title">Taska vs Tradify, ServiceM8 & Spreadsheets</h2>
         <p style={{textAlign: 'center', color: 'var(--muted)', marginBottom: '24px'}}>See why Aussie tradies are switching to Taska</p>
-        
         <div className="comparison-table">
           <div className="comparison-row comparison-header">
             <div className="comparison-feature">Feature</div>
@@ -406,14 +394,13 @@ export default function Landing() {
               loop
               preload="none"
               style={{width: '100%', display: 'block', aspectRatio: '16/10', objectFit: 'cover'}}
-              aria-label="Taska invoice app for Australian service businesses"
             >
               Your browser does not support the video tag.
             </video>
           </div>
           <div>
             <h2 className="section-title" style={{textAlign:'left'}}>See Taska in action</h2>
-            <p className="lead">Create a job, assign a tech, capture photos, and turn it into an invoice — all in under a minute. Watch how our field service management software streamlines your entire tradie workflow from start to finish.</p>
+            <p className="lead">Create a job, assign a tech, capture photos, and turn it into an invoice — all in under a minute.</p>
             <div className="hero-ctas">
               <a className="btn primary" href="/auth/register" onClick={() => handleCTAClick('start_trial')}>Start Free Trial →</a>
               <a className="btn" href="/auth/login" onClick={() => handleCTAClick('login')}>Log in</a>
@@ -428,6 +415,7 @@ export default function Landing() {
         <h2 className="section-title">Simple, Transparent Pricing</h2>
         <p className="strip" style={{marginTop:12, marginBottom:22, background:'transparent', border:'none'}}>No hidden fees. No setup costs. Just simple pricing that grows with your business.</p>
         <div className="price-grid">
+
           <div className="price">
             <div>
               <span className="pill">Solo</span>
@@ -435,62 +423,39 @@ export default function Landing() {
               <div className="amount"><span>$29</span><small>/month</small></div>
               <ul>
                 <li><span className="tick">✓</span> 1 user</li>
-                <li><span className="tick">✓</span> 100 SMS & emails monthly</li>
+                <li><span className="tick">✓</span> 50 SMS & 100 emails monthly</li>
                 <li><span className="tick">✓</span> Jobs, customers, equipment</li>
                 <li><span className="tick">✓</span> Quotes & invoices</li>
                 <li><span className="tick">✓</span> Mobile scheduling</li>
-                <li><span className="tick">✓</span> Advanced scheduling</li>
-                <li><span className="tick">✓</span> Email support</li>
-                <li><span className="tick">✓</span> AI and Chat support</li>
                 <li><span className="tick">✓</span> Xero integration</li>
                 <li><span className="tick">✓</span> SMS job confirmations</li>
+                <li><span className="tick">✓</span> Email & AI support</li>
               </ul>
             </div>
-            <a className="btn cta" href="/auth/register?plan=solo">Start Free Trial</a>
+            <a className="btn cta" href="/auth/register?plan=solo" onClick={() => handleCTAClick('solo')}>Start Free Trial</a>
           </div>
 
           <div className="price popular">
             <div className="ribbon">Most Popular</div>
             <div>
-              <span className="pill">Pro</span>
-              <h4>Taska Pro</h4>
+              <span className="pill">Team</span>
+              <h4>Taska Team</h4>
               <div className="amount"><span>$49</span><small>/month</small></div>
               <ul>
                 <li><span className="tick">✓</span> Up to 5 users</li>
-                <li><span className="tick">✓</span> 500 SMS & emails monthly</li>
+                <li><span className="tick">✓</span> 200 SMS & 500 emails monthly</li>
                 <li><span className="tick">✓</span> Jobs, customers, equipment</li>
                 <li><span className="tick">✓</span> Quotes & invoices</li>
                 <li><span className="tick">✓</span> Mobile scheduling</li>
-                <li><span className="tick">✓</span> Advanced scheduling</li>
-                <li><span className="tick">✓</span> Email support</li>
-                <li><span className="tick">✓</span> AI and Chat support</li>
                 <li><span className="tick">✓</span> Xero integration</li>
                 <li><span className="tick">✓</span> SMS job confirmations</li>
+                <li><span className="tick">✓</span> Customer portal</li>
+                <li><span className="tick">✓</span> Priority support</li>
               </ul>
             </div>
-            <a className="btn primary cta" href="/auth/register?plan=pro">Start Free Trial →</a>
+            <a className="btn primary cta" href="/auth/register?plan=pro" onClick={() => handleCTAClick('team')}>Start Free Trial →</a>
           </div>
 
-          <div className="price">
-            <div>
-              <span className="pill">Enterprise</span>
-              <h4>Taska Enterprise</h4>
-              <div className="amount"><span>$99</span><small>/month</small></div>
-              <ul>
-                <li><span className="tick">✓</span> Up to 12 users</li>
-                <li><span className="tick">✓</span> 2,000 SMS & emails monthly</li>
-                <li><span className="tick">✓</span> Jobs, customers, equipment</li>
-                <li><span className="tick">✓</span> Quotes & invoices</li>
-                <li><span className="tick">✓</span> Mobile scheduling</li>
-                <li><span className="tick">✓</span> Advanced scheduling</li>
-                <li><span className="tick">✓</span> Email support</li>
-                <li><span className="tick">✓</span> AI and Chat support</li>
-                <li><span className="tick">✓</span> Xero integration</li>
-                <li><span className="tick">✓</span> SMS job confirmations</li>
-              </ul>
-            </div>
-            <a className="btn cta" href="/auth/register?plan=enterprise">Start Free Trial</a>
-          </div>
         </div>
         <p className="tiny container" style={{textAlign:'center', marginTop:16}}>All plans include 14‑day free trial · No setup fees · Cancel anytime</p>
       </section>
@@ -499,87 +464,37 @@ export default function Landing() {
       <section className="pricing container" style={{paddingTop: '30px'}}>
         <h2 className="section-title">Need more SMS & emails?</h2>
         <p className="strip" style={{marginTop:12, marginBottom:22, background:'transparent', border:'none'}}>Purchase add-on packs when you need extra credits</p>
-        
         <div className="packs-grid">
           <div>
             <h3 style={{fontSize:'20px', fontWeight:'700', marginBottom:'16px', color:'#e6e9ef'}}>📱 SMS Packs</h3>
             <div style={{display:'grid', gap:'12px'}}>
-              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <div>
-                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>100 SMS Credits</div>
-                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Perfect for small teams</div>
+              {[['100 SMS Credits','Perfect for small teams','$5'],['500 SMS Credits','Great value for growing teams','$20'],['1,000 SMS Credits','Best value for high volume','$35']].map(([name,desc,price]) => (
+                <div key={name} style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                  <div>
+                    <div style={{fontWeight:'600', color:'#e6e9ef'}}>{name}</div>
+                    <div style={{fontSize:'13px', color:'var(--muted)'}}>{desc}</div>
+                  </div>
+                  <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>{price}</div>
                 </div>
-                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$5</div>
-              </div>
-              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <div>
-                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>500 SMS Credits</div>
-                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Great value for growing teams</div>
-                </div>
-                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$20</div>
-              </div>
-              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <div>
-                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>1,000 SMS Credits</div>
-                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Best value for high volume</div>
-                </div>
-                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$35</div>
-              </div>
+              ))}
             </div>
           </div>
-          
           <div>
             <h3 style={{fontSize:'20px', fontWeight:'700', marginBottom:'16px', color:'#e6e9ef'}}>📧 Email Packs</h3>
             <div style={{display:'grid', gap:'12px'}}>
-              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <div>
-                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>200 Email Credits</div>
-                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Perfect for small teams</div>
+              {[['200 Email Credits','Perfect for small teams','$3'],['500 Email Credits','Great value for growing teams','$7'],['1,000 Email Credits','Best value for high volume','$12']].map(([name,desc,price]) => (
+                <div key={name} style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                  <div>
+                    <div style={{fontWeight:'600', color:'#e6e9ef'}}>{name}</div>
+                    <div style={{fontSize:'13px', color:'var(--muted)'}}>{desc}</div>
+                  </div>
+                  <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>{price}</div>
                 </div>
-                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$3</div>
-              </div>
-              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <div>
-                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>500 Email Credits</div>
-                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Great value for growing teams</div>
-                </div>
-                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$7</div>
-              </div>
-              <div style={{background:'linear-gradient(180deg, #131a27, #101520)', border:'1px solid var(--border)', borderRadius:'12px', padding:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <div>
-                  <div style={{fontWeight:'600', color:'#e6e9ef'}}>1,000 Email Credits</div>
-                  <div style={{fontSize:'13px', color:'var(--muted)'}}>Best value for high volume</div>
-                </div>
-                <div style={{fontSize:'20px', fontWeight:'700', color:'#e6e9ef'}}>$12</div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
-        
-        <p className="tiny container" style={{textAlign:'center', marginTop:20}}>Add-on packs are available inside the app when you reach your monthly limits · Credits expire after 6 months</p>
-      </section>
-
-      {/* SEO FAQ for Tradies */}
-      <section className="faq container" style={{paddingTop: '30px'}}>
-        <h2 className="section-title">Taska vs Tradify, ServiceM8 & Other Job Scheduling Apps</h2>
-        <div className="faq-grid">
-          <details>
-            <summary>What is the best <strong>job scheduling app</strong> for tradies?</summary>
-            <p>Taska is a top-rated job scheduling app designed specifically for Australian tradies. It includes mobile scheduling, drag-and-drop calendar, SMS confirmations, and integrates quotes and invoicing in one platform - making it the complete field service management solution.</p>
-          </details>
-          <details>
-            <summary>How can <strong>tradies send invoices</strong> without paperwork?</summary>
-            <p>With Taska's invoice app, tradies can convert completed jobs to invoices with one click, send them via email. No more paper invoices or manual data entry required.</p>
-          </details>
-          <details>
-            <summary>What is <strong>field service management software</strong>?</summary>
-            <p>Field service management software like Taska helps service businesses manage their entire workflow - from job scheduling and customer management to equipment tracking, quotes, invoices, and payments - all in one centralized platform designed for mobile teams.</p>
-          </details>
-          <details>
-            <summary>Does Taska work for Australian tradie businesses?</summary>
-            <p>Yes, Taska is built specifically for Australian service businesses with local features including Xero integration, Australian phone number formatting, AUD pricing, and timezone support for Australia/Melbourne operations.</p>
-          </details>
-        </div>
+        <p className="tiny container" style={{textAlign:'center', marginTop:20}}>Add-on packs available inside the app · Credits expire after 6 months</p>
       </section>
 
       {/* FAQ */}
@@ -608,7 +523,7 @@ export default function Landing() {
           </details>
           <details>
             <summary>Can I change my plan anytime?</summary>
-            <p>Absolutely. Upgrade or downgrade your plan anytime from your account settings. Changes take effect immediately with pro-rated billing.</p>
+            <p>Absolutely. Upgrade or downgrade your plan anytime from your account settings. Changes take effect immediately.</p>
           </details>
         </div>
       </section>
@@ -616,8 +531,16 @@ export default function Landing() {
       {/* Footer */}
       <footer className="footer">
         <div className="container foot">
-          <div className="brand"><span className="logo" /><span>Taska</span></div>
-          <div className="fine">© {new Date().getFullYear()} Taska. All rights reserved.</div>
+          <div className="brand">
+            <img src={taskaLogo} alt="Taska" className="logo" />
+            <span>Taska</span>
+          </div>
+          <div className="fine">© {new Date().getFullYear()} Taska. Built in Australia for Australian tradies.</div>
+          <div className="fine">
+            <a href="/privacy" style={{color:'#7c8797'}}>Privacy</a>
+            {' · '}
+            <a href="mailto:support@taska.info" style={{color:'#7c8797'}}>Support</a>
+          </div>
         </div>
       </footer>
     </main>

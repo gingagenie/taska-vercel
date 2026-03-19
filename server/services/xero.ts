@@ -195,17 +195,16 @@ export class XeroService {
     }
 
     // Step 3: Restore tenants AFTER we have a valid token.
-    // updateTenants() makes a live API call — must have a non-expired token.
-    try {
-      await client.updateTenants();
-    } catch (error) {
-      console.error('[Xero] updateTenants failed:', error);
-      await db
-        .update(orgIntegrations)
-        .set({ isActive: false, updatedAt: new Date() })
-        .where(eq(orgIntegrations.id, integration.id));
-      return null;
-    }
+// Non-fatal if it fails — we still have valid tokens and a known tenantId
+try {
+  await client.updateTenants();
+} catch (error) {
+  console.error('[Xero] updateTenants failed (non-fatal):', error);
+  // Don't mark inactive — tokens are still valid, just manually set the tenant
+  if (integration.tenantId) {
+    client.tenants = [{ tenantId: integration.tenantId, tenantName: integration.tenantName } as any];
+  }
+}
 
     return integration;
   }

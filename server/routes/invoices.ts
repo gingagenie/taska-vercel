@@ -120,7 +120,7 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
   const orgId = (req as any).orgId;
   const tab = req.query.tab as string || 'all';
   const page = parseInt(req.query.page as string) || 1;
-  const pageSize = parseInt(req.query.pageSize as string) || 20;
+  const pageSize = parseInt(req.query.pageSize as string) || 999;
   const offset = (page - 1) * pageSize;
   
   // Build WHERE clause based on tab

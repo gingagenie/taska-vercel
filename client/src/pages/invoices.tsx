@@ -62,7 +62,7 @@ export default function InvoicesPage() {
       case 'unpaid': return 'Unpaid Total';
       case 'paid': return 'Paid Total';
       case 'overdue': return 'Overdue Total';
-      case 'all': return 'Outstanding';
+      case 'all': return 'Outstanding (unpaid)';
       default: return 'Total';
     }
   };

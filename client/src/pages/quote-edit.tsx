@@ -15,15 +15,8 @@ export default function QuoteEdit() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  // Fetch customers and item presets
-  const { data: customers = [] } = useQuery({
-    queryKey: ["/api/customers"],
-  });
-
-  const { data: presets = [] } = useQuery({
-    queryKey: ["/api/item-presets"],
-  });
-
+  const { data: customers = [] } = useQuery({ queryKey: ["/api/customers"] });
+  const { data: presets = [] } = useQuery({ queryKey: ["/api/item-presets"] });
   const { data: meData } = useQuery({ queryKey: ["/api/me"] });
 
   // Fetch quote data if editing
@@ -34,10 +27,10 @@ export default function QuoteEdit() {
 
   const loading = quoteLoading;
 
-  // Transform quote data for the new component
   const initial = quote ? {
-    id: id, // Add the ID for email functionality
+    id,
     customer: { id: (quote as any).customer_id },
+    equipmentId: (quote as any).equipment_id || '',
     title: (quote as any).title,
     notes: (quote as any).notes,
     items: ((quote as any).items || []).map((l: any) => ({
@@ -45,7 +38,7 @@ export default function QuoteEdit() {
       itemName: l.description || '',
       description: l.description || '',
       qty: Number(l.quantity || 1),
-      price: Number(l.unit_price || 0), // Changed from unit_amount to unit_price
+      price: Number(l.unit_price || 0),
       discount: 0,
       tax: Number(l.tax_rate || 0) > 0 ? 'GST' : 'None',
     })),
@@ -54,7 +47,6 @@ export default function QuoteEdit() {
   async function handleSave(payload: any) {
     setSaving(true);
     try {
-      // Transform payload back to API format
       const lines = payload.items.map((item: any) => ({
         description: item.description || item.itemName,
         quantity: item.qty,
@@ -66,6 +58,7 @@ export default function QuoteEdit() {
         await quotesApi.update(id, {
           title: payload.title,
           customer_id: payload.customerId,
+          equipment_id: payload.equipmentId || null,
           notes: payload.notes,
           lines,
         });
@@ -74,23 +67,17 @@ export default function QuoteEdit() {
         const r = await quotesApi.create({
           title: payload.title,
           customerId: payload.customerId,
+          equipmentId: payload.equipmentId || null,
           notes: payload.notes,
           lines,
         });
         qc.invalidateQueries({ queryKey: ["/api/quotes"] });
         nav(`/quotes/${r.id}`);
       }
-      toast({
-        title: "Quote saved",
-        description: "Your quote has been saved successfully.",
-      });
+      toast({ title: "Quote saved", description: "Your quote has been saved successfully." });
     } catch (e: any) {
       console.error("Failed to save quote:", e);
-      toast({
-        title: "Save failed",
-        description: e.message || "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Save failed", description: e.message || "Something went wrong.", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -98,18 +85,15 @@ export default function QuoteEdit() {
 
   async function handleSend(payload: any) {
     await handleSave(payload);
-    // TODO: Add send functionality
   }
 
-
   function handlePreview(payload: any) {
-    // Create a preview window with the quote data
     const previewWindow = window.open('', 'preview', 'width=800,height=600,scrollbars=yes');
     if (!previewWindow) return;
 
     const customer = (customers as any[]).find((c: any) => c.id === payload.customerId) || {};
     const org = (meData as any)?.org || {};
-    
+
     previewWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -130,67 +114,45 @@ export default function QuoteEdit() {
             .total-row { font-weight: bold; font-size: 1.1em; }
             .summary-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; }
             .terms { margin-top: 40px; padding: 20px; border-top: 2px solid #ddd; }
-            @media print { body { margin: 0; } }
           </style>
         </head>
         <body>
           <div class="header">
             <div class="company-info">
               <h1>${org.name || 'Your Company'}</h1>
-              <p>${[org.street, org.suburb, org.state, org.postcode].filter(Boolean).join(', ') || 'Field Service Management'}</p>
+              <p>${[org.street, org.suburb, org.state, org.postcode].filter(Boolean).join(', ') || ''}</p>
               ${org.abn ? `<p>ABN: ${org.abn}</p>` : ''}
             </div>
             <div class="quote-info">
               <h2>QUOTE</h2>
               <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-              <p><strong>Quote #:</strong> ${payload.header?.number || 'QUOTE-001'}</p>
             </div>
           </div>
-          
           <div class="customer-section">
             <h3>Quote For:</h3>
             <p><strong>${customer.name || 'Customer Name'}</strong></p>
             ${customer.email ? `<p>${customer.email}</p>` : ''}
             ${customer.phone ? `<p>${customer.phone}</p>` : ''}
-            ${customer.address ? `<p>${customer.address}</p>` : ''}
-            ${customer.street || customer.suburb || customer.state || customer.postcode ? `<p>${[customer.street, customer.suburb, customer.state, customer.postcode].filter(Boolean).join(', ')}</p>` : ''}
           </div>
-
-          ${payload.notes ? `
-            <div class="summary-section">
-              <h3>Summary:</h3>
-              <p>${payload.notes.replace(/\n/g, '<br>')}</p>
-            </div>
-          ` : ''}
-
+          ${payload.notes ? `<div class="summary-section"><h3>Summary:</h3><p>${payload.notes.replace(/\n/g, '<br>')}</p></div>` : ''}
           <table>
             <thead>
-              <tr>
-                <th>Description</th>
-                <th>Qty</th>
-                <th>Unit Price</th>
-                <th>Tax</th>
-                <th class="amount">Amount</th>
-              </tr>
+              <tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Tax</th><th class="amount">Amount</th></tr>
             </thead>
             <tbody>
               ${payload.items.map((item: any) => {
                 const amount = item.qty * item.price;
                 const taxAmount = item.tax === 'GST' ? amount * 0.1 : 0;
-                const total = amount + taxAmount;
-                return `
-                  <tr>
-                    <td>${item.description || item.itemName}</td>
-                    <td>${item.qty}</td>
-                    <td>$${item.price.toFixed(2)}</td>
-                    <td>${item.tax}</td>
-                    <td class="amount">$${total.toFixed(2)}</td>
-                  </tr>
-                `;
+                return `<tr>
+                  <td>${item.description || item.itemName}</td>
+                  <td>${item.qty}</td>
+                  <td>$${item.price.toFixed(2)}</td>
+                  <td>${item.tax}</td>
+                  <td class="amount">$${(amount + taxAmount).toFixed(2)}</td>
+                </tr>`;
               }).join('')}
             </tbody>
           </table>
-
           <div class="totals">
             <table>
               <tr><td>Subtotal:</td><td class="amount">$${payload.totals.subtotal.toFixed(2)}</td></tr>
@@ -198,17 +160,10 @@ export default function QuoteEdit() {
               <tr class="total-row"><td>Total:</td><td class="amount">$${payload.totals.total.toFixed(2)}</td></tr>
             </table>
           </div>
-
-          ${payload.terms ? `
-            <div class="terms">
-              <h3>Terms & Conditions:</h3>
-              <p>${payload.terms.replace(/\n/g, '<br>')}</p>
-            </div>
-          ` : ''}
-
-          <div style="position: fixed; top: 10px; right: 10px; z-index: 1000;">
-            <button onclick="window.close()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
-            <button onclick="window.print()" style="background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 8px;">Print</button>
+          ${payload.terms ? `<div class="terms"><h3>Terms & Conditions:</h3><p>${payload.terms.replace(/\n/g, '<br>')}</p></div>` : ''}
+          <div style="position:fixed;top:10px;right:10px;">
+            <button onclick="window.close()" style="background:#dc2626;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Close</button>
+            <button onclick="window.print()" style="background:#0ea5e9;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;margin-left:8px;">Print</button>
           </div>
         </body>
       </html>

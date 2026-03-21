@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { quotesApi } from "@/lib/api";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, useLocation } from "wouter";
 import { FileText, User, ArrowRight, Edit, Trash } from "lucide-react";
 import {
@@ -19,57 +20,49 @@ import { useToast } from "@/hooks/use-toast";
 export default function QuotesPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [q, setQ] = useState("");
+  const [tab, setTab] = useState<"active" | "converted">("active");
+  const [, navigate] = useLocation();
+
   const { data: list = [], isLoading } = useQuery({
     queryKey: ["/api/quotes"],
     queryFn: quotesApi.getAll,
   });
-  const [q, setQ] = useState("");
-  const [, navigate] = useLocation();
 
   const deleteQuoteMutation = useMutation({
     mutationFn: (quoteId: string) => quotesApi.delete(quoteId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/quotes"] });
-      toast({
-        title: "Quote deleted",
-        description: "The quote has been successfully deleted.",
-      });
+      toast({ title: "Quote deleted" });
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to delete quote. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to delete quote.", variant: "destructive" });
     },
   });
 
   const handleDeleteQuote = (quote: any) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${quote.title}"? This action cannot be undone.`
-      )
-    ) {
+    if (window.confirm(`Are you sure you want to delete "${quote.title}"? This cannot be undone.`)) {
       deleteQuoteMutation.mutate(quote.id);
     }
   };
 
-  const filtered = (list || []).filter((x: any) =>
+  // Split into active and converted
+  const allFiltered = (list || []).filter((x: any) =>
     [x.title, x.customer_name, x.status].join(" ").toLowerCase().includes(q.toLowerCase())
   );
 
+  const activeQuotes = allFiltered.filter((x: any) => x.status !== "converted");
+  const convertedQuotes = allFiltered.filter((x: any) => x.status === "converted");
+  const filtered = tab === "active" ? activeQuotes : convertedQuotes;
+
   function getStatusBadgeClass(status: string) {
     switch (status) {
-      case "sent":
-        return "bg-blue-100 text-blue-800";
-      case "accepted":
-        return "bg-green-100 text-green-800";
-      case "rejected":
-        return "bg-red-100 text-red-800";
-      case "draft":
-        return "bg-gray-100 text-gray-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      case "sent": return "bg-blue-100 text-blue-800";
+      case "accepted": return "bg-green-100 text-green-800";
+      case "rejected": return "bg-red-100 text-red-800";
+      case "converted": return "bg-purple-100 text-purple-800";
+      case "draft": return "bg-gray-100 text-gray-800";
+      default: return "bg-gray-100 text-gray-800";
     }
   }
 
@@ -99,18 +92,33 @@ export default function QuotesPage() {
         </div>
       </div>
 
+      <div className="mb-2">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "active" | "converted")}>
+          <TabsList className="grid w-full grid-cols-2 sm:w-64">
+            <TabsTrigger value="active">
+              Active
+              <Badge variant="secondary" className="ml-2 text-xs">{activeQuotes.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="converted">
+              Converted
+              <Badge variant="secondary" className="ml-2 text-xs">{convertedQuotes.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
       {isLoading ? (
         <div className="text-center py-8 text-gray-500">Loading quotes…</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12">
           <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <div className="text-xl font-semibold text-gray-600 mb-2">
-            {q ? "No quotes found" : "No quotes yet"}
+            {q ? "No quotes found" : tab === "converted" ? "No converted quotes" : "No quotes yet"}
           </div>
           <div className="text-gray-500 mb-4">
-            {q ? "Try adjusting your search terms" : "Create your first quote to get started"}
+            {q ? "Try adjusting your search terms" : tab === "converted" ? "Quotes converted to jobs will appear here" : "Create your first quote to get started"}
           </div>
-          {!q && (
+          {!q && tab === "active" && (
             <Link href="/quotes/new">
               <a>
                 <Button
@@ -144,7 +152,6 @@ export default function QuotesPage() {
                         {(quote.status || "draft").replace("_", " ")}
                       </Badge>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
                         <div className="text-gray-500">Customer</div>
@@ -153,7 +160,6 @@ export default function QuotesPage() {
                           {quote.customer_name || "No customer assigned"}
                         </div>
                       </div>
-
                       <div>
                         <div className="text-gray-500">Total</div>
                         <div className="font-medium">
@@ -161,13 +167,11 @@ export default function QuotesPage() {
                         </div>
                       </div>
                     </div>
-
                     <div className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-financial transition-colors pt-1">
                       <span>Click for details</span>
                       <ArrowRight className="h-3 w-3" />
                     </div>
                   </div>
-
                   <div className="ml-4" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -176,11 +180,7 @@ export default function QuotesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            navigate(`/quotes/${quote.id}/edit`);
-                          }}
-                        >
+                        <DropdownMenuItem onClick={() => navigate(`/quotes/${quote.id}/edit`)}>
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </DropdownMenuItem>

@@ -1,14 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LineItemsTable } from './parts/LineItemsTable';
-import { TotalsCard } from './parts/TotalsCard';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
-import { Mail, Eye } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -37,6 +30,7 @@ interface LineItem {
 interface Initial {
   id?: string;
   customer?: { id: string };
+  equipmentId?: string;
   issueDate?: string;
   dueDate?: string;
   number?: string;
@@ -57,6 +51,7 @@ interface Totals {
 interface Payload {
   mode: string;
   customerId: string;
+  equipmentId: string;
   header: {
     issueDate: string;
     dueDate: string;
@@ -97,19 +92,20 @@ export function QuoteInvoicePage({
   saving = false,
 }: QuoteInvoicePageProps) {
   const { toast } = useToast();
-  // Fetch previous items for autocomplete
+
   const { data: previousItems = [] } = useQuery<Array<{ itemName: string; description: string; price: number; tax: string }>>({
     queryKey: [`/api/${mode}s/previous-items`],
     retry: false,
   });
-  
-  // Fetch organization data for default terms
-  const { data: orgData } = useQuery<{ org: { invoice_terms?: string; quote_terms?: string; [key: string]: any } }>({ 
-    queryKey: ["/api/me"], 
-    retry: false 
+
+  const { data: orgData } = useQuery<{ org: { invoice_terms?: string; quote_terms?: string; [key: string]: any } }>({
+    queryKey: ["/api/me"],
+    retry: false,
   });
-  const org = orgData?.org || { invoice_terms: '', quote_terms: '' };
+  const org = orgData?.org || {};
+
   const [customerId, setCustomerId] = useState(initial?.customer?.id || '');
+  const [equipmentId, setEquipmentId] = useState(initial?.equipmentId || '');
   const [issueDate, setIssueDate] = useState(initial?.issueDate || new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(initial?.dueDate || '');
   const [docNo, setDocNo] = useState(initial?.number || '');
@@ -118,11 +114,33 @@ export function QuoteInvoicePage({
   const [title, setTitle] = useState(initial?.title || '');
   const [notes, setNotes] = useState(initial?.notes || '');
   const [terms, setTerms] = useState(initial?.terms || '');
+  const [items, setItems] = useState<LineItem[]>(
+    initial?.items?.length ? initial.items : [
+      { id: crypto.randomUUID(), itemName: '', description: '', qty: 1, price: 0, discount: 0, tax: 'GST' },
+    ]
+  );
 
-  // Update form fields when initial data loads
+  // Fetch equipment for selected customer
+  const { data: equipmentList = [] } = useQuery<any[]>({
+    queryKey: ['/api/jobs/equipment', customerId],
+    queryFn: async () => {
+      if (!customerId) return [];
+      const res = await fetch(`/api/jobs/equipment?customerId=${customerId}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!customerId && mode === 'quote',
+  });
+
+  // Reset equipment when customer changes
+  useEffect(() => {
+    if (!initial?.equipmentId) setEquipmentId('');
+  }, [customerId]);
+
   useEffect(() => {
     if (initial) {
       setCustomerId(initial.customer?.id || '');
+      setEquipmentId(initial.equipmentId || '');
       setIssueDate(initial.issueDate || new Date().toISOString().slice(0, 10));
       setDueDate(initial.dueDate || '');
       setDocNo(initial.number || '');
@@ -131,32 +149,21 @@ export function QuoteInvoicePage({
       setTitle(initial.title || '');
       setNotes(initial.notes || '');
       setTerms(initial.terms || '');
-      if (initial.items?.length) {
-        setItems(initial.items);
-      }
+      if (initial.items?.length) setItems(initial.items);
     }
   }, [initial]);
 
-  // Auto-populate terms when org data loads and no terms are set
   useEffect(() => {
-    if (!terms && org && orgData) {
-      if (mode === 'quote' && org.quote_terms) {
-        setTerms(org.quote_terms);
-      } else if (mode === 'invoice' && org.invoice_terms) {
-        setTerms(org.invoice_terms);
-      }
+    if (!terms && orgData) {
+      if (mode === 'quote' && org.quote_terms) setTerms(org.quote_terms);
+      else if (mode === 'invoice' && org.invoice_terms) setTerms(org.invoice_terms);
     }
-  }, [org, orgData, mode, terms]);
-  const [items, setItems] = useState<LineItem[]>(
-    initial?.items?.length ? initial.items : [
-      { id: crypto.randomUUID(), itemName: '', description: '', qty: 1, price: 0, discount: 0, tax: 'GST' },
-    ]
-  );
+  }, [org, orgData, mode]);
 
   const customer = useMemo(() => customers.find(c => c.id === customerId) || null, [customerId, customers]);
 
   function setItem(id: string, key: keyof LineItem, value: any) {
-    setItems(prev => prev.map(it => (it.id === id ? { ...it, [key]: value } : it)));
+    setItems(prev => prev.map(it => it.id === id ? { ...it, [key]: value } : it));
   }
 
   function addRow() {
@@ -164,19 +171,19 @@ export function QuoteInvoicePage({
   }
 
   function removeRow(id: string) {
-    setItems(prev => (prev.length > 1 ? prev.filter(it => it.id !== id) : prev));
+    setItems(prev => prev.length > 1 ? prev.filter(it => it.id !== id) : prev);
   }
 
   function applyPreset(id: string, presetId: string) {
     const p = presets.find(p => p.id === presetId);
     if (!p) return;
-    setItems(prev => prev.map(it => (it.id === id ? {
+    setItems(prev => prev.map(it => it.id === id ? {
       ...it,
       itemName: p.name,
       description: p.description || p.name,
       price: Number(p.unit_amount || 0),
       tax: (p.tax_rate || 0) > 0 ? 'GST' : 'None',
-    } : it)));
+    } : it));
   }
 
   const totals = useMemo(() => calcTotals(items, taxMode), [items, taxMode]);
@@ -184,26 +191,17 @@ export function QuoteInvoicePage({
   const payload = useMemo(() => ({
     mode,
     customerId,
+    equipmentId,
     header: { issueDate, dueDate, number: docNo, reference, taxMode },
     items,
     totals,
     title,
     notes,
     terms,
-  }), [mode, customerId, issueDate, dueDate, docNo, reference, taxMode, items, totals, title, notes, terms]);
+  }), [mode, customerId, equipmentId, issueDate, dueDate, docNo, reference, taxMode, items, totals, title, notes, terms]);
 
-  async function handleSave() { 
-    await onSave?.(payload); 
-  }
-  
-  async function handleSend() { 
-    await onSend?.(payload); 
-  }
-
-  async function handlePreviewAndEmail() {
-    // Just show the preview
-    onPreview?.(payload);
-  }
+  async function handleSave() { await onSave?.(payload); }
+  async function handleSend() { await onSend?.(payload); }
 
   if (loading) {
     return (
@@ -218,88 +216,47 @@ export function QuoteInvoicePage({
       {/* Top bar */}
       <div className="sticky top-0 z-20 bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-4">
-          {/* Mobile: Stack vertically */}
           <div className="flex flex-col gap-4 md:hidden">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-blue-600 grid place-items-center font-bold text-white text-lg">T</div>
               <div className="leading-tight">
-                <div className="font-semibold text-gray-900">New {mode === 'quote' ? 'quote' : 'invoice'}</div>
+                <div className="font-semibold text-gray-900">{initial?.id ? 'Edit' : 'New'} {mode === 'quote' ? 'quote' : 'invoice'}</div>
                 <div className="text-sm text-gray-500">Draft</div>
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <button 
-                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                onClick={() => onPreview?.(payload)}
-              >
-                Preview
-              </button>
-              <div className="grid grid-cols-1 gap-2">
-                <button 
-                  className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? 'Saving...' : 'Save & close'}
-                </button>
-                {onDelete && (
-                  <button
-                    className="w-full px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500"
-                    onClick={onDelete}
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
+              <button className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" onClick={() => onPreview?.(payload)}>Preview</button>
+              <button className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save & close'}</button>
+              {onDelete && <button className="w-full px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-md hover:bg-red-50" onClick={onDelete}>Delete</button>}
             </div>
           </div>
-
-          {/* Desktop: Horizontal layout */}
           <div className="hidden md:flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-blue-600 grid place-items-center font-bold text-white text-lg">T</div>
               <div className="leading-tight">
-                <div className="font-semibold text-gray-900">New {mode === 'quote' ? 'quote' : 'invoice'}</div>
+                <div className="font-semibold text-gray-900">{initial?.id ? 'Edit' : 'New'} {mode === 'quote' ? 'quote' : 'invoice'}</div>
                 <div className="text-sm text-gray-500">Draft</div>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button 
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                onClick={() => onPreview?.(payload)}
-              >
-                Preview
-              </button>
-              <button 
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                onClick={handleSave}
-                disabled={saving}
-              >
-                {saving ? 'Saving...' : 'Save & close'}
-              </button>
-              {onDelete && (
-                <button
-                  className="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  onClick={onDelete}
-                >
-                  Delete
-                </button>
-              )}
+              <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" onClick={() => onPreview?.(payload)}>Preview</button>
+              <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save & close'}</button>
+              {onDelete && <button className="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-md hover:bg-red-50" onClick={onDelete}>Delete</button>}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Header form */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6">
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
           <div className="px-4 md:px-6 py-4">
-            {/* Contact - Full width on mobile */}
+
+            {/* Contact */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Contact</label>
-              <select 
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                value={customerId} 
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={customerId}
                 onChange={e => setCustomerId(e.target.value)}
               >
                 <option value="">Choose a contact</option>
@@ -307,85 +264,67 @@ export function QuoteInvoicePage({
               </select>
             </div>
 
-            {/* Date fields - 2 columns on mobile, responsive */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              {/* Issue Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">{mode === 'quote' ? 'Issue date' : 'Issue date'}</label>
-                <input 
-                  type="date" 
-                  value={issueDate} 
-                  onChange={e => setIssueDate(e.target.value)} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                />
+            {/* Equipment — only show for quotes when customer is selected */}
+            {mode === 'quote' && customerId && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Equipment</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={equipmentId}
+                  onChange={e => setEquipmentId(e.target.value)}
+                >
+                  <option value="">No equipment selected</option>
+                  {(equipmentList as any[]).map((eq: any) => (
+                    <option key={eq.id} value={eq.id}>{eq.name}</option>
+                  ))}
+                </select>
+                {equipmentList.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-1">No equipment found for this customer.</p>
+                )}
               </div>
+            )}
 
-              {/* Expiry/Due Date */}
+            {/* Dates */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Issue date</label>
+                <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{mode === 'quote' ? 'Expiry date' : 'Due date'}</label>
-                <input 
-                  type="date" 
-                  value={dueDate} 
-                  onChange={e => setDueDate(e.target.value)} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                />
+                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
 
-            {/* Document details - 2 columns on mobile */}
+            {/* Doc number + reference */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Quote/Invoice Number */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{mode === 'quote' ? 'Quote number' : 'Invoice number'}</label>
-                <input 
-                  value={docNo} 
-                  onChange={e => setDocNo(e.target.value)} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                  placeholder={`${mode === 'quote' ? 'QU' : 'INV'}-0001`}
-                />
+                <input value={docNo} onChange={e => setDocNo(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={`${mode === 'quote' ? 'QU' : 'INV'}-0001`} />
               </div>
-
-              {/* Reference */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Reference</label>
-                <input 
-                  value={reference} 
-                  onChange={e => setReference(e.target.value)} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                  placeholder="Job reference"
-                />
+                <input value={reference} onChange={e => setReference(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Job reference" />
               </div>
             </div>
 
-            {/* Title Field - Full Width Below */}
+            {/* Title */}
             <div className="mt-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
-              <input 
-                value={title} 
-                onChange={e => setTitle(e.target.value)} 
-                placeholder={`${mode === 'quote' ? 'Quote' : 'Invoice'} title`}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-              />
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder={`${mode === 'quote' ? 'Quote' : 'Invoice'} title`} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-
           </div>
         </div>
 
-        {/* Summary Field - Moved up */}
+        {/* Summary */}
         <div className="mt-6">
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">Summary</label>
-            <textarea 
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-              rows={3}
-              placeholder="Brief description of this quote/invoice..."
-            />
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={3} placeholder="Brief description..." />
           </div>
         </div>
 
-        {/* Line Items Table */}
+        {/* Line Items */}
         <div className="mt-6">
           <LineItemsTable
             items={items}
@@ -400,7 +339,7 @@ export function QuoteInvoicePage({
           />
         </div>
 
-        {/* Totals Section */}
+        {/* Totals */}
         <div className="mt-6 flex justify-center md:justify-end">
           <div className="w-full max-w-sm">
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
@@ -426,24 +365,14 @@ export function QuoteInvoicePage({
           </div>
         </div>
 
-        {/* Terms Section */}
+        {/* Terms */}
         <div className="mt-6">
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
             <label className="block text-sm font-medium text-gray-700 mb-3">Terms</label>
-            <textarea 
-              value={terms}
-              onChange={e => setTerms(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
-              rows={4}
-              placeholder="Terms and Conditions for On-Site Forklift Repairs
-
-1. Scope of Work
-Fix My Forklift agrees to provide repair and maintenance services for forklift trucks on-site at the customer's location. The services will be performed based on the assessment of the forklift's condition."
-            />
+            <textarea value={terms} onChange={e => setTerms(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" rows={4} placeholder="Terms and conditions..." />
           </div>
         </div>
       </div>
-
     </div>
   );
 }
@@ -453,7 +382,7 @@ function currency(n: number): string {
   return v.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
 }
 
-function calcTotals(items: LineItem[], taxMode: string): Totals {
+function calcTotals(items: LineItem[], taxMode: string) {
   const GST = 0.10;
   const rows = items.map(it => {
     const base = Number(it.qty || 0) * Number(it.price || 0) * (1 - Number(it.discount || 0) / 100);
@@ -466,8 +395,9 @@ function calcTotals(items: LineItem[], taxMode: string): Totals {
     }
     return { base, gst: 0, total: base };
   });
-  const subtotal = rows.reduce((a, r) => a + r.base, 0);
-  const gst = rows.reduce((a, r) => a + r.gst, 0);
-  const total = rows.reduce((a, r) => a + r.total, 0);
-  return { subtotal, gst, total };
+  return {
+    subtotal: rows.reduce((a, r) => a + r.base, 0),
+    gst: rows.reduce((a, r) => a + r.gst, 0),
+    total: rows.reduce((a, r) => a + r.total, 0),
+  };
 }

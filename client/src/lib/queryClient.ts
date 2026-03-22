@@ -95,6 +95,20 @@ async function refreshTokenIfNeeded(): Promise<boolean> {
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
+
+    // ✅ Trial expired — redirect immediately
+    if (res.status === 403) {
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData.error === 'trial_expired') {
+          window.location.href = '/trial-expired';
+          return;
+        }
+      } catch {
+        // not a trial_expired 403, fall through
+      }
+    }
+
     const error = new Error(`${res.status}: ${text}`);
     
     // Handle subscription-related errors globally

@@ -1223,4 +1223,144 @@ router.delete('/blog/:id', async (req, res) => {
   }
 });
 
+// ============================================================================
+// GOD MODE ENDPOINTS — paste these at the bottom of server/routes/admin.ts
+// before the `export default router;` line
+// ============================================================================
+
+import bcrypt from "bcrypt";
+
+/**
+ * GET /api/admin/godmode/orgs
+ * List all orgs with trial status, user count, active/disabled state
+ */
+router.get('/godmode/orgs', async (req, res) => {
+  try {
+    const orgs = await db.execute(sql`
+      SELECT
+        o.id,
+        o.name,
+        o.slug,
+        o.created_at,
+        o.trial_expires_at,
+        o.disabled,
+        COUNT(u.id) as user_count,
+        MIN(u.email) as owner_email
+      FROM orgs o
+      LEFT JOIN users u ON u.org_id = o.id
+      GROUP BY o.id, o.name, o.slug, o.created_at, o.trial_expires_at, o.disabled
+      ORDER BY o.created_at DESC
+    `);
+
+    res.json(orgs);
+  } catch (error) {
+    console.error('[GODMODE] Error listing orgs:', error);
+    res.status(500).json({ error: 'Failed to list orgs' });
+  }
+});
+
+/**
+ * POST /api/admin/godmode/orgs
+ * Create a new org + admin user in one shot
+ * Body: { org_name, slug, email, password, trial_days }
+ */
+router.post('/godmode/orgs', async (req, res) => {
+  const { org_name, slug, email, password, trial_days = 30 } = req.body;
+
+  if (!org_name || !email || !password) {
+    return res.status(400).json({ error: 'org_name, email and password are required' });
+  }
+
+  try {
+    // Check email not already used
+    const existing = await db.execute(sql`
+      SELECT id FROM users WHERE email = ${email}
+    `);
+    if ((existing as any[]).length > 0) {
+      return res.status(400).json({ error: 'Email already in use' });
+    }
+
+    // Generate slug if not provided
+    const orgSlug = slug || org_name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+    // Hash password
+    const password_hash = await bcrypt.hash(password, 10);
+
+    // Trial expiry
+    const trial_expires_at = new Date(Date.now() + trial_days * 24 * 60 * 60 * 1000);
+
+    // Create org
+    const orgResult = await db.execute(sql`
+      INSERT INTO orgs (id, name, slug, trial_expires_at, created_at)
+      VALUES (gen_random_uuid(), ${org_name}, ${orgSlug}, ${trial_expires_at}, NOW())
+      RETURNING id, name, slug, trial_expires_at
+    `);
+    const org = (orgResult as any[])[0];
+
+    // Create user
+    const userResult = await db.execute(sql`
+      INSERT INTO users (id, org_id, name, email, password_hash, role, created_at)
+      VALUES (gen_random_uuid(), ${org.id}, ${email}, ${email}, ${password_hash}, 'admin', NOW())
+      RETURNING id, email, role
+    `);
+    const user = (userResult as any[])[0];
+
+    console.log(`[GODMODE] Created org "${org_name}" (${org.id}) with user ${email}`);
+    res.status(201).json({ org, user });
+
+  } catch (error) {
+    console.error('[GODMODE] Error creating org:', error);
+    res.status(500).json({ error: 'Failed to create org', detail: error instanceof Error ? error.message : error });
+  }
+});
+
+/**
+ * PATCH /api/admin/godmode/orgs/:id/trial
+ * Set or extend trial expiry
+ * Body: { trial_days } — sets expiry to now + trial_days
+ */
+router.patch('/godmode/orgs/:id/trial', async (req, res) => {
+  const { id } = req.params;
+  const { trial_days } = req.body;
+
+  if (!trial_days || trial_days < 1) {
+    return res.status(400).json({ error: 'trial_days must be a positive number' });
+  }
+
+  try {
+    const trial_expires_at = new Date(Date.now() + trial_days * 24 * 60 * 60 * 1000);
+
+    await db.execute(sql`
+      UPDATE orgs SET trial_expires_at = ${trial_expires_at} WHERE id = ${id}
+    `);
+
+    console.log(`[GODMODE] Set trial for org ${id} to ${trial_expires_at}`);
+    res.json({ success: true, trial_expires_at });
+  } catch (error) {
+    console.error('[GODMODE] Error updating trial:', error);
+    res.status(500).json({ error: 'Failed to update trial' });
+  }
+});
+
+/**
+ * PATCH /api/admin/godmode/orgs/:id/disable
+ * Disable or re-enable an org
+ * Body: { disabled: true | false }
+ */
+router.patch('/godmode/orgs/:id/disable', async (req, res) => {
+  const { id } = req.params;
+  const { disabled } = req.body;
+
+  try {
+    await db.execute(sql`
+      UPDATE orgs SET disabled = ${disabled} WHERE id = ${id}
+    `);
+
+    console.log(`[GODMODE] Org ${id} disabled=${disabled}`);
+    res.json({ success: true, disabled });
+  } catch (error) {
+    console.error('[GODMODE] Error toggling org disabled state:', error);
+    res.status(500).json({ error: 'Failed to update org' });
+  }
+});
 export default router;

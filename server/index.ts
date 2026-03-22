@@ -221,7 +221,7 @@ app.use("/uploads", (req: Request, res: Response, next: NextFunction) => {
   return staticUploads(req, res, next);
 });
 
-/* ---------------- Tenant Guard (unchanged, but uses same Pool) ---------------- */
+/* ---------------- Tenant Guard ---------------- */
 
 async function tenantGuard(req: Request, res: Response, next: NextFunction) {
   let client: any;
@@ -238,6 +238,17 @@ async function tenantGuard(req: Request, res: Response, next: NextFunction) {
     req.pgClient = client;
 
     await client.query("SET app.current_org = $1::uuid", [orgId]);
+
+    // ✅ Trial expiry check
+    const trialResult = await client.query(
+      "SELECT trial_expires_at FROM orgs WHERE id = $1",
+      [orgId]
+    );
+    const trialExpiresAt = trialResult.rows[0]?.trial_expires_at;
+    if (trialExpiresAt && new Date(trialExpiresAt) < new Date()) {
+      client.release();
+      return res.status(403).json({ error: "trial_expired" });
+    }
 
     let released = false;
     res.on("close", () => {
@@ -256,8 +267,6 @@ async function tenantGuard(req: Request, res: Response, next: NextFunction) {
 
 /* ---------------- Tracing & Health ---------------- */
 
-
-
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/health/db", async (_req, res) => {
   try {
@@ -272,12 +281,6 @@ app.get("/health/db", async (_req, res) => {
 });
 
 /* ---------------- Mount Routes ---------------- */
-
-// If you plan to re-enable tenant guard for all /api, do it here AFTER auth:
-// app.use("/api", (req, res, next) => {
-//   if (req.path.startsWith("/auth/") || req.path === "/auth") return next();
-//   return tenantGuard(req, res, next);
-// });
 
 import { members } from "./routes/members";
 import auth from "./routes/auth";

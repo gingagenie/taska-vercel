@@ -91,6 +91,7 @@ const OrganizationsAdmin = lazy(() => import("@/pages/admin/organizations"));
 const AnalyticsAdmin = lazy(() => import("@/pages/admin/analytics"));
 const BlogAdmin = lazy(() => import("@/pages/admin/blog"));
 const AdminSupportPage = lazy(() => import("@/pages/admin/support"));
+const GodMode = lazy(() => import("@/pages/admin/god-mode")); // ✅ God Mode
 import { AdminLayout } from "@/components/admin/AdminLayout";
 
 // Role-based route protection
@@ -237,6 +238,7 @@ function AdminAppContent() {
         }
       >
         <Switch>
+          <Route path="/admin/god-mode" component={() => <AdminRoute component={GodMode} />} /> {/* ✅ God Mode */}
           <Route path="/admin/organizations" component={() => <AdminRoute component={OrganizationsAdmin} />} />
           <Route path="/admin/analytics" component={() => <AdminRoute component={AnalyticsAdmin} />} />
           <Route path="/admin/blog" component={() => <AdminRoute component={BlogAdmin} />} />

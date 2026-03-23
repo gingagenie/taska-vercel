@@ -27,7 +27,7 @@ req.session.save((err) => {
   if (err) return res.status(500).json({ error: "Session save failed" });
   res.json({ ok: true });
 });
-
+});
 // POST /api/godmode/logout
 router.post("/logout", (req, res) => {
   req.session.godmode = false;

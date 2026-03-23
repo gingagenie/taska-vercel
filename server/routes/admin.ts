@@ -1228,7 +1228,7 @@ router.delete('/blog/:id', async (req, res) => {
 // before the `export default router;` line
 // ============================================================================
 
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 /**
  * GET /api/admin/godmode/orgs

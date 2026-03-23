@@ -1388,6 +1388,7 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     await db.execute(sql`DELETE FROM job_notes WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_parts WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM job_charges WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`UPDATE quotes SET job_id = NULL WHERE job_id = ${jobId}::uuid`);
     await db.execute(sql`DELETE FROM jobs WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
 
     res.json({

@@ -18,7 +18,7 @@ import Dashboard from "@/pages/dashboard";
 import Jobs from "@/pages/jobs";
 import Customers from "@/pages/customers";
 import Equipment from "@/pages/equipment";
-
+import GodMode from "@/pages/godmode";
 import ScheduleResponsive from "@/pages/schedule-responsive";
 import Quotes from "@/pages/quotes";
 import QuoteEdit from "@/pages/quote-edit";
@@ -565,6 +565,11 @@ function CustomerApp() {
 // Top-level App Content with route branching BEFORE any hook calls
 function AppContent() {
   const [location] = useLocation();
+
+  // ⚡ God Mode - completely standalone
+  if (location.startsWith("/godmode")) {
+    return <GodMode />;
+  }
 
   // ✅ Customer portal routes - separate app (no Taska login required)
   if (location.startsWith("/portal")) {

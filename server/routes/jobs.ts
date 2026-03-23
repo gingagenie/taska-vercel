@@ -1664,14 +1664,28 @@ jobs.delete("/:jobId", requireAuth, requireOrg, async (req, res) => {
   const orgId = (req as any).orgId;
   if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
 
-  await db.execute(sql`
-    delete from jobs
-    where id=${jobId}::uuid and org_id=${orgId}::uuid
-  `);
+  try {
+    // Delete child records first to avoid FK constraint errors
+    await db.execute(sql`DELETE FROM job_assignments  WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_equipment    WHERE job_id = ${jobId}::uuid`);
+    await db.execute(sql`DELETE FROM job_photos       WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM job_hours        WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM job_notes        WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM job_parts        WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM job_charges      WHERE job_id = ${jobId}::uuid AND org_id = ${orgId}::uuid`);
+    await db.execute(sql`DELETE FROM job_notifications WHERE job_id = ${jobId}::uuid`);
 
-  res.json({ ok: true });
+    await db.execute(sql`
+      DELETE FROM jobs
+      WHERE id = ${jobId}::uuid AND org_id = ${orgId}::uuid
+    `);
+
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error("DELETE /api/jobs/%s error:", jobId, e);
+    res.status(500).json({ error: e?.message || "Failed to delete job" });
+  }
 });
-
 jobs.delete("/completed/:jobId", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;

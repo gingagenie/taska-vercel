@@ -23,6 +23,8 @@ router.post("/login", async (req, res) => {
   }
 
   req.session.godmode = true;
+req.session.save((err) => {
+  if (err) return res.status(500).json({ error: "Session save failed" });
   res.json({ ok: true });
 });
 

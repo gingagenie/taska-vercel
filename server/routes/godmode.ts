@@ -17,6 +17,10 @@ router.post("/login", async (req, res) => {
   const { password } = req.body;
   const expected = process.env.GODMODE_PASSWORD;
 
+console.log('[GODMODE] Expected:', expected);
+  console.log('[GODMODE] Received:', password);
+  console.log('[GODMODE] Match:', password === expected);
+
   if (!expected) return res.status(500).json({ error: "GODMODE_PASSWORD not configured" });
   if (!password || password !== expected) {
     return res.status(401).json({ error: "Invalid password" });

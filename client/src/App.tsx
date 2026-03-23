@@ -18,7 +18,7 @@ import Dashboard from "@/pages/dashboard";
 import Jobs from "@/pages/jobs";
 import Customers from "@/pages/customers";
 import Equipment from "@/pages/equipment";
-import GodMode from "@/pages/godmode";
+import GodMode from "@/pages/godmode.tsx";
 import ScheduleResponsive from "@/pages/schedule-responsive";
 import Quotes from "@/pages/quotes";
 import QuoteEdit from "@/pages/quote-edit";

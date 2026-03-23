@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { MapPin, AlertTriangle, Trash, MessageSquare, CheckCircle, Check, ArrowLeft } from "lucide-react";
 import { utcIsoToLocalString } from "@/lib/time";
 import { SmsLimitWarning } from "@/components/usage/send-limit-warnings";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
 
 export default function JobView() {
@@ -195,10 +196,7 @@ export default function JobView() {
     setCompleting(true);
     setErrComplete(null);
     try {
-      const response = await fetch(`/api/jobs/${jobId}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await apiRequest('POST', `/api/jobs/${jobId}/complete`);
       
       if (!response.ok) {
         const error = await response.json();

@@ -108,22 +108,15 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   try {
     const orgId = (req as any).orgId;
     const userId = (req as any).user?.id;
-    const { title, customerId, equipmentId, notes, lines = [] } = req.body;
+    const { title, customerId, notes, lines = [] } = req.body;
     
     if (!title || !customerId) {
       return res.status(400).json({ error: "title & customerId required" });
     }
     
     const result: any = await db.execute(sql`
-      INSERT INTO quotes (org_id, customer_id, equipment_id, title, notes, created_by)
-      VALUES (
-        ${orgId}, 
-        ${customerId}, 
-        ${equipmentId || null},
-        ${title}, 
-        ${notes || ''}, 
-        ${userId}
-      )
+      INSERT INTO quotes (org_id, customer_id, title, notes, created_by)
+      VALUES (${orgId}, ${customerId}, ${title}, ${notes || ''}, ${userId})
       RETURNING id
     `);
     
@@ -186,13 +179,12 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
 router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params; const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
-  const { title, customer_id, equipment_id, notes, lines = [] } = req.body || {};
+  const { title, customer_id, notes, lines = [] } = req.body || {};
   
   await db.execute(sql`
     update quotes set
       title=coalesce(${title}, title),
       customer_id=coalesce(${customer_id}::uuid, customer_id),
-      equipment_id=${equipment_id || null},
       notes=coalesce(${notes}, notes)
     where id=${id}::uuid and org_id=${orgId}::uuid
   `);
@@ -448,15 +440,6 @@ router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
     `);
     
     const jobId = jr[0].id;
-
-    // Link equipment to the job if quote had equipment assigned
-    if (quote.equipment_id) {
-      await db.execute(sql`
-        insert into job_equipment (job_id, equipment_id)
-        values (${jobId}::uuid, ${quote.equipment_id}::uuid)
-        on conflict do nothing
-      `);
-    }
 
     for (const line of lines) {
       const isLabour = /\b(labour|labor|work|hours?)\b/i.test(line.description);

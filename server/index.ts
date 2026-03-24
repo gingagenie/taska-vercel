@@ -17,7 +17,6 @@ import { startContinuousCompensationProcessor, stopContinuousCompensationProcess
 import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
 import portalRouter from "./routes/portal";
 import serviceRequestsRoutes from "./routes/service-requests";
-import godmodeRouter from "./routes/godmode";
 import xeroRouter from "./routes/xero";
 
 import cors from "cors";
@@ -58,7 +57,7 @@ const isProd = process.env.NODE_ENV === "production";
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || undefined;
 
 if (CLIENT_ORIGIN) {
-  (cors({
+  app.use(cors({
     origin: CLIENT_ORIGIN,
     credentials: true,
   }));
@@ -66,15 +65,15 @@ if (CLIENT_ORIGIN) {
 
 /* ---------------- Body Parsing (Stripe raw for webhooks) ---------------- */
 
-((req, res, next) => {
+app.use((req, res, next) => {
   if (req.path === '/api/subscriptions/webhook' || req.path === '/api/usage/packs/webhook') {
     express.raw({ type: 'application/json' })(req, res, next);
   } else {
     express.json()(req, res, next);
   }
 });
-(express.urlencoded({ extended: false }));
-(cookieParser());
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
 
 /* ---------------- ✅ Postgres-backed Sessions ---------------- */
 
@@ -133,13 +132,13 @@ const supportSessionConfig = session({
 });
 
 // Apply regular session to non-support routes
-((req, res, next) => {
+app.use((req, res, next) => {
   if (req.path.startsWith("/support")) return next();
   return regularSessionConfig(req, res, next);
 });
 
 // Apply support session to support routes
-("/support", supportSessionConfig);
+app.use("/support", supportSessionConfig);
 
 /* ---------------- Schema Ensure & Storage Self-test ---------------- */
 
@@ -206,7 +205,7 @@ if (!fs.existsSync(avatarsDir)) fs.mkdirSync(avatarsDir, { recursive: true });
 
 const staticUploads = express.static(uploadsDir, { maxAge: "1y", immutable: true });
 
-("/uploads", (req: Request, res: Response, next: NextFunction) => {
+app.use("/uploads", (req: Request, res: Response, next: NextFunction) => {
   const relativePath = decodeURIComponent(req.path.replace(/^\/+/, ""));
   const filePath = path.join(uploadsDir, relativePath);
   if (fs.existsSync(filePath)) return staticUploads(req, res, next);
@@ -291,19 +290,18 @@ import adminRoutes from "./routes/admin";
 import { health } from "./routes/health";
 import { debugRouter } from "./routes/debug";
 
-("/api/me", me);
-(driveTest);
-("/api/auth", auth);
-app.use("/api/godmode", godmodeRouter);
-("/api/members", members);
-("/api/debug", debugRouter);
-("/api/admin", adminRoutes);
-("/health", health);
+app.use("/api/me", me);
+app.use(driveTest);
+app.use("/api/auth", auth);
+app.use("/api/members", members);
+app.use("/api/debug", debugRouter);
+app.use("/api/admin", adminRoutes);
+app.use("/health", health);
 // ✅ Job photos routes (Supabase storage)
-("/api/jobs", jobPhotos);
-("/api/service-requests", serviceRequestsRoutes);
+app.use("/api/jobs", jobPhotos);
+app.use("/api/service-requests", serviceRequestsRoutes);
 
-("/api/quotes", quotesRouter);
+app.use("/api/quotes", quotesRouter);
 app.use("/api/xero", xeroRouter);
 
 app.use("/support/api/auth", supportAuth);

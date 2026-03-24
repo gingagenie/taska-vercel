@@ -1,79 +1,99 @@
 import { XeroClient } from 'xero-node';
-import { Invoice, Quote, Contact, Payment } from 'xero-node';
+import { Invoice, Quote, Contact, Payment, QuoteStatusCodes } from 'xero-node';
 import { db } from '../db/client';
 import { orgIntegrations } from '../../shared/schema';
 import { eq, and } from 'drizzle-orm';
 
+// Redirect URIs used for OAuth — must match Xero app settings
+const REDIRECT_URIS = [
+  `https://9ff4247f-54b9-471d-b15a-9b5fc08ac58f-00-4wmqlnoqtzla.janeway.replit.dev/api/xero/callback`,
+  `https://taska.info/api/xero/callback`,
+];
+
+// offline_access is REQUIRED to receive a long-lived refresh token.
+// Without it, Xero does not issue a refresh token and the connection
+// drops after every 30-minute access token expiry.
+const XERO_SCOPES = [
+  'openid',
+  'profile',
+  'email',
+  'accounting.transactions',
+  'accounting.settings',
+  'offline_access',
+];
+
+/** Create a fresh XeroClient configured with app credentials only (no tokens). */
+function makeBaseClient(): XeroClient {
+  if (!process.env.XERO_CLIENT_ID || !process.env.XERO_CLIENT_SECRET) {
+    throw new Error('Xero credentials not configured. Set XERO_CLIENT_ID and XERO_CLIENT_SECRET environment variables.');
+  }
+  return new XeroClient({
+    clientId: process.env.XERO_CLIENT_ID,
+    clientSecret: process.env.XERO_CLIENT_SECRET,
+    redirectUris: REDIRECT_URIS,
+    scopes: XERO_SCOPES,
+  });
+}
+
 export class XeroService {
-  private client: XeroClient | null = null;
+  // Used only for the OAuth consent flow (stateless between users)
+  private oauthClient: XeroClient | null = null;
 
   constructor() {
     if (process.env.XERO_CLIENT_ID && process.env.XERO_CLIENT_SECRET) {
-      this.client = new XeroClient({
-        clientId: process.env.XERO_CLIENT_ID,
-        clientSecret: process.env.XERO_CLIENT_SECRET,
-        redirectUris: ['https://taska.info/api/xero/callback'],
-        // offline_access is required to receive a long-lived refresh token
-        // Without it Xero does not issue a refresh token and the connection
-        // drops after every 30-minute access token expiry.
-        scopes: [
-          'openid',
-          'profile',
-          'email',
-          'accounting.transactions',
-          'accounting.settings',
-          'offline_access',
-        ],
-      });
+      this.oauthClient = makeBaseClient();
     }
   }
 
-  private ensureClient() {
-    if (!this.client) {
+  private ensureOauthClient(): XeroClient {
+    if (!this.oauthClient) {
       throw new Error('Xero credentials not configured. Set XERO_CLIENT_ID and XERO_CLIENT_SECRET environment variables.');
     }
-    return this.client;
+    return this.oauthClient;
   }
 
   isConfigured(): boolean {
-    return this.client !== null;
+    return this.oauthClient !== null;
   }
 
+  /**
+   * Build the Xero consent URL, embedding orgId as the OAuth state parameter
+   * so the callback can identify the org even if the session is unavailable.
+   * offline_access must also appear in the scope here (not just the client config).
+   */
   async getAuthUrl(state: string): Promise<string> {
-    this.ensureClient();
+    this.ensureOauthClient();
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: process.env.XERO_CLIENT_ID!,
       redirect_uri: 'https://taska.info/api/xero/callback',
-      // offline_access must be in the auth URL scope as well
-      scope: 'openid profile email accounting.transactions accounting.settings offline_access',
+      scope: XERO_SCOPES.join(' '),
       state,
     });
     return `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
   }
 
   async handleCallback(code: string, orgId: string) {
-    const client = this.ensureClient();
-    console.log('Xero callback: Processing code:', code.substring(0, 20) + '...');
+    const client = this.ensureOauthClient();
+    console.log('[Xero] handleCallback: processing code for org', orgId);
 
-    const callbackUrl = `https://taska.info/api/xero/callback?code=${code}`;
-    const tokenSet = await client.apiCallback(callbackUrl);
-    console.log('Xero callback: Token set received:', !!tokenSet.access_token);
-    console.log('Xero callback: Refresh token received:', !!tokenSet.refresh_token);
+    const tokenSet = await client.apiCallback(code);
+    console.log('[Xero] handleCallback: access_token present:', !!tokenSet.access_token);
+    console.log('[Xero] handleCallback: refresh_token present:', !!tokenSet.refresh_token);
 
     if (!tokenSet.access_token) {
       throw new Error('Failed to get access token from Xero');
     }
 
     if (!tokenSet.refresh_token) {
-      console.warn('Xero callback: WARNING - No refresh token received. offline_access scope may be missing from Xero app config.');
+      console.warn('[Xero] handleCallback: WARNING - no refresh token received. offline_access scope may be missing from Xero app config.');
     }
 
-    console.log('Xero callback: Updating tenants...');
+    console.log('[Xero] handleCallback: updating tenants...');
     try {
       await client.updateTenants();
     } catch (tenantError: any) {
-      console.error('Xero callback: updateTenants failed:', JSON.stringify(tenantError));
+      console.error('[Xero] handleCallback: updateTenants failed:', JSON.stringify(tenantError));
       throw tenantError;
     }
 
@@ -82,151 +102,201 @@ export class XeroService {
       throw new Error('No Xero tenants available');
     }
 
+    const expiresAt = new Date(Date.now() + (tokenSet.expires_in || 1800) * 1000);
+
+    // Upsert integration
+    const existing = await db
+      .select()
+      .from(orgIntegrations)
+      .where(and(eq(orgIntegrations.orgId, orgId), eq(orgIntegrations.provider, 'xero')))
+      .limit(1);
+
     const integration = {
       orgId,
       provider: 'xero' as const,
-      accessToken: tokenSet.access_token || null,
+      accessToken: tokenSet.access_token,
       refreshToken: tokenSet.refresh_token || null,
-      tokenExpiresAt: new Date(Date.now() + (tokenSet.expires_in || 1800) * 1000),
+      tokenExpiresAt: expiresAt,
       tenantId: activeTenant.tenantId || null,
       tenantName: activeTenant.tenantName || null,
       isActive: true,
     };
 
-    const existingIntegration = await db
-      .select()
-      .from(orgIntegrations)
-      .where(and(
-        eq(orgIntegrations.orgId, orgId),
-        eq(orgIntegrations.provider, 'xero')
-      ))
-      .limit(1);
-
-    if (existingIntegration.length > 0) {
+    if (existing.length > 0) {
       await db
         .update(orgIntegrations)
         .set({ ...integration, updatedAt: new Date() })
-        .where(eq(orgIntegrations.id, existingIntegration[0].id));
+        .where(eq(orgIntegrations.id, existing[0].id));
+      console.log('[Xero] handleCallback: updated existing integration for org', orgId);
     } else {
       await db.insert(orgIntegrations).values(integration);
+      console.log('[Xero] handleCallback: inserted new integration for org', orgId);
     }
 
     return { tenantName: activeTenant.tenantName, tenantId: activeTenant.tenantId };
   }
 
   async getOrgIntegration(orgId: string) {
-    const integration = await db
+    const rows = await db
       .select()
       .from(orgIntegrations)
       .where(and(
         eq(orgIntegrations.orgId, orgId),
         eq(orgIntegrations.provider, 'xero'),
-        eq(orgIntegrations.isActive, true)
+        eq(orgIntegrations.isActive, true),
       ))
       .limit(1);
 
-    return integration[0] || null;
+    return rows[0] || null;
   }
 
   /**
-   * Hydrates the xero-node client from DB tokens, refreshes if needed,
-   * then calls updateTenants() with a valid token.
-   * Always call this before any Xero API request.
+   * Refresh the stored tokens if they are within 5 minutes of expiry.
+   * Persists new tokens to DB. Returns the (possibly updated) integration row,
+   * or null if not found / refresh failed.
+   *
+   * On unrecoverable refresh failure (e.g. refresh token revoked / 60-day expiry),
+   * marks the integration as inactive so the UI correctly shows "disconnected".
    */
   async refreshTokensIfNeeded(orgId: string) {
     const integration = await this.getOrgIntegration(orgId);
     if (!integration) return null;
 
-    const client = this.ensureClient();
-
-    // Step 1: Always hydrate client from DB — Railway is stateless,
-    // the singleton XeroClient loses its token on every cold start.
-    client.setTokenSet({
-      access_token: integration.accessToken || undefined,
-      refresh_token: integration.refreshToken || undefined,
-    });
-
-    // Step 2: Refresh token if expired or expiring within 5 minutes.
-    // Do this BEFORE calling updateTenants so we always have a valid token.
     const now = new Date();
-    const expiresAt = new Date(integration.tokenExpiresAt || 0);
+    const expiresAt = integration.tokenExpiresAt ? new Date(integration.tokenExpiresAt) : new Date(0);
     const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000);
 
-    if (needsRefresh && integration.refreshToken) {
-      try {
-        console.log('[Xero] Access token expired or expiring soon, refreshing...');
-        const newTokenSet = await client.refreshToken();
+    if (!needsRefresh) return integration;
 
-        if (!newTokenSet.access_token) {
-          throw new Error('Refresh returned no access token');
-        }
-
-        // CRITICAL: Always save the new refresh token — Xero refresh tokens
-        // are one-time use. If we don't save the new one the chain is broken.
-        await db
-          .update(orgIntegrations)
-          .set({
-            accessToken: newTokenSet.access_token || null,
-            refreshToken: newTokenSet.refresh_token || null,
-            tokenExpiresAt: new Date(Date.now() + (newTokenSet.expires_in || 1800) * 1000),
-            updatedAt: new Date(),
-          })
-          .where(eq(orgIntegrations.id, integration.id));
-
-        // Update in-memory token set with fresh tokens
-        client.setTokenSet({
-          access_token: newTokenSet.access_token || undefined,
-          refresh_token: newTokenSet.refresh_token || undefined,
-        });
-
-        integration.accessToken = newTokenSet.access_token || null;
-        integration.refreshToken = newTokenSet.refresh_token || null;
-
-        console.log('[Xero] Token refreshed successfully, new expiry in', newTokenSet.expires_in, 'seconds');
-      } catch (error) {
-        console.error('[Xero] Token refresh failed:', error);
-        // Mark inactive so user gets a clean "reconnect" prompt
-        await db
-          .update(orgIntegrations)
-          .set({ isActive: false, updatedAt: new Date() })
-          .where(eq(orgIntegrations.id, integration.id));
-        return null;
-      }
+    if (!integration.refreshToken) {
+      console.warn('[Xero] refreshTokensIfNeeded: no refresh token for org', orgId, '— marking inactive');
+      await this.markInactive(orgId);
+      return null;
     }
 
-    // Step 3: Restore tenants AFTER we have a valid token.
-// Non-fatal if it fails — we still have valid tokens and a known tenantId
-try {
-  await client.updateTenants();
-} catch (error) {
-  console.error('[Xero] updateTenants failed (non-fatal):', error);
-  // Don't mark inactive — tokens are still valid, just manually set the tenant
-  if (integration.tenantId) {
-    client.tenants = [{ tenantId: integration.tenantId, tenantName: integration.tenantName } as any];
-  }
-}
+    try {
+      // Create a fresh client per refresh to avoid shared-state race conditions
+      const client = makeBaseClient();
+      client.setTokenSet({
+        access_token: integration.accessToken || undefined,
+        refresh_token: integration.refreshToken,
+        expires_in: 0, // Force xero-node to treat as expired
+      });
 
-    return integration;
+      const newTokenSet = await client.refreshToken();
+
+      if (!newTokenSet.access_token) {
+        throw new Error('Refresh returned no access token');
+      }
+
+      const newExpiresAt = new Date(Date.now() + (newTokenSet.expires_in || 1800) * 1000);
+
+      // CRITICAL: Always save the new refresh token — Xero refresh tokens are
+      // one-time use. If we don't save the new one the token chain is broken.
+      await db
+        .update(orgIntegrations)
+        .set({
+          accessToken: newTokenSet.access_token,
+          refreshToken: newTokenSet.refresh_token || integration.refreshToken,
+          tokenExpiresAt: newExpiresAt,
+          updatedAt: new Date(),
+        })
+        .where(eq(orgIntegrations.id, integration.id));
+
+      console.log('[Xero] refreshTokensIfNeeded: tokens refreshed for org', orgId, 'new expiry in', newTokenSet.expires_in, 'seconds');
+
+      return {
+        ...integration,
+        accessToken: newTokenSet.access_token,
+        refreshToken: newTokenSet.refresh_token || integration.refreshToken,
+        tokenExpiresAt: newExpiresAt,
+      };
+    } catch (error: any) {
+      console.error('[Xero] refreshTokensIfNeeded: refresh failed for org', orgId, error?.message || error);
+      // Mark inactive so status endpoint reflects reality
+      await this.markInactive(orgId);
+      return null;
+    }
+  }
+
+  private async markInactive(orgId: string) {
+    await db
+      .update(orgIntegrations)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(eq(orgIntegrations.orgId, orgId), eq(orgIntegrations.provider, 'xero')));
+  }
+
+  /**
+   * Build a fresh XeroClient fully hydrated with the org's current tokens.
+   * Always refreshes if tokens are near expiry before returning.
+   * Returns null if the org has no active integration.
+   */
+  private async getHydratedClient(orgId: string): Promise<{ client: XeroClient; integration: NonNullable<Awaited<ReturnType<XeroService['refreshTokensIfNeeded']>>> } | null> {
+    const integration = await this.refreshTokensIfNeeded(orgId);
+    if (!integration || !integration.accessToken) return null;
+
+    const client = makeBaseClient();
+    client.setTokenSet({
+      access_token: integration.accessToken,
+      refresh_token: integration.refreshToken || undefined,
+      expires_in: Math.max(
+        0,
+        Math.floor((new Date(integration.tokenExpiresAt!).getTime() - Date.now()) / 1000),
+      ),
+    });
+
+    return { client, integration };
+  }
+
+  /**
+   * Execute a Xero API call, automatically retrying once on 401
+   * (force-refreshing the token before the retry).
+   */
+  private async callWithRetry<T>(
+    orgId: string,
+    fn: (client: XeroClient, tenantId: string) => Promise<T>,
+  ): Promise<T> {
+    const hydrated = await this.getHydratedClient(orgId);
+    if (!hydrated) {
+      throw new Error('Xero integration not found or tokens expired. Please reconnect in Settings.');
+    }
+
+    const { client, integration } = hydrated;
+
+    try {
+      return await fn(client, integration.tenantId || '');
+    } catch (error: any) {
+      const status = error?.response?.statusCode ?? error?.statusCode;
+      if (status !== 401) throw error;
+
+      console.warn('[Xero] callWithRetry: got 401, force-refreshing token for org', orgId);
+
+      // Force refresh by stamping epoch expiry in DB, then re-hydrate
+      await db
+        .update(orgIntegrations)
+        .set({ tokenExpiresAt: new Date(0), updatedAt: new Date() })
+        .where(and(eq(orgIntegrations.orgId, orgId), eq(orgIntegrations.provider, 'xero')));
+
+      const retryHydrated = await this.getHydratedClient(orgId);
+      if (!retryHydrated) {
+        throw new Error('Xero token refresh failed after 401. Please reconnect in Settings.');
+      }
+
+      return await fn(retryHydrated.client, retryHydrated.integration.tenantId || '');
+    }
   }
 
   async getAccounts(orgId: string) {
-    const integration = await this.refreshTokensIfNeeded(orgId);
-    if (!integration) {
-      throw new Error('Xero integration not found or tokens expired');
-    }
-
-    const client = this.ensureClient();
-    const response = await client.accountingApi.getAccounts(
-      integration.tenantId || ''
-    );
-
-    return (response.body.accounts || [])
-      .filter((a: any) => a.type === 'BANK')
-      .map((a: any) => ({
-        code: a.code,
-        name: a.name,
-        type: a.type,
-      }));
+    return this.callWithRetry(orgId, async (client, tenantId) => {
+      const response = await client.accountingApi.getAccounts(tenantId);
+      return (response.body.accounts || [])
+        .filter((a: any) => a.type === 'BANK')
+        .map((a: any) => ({
+          code: a.code,
+          name: a.name,
+          type: a.type,
+        }));
+    });
   }
 
   async savePaymentAccountCode(orgId: string, accountCode: string) {
@@ -243,116 +313,94 @@ try {
   }
 
   async createPayment(orgId: string, xeroInvoiceId: string, amount: number, date: string) {
-    const integration = await this.refreshTokensIfNeeded(orgId);
-    if (!integration) {
-      throw new Error('Xero integration not found or tokens expired');
-    }
+    return this.callWithRetry(orgId, async (client, tenantId) => {
+      const { db: dbClient } = await import('../db/client');
+      const { sql } = await import('drizzle-orm');
 
-    const { db: dbClient } = await import('../db/client');
-    const { sql } = await import('drizzle-orm');
-    const result: any = await dbClient.execute(sql`
-      SELECT xero_payment_account_code FROM org_integrations WHERE id = ${integration.id}::uuid
-    `);
-    const accountCode = result[0]?.xero_payment_account_code;
+      // Re-fetch integration for payment account code
+      const rows: any = await dbClient.execute(sql`
+        SELECT xero_payment_account_code FROM org_integrations
+        WHERE org_id = ${orgId}::uuid AND provider = 'xero' AND is_active = true
+        LIMIT 1
+      `);
+      const accountCode = rows[0]?.xero_payment_account_code;
 
-    if (!accountCode) {
-      throw new Error('No Xero payment account configured. Set one in Settings → Integrations.');
-    }
+      if (!accountCode) {
+        throw new Error('No Xero payment account configured. Set one in Settings → Integrations.');
+      }
 
-    const client = this.ensureClient();
+      const payment: Payment = {
+        invoice: { invoiceID: xeroInvoiceId },
+        account: { code: accountCode },
+        amount,
+        date,
+      };
 
-    const payment: Payment = {
-      invoice: { invoiceID: xeroInvoiceId },
-      account: { code: accountCode },
-      amount,
-      date,
-    };
-
-    const response = await client.accountingApi.createPayment(
-      integration.tenantId || '',
-      payment
-    );
-
-    return response.body.payments?.[0];
+      const response = await client.accountingApi.createPayment(tenantId, payment);
+      return response.body.payments?.[0];
+    });
   }
 
   /**
    * Creates an invoice in Xero as AUTHORISED (approved, awaiting payment).
    * Xero generates the invoice number — written back to Taska after creation.
-   * If not connected to Xero, Taska generates its own inv-XXXX number instead.
    * accountCode 200 = Sales (standard AU Xero)
-   * taxType OUTPUT2 = GST on income (10%), NONE = no tax
+   * taxType OUTPUT = GST on income (10%), NONE = no tax
    */
   async createInvoiceInXero(orgId: string, invoiceData: any) {
-    const integration = await this.refreshTokensIfNeeded(orgId);
-    if (!integration) {
-      throw new Error('Xero integration not found or tokens expired');
-    }
+    return this.callWithRetry(orgId, async (client, tenantId) => {
+      const contact: Contact = {
+        name: invoiceData.customerName,
+        emailAddress: invoiceData.customerEmail,
+      };
 
-    const client = this.ensureClient();
+      const xeroInvoice: Invoice = {
+        type: Invoice.TypeEnum.ACCREC,
+        contact,
+        lineItems: invoiceData.items.map((item: any) => ({
+          description: item.name || item.description,
+          quantity: item.quantity || 1,
+          unitAmount: parseFloat(item.price || '0'),
+          accountCode: '200',
+          taxType: Number(item.taxRate || 0) > 0 ? 'OUTPUT' : 'NONE',
+        })),
+        date: new Date().toISOString().split('T')[0],
+        dueDate: invoiceData.dueAt
+          ? new Date(invoiceData.dueAt).toISOString().split('T')[0]
+          : undefined,
+        status: Invoice.StatusEnum.AUTHORISED,
+        currencyCode: invoiceData.currency || 'AUD',
+      };
 
-    const contact: Contact = {
-      name: invoiceData.customerName,
-      emailAddress: invoiceData.customerEmail,
-    };
-
-    const xeroInvoice: Invoice = {
-      type: Invoice.TypeEnum.ACCREC,
-      contact,
-      lineItems: invoiceData.items.map((item: any) => ({
-        description: item.name || item.description,
-        quantity: item.quantity || 1,
-        unitAmount: parseFloat(item.price || '0'),
-        accountCode: '200',
-        taxType: Number(item.taxRate || 0) > 0 ? 'OUTPUT' : 'NONE',
-      })),
-      date: new Date().toISOString().split('T')[0],
-      dueDate: invoiceData.dueAt ? new Date(invoiceData.dueAt).toISOString().split('T')[0] : undefined,
-      status: Invoice.StatusEnum.AUTHORISED,
-      currencyCode: invoiceData.currency || 'AUD',
-    };
-
-    const response = await client.accountingApi.createInvoices(
-      integration.tenantId || '',
-      { invoices: [xeroInvoice] }
-    );
-
-    return response.body.invoices?.[0];
+      const response = await client.accountingApi.createInvoices(tenantId, { invoices: [xeroInvoice] });
+      return response.body.invoices?.[0];
+    });
   }
 
   async createQuoteInXero(orgId: string, quoteData: any) {
-    const integration = await this.refreshTokensIfNeeded(orgId);
-    if (!integration) {
-      throw new Error('Xero integration not found or tokens expired');
-    }
+    return this.callWithRetry(orgId, async (client, tenantId) => {
+      const contact: Contact = {
+        name: quoteData.customerName,
+        emailAddress: quoteData.customerEmail,
+      };
 
-    const client = this.ensureClient();
+      const xeroQuote: Quote = {
+        contact,
+        lineItems: quoteData.items.map((item: any) => ({
+          description: item.name || item.description,
+          quantity: item.quantity || 1,
+          unitAmount: parseFloat(item.price || '0'),
+        })),
+        date: new Date().toISOString().split('T')[0],
+        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: QuoteStatusCodes.DRAFT,
+        currencyCode: quoteData.currency || 'AUD',
+        title: quoteData.title,
+      };
 
-    const contact: Contact = {
-      name: quoteData.customerName,
-      emailAddress: quoteData.customerEmail,
-    };
-
-    const xeroQuote: Quote = {
-      contact,
-      lineItems: quoteData.items.map((item: any) => ({
-        description: item.name || item.description,
-        quantity: item.quantity || 1,
-        unitAmount: parseFloat(item.price || '0'),
-      })),
-      date: new Date().toISOString().split('T')[0],
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: Quote.StatusEnum.DRAFT,
-      currencyCode: quoteData.currency || 'AUD',
-      title: quoteData.title,
-    };
-
-    const response = await client.accountingApi.createQuotes(
-      integration.tenantId || '',
-      { quotes: [xeroQuote] }
-    );
-
-    return response.body.quotes?.[0];
+      const response = await client.accountingApi.createQuotes(tenantId, { quotes: [xeroQuote] });
+      return response.body.quotes?.[0];
+    });
   }
 
   async disconnectIntegration(orgId: string) {
@@ -361,7 +409,7 @@ try {
       .set({ isActive: false, updatedAt: new Date() })
       .where(and(
         eq(orgIntegrations.orgId, orgId),
-        eq(orgIntegrations.provider, 'xero')
+        eq(orgIntegrations.provider, 'xero'),
       ));
   }
 }

@@ -175,4 +175,23 @@ router.patch("/orgs/:id/reset-password", requireGodmode, async (req, res) => {
   }
 });
 
+/* ── Delete org ──────────────────────────────────────────────────────── */
+
+router.delete("/orgs/:id", requireGodmode, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await db.execute(sql`DELETE FROM users WHERE org_id = ${id}`);
+    const result = await db.execute(sql`DELETE FROM orgs WHERE id = ${id} RETURNING id`);
+    if ((result as any[]).length === 0) {
+      return res.status(404).json({ error: "Org not found" });
+    }
+    console.log(`[GODMODE] Deleted org ${id}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[GODMODE] Error deleting org:", error);
+    res.status(500).json({ error: "Failed to delete org", detail: error instanceof Error ? error.message : error });
+  }
+});
+
 export default router;

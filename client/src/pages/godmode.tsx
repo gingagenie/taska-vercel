@@ -64,6 +64,8 @@ function api(password: string) {
       fetch(`/api/godmode${path}`, { method: "POST", headers, body: JSON.stringify(body) }).then(r => r.json()),
     patch: (path: string, body: object) =>
       fetch(`/api/godmode${path}`, { method: "PATCH", headers, body: JSON.stringify(body) }).then(r => r.json()),
+    delete: (path: string) =>
+      fetch(`/api/godmode${path}`, { method: "DELETE", headers }).then(r => r.json()),
   };
 }
 
@@ -355,6 +357,38 @@ function ResetPasswordModal({ org, password, onDone, onClose }: { org: Org; pass
   );
 }
 
+function DeleteOrgModal({ org, password, onDone, onClose }: { org: Org; password: string; onDone: () => void; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function confirm() {
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await api(password).delete(`/orgs/${org.id}`);
+      if (res.error) { setErr(res.error); return; }
+      onDone();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Delete Org — ${org.name}`} onClose={onClose}>
+      <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 20 }}>
+        This will permanently delete <strong style={{ color: "#e5e7eb" }}>{org.name}</strong> and all its users ({org.user_count}). This cannot be undone.
+      </p>
+      {err && <p style={S.error}>{err}</p>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <button type="button" style={S.btnGhost} onClick={onClose}>Cancel</button>
+        <button type="button" style={S.btnDanger} disabled={busy} onClick={confirm}>
+          {busy ? "Deleting…" : "Delete Org"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 /* ─── Stats bar ──────────────────────────────────────────────────────── */
 
 function Stats({ orgs }: { orgs: Org[] }) {
@@ -442,6 +476,7 @@ type ModalState =
   | { type: "create" }
   | { type: "trial"; org: Org }
   | { type: "reset"; org: Org }
+  | { type: "delete"; org: Org }
   | null;
 
 function Dashboard({ password, onLogout }: { password: string; onLogout: () => void }) {
@@ -571,6 +606,12 @@ function Dashboard({ password, onLogout }: { password: string; onLogout: () => v
                           >
                             {org.disabled ? "Enable" : "Disable"}
                           </button>
+                          <button
+                            style={{ ...S.btnDanger, background: "#450a0a", borderColor: "#7f1d1d" }}
+                            onClick={() => setModal({ type: "delete", org })}
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -603,6 +644,14 @@ function Dashboard({ password, onLogout }: { password: string; onLogout: () => v
           org={modal.org}
           password={password}
           onDone={() => setModal(null)}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal?.type === "delete" && (
+        <DeleteOrgModal
+          org={modal.org}
+          password={password}
+          onDone={() => { setModal(null); load(); }}
           onClose={() => setModal(null)}
         />
       )}

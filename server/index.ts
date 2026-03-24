@@ -287,9 +287,11 @@ import auth from "./routes/auth";
 import supportAuth from "./routes/support-auth";
 import supportAdmin from "./routes/support-admin";
 import adminRoutes from "./routes/admin";
+import godmodeRouter from "./routes/godmode";
 import { health } from "./routes/health";
 import { debugRouter } from "./routes/debug";
 
+app.use("/api/godmode", godmodeRouter);
 app.use("/api/me", me);
 app.use(driveTest);
 app.use("/api/auth", auth);

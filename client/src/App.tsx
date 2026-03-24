@@ -51,6 +51,7 @@ import Register from "@/pages/auth-register";
 import Login from "@/pages/auth-login";
 import TrialExpired from "@/pages/trial-expired";
 import PrivacyPolicy from "@/pages/privacy";
+import GodModePage from "@/pages/godmode";
 
 // Lazy load customer support pages for performance
 const CustomerSupportDashboard = lazy(() => import("@/pages/support"));
@@ -565,6 +566,11 @@ function CustomerApp() {
 // Top-level App Content with route branching BEFORE any hook calls
 function AppContent() {
   const [location] = useLocation();
+
+  // God mode - fully standalone, own password
+  if (location.startsWith("/godmode")) {
+    return <GodModePage />;
+  }
 
   // ✅ Customer portal routes - separate app (no Taska login required)
   if (location.startsWith("/portal")) {

@@ -30,7 +30,7 @@ export default function Register() {
       features: ["1 user", "100 SMS/month", "100 emails/month"]
     },
     {
-      id: "pro" as const,
+      id: "team" as const,
       name: "Team",
       price: 49,
       features: ["5 users", "500 SMS/month", "500 emails/month"],

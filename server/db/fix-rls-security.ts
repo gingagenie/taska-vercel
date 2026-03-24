@@ -110,7 +110,7 @@ export async function fixRLSSecurityVulnerability() {
       console.log(`  Malformed org access: Blocked with error (GOOD)`)
     }
 
-    const fixWorking = validTest[0].count > 0 && invalidTest[0].count === 0
+    const fixWorking = (validTest[0] as any).count > 0 && (invalidTest[0] as any).count === 0
     
     if (fixWorking) {
       console.log('\n🎉 SECURITY FIX SUCCESSFUL!')

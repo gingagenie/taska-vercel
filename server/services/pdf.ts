@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import puppeteer, { type Browser as PuppeteerBrowser } from "puppeteer";
 import PDFDocument from "pdfkit";
 import { generateInvoiceEmailTemplate } from "./email";
 
@@ -46,7 +46,7 @@ async function generateInvoicePdfWithPuppeteer(
   organization: any,
   customer: any
 ): Promise<Buffer> {
-  let browser: puppeteer.Browser | null = null;
+  let browser: PuppeteerBrowser | null = null;
 
   try {
     browser = await puppeteer.launch({
@@ -108,7 +108,7 @@ function generateInvoicePdfWithPdfKitSync(
 
     const currency = invoice.currency || "AUD";
 
-    doc.on("data", (c) => chunks.push(c));
+    doc.on("data", (c: Buffer) => chunks.push(c));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
@@ -130,7 +130,7 @@ function generateInvoicePdfWithPdfKitSync(
 
     doc
       .fontSize(11)
-      .text("Bill To", leftX, doc.y, { bold: true })
+      .font("Helvetica-Bold").text("Bill To", leftX, doc.y).font("Helvetica")
       .moveDown(0.3);
     doc.fontSize(10);
     doc.text(customer?.name || "", leftX);
@@ -488,7 +488,7 @@ function serviceSheetHtml(p: ServiceSheetPayload): string {
 async function generateServiceSheetPdfWithPuppeteer(
   p: ServiceSheetPayload
 ): Promise<Buffer> {
-  let browser: puppeteer.Browser | null = null;
+  let browser: PuppeteerBrowser | null = null;
 
   try {
     browser = await puppeteer.launch({
@@ -558,7 +558,7 @@ function generateServiceSheetPdfWithPdfKitSync(
     const doc = new PDFDocument({ size: "A4", margin: 50 });
     const chunks: Buffer[] = [];
 
-    doc.on("data", (c) => chunks.push(c));
+    doc.on("data", (c: Buffer) => chunks.push(c));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 

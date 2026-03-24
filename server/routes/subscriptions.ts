@@ -28,7 +28,7 @@ if (!STRIPE_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY')
 }
 const stripe = new Stripe(STRIPE_KEY, {
-  apiVersion: '2023-10-16',
+  apiVersion: '2025-08-27.basil',
 })
 
 // ===============================================================
@@ -156,7 +156,7 @@ router.post('/create-checkout', requireAuth, requireOrg, async (req, res) => {
       },
       success_url: `${BASE_URL}/settings?tab=billing&success=true`,
       cancel_url: `${BASE_URL}/settings?tab=billing&canceled=true`,
-      locale: 'en-AU',
+      locale: 'en',
       metadata: { orgId, planId },
     })
 
@@ -374,8 +374,8 @@ router.post('/webhook', async (req, res) => {
               stripeSubscriptionId: sub.id,
               status: sub.status as any, // 'trialing' during trial; flips to 'active' on first paid invoice
               trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
-              currentPeriodStart: sub.current_period_start ? new Date(sub.current_period_start * 1000) : null,
-              currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : null,
+              currentPeriodStart: (sub as any).current_period_start ? new Date((sub as any).current_period_start * 1000) : null,
+              currentPeriodEnd: (sub as any).current_period_end ? new Date((sub as any).current_period_end * 1000) : null,
               updatedAt: new Date(),
             })
             .where(eq(orgSubscriptions.orgId, orgId as string))

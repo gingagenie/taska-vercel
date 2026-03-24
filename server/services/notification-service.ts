@@ -203,7 +203,7 @@ export class NotificationService {
       }
 
       // Store reservation ID for cleanup on error
-      reservationId = quotaCheck.reservationId;
+      reservationId = quotaCheck.reservationId ?? null;
 
       // Create notification history record
       notificationId = await this.createNotificationHistory({
@@ -318,7 +318,7 @@ export class NotificationService {
       }
 
       // Store reservation ID for cleanup on error
-      reservationId = quotaCheck.reservationId;
+      reservationId = quotaCheck.reservationId ?? null;
 
       // Create notification history record
       notificationId = await this.createNotificationHistory({
@@ -454,8 +454,8 @@ export class NotificationService {
   ): Promise<NotificationResult[]> {
     try {
       // Get ticket and related data
-      const [ticketData] = await db.execute(sql`
-        SELECT 
+      const [ticketData] = (await db.execute(sql`
+        SELECT
           st.id, st.title, st.description, st.priority, st.org_id,
           o.name as org_name,
           c.name as customer_name, c.email as customer_email,
@@ -465,7 +465,7 @@ export class NotificationService {
         LEFT JOIN users c ON st.submitted_by = c.id
         LEFT JOIN users u ON st.assigned_to = u.id
         WHERE st.id = ${ticketId}
-      `);
+      `)) as any[];
 
       if (!ticketData) {
         throw new Error('Ticket not found');
@@ -531,8 +531,8 @@ export class NotificationService {
   ): Promise<NotificationResult[]> {
     try {
       // Get ticket, message author, and related data
-      const [ticketData] = await db.execute(sql`
-        SELECT 
+      const [ticketData] = (await db.execute(sql`
+        SELECT
           st.id, st.title, st.priority, st.org_id, st.submitted_by, st.assigned_to,
           o.name as org_name,
           customer.name as customer_name,
@@ -544,7 +544,7 @@ export class NotificationService {
         LEFT JOIN users author ON ${authorId}::uuid = author.id
         LEFT JOIN users staff ON st.assigned_to = staff.id
         WHERE st.id = ${ticketId}
-      `);
+      `)) as any[];
 
       if (!ticketData) {
         throw new Error('Ticket not found');
@@ -616,8 +616,8 @@ export class NotificationService {
   ): Promise<NotificationResult[]> {
     try {
       // Get ticket and assignment data
-      const [ticketData] = await db.execute(sql`
-        SELECT 
+      const [ticketData] = (await db.execute(sql`
+        SELECT
           st.id, st.title, st.description, st.priority, st.org_id,
           o.name as org_name,
           customer.name as customer_name,
@@ -629,7 +629,7 @@ export class NotificationService {
         LEFT JOIN users assignee ON ${assignedToId}::uuid = assignee.id
         LEFT JOIN users assigner ON ${assignedById}::uuid = assigner.id
         WHERE st.id = ${ticketId}
-      `);
+      `)) as any[];
 
       if (!ticketData) {
         throw new Error('Ticket not found');
@@ -681,8 +681,8 @@ export class NotificationService {
   ): Promise<NotificationResult[]> {
     try {
       // Get ticket and related data
-      const [ticketData] = await db.execute(sql`
-        SELECT 
+      const [ticketData] = (await db.execute(sql`
+        SELECT
           st.id, st.title, st.description, st.priority, st.org_id,
           o.name as org_name,
           c.name as customer_name, c.email as customer_email
@@ -690,7 +690,7 @@ export class NotificationService {
         JOIN orgs o ON st.org_id = o.id
         LEFT JOIN users c ON st.submitted_by = c.id
         WHERE st.id = ${ticketId}
-      `);
+      `)) as any[];
 
       if (!ticketData) {
         throw new Error('Ticket not found');

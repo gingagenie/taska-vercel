@@ -55,7 +55,7 @@ export async function runSecurityAudit() {
     console.log(`  Customers accessible: ${fmfCustomers[0].count}`)
     console.log(`  Users accessible: ${fmfUsers[0].count}`)
     
-    if (fmfCustomers[0].count > 0 && fmfUsers[0].count > 0) {
+    if ((fmfCustomers[0] as any).count > 0 && (fmfUsers[0] as any).count > 0) {
       console.log('✅ PASS: Fix My Forklift data accessible')
       passed++
     } else {

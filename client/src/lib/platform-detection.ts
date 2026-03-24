@@ -50,7 +50,7 @@ export function detectPlatform(): PlatformInfo {
       shouldUseTokenAuth: false,
       authMode: 'cookie',
       userAgent,
-      capacitorVersion: Capacitor.convertFileSrc ? 'modern' : 'legacy'
+      capacitorVersion: (Capacitor.convertFileSrc as unknown) ? 'modern' : 'legacy'
     };
   }
   
@@ -65,7 +65,7 @@ export function detectPlatform(): PlatformInfo {
     shouldUseTokenAuth,
     authMode,
     userAgent,
-    capacitorVersion: Capacitor.convertFileSrc ? 'modern' : 'legacy'
+    capacitorVersion: (Capacitor.convertFileSrc as unknown) ? 'modern' : 'legacy'
   };
 
   // Log platform detection results for debugging

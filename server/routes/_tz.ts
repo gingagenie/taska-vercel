@@ -8,7 +8,7 @@ const r = Router();
 r.get("/debug", async (_req, res) => {
   try {
     const result = await db.execute(sql`SELECT now() AT TIME ZONE 'UTC' as now_db`);
-    const now_db = result.rows[0]?.now_db;
+    const now_db = (result as any)[0]?.now_db;
     const nowServer = new Date();
     const mel = formatInTimeZone(nowServer, "Australia/Melbourne", "yyyy-LL-dd HH:mm:ssXXX");
     const utc = nowServer.toISOString();

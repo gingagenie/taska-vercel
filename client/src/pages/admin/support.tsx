@@ -224,14 +224,14 @@ export default function AdminSupportPage() {
           )}
 
           {/* Unassigned Tickets Alert */}
-          {stats?.unassignedCount > 0 && (
+          {stats && stats.unassignedCount > 0 && (
             <Card className="border-orange-200 bg-orange-50">
               <CardContent className="p-6">
                 <div className="flex items-center gap-3">
                   <AlertTriangle className="h-5 w-5 text-orange-600" />
                   <div>
                     <p className="font-semibold text-orange-800">
-                      {stats.unassignedCount} Unassigned Tickets
+                      {stats!.unassignedCount} Unassigned Tickets
                     </p>
                     <p className="text-sm text-orange-600">
                       These tickets need to be assigned to support staff

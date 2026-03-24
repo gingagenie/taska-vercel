@@ -1,7 +1,7 @@
 import { db } from "../db/client";
 import { sql, eq, and, asc, lt, lte, gte } from "drizzle-orm";
 import { usagePacks, usagePackReservations } from "../../shared/schema";
-import { updateRetryStateInDatabase, queueForBackgroundRetry, queueCompensationFinalization } from "./pack-consumption-helpers";
+import { updateRetryStateInDatabase, queueForBackgroundRetry } from "./pack-consumption-helpers";
 
 // Pack consumption result types
 export type PackReservationResult = {
@@ -29,8 +29,8 @@ export type ConsumptionStatus = {
 // Reservation statuses for durable tracking
 type ReservationStatus = 'pending' | 'finalized' | 'released' | 'compensation_required';
 
-// Enhanced metrics for billing safety monitoring
-type FinalizationMetrics = {
+// Enhanced metrics for billing safety monitoring (internal tracking)
+type InternalFinalizationMetrics = {
   attempts: number;
   successes: number;
   failures: number;
@@ -39,12 +39,19 @@ type FinalizationMetrics = {
 };
 
 // Global metrics for monitoring (consider Redis in production)
+// Uses the exported FinalizationMetrics shape so updateFinalizationMetrics can operate on it directly.
+// InternalFinalizationMetrics is kept for legacy internal use elsewhere in this file.
 let finalizationMetrics: FinalizationMetrics = {
-  attempts: 0,
-  successes: 0,
-  failures: 0,
-  compensationRequired: 0,
-  lastUpdate: new Date(),
+  totalAttempts: 0,
+  successfulFinalizations: 0,
+  failedFinalizations: 0,
+  averageRetryCount: 0,
+  successRate: 0,
+  pendingReservations: 0,
+  expiredReservations: 0,
+  compensationQueueSize: 0,
+  criticalFailures: 0,
+  lastUpdated: new Date(),
 };
 
 /**

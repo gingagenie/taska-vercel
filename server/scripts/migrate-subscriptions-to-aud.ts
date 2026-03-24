@@ -103,8 +103,8 @@ async function migrateSubscriptionsToAud() {
       console.log(`   ✅ Migration successful!`);
       console.log(`   New Price: ${newPrice.id} (${newPrice.currency.toUpperCase()}: $${(newPrice.unit_amount! / 100).toFixed(2)})`);
       
-      const nextBilling = updatedSubscription.current_period_end 
-        ? new Date(updatedSubscription.current_period_end * 1000).toLocaleDateString()
+      const nextBilling = (updatedSubscription as any).current_period_end
+        ? new Date((updatedSubscription as any).current_period_end * 1000).toLocaleDateString()
         : 'Unknown';
       console.log(`   Next billing: ${nextBilling}`);
 

@@ -283,7 +283,7 @@ async function processRetryableReservations(): Promise<{
           console.log(`[COMPENSATION PROCESSOR] Successfully finalized ${baseReservationId} on background retry`);
         } else {
           result.failed++;
-          await handleFinalizationFailure(reservation, finalizeResult);
+          await handleFinalizationFailure(reservation, finalizeResult as { success: false; error?: string; errorMessage?: string });
         }
         
       } catch (error) {

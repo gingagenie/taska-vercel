@@ -12,6 +12,10 @@ import bcrypt from "bcryptjs";
 export const customers = Router();
 const isUuid = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
 
+// TikTok tracking integration (not yet connected — stubs prevent TS errors)
+type CustomerInfo = { email?: string; phone?: string; firstName?: string; lastName?: string; city?: string; state?: string; country?: string; zipCode?: string; ip?: string; userAgent?: string };
+const tiktokEvents: any = null; // Replace with real integration when available
+
 // Configure multer for file uploads
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -123,7 +127,7 @@ customers.post("/", requireAuth, requireOrg, async (req, res) => {
         leadData,
         req.get('Referer') || undefined,
         req.get('Referer') || undefined
-      ).catch((trackingError) => {
+      ).catch((trackingError: unknown) => {
         // Log tracking errors but don't throw them
         console.error('[CUSTOMER_CREATION] TikTok Lead tracking failed:', trackingError);
       });
@@ -410,7 +414,7 @@ customers.post("/import-csv", requireAuth, requireOrg, upload.single('csvFile'),
           leadData,
           req.get('Referer') || undefined,
           req.get('Referer') || undefined
-        ).catch((trackingError) => {
+        ).catch((trackingError: unknown) => {
           // Log tracking errors but don't throw them
           console.error('[CSV_IMPORT] TikTok Lead tracking failed:', trackingError);
         });

@@ -100,7 +100,7 @@ async function testRLSEnabled(results: SecurityTestResult[]) {
     console.log(`  ${table.tablename}: ${status}`)
     if (!table.rowsecurity) {
       allEnabled = false
-      failedTables.push(table.tablename)
+      failedTables.push(table.tablename as string)
     }
   }
   
@@ -135,8 +135,8 @@ async function testRLSPolicies(results: SecurityTestResult[]) {
   `)
   
   const expectedTables = tablesWithOrgId.map(t => t.table_name)
-  const tablesWithPolicies = [...new Set(policies.map(p => p.tablename))]
-  const missingPolicies = expectedTables.filter(table => !tablesWithPolicies.includes(table))
+  const tablesWithPolicies = Array.from(new Set(policies.map(p => p.tablename as string)))
+  const missingPolicies = (expectedTables as string[]).filter(table => !tablesWithPolicies.includes(table))
   
   console.log('Policy coverage:')
   for (const table of expectedTables) {

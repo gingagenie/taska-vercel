@@ -28,7 +28,7 @@ function PackUsageStats({ packType }: { packType?: 'sms' | 'email' }) {
   const queryString = queryParams.toString();
   const endpoint = queryString ? `/api/usage/packs?${queryString}` : '/api/usage/packs';
 
-  const { data: packsResponse, isLoading } = useQuery({
+  const { data: packsResponse, isLoading } = useQuery<{ data?: any[] }>({
     queryKey: [endpoint, 'stats', packType],
     staleTime: 2 * 60 * 1000,
   });
@@ -71,7 +71,7 @@ function BillingTab() {
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'expired' | 'used_up'>('all');
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
 
-  const { data: usageData, isLoading: usageLoading, error: usageError } = useQuery({
+  const { data: usageData, isLoading: usageLoading, error: usageError } = useQuery<any>({
     queryKey: ["/api/usage"],
     refetchOnWindowFocus: true,
     staleTime: 60000,
@@ -216,7 +216,7 @@ function BillingTab() {
             <BarChart3 className="w-5 h-5 text-indigo-500" />
             Usage This Period
           </CardTitle>
-          {valid && <CardDescription>Resets {formatDate(usageData.periodEnd)}</CardDescription>}
+          {valid && <CardDescription>Resets {formatDate(usageData.periodEnd as string)}</CardDescription>}
         </CardHeader>
         <CardContent>
           {usageLoading ? (

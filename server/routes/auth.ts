@@ -8,7 +8,7 @@ import { subscriptionPlans } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 
 const stripe = new Stripe((process.env.STRIPE_SECRET_KEY || "").trim(), {
-  apiVersion: "2023-10-16",
+  apiVersion: "2025-08-27.basil",
 });
 
 declare module "express-session" {

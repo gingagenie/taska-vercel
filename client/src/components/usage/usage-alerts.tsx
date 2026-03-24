@@ -236,7 +236,7 @@ export function useUsageAlerts(usageData?: UsageData) {
   const handleDismissAlert = (type: AlertType, severity: AlertSeverity) => {
     dismissAlert(type, severity);
     const key = `${type}-${severity}`;
-    setDismissedAlerts(prev => new Set([...prev, key]));
+    setDismissedAlerts(prev => new Set([...Array.from(prev), key]));
   };
 
   return { alerts, dismissAlert: handleDismissAlert };

@@ -38,7 +38,7 @@ function resizeImage(file: File, maxSize = 200): Promise<string> {
 }
 
 export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
-  const { user, refreshUser } = useAuth();
+  const { user, reload: refreshUser } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPassword, setCurrentPassword] = useState("");

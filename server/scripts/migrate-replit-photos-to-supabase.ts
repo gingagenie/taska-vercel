@@ -8,7 +8,7 @@
 import { objectStorageClient } from "../objectStorage";
 import { uploadFile } from "../services/supabase-storage";
 import { db } from "../db/client";
-import { completedJobPhotos } from "../../shared/schema";
+import { completedJobs } from "../../shared/schema";
 import { sql } from "drizzle-orm";
 import path from "node:path";
 import crypto from "node:crypto";

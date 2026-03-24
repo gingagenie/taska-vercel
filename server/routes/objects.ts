@@ -36,7 +36,7 @@ function getReplitStorage(): Client | null {
       if (!bucketId) {
         return null;
       }
-      replitStorage = new Client(bucketId);
+      replitStorage = new (Client as any)(bucketId);
       console.log(`[REPLIT_STORAGE] ✅ Client initialized with bucket: ${bucketId}`);
     } catch (e) {
       console.error("[REPLIT_STORAGE] Failed to initialize client:", e);

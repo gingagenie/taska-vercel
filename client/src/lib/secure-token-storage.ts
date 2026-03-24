@@ -102,14 +102,14 @@ export async function getStoredTokens(): Promise<StoredTokens | null> {
       return null;
     }
 
-    const expiresAt = parseInt(expiryStr, 10);
-    
+    const expiresAt = parseInt(expiryStr as string, 10);
+
     const tokens: StoredTokens = {
-      accessToken,
-      refreshToken,
+      accessToken: accessToken as string,
+      refreshToken: refreshToken as string,
       expiresAt,
-      userId,
-      orgId: orgId || undefined
+      userId: userId as string,
+      orgId: (orgId as string | null | undefined) || undefined
     };
 
     console.log('[SECURE STORAGE] Tokens retrieved successfully for user:', userId);
@@ -193,7 +193,7 @@ export async function isAccessTokenExpired(): Promise<boolean> {
       return true;
     }
 
-    const expiresAt = parseInt(expiryStr, 10);
+    const expiresAt = parseInt(expiryStr as string, 10);
     const now = Date.now();
     
     // Consider expired if within 1 minute of expiry (buffer for network calls)
@@ -226,7 +226,7 @@ export async function getCurrentAccessToken(): Promise<string | null> {
     }
 
     const accessToken = await SecureStorage.get(STORAGE_KEYS.ACCESS_TOKEN);
-    return accessToken || null;
+    return (accessToken as string | null | undefined) || null;
   } catch (error) {
     console.error('[SECURE STORAGE] Error getting current access token:', error);
     return null;
@@ -243,7 +243,7 @@ export async function getRefreshToken(): Promise<string | null> {
 
   try {
     const refreshToken = await SecureStorage.get(STORAGE_KEYS.REFRESH_TOKEN);
-    return refreshToken || null;
+    return (refreshToken as string | null | undefined) || null;
   } catch (error) {
     console.error('[SECURE STORAGE] Error getting refresh token:', error);
     return null;
@@ -308,10 +308,10 @@ export async function getTokenDebugInfo(): Promise<Record<string, any>> {
       hasExpiry: !!expiryStr,
       hasUserId: !!userId,
       hasOrgId: !!orgId,
-      expiresAt: expiryStr ? new Date(parseInt(expiryStr, 10)).toISOString() : null,
+      expiresAt: expiryStr ? new Date(parseInt(expiryStr as string, 10)).toISOString() : null,
       isExpired: expiryStr ? await isAccessTokenExpired() : null,
-      userId: userId || null,
-      orgId: orgId || null
+      userId: (userId as string | null | undefined) || null,
+      orgId: (orgId as string | null | undefined) || null
     };
   } catch (error) {
     return {

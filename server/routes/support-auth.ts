@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import { generateSupportToken } from "../lib/secure-support-token";
+import bcrypt from "bcryptjs";
 
 declare module 'express-session' {
   interface SessionData {

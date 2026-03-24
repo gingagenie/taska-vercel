@@ -180,7 +180,7 @@ export default function InvoicesPage() {
                             {invoice.title || "Untitled Invoice"}
                           </div>
                           {invoice.viewed_at && (
-                            <Eye className="h-4 w-4 text-green-600" title={`Viewed ${new Date(invoice.viewed_at).toLocaleDateString()}`} />
+                            <Eye className="h-4 w-4 text-green-600" aria-label={`Viewed ${new Date(invoice.viewed_at).toLocaleDateString()}`} />
                           )}
                         </div>
                         <div className="text-sm text-gray-500 font-medium">{invoice.number || 'inv-0001'}</div>

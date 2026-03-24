@@ -181,6 +181,33 @@ router.delete("/orgs/:id", requireGodmode, async (req, res) => {
   const { id } = req.params;
 
   try {
+    // Null out FK references to users before deleting them
+    await db.execute(sql`UPDATE completed_jobs SET completed_by = NULL, original_created_by = NULL, created_by = NULL WHERE org_id = ${id}`);
+    await db.execute(sql`UPDATE jobs SET created_by = NULL WHERE org_id = ${id}`);
+
+    // Delete in FK-safe order, all filtered by org_id
+    await db.execute(sql`DELETE FROM job_notifications WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM job_assignments WHERE job_id IN (SELECT id FROM jobs WHERE org_id = ${id})`);
+    await db.execute(sql`DELETE FROM job_hours WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM job_parts WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM job_charges WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM job_notes WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM job_photos WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM job_equipment WHERE job_id IN (SELECT id FROM jobs WHERE org_id = ${id})`);
+    await db.execute(sql`DELETE FROM jobs WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM completed_job_photos WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM completed_job_equipment WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM completed_job_parts WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM completed_job_notes WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM completed_job_hours WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM completed_job_charges WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM completed_jobs WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM invoice_lines WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM invoices WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM quote_lines WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM quotes WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM equipment WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM customers WHERE org_id = ${id}`);
     await db.execute(sql`DELETE FROM org_integrations WHERE org_id = ${id}`);
     await db.execute(sql`DELETE FROM org_subscriptions WHERE org_id = ${id}`);
     await db.execute(sql`DELETE FROM memberships WHERE org_id = ${id}`);

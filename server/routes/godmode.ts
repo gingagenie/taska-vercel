@@ -213,7 +213,9 @@ router.delete("/orgs/:id", requireGodmode, async (req, res) => {
     await db.execute(sql`DELETE FROM org_subscriptions WHERE org_id = ${id}`);
     await db.execute(sql`DELETE FROM memberships WHERE org_id = ${id}`);
     await db.execute(sql`DELETE FROM notification_history WHERE user_id IN (SELECT id FROM users WHERE org_id = ${id})`);
-    await db.execute(sql`UPDATE support_tickets SET submitted_by = NULL WHERE submitted_by IN (SELECT id FROM users WHERE org_id = ${id})`);
+    await db.execute(sql`DELETE FROM ticket_assignments WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM ticket_messages WHERE org_id = ${id}`);
+    await db.execute(sql`DELETE FROM support_tickets WHERE org_id = ${id}`);
     await db.execute(sql`DELETE FROM users WHERE org_id = ${id}`);
     const result = await db.execute(sql`DELETE FROM orgs WHERE id = ${id} RETURNING id`);
     if ((result as any[]).length === 0) {

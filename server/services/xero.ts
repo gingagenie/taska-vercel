@@ -74,14 +74,46 @@ export class XeroService {
   }
 
   async handleCallback(code: string, orgId: string) {
-    const client = this.ensureOauthClient();
+    this.ensureOauthClient();
     console.log('[Xero] handleCallback: processing code for org', orgId);
 
-    const tokenSet = await client.apiCallback(code);
+    // Exchange the code directly via the token endpoint.
+    // We bypass client.apiCallback() because it expects the full redirect URL
+    // (not just the code) and relies on internal PKCE state that is never seeded
+    // when the auth URL is built manually in getAuthUrl().
+    const tokenResponse = await fetch('https://identity.xero.com/connect/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${Buffer.from(
+          `${process.env.XERO_CLIENT_ID}:${process.env.XERO_CLIENT_SECRET}`
+        ).toString('base64')}`,
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: 'https://taska.info/api/xero/callback',
+      }).toString(),
+    });
+
+    if (!tokenResponse.ok) {
+      const body = await tokenResponse.text();
+      console.error('[Xero] handleCallback: token exchange failed:', tokenResponse.status, body);
+      throw new Error(`Xero token exchange failed: ${tokenResponse.status} ${body}`);
+    }
+
+    const tokenSet = await tokenResponse.json() as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      token_type?: string;
+    };
+
     console.log('[Xero] handleCallback: access_token present:', !!tokenSet.access_token);
     console.log('[Xero] handleCallback: refresh_token present:', !!tokenSet.refresh_token);
 
     if (!tokenSet.access_token) {
+      console.error('[Xero] handleCallback: token response:', JSON.stringify(tokenSet));
       throw new Error('Failed to get access token from Xero');
     }
 
@@ -89,7 +121,15 @@ export class XeroService {
       console.warn('[Xero] handleCallback: WARNING - no refresh token received. offline_access scope may be missing from Xero app config.');
     }
 
-    console.log('[Xero] handleCallback: updating tenants...');
+    // Use a fresh client to fetch tenants with the new access token
+    console.log('[Xero] handleCallback: fetching tenants...');
+    const client = makeBaseClient();
+    client.setTokenSet({
+      access_token: tokenSet.access_token,
+      refresh_token: tokenSet.refresh_token,
+      expires_in: tokenSet.expires_in,
+    });
+
     try {
       await client.updateTenants();
     } catch (tenantError: any) {

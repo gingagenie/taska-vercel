@@ -184,6 +184,7 @@ router.delete("/orgs/:id", requireGodmode, async (req, res) => {
     // Null out FK references to users before deleting them
     await db.execute(sql`UPDATE completed_jobs SET completed_by = NULL, original_created_by = NULL WHERE org_id = ${id}`);
     await db.execute(sql`UPDATE jobs SET created_by = NULL WHERE org_id = ${id}`);
+    await db.execute(sql`UPDATE media SET created_by = NULL WHERE org_id = ${id}`);
 
     // Delete in FK-safe order, all filtered by org_id
     await db.execute(sql`DELETE FROM job_notifications WHERE org_id = ${id}`);

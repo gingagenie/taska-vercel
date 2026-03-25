@@ -7,7 +7,6 @@
 
 import { db } from '../db/client';
 import { sql } from 'drizzle-orm';
-import sharp from 'sharp';
 
 interface ServiceSheetData {
   job: any;
@@ -20,37 +19,36 @@ interface ServiceSheetData {
 }
 
 /**
- * Compress and resize image to reduce PDF size
+ * Fetch an image and return it as a base64 data URL, optionally compressed with sharp.
+ * Always returns a data URL so Puppeteer never needs external network access for images.
+ * Returns null if the image cannot be fetched.
  */
-async function compressImage(imageUrl: string): Promise<string> {
+async function embedImage(imageUrl: string): Promise<string | null> {
   try {
-    // Fetch the image
     const response = await fetch(imageUrl);
     if (!response.ok) {
-      console.warn(`[PDF] Failed to fetch image: ${imageUrl}`);
-      return imageUrl; // Return original if fetch fails
+      console.warn(`[PDF] Failed to fetch image (${response.status}): ${imageUrl}`);
+      return null;
     }
 
     const imageBuffer = Buffer.from(await response.arrayBuffer());
 
-    // Resize and compress with sharp
-    const compressed = await sharp(imageBuffer)
-      .resize(800, 600, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .jpeg({
-        quality: 70,
-        progressive: true,
-      })
-      .toBuffer();
-
-    // Convert to base64 data URL
-    const base64 = compressed.toString('base64');
-    return `data:image/jpeg;base64,${base64}`;
+    // Try to compress with sharp (optional dependency — dynamic import so a missing
+    // binary doesn't crash the module at load time)
+    try {
+      const { default: sharp } = await import('sharp');
+      const compressed = await sharp(imageBuffer)
+        .resize(800, 600, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 70, progressive: true })
+        .toBuffer();
+      return `data:image/jpeg;base64,${compressed.toString('base64')}`;
+    } catch {
+      // sharp unavailable or failed — embed raw buffer without compression
+      return `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+    }
   } catch (error: any) {
-    console.warn(`[PDF] Image compression failed for ${imageUrl}:`, error.message);
-    return imageUrl; // Return original on error
+    console.warn(`[PDF] Image embed failed for ${imageUrl}:`, error.message);
+    return null;
   }
 }
 
@@ -205,15 +203,16 @@ export async function generateServiceSheetPDF(
   const customer = data.job.customer_name || '—';
   const brandLine = data.orgName ? esc(data.orgName) : '';
 
-  // Compress all photos before embedding
-  console.log(`[PDF] Compressing ${data.photos.length} photos...`);
-  const compressedPhotos = await Promise.all(
-    data.photos.map(async (p) => ({
-      url: await compressImage(p.url),
-      created_at: p.created_at,
-    }))
+  // Fetch and embed all photos as base64 data URLs (with optional sharp compression)
+  console.log(`[PDF] Embedding ${data.photos.length} photos...`);
+  const embeddedPhotosRaw = await Promise.all(
+    data.photos.map(async (p) => {
+      const url = await embedImage(p.url);
+      return url ? { url, created_at: p.created_at } : null;
+    })
   );
-  console.log(`[PDF] Photo compression complete`);
+  const embeddedPhotos = embeddedPhotosRaw.filter(Boolean) as Array<{ url: string; created_at: string }>;
+  console.log(`[PDF] Photo embedding complete (${embeddedPhotos.length}/${data.photos.length} succeeded)`);
 
   const html = `<!doctype html>
 <html>
@@ -306,13 +305,13 @@ export async function generateServiceSheetPDF(
   <h2>Photos</h2>
   <div class="box">
     ${
-      compressedPhotos.length
+      embeddedPhotos.length
         ? `<div class="photos">
-            ${compressedPhotos
+            ${embeddedPhotos
               .map(
                 (p) => `
                 <div class="photo">
-                  <img src="${esc(p.url)}" />
+                  <img src="${p.url}" />
                   <div class="cap">${esc(new Date(p.created_at).toLocaleDateString('en-AU'))}</div>
                 </div>
               `

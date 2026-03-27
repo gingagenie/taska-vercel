@@ -99,6 +99,13 @@ router.post("/orgs", requireGodmode, async (req, res) => {
     `);
     const user = (userResult as any[])[0];
 
+    // Godmode orgs get 'active' status — no trial banner
+    // trial_expires_at on the org itself controls when they lose access
+    await db.execute(sql`
+      INSERT INTO org_subscriptions (org_id, plan_id, status, current_period_end)
+      VALUES (${org.id}, 'pro', 'active', ${trial_expires_at.toISOString()})
+    `);
+
     console.log(`[GODMODE] Created org "${org_name}" (${org.id}) with user ${email}`);
     res.status(201).json({ org, user });
   } catch (error) {
@@ -122,6 +129,12 @@ router.patch("/orgs/:id/trial", requireGodmode, async (req, res) => {
   try {
     const trial_expires_at = new Date(Date.now() + trial_days * 24 * 60 * 60 * 1000);
     await db.execute(sql`UPDATE orgs SET trial_expires_at = ${trial_expires_at.toISOString()} WHERE id = ${id}`);
+    // Keep the subscription active and extend its period end to match
+    await db.execute(sql`
+      UPDATE org_subscriptions
+      SET status = 'active', current_period_end = ${trial_expires_at.toISOString()}
+      WHERE org_id = ${id}
+    `);
     res.json({ success: true, trial_expires_at });
   } catch (error) {
     console.error("[GODMODE] Error updating trial:", error);

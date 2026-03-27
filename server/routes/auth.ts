@@ -194,11 +194,12 @@ router.post("/login", async (req, res) => {
     const jwtDisabled = isJwtAuthDisabled();
 
     const r: any = await db.execute(sql`
-      select id, org_id, email, password_hash, name, role
-      from users
-      where lower(email) = lower(${email})
-      ${orgId ? sql`and org_id = ${orgId}` : sql``}
-      order by created_at asc
+      select u.id, u.org_id, u.email, u.password_hash, u.name, u.role, o.disabled
+      from users u
+      join orgs o on o.id = u.org_id
+      where lower(u.email) = lower(${email})
+      ${orgId ? sql`and u.org_id = ${orgId}` : sql``}
+      order by u.created_at asc
       limit 1
     `);
     const user = r[0];
@@ -206,6 +207,8 @@ router.post("/login", async (req, res) => {
 
     const ok = await bcrypt.compare(password, user.password_hash || "");
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+
+    if (user.disabled) return res.status(403).json({ error: "Account disabled" });
 
     await db.execute(sql`alter table users add column if not exists last_login_at timestamp`);
     await db.execute(sql`update users set last_login_at = now() where id = ${user.id}`);

@@ -72,10 +72,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   try {
     const userResult: any = await db.execute(sql`
-      SELECT id, role, org_id, email, name FROM users WHERE id = ${userId}::uuid
+      SELECT u.id, u.role, u.org_id, u.email, u.name, o.disabled
+      FROM users u
+      LEFT JOIN orgs o ON o.id = u.org_id
+      WHERE u.id = ${userId}::uuid
     `);
     const user = userResult[0];
     if (!user) return res.status(401).json({ error: "User not found" });
+    if (user.disabled) return res.status(403).json({ error: "Account disabled" });
 
     req.user = { id: user.id, role: user.role };
     (req as any).authMethod = 'session-cookie';

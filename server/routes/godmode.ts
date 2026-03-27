@@ -87,7 +87,7 @@ router.post("/orgs", requireGodmode, async (req, res) => {
 
     const orgResult = await db.execute(sql`
       INSERT INTO orgs (id, name, slug, trial_expires_at, created_at)
-      VALUES (gen_random_uuid(), ${org_name}, ${orgSlug}, ${trial_expires_at}, NOW())
+      VALUES (gen_random_uuid(), ${org_name}, ${orgSlug}, ${trial_expires_at.toISOString()}, NOW())
       RETURNING id, name, slug, trial_expires_at
     `);
     const org = (orgResult as any[])[0];
@@ -121,7 +121,7 @@ router.patch("/orgs/:id/trial", requireGodmode, async (req, res) => {
 
   try {
     const trial_expires_at = new Date(Date.now() + trial_days * 24 * 60 * 60 * 1000);
-    await db.execute(sql`UPDATE orgs SET trial_expires_at = ${trial_expires_at} WHERE id = ${id}`);
+    await db.execute(sql`UPDATE orgs SET trial_expires_at = ${trial_expires_at.toISOString()} WHERE id = ${id}`);
     res.json({ success: true, trial_expires_at });
   } catch (error) {
     console.error("[GODMODE] Error updating trial:", error);

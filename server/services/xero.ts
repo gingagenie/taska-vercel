@@ -203,7 +203,7 @@ export class XeroService {
 
     const now = new Date();
     const expiresAt = integration.tokenExpiresAt ? new Date(integration.tokenExpiresAt) : new Date(0);
-    const needsRefresh = now >= new Date(expiresAt.getTime() - 5 * 60 * 1000);
+    const needsRefresh = now >= new Date(expiresAt.getTime() - 10 * 60 * 1000);
 
     if (!needsRefresh) return integration;
 
@@ -214,15 +214,34 @@ export class XeroService {
     }
 
     try {
-      // Create a fresh client per refresh to avoid shared-state race conditions
-      const client = makeBaseClient();
-      client.setTokenSet({
-        access_token: integration.accessToken || undefined,
-        refresh_token: integration.refreshToken,
-        expires_in: 0, // Force xero-node to treat as expired
+      // Use raw fetch to the Xero token endpoint — same pattern as handleCallback.
+      // xero-node's internal refreshToken() relies on openid-client state that is
+      // not reliably seeded when we call setTokenSet(), so we bypass it entirely.
+      const tokenResponse = await fetch('https://identity.xero.com/connect/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Basic ${Buffer.from(
+            `${process.env.XERO_CLIENT_ID}:${process.env.XERO_CLIENT_SECRET}`
+          ).toString('base64')}`,
+        },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: integration.refreshToken,
+        }).toString(),
       });
 
-      const newTokenSet = await client.refreshToken();
+      if (!tokenResponse.ok) {
+        const body = await tokenResponse.text();
+        console.error('[Xero] refreshTokensIfNeeded: token refresh failed:', tokenResponse.status, body);
+        throw new Error(`Xero token refresh failed: ${tokenResponse.status} ${body}`);
+      }
+
+      const newTokenSet = await tokenResponse.json() as {
+        access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+      };
 
       if (!newTokenSet.access_token) {
         throw new Error('Refresh returned no access token');
@@ -232,6 +251,7 @@ export class XeroService {
 
       // CRITICAL: Always save the new refresh token — Xero refresh tokens are
       // one-time use. If we don't save the new one the token chain is broken.
+      // Fall back to old refresh token only within the 30-min grace period.
       await db
         .update(orgIntegrations)
         .set({
@@ -242,7 +262,10 @@ export class XeroService {
         })
         .where(eq(orgIntegrations.id, integration.id));
 
-      console.log('[Xero] refreshTokensIfNeeded: tokens refreshed for org', orgId, 'new expiry in', newTokenSet.expires_in, 'seconds');
+      console.log('[Xero] refreshTokensIfNeeded: tokens refreshed for org', orgId,
+        '| new access_token:', !!newTokenSet.access_token,
+        '| new refresh_token:', !!newTokenSet.refresh_token,
+        '| expires_in:', newTokenSet.expires_in);
 
       return {
         ...integration,

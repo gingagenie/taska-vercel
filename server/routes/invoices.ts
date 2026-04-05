@@ -642,7 +642,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       const { xeroService } = await import('../services/xero');
       if (xeroService.isConfigured()) {
         const integration = await xeroService.getOrgIntegration(orgId);
-        if (integration) {
+        if (integration && !invoice.xero_id) {
           const xeroInvoice = await xeroService.createInvoiceInXero(orgId, {
             customerName: invoice.customer_name,
             customerEmail: recipientEmails[0],

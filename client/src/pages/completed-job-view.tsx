@@ -278,59 +278,58 @@ export default function CompletedJobView() {
   return (
     <div className="p-4 sm:p-6 space-y-6 min-h-screen bg-gray-100">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/completed-jobs">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <div className="w-9 h-9 rounded-xl bg-green-500 grid place-items-center">
-            <CheckCircle className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
-            <p className="text-sm text-gray-500">Completed Job Details</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <Link href="/completed-jobs">
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+        </Link>
+        <div className="w-9 h-9 rounded-xl bg-green-500 grid place-items-center">
+          <CheckCircle className="h-5 w-5 text-white" />
         </div>
-
-        <div className="grid grid-cols-2 gap-3 w-full max-w-md">
-          <Button
-            onClick={handleDownloadJobSheet}
-            disabled={downloadingSheet || convertingToInvoice || deleting}
-            variant="outline"
-            data-testid="button-download-job-sheet"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            {downloadingSheet ? "Preparing..." : "Download Job Sheet"}
-          </Button>
-
-          <Button
-            onClick={handleConvertToInvoice}
-            disabled={convertingToInvoice || !job.customer_id || deleting || downloadingSheet}
-            className="bg-blue-600 hover:bg-blue-700"
-            data-testid="button-convert-to-invoice"
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            {convertingToInvoice ? "Converting..." : "Convert to Invoice"}
-          </Button>
-
-          <Button
-            onClick={handleDeleteJob}
-            disabled={deleting || convertingToInvoice || downloadingSheet}
-            variant="destructive"
-            data-testid="button-delete-completed-job"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            {deleting ? "Deleting..." : "Delete"}
-          </Button>
-
-          <Badge className="bg-green-100 text-green-800 border-green-200 flex items-center justify-center">
-            <CheckCircle className="h-4 w-4 mr-2" />
-            Completed
-          </Badge>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
+          <p className="text-sm text-gray-500">Completed Job Details</p>
         </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+        <Button
+          onClick={handleDownloadJobSheet}
+          disabled={downloadingSheet || convertingToInvoice || deleting}
+          variant="outline"
+          data-testid="button-download-job-sheet"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          {downloadingSheet ? "Preparing..." : "Download Job Sheet"}
+        </Button>
+
+        <Button
+          onClick={handleConvertToInvoice}
+          disabled={convertingToInvoice || !job.customer_id || deleting || downloadingSheet}
+          className="bg-blue-600 hover:bg-blue-700"
+          data-testid="button-convert-to-invoice"
+        >
+          <FileText className="h-4 w-4 mr-2" />
+          {convertingToInvoice ? "Converting..." : "Convert to Invoice"}
+        </Button>
+
+        <Button
+          onClick={handleDeleteJob}
+          disabled={deleting || convertingToInvoice || downloadingSheet}
+          variant="destructive"
+          data-testid="button-delete-completed-job"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          {deleting ? "Deleting..." : "Delete"}
+        </Button>
+
+        <Badge className="bg-green-100 text-green-800 border-green-200 flex items-center justify-center">
+          <CheckCircle className="h-4 w-4 mr-2" />
+          Completed
+        </Badge>
       </div>
 
       {/* Job Details Card */}

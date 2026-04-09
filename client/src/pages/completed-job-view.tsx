@@ -300,36 +300,38 @@ export default function CompletedJobView() {
           onClick={handleDownloadJobSheet}
           disabled={downloadingSheet || convertingToInvoice || deleting}
           variant="outline"
+          className="w-full text-sm overflow-hidden"
           data-testid="button-download-job-sheet"
         >
-          <Download className="h-4 w-4 mr-2" />
-          {downloadingSheet ? "Preparing..." : "Download Job Sheet"}
+          <Download className="h-4 w-4 mr-1 shrink-0" />
+          <span className="truncate">{downloadingSheet ? "Preparing..." : "Download Job Sheet"}</span>
         </Button>
 
         <Button
           onClick={handleConvertToInvoice}
           disabled={convertingToInvoice || !job.customer_id || deleting || downloadingSheet}
-          className="bg-blue-600 hover:bg-blue-700"
+          className="w-full text-sm overflow-hidden bg-blue-600 hover:bg-blue-700"
           data-testid="button-convert-to-invoice"
         >
-          <FileText className="h-4 w-4 mr-2" />
-          {convertingToInvoice ? "Converting..." : "Convert to Invoice"}
+          <FileText className="h-4 w-4 mr-1 shrink-0" />
+          <span className="truncate">{convertingToInvoice ? "Converting..." : "Convert to Invoice"}</span>
         </Button>
+
+        <Badge className="bg-green-100 text-green-800 border-green-200 flex items-center justify-center text-sm py-2">
+          <CheckCircle className="h-4 w-4 mr-1 shrink-0" />
+          Completed
+        </Badge>
 
         <Button
           onClick={handleDeleteJob}
           disabled={deleting || convertingToInvoice || downloadingSheet}
           variant="destructive"
+          className="w-full text-sm"
           data-testid="button-delete-completed-job"
         >
-          <Trash2 className="h-4 w-4 mr-2" />
+          <Trash2 className="h-4 w-4 mr-1 shrink-0" />
           {deleting ? "Deleting..." : "Delete"}
         </Button>
-
-        <Badge className="bg-green-100 text-green-800 border-green-200 flex items-center justify-center">
-          <CheckCircle className="h-4 w-4 mr-2" />
-          Completed
-        </Badge>
       </div>
 
       {/* Job Details Card */}

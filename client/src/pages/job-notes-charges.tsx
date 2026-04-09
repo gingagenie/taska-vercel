@@ -400,25 +400,25 @@ export default function JobNotesCharges() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Add Photos</Label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 w-full">
               <Button
                 type="button"
                 variant="outline"
-                className="flex-1"
+                className="w-full text-sm"
                 disabled={uploadingPhoto}
                 onClick={() => cameraInputRef.current?.click()}
               >
-                <Camera className="h-4 w-4 mr-2" />
+                <Camera className="h-4 w-4 mr-2 shrink-0" />
                 Take Photo
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                className="flex-1"
+                className="w-full text-sm"
                 disabled={uploadingPhoto}
                 onClick={() => galleryInputRef.current?.click()}
               >
-                <ImageIcon className="h-4 w-4 mr-2" />
+                <ImageIcon className="h-4 w-4 mr-2 shrink-0" />
                 Choose from Gallery
               </Button>
             </div>

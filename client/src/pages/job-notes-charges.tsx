@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { notesApi, photosApi, api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Trash2, Clock, Wrench } from "lucide-react";
+import { ArrowLeft, Trash2, Clock, Wrench, Camera, ImageIcon } from "lucide-react";
 
 export default function JobNotesCharges() {
   const [match, params] = useRoute("/jobs/:id/notes");
@@ -133,25 +133,62 @@ export default function JobNotesCharges() {
     }
   };
 
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const compressImage = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const MAX_DIMENSION = 1200;
+      const QUALITY = 0.8;
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        let { width, height } = img;
+        if (width <= MAX_DIMENSION && height <= MAX_DIMENSION) {
+          resolve(file);
+          return;
+        }
+        if (width > height) {
+          height = Math.round((height * MAX_DIMENSION) / width);
+          width = MAX_DIMENSION;
+        } else {
+          width = Math.round((width * MAX_DIMENSION) / height);
+          height = MAX_DIMENSION;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => resolve(blob ? new File([blob], file.name, { type: "image/jpeg" }) : file),
+          "image/jpeg",
+          QUALITY
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
+      img.src = objectUrl;
+    });
+  };
+
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-    
+
     setUploadingPhoto(true);
     setErr(null);
     try {
-      // Upload files one by one since our API expects single file uploads
       for (const file of Array.from(files)) {
-  await photosApi.upload(jobId, file);
-}
-      // Refetch fresh signed URLs for all photos
-  const freshPhotos = await photosApi.list(jobId);
+        const compressed = await compressImage(file);
+        await photosApi.upload(jobId, compressed);
+      }
+      const freshPhotos = await photosApi.list(jobId);
       setPhotos(asArray(freshPhotos));
     } catch (e: any) {
       setErr(e?.message || "Failed to upload photo");
     } finally {
       setUploadingPhoto(false);
-      event.target.value = ""; // Reset file input
+      event.target.value = "";
     }
   };
 
@@ -361,17 +398,48 @@ export default function JobNotesCharges() {
       <Card>
         <CardHeader><CardTitle>Photos</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="photo-upload">Upload Photos</Label>
-            <Input
-              id="photo-upload"
+          <div className="space-y-2">
+            <Label>Add Photos</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={uploadingPhoto}
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                Take Photo
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={uploadingPhoto}
+                onClick={() => galleryInputRef.current?.click()}
+              >
+                <ImageIcon className="h-4 w-4 mr-2" />
+                Choose from Gallery
+              </Button>
+            </div>
+            {/* Hidden inputs — camera (rear) and gallery */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handlePhotoUpload}
+            />
+            <input
+              ref={galleryInputRef}
               type="file"
               accept="image/*"
               multiple
+              className="hidden"
               onChange={handlePhotoUpload}
-              disabled={uploadingPhoto}
             />
-            {uploadingPhoto && <p className="text-sm text-gray-500 mt-1">Uploading...</p>}
+            {uploadingPhoto && <p className="text-sm text-gray-500">Uploading...</p>}
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

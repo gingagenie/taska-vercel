@@ -295,7 +295,7 @@ export default function CompletedJobView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-3 w-full max-w-md">
           <Button
             onClick={handleDownloadJobSheet}
             disabled={downloadingSheet || convertingToInvoice || deleting}
@@ -326,7 +326,7 @@ export default function CompletedJobView() {
             {deleting ? "Deleting..." : "Delete"}
           </Button>
 
-          <Badge className="bg-green-100 text-green-800 border-green-200">
+          <Badge className="bg-green-100 text-green-800 border-green-200 flex items-center justify-center">
             <CheckCircle className="h-4 w-4 mr-2" />
             Completed
           </Badge>

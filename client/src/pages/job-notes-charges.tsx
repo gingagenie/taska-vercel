@@ -404,22 +404,22 @@ export default function JobNotesCharges() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full text-sm"
+                className="w-full min-w-0 overflow-hidden text-sm"
                 disabled={uploadingPhoto}
                 onClick={() => cameraInputRef.current?.click()}
               >
                 <Camera className="h-4 w-4 mr-2 shrink-0" />
-                Take Photo
+                <span className="truncate">Take Photo</span>
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                className="w-full text-sm"
+                className="w-full min-w-0 overflow-hidden text-sm"
                 disabled={uploadingPhoto}
                 onClick={() => galleryInputRef.current?.click()}
               >
                 <ImageIcon className="h-4 w-4 mr-2 shrink-0" />
-                Choose from Gallery
+                <span className="truncate">Choose from Gallery</span>
               </Button>
             </div>
             {/* Hidden inputs — camera (rear) and gallery */}

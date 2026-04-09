@@ -400,7 +400,7 @@ export default function JobNotesCharges() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Add Photos</Label>
-            <div className="grid grid-cols-2 gap-2 w-full">
+            <div className="flex flex-col gap-2 w-full">
               <Button
                 type="button"
                 variant="outline"

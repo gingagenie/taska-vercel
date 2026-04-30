@@ -158,13 +158,13 @@ export function LineItemsTable({
               
               {/* Quantity */}
               <div className="col-span-1">
-                <input 
-                  type="number" 
-                  step="1" 
-                  min="1"
-                  value={it.qty} 
-                  onChange={(e) => onSetItem(it.id, 'qty', Math.max(1, parseInt(e.target.value) || 1))} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center" 
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={it.qty}
+                  onChange={(e) => onSetItem(it.id, 'qty', Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center"
                   placeholder="1"
                 />
               </div>
@@ -247,13 +247,13 @@ export function LineItemsTable({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Qty</label>
-                  <input 
-                    type="number" 
-                    step="1" 
-                    min="1"
-                    value={it.qty} 
-                    onChange={(e) => onSetItem(it.id, 'qty', Math.max(1, parseInt(e.target.value) || 1))} 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center" 
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={it.qty}
+                    onChange={(e) => onSetItem(it.id, 'qty', Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center"
                     placeholder="1"
                   />
                 </div>

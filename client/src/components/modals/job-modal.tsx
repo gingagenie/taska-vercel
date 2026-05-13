@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { jobsApi, membersApi, customersApi, equipmentApi } from "@/lib/api";
+import { useLocation } from "wouter";
+import { jobsApi, membersApi, customersApi, equipmentApi, quotesApi } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -23,11 +24,13 @@ type Props = {
     customerId?: string;
     equipmentId?: string;
     serviceRequestId?: string;
+    quoteId?: string;
   } | null;
 };
 
 export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId, prefillData }: Props) {
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [title, setTitle] = useState("");
   const [jobType, setJobType] = useState<string>("");
   const [description, setDescription] = useState("");
@@ -111,6 +114,22 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId, pre
     setSaving(true);
     setErr(null);
     try {
+      if (prefillData?.quoteId) {
+        const result = await quotesApi.convertToJob(prefillData.quoteId, {
+          scheduledAt: isoFromLocalInput(scheduledAt) || null,
+          assignedTechIds,
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/jobs/range"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/quotes", prefillData.quoteId] });
+        onOpenChange(false);
+        setTitle(""); setJobType(""); setDescription(""); setScheduledAt("");
+        setCustomerId(""); setEquipmentId(""); setAssignedTechIds([]);
+        navigate(`/jobs/${result.jobId}`);
+        return;
+      }
+
       const body = {
         title,
         jobType: jobType || null,
@@ -160,7 +179,7 @@ export function JobModal({ open, onOpenChange, onCreated, defaultCustomerId, pre
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {prefillData?.serviceRequestId ? "Create Job from Service Request" : "New Job"}
+            {prefillData?.quoteId ? "Convert Quote to Job" : prefillData?.serviceRequestId ? "Create Job from Service Request" : "New Job"}
           </DialogTitle>
         </DialogHeader>
 

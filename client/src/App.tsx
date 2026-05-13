@@ -381,7 +381,7 @@ function AuthenticatedApp() {
 
             <Route path="/quotes">{() => <ProtectedRoute component={Quotes} allowedRoles={["admin", "manager"]} />}</Route>
             <Route path="/quotes/new">{() => <ProtectedRoute component={QuoteEdit} allowedRoles={["admin", "manager"]} />}</Route>
-            <Route path="/quotes/:id">{() => <ProtectedRoute component={QuoteView} allowedRoles={["admin", "manager"]} />}</Route>
+            <Route path="/quotes/:id">{() => <ProtectedRoute component={QuoteView} allowedRoles={["admin", "manager"]} onConvertToJob={(data: any) => { setJobModalPrefillData(data); setIsJobModalOpen(true); }} />}</Route>
             <Route path="/quotes/:id/edit">{() => <ProtectedRoute component={QuoteEdit} allowedRoles={["admin", "manager"]} />}</Route>
 
             <Route path="/invoices">{() => <ProtectedRoute component={Invoices} allowedRoles={["admin", "manager"]} />}</Route>

@@ -191,7 +191,8 @@ export const quotesApi = {
   deleteItem: (id: string, itemId: string) => 
     api(`/api/quotes/${id}/items/${itemId}`, { method: "DELETE" }),
   accept: (id: string) => api(`/api/quotes/${id}/accept`, { method: "POST" }),
-  convertToJob: (id: string) => api(`/api/quotes/${id}/convert`, { method: "POST" }),
+  convertToJob: (id: string, body?: { scheduledAt?: string | null; assignedTechIds?: string[] }) =>
+    api(`/api/quotes/${id}/convert`, { method: "POST", ...(body ? { body: JSON.stringify(body) } : {}) }),
   sendEmail: (id: string, body: { email: string; fromEmail?: string; fromName?: string }) =>
     api(`/api/quotes/${id}/email`, { method: "POST", body: JSON.stringify(body) }),
 };

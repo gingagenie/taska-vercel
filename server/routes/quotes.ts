@@ -418,6 +418,8 @@ router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
 
   try {
+    const { scheduledAt = null, assignedTechIds = [] } = req.body || {};
+
     const r: any = await db.execute(sql`
       select q.*, c.name as customer_name, c.email as customer_email
       from quotes q join customers c on c.id=q.customer_id
@@ -435,8 +437,8 @@ router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
     }
 
     const jr: any = await db.execute(sql`
-      insert into jobs (org_id, title, customer_id, description, status)
-      values (${orgId}::uuid, ${quote.title}, ${quote.customer_id}::uuid, ${quote.notes || ''}, 'new')
+      insert into jobs (org_id, title, customer_id, description, scheduled_at, status)
+      values (${orgId}::uuid, ${quote.title}, ${quote.customer_id}::uuid, ${quote.notes || ''}, ${scheduledAt || null}, 'new')
       returning id
     `);
     
@@ -447,6 +449,17 @@ router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
         insert into job_equipment (job_id, equipment_id)
         values (${jobId}::uuid, ${quote.equipment_id}::uuid)
       `);
+    }
+
+    if (Array.isArray(assignedTechIds) && assignedTechIds.length > 0) {
+      for (const uid of assignedTechIds) {
+        if (!uid) continue;
+        await db.execute(sql`
+          insert into job_assignments (job_id, user_id)
+          values (${jobId}::uuid, ${uid}::uuid)
+          on conflict do nothing
+        `);
+      }
     }
 
     for (const line of lines) {

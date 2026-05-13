@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
 
-export default function QuoteView() {
+export default function QuoteView({ onConvertToJob }: { onConvertToJob?: (data: any) => void }) {
   const [match, params] = useRoute("/quotes/:id");
   const [, nav] = useLocation();
   const id = params?.id;
@@ -90,23 +90,19 @@ export default function QuoteView() {
     }
   }
 
-  async function handleConvert() {
-    if (!id) return;
-    
-    // Track the Convert to Job button click
-    const items = quote?.items || [];
-    const { total } = calculateTotals(items);
+  function handleConvert() {
+    if (!id || !quote) return;
     trackClickButton({
       contentName: "Convert Quote to Job Button",
       contentCategory: "conversion",
     });
-    
-    try {
-      const result = await quotesApi.convertToJob(id);
-      nav(`/jobs/${result.jobId}`);
-    } catch (e: any) {
-      setErr(e.message);
-    }
+    onConvertToJob?.({
+      quoteId: id,
+      title: quote.title,
+      description: quote.notes || '',
+      customerId: quote.customer_id,
+      equipmentId: quote.equipment_id || null,
+    });
   }
 
   async function handleCreateInXero() {

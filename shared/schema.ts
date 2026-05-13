@@ -231,6 +231,7 @@ export const quotes = pgTable("quotes", {
   orgId: uuid("org_id").references(() => organizations.id).notNull(),
   customerId: uuid("customer_id").references(() => customers.id),
   jobId: uuid("job_id").references(() => jobs.id),
+  equipmentId: uuid("equipment_id").references(() => equipment.id),
   title: varchar("title", { length: 255 }).notNull(),
   notes: text("notes"),
   items: jsonb("items").default([]),

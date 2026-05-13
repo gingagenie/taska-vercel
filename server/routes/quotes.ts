@@ -108,6 +108,7 @@ router.post("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscr
   try {
     const orgId = (req as any).orgId;
     const userId = (req as any).user?.id;
+    console.log("[POST /quotes] req.body:", JSON.stringify(req.body));
     const { title, customerId, equipmentId, notes, lines = [] } = req.body;
 
     if (!title || !customerId) {
@@ -179,6 +180,7 @@ router.get("/:id", requireAuth, requireOrg, async (req, res) => {
 router.put("/:id", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params; const orgId = (req as any).orgId;
   if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+  console.log(`[PUT /quotes/${id}] req.body:`, JSON.stringify(req.body));
   const { title, customer_id, equipment_id, notes, lines = [] } = req.body || {};
 
   await db.execute(sql`

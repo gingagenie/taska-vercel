@@ -419,6 +419,9 @@ jobs.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscript
       from jobs j
       left join customers c on c.id = j.customer_id
       where j.org_id=${orgId}::uuid
+        and not exists (
+          select 1 from completed_jobs cj where cj.original_job_id = j.id
+        )
       order by j.scheduled_at asc nulls last, j.created_at desc
     `);
 

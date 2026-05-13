@@ -435,7 +435,7 @@ router.post("/:id/convert", requireAuth, requireOrg, async (req, res) => {
 
     const jr: any = await db.execute(sql`
       insert into jobs (org_id, title, customer_id, description, status)
-      values (${orgId}::uuid, ${quote.title}, ${quote.customer_id}::uuid, ${quote.notes || ''}, 'draft')
+      values (${orgId}::uuid, ${quote.title}, ${quote.customer_id}::uuid, ${quote.notes || ''}, 'new')
       returning id
     `);
     

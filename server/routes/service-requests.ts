@@ -195,36 +195,47 @@ router.put("/:id", async (req, res) => {
   if (!orgId) return res.status(401).json({ error: "Not authenticated" });
 
   const { id } = req.params;
-  const { status, admin_notes } = req.body;
+  const { status, admin_notes, converted_job_id } = req.body;
 
   try {
-    // Mark as viewed if changing from pending
-    const updates: string[] = [];
-    const values: any[] = [];
-
-    if (status) {
-      updates.push(`status = $${values.length + 1}`);
-      values.push(status);
-
-      if (status === 'viewed') {
-        updates.push(`viewed_at = NOW()`);
-      }
-    }
-
-    if (admin_notes !== undefined) {
-      updates.push(`admin_notes = $${values.length + 1}`);
-      values.push(admin_notes);
-    }
-
-    if (updates.length === 0) {
+    if (!status && admin_notes === undefined && converted_job_id === undefined) {
       return res.status(400).json({ error: "No updates provided" });
     }
 
-    await db.execute(sql.raw(`
-      UPDATE service_requests
-      SET ${updates.join(', ')}
-      WHERE id = '${id}' AND org_id = '${orgId}'
-    `));
+    // Build update using safe parameterized sql template
+    if (status === 'job_created') {
+      await db.execute(sql`
+        UPDATE service_requests
+        SET status = ${status},
+            converted_job_id = ${converted_job_id ?? null}::uuid,
+            responded_at = NOW()
+        WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+      `);
+    } else if (status === 'viewed') {
+      await db.execute(sql`
+        UPDATE service_requests
+        SET status = ${status}, viewed_at = NOW()
+        WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+      `);
+    } else if (status === 'declined') {
+      await db.execute(sql`
+        UPDATE service_requests
+        SET status = ${status}, responded_at = NOW()
+        WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+      `);
+    } else if (admin_notes !== undefined) {
+      await db.execute(sql`
+        UPDATE service_requests
+        SET admin_notes = ${admin_notes}
+        WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+      `);
+    } else if (status) {
+      await db.execute(sql`
+        UPDATE service_requests
+        SET status = ${status}
+        WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+      `);
+    }
 
     res.json({ success: true });
   } catch (error: any) {

@@ -1307,66 +1307,68 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
       try {
         console.log('[AUTO-SERVICE] Service job completed, updating equipment and creating follow-up...');
         
-        // Get equipment from this job
+        // Get equipment from this job, including its configured service interval
         const equipmentRows: any = await db.execute(sql`
-          SELECT equipment_id, equipment_name
-          FROM completed_job_equipment
-          WHERE completed_job_id = ${completedJobId}::uuid
+          SELECT cje.equipment_id, cje.equipment_name, e.service_interval_months
+          FROM completed_job_equipment cje
+          LEFT JOIN equipment e ON e.id = cje.equipment_id
+          WHERE cje.completed_job_id = ${completedJobId}::uuid
           LIMIT 1
         `);
-        
+
         if (equipmentRows.length > 0) {
           const equipmentId = equipmentRows[0].equipment_id;
+          const intervalMonths = Number(equipmentRows[0].service_interval_months) || 6;
           const today = new Date();
-          const sixMonthsLater = new Date(today);
-          sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
-          
+          const nextServiceDate = new Date(today);
+          nextServiceDate.setMonth(nextServiceDate.getMonth() + intervalMonths);
+
           // Update equipment service dates
           await db.execute(sql`
             UPDATE equipment
-            SET 
+            SET
               last_service_date = ${today.toISOString().split('T')[0]},
-              next_service_date = ${sixMonthsLater.toISOString().split('T')[0]}
+              next_service_date = ${nextServiceDate.toISOString().split('T')[0]}
             WHERE id = ${equipmentId}::uuid AND org_id = ${orgId}::uuid
           `);
-          
-          console.log(`✅ Updated equipment ${equipmentId}: last_service=${today.toISOString().split('T')[0]}, next_service=${sixMonthsLater.toISOString().split('T')[0]}`);
-          
+
+          console.log(`✅ Updated equipment ${equipmentId}: last_service=${today.toISOString().split('T')[0]}, next_service=${nextServiceDate.toISOString().split('T')[0]}`);
+
           // Create follow-up service job
           const followUpTitle = `Service: ${equipmentRows[0].equipment_name}`;
           const followUpResult: any = await db.execute(sql`
             INSERT INTO jobs (
-              org_id, 
-              customer_id, 
-              title, 
-              description, 
+              org_id,
+              customer_id,
+              title,
+              description,
               job_type,
-              scheduled_at, 
-              status, 
+              scheduled_at,
+              status,
               created_by
             )
             VALUES (
               ${orgId}::uuid,
               ${job.customer_id}::uuid,
               ${followUpTitle},
-              ${'Scheduled 6-month service follow-up'},
+              ${'Scheduled ' + intervalMonths + '-month service follow-up'},
               'Service',
-              ${sixMonthsLater.toISOString()},
+              ${nextServiceDate.toISOString()},
               'scheduled',
               ${userId}
             )
             RETURNING id
           `);
-          
+
           const followUpJobId = followUpResult[0].id;
-          
+
           // Link equipment to follow-up job
           await db.execute(sql`
             INSERT INTO job_equipment (job_id, equipment_id)
             VALUES (${followUpJobId}::uuid, ${equipmentId}::uuid)
           `);
-          
-          console.log(`✅ Created follow-up service job ${followUpJobId} scheduled for ${sixMonthsLater.toISOString()}`);
+
+          console.log(`✅ Created follow-up service job ${followUpJobId} scheduled for ${nextServiceDate.toISOString()} (${intervalMonths}-month interval)`);
         } else {
           console.log('[AUTO-SERVICE] No equipment found for this service job, skipping auto-service');
         }

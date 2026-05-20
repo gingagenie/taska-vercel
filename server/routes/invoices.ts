@@ -760,13 +760,23 @@ router.post('/:id/xero', requireAuth, requireOrg, checkSubscription, requireActi
     return res.json({ ok: true, xeroId, xeroNumber });
 
   } catch (err: any) {
+    console.error('[XERO] Manual push failed — full error:', {
+      name: err?.name,
+      message: err?.message,
+      stack: err?.stack,
+      code: err?.code,
+      statusCode: err?.statusCode,
+      response: err?.response,
+      body: err?.body,
+      rawString: String(err),
+      json: (() => {
+        try { return JSON.stringify(err, Object.getOwnPropertyNames(err)); }
+        catch { return 'unstringifiable'; }
+      })(),
+    });
+
     const xeroStatus = err?.response?.statusCode ?? err?.statusCode ?? 'n/a';
     const xeroBody = err?.response?.body;
-    console.error(
-      `[XERO] Manual push failed — HTTP ${xeroStatus}\n` +
-      `  err.message: ${err?.message}\n` +
-      `  response.body: ${xeroBody !== undefined ? JSON.stringify(xeroBody, null, 2) : '(none)'}`
-    );
 
     // Surface a specific message for known Xero failure modes
     let message: string;

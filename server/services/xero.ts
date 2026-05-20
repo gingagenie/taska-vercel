@@ -410,7 +410,8 @@ export class XeroService {
    * taxType OUTPUT = GST on income (10%), NONE = no tax
    */
   async createInvoiceInXero(orgId: string, invoiceData: any) {
-    return this.callWithRetry(orgId, async (client, tenantId) => {
+    try {
+    return await this.callWithRetry(orgId, async (client, tenantId) => {
       const contact: Contact = {
         name: invoiceData.customerName,
         emailAddress: invoiceData.customerEmail,
@@ -437,6 +438,23 @@ export class XeroService {
       const response = await client.accountingApi.createInvoices(tenantId, { invoices: [xeroInvoice] });
       return response.body.invoices?.[0];
     });
+    } catch (err: any) {
+      console.error('[XERO] createInvoiceInXero failed — full error:', {
+        name: err?.name,
+        message: err?.message,
+        stack: err?.stack,
+        code: err?.code,
+        statusCode: err?.statusCode,
+        response: err?.response,
+        body: err?.body,
+        rawString: String(err),
+        json: (() => {
+          try { return JSON.stringify(err, Object.getOwnPropertyNames(err)); }
+          catch { return 'unstringifiable'; }
+        })(),
+      });
+      throw err;
+    }
   }
 
   async createQuoteInXero(orgId: string, quoteData: any) {

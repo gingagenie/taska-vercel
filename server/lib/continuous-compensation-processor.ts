@@ -136,6 +136,16 @@ export async function processCompensationQueue(): Promise<BillingSafetyMetrics> 
   };
   
   try {
+    // Early exit: skip all scans when the table is empty (e.g. no packs purchased yet)
+    const [{ pendingCount }] = await db
+      .select({ pendingCount: sql`count(*)` })
+      .from(usagePackReservations)
+      .where(eq(usagePackReservations.status, 'pending'));
+    if (Number(pendingCount) === 0) {
+      isProcessing = false;
+      return { ...metrics, lastProcessedAt: new Date() };
+    }
+
     // STEP 1: Get comprehensive view of pending reservations
     const reservationAnalysis = await analyzePendingReservations();
     Object.assign(metrics, reservationAnalysis);
@@ -536,8 +546,20 @@ async function processCompensationReservations(): Promise<{ queueSize: number; e
  * any edge cases missed by the main compensation processor.
  */
 async function performPeriodicReconciliation(): Promise<void> {
+  try {
+    // Early exit: skip all scans when the table has no pending rows
+    const [{ pendingCount }] = await db
+      .select({ pendingCount: sql`count(*)` })
+      .from(usagePackReservations)
+      .where(eq(usagePackReservations.status, 'pending'));
+    if (Number(pendingCount) === 0) return;
+  } catch (error) {
+    console.error('[PERIODIC RECONCILIATION] Error during early-exit count check:', error);
+    return;
+  }
+
   console.log('[PERIODIC RECONCILIATION] Starting periodic reconciliation...');
-  
+
   try {
     // Find old pending reservations that might have been missed
     const oldReservations = await db

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { db } from "../db/client";
-import { orgSubscriptions, subscriptionPlans, users } from "../../shared/schema";
+import { orgSubscriptions, subscriptionPlans } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -50,21 +50,16 @@ export async function checkSubscription(
     }
 
     // SECRET: Business owner bypass - Keith Richmond always gets enterprise access
-    const userId = (req as any).user?.id;
-    if (userId) {
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
-      const isBusinessOwner = user?.email === "keith.richmond@live.com";
-
-      if (isBusinessOwner) {
-        (req as any).subscription = {
-          planId: "enterprise",
-          status: "active",
-          isActive: true,
-          trialEnd: undefined,
-          features: ["all_features", "unlimited_access", "enterprise_support"],
-        };
-        return next();
-      }
+    const isBusinessOwner = (req as any).user?.email === "keith.richmond@live.com";
+    if (isBusinessOwner) {
+      (req as any).subscription = {
+        planId: "enterprise",
+        status: "active",
+        isActive: true,
+        trialEnd: undefined,
+        features: ["all_features", "unlimited_access", "enterprise_support"],
+      };
+      return next();
     }
 
     // Everyone else gets normal subscription checking with aggressive paywall
@@ -139,14 +134,8 @@ export async function requireActiveSubscription(
   }
 
   // SECRET: Business owner bypass - Keith Richmond gets unlimited access
-  const userId = (req as any).user?.id;
-  if (userId) {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    const isBusinessOwner = user?.email === "keith.richmond@live.com";
-
-    if (isBusinessOwner) {
-      return next();
-    }
+  if ((req as any).user?.email === "keith.richmond@live.com") {
+    return next();
   }
 
   // Aggressive paywall for everyone else
@@ -186,15 +175,8 @@ export function requirePlan(minPlanLevel: "solo" | "pro" | "enterprise") {
     }
 
     // SECRET: Business owner bypass - Keith Richmond gets enterprise-level access
-    const userId = (req as any).user?.id;
-    if (userId) {
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
-      const isBusinessOwner = user?.email === "keith.richmond@live.com";
-
-      if (isBusinessOwner) {
-        console.log("[BYPASS] Business owner enterprise access granted");
-        return next();
-      }
+    if ((req as any).user?.email === "keith.richmond@live.com") {
+      return next();
     }
 
     // Aggressive plan restrictions for everyone else

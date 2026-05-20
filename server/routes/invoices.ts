@@ -635,49 +635,17 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       `);
     }
 
-    // Sync to Xero if connected.
-    // Xero generates the invoice number — written back to Taska after creation.
-    // If not connected, Taska's inv-XXXX number stays as-is.
-    try {
-      const { xeroService } = await import('../services/xero');
-      if (xeroService.isConfigured()) {
-        const integration = await xeroService.getOrgIntegration(orgId);
-        if (integration && !invoice.xero_id) {
-          const xeroInvoice = await xeroService.createInvoiceInXero(orgId, {
-            customerName: invoice.customer_name,
-            customerEmail: recipientEmails[0],
-            items: items.map((item: any) => ({
-              description: item.description || 'Item',
-              quantity: Number(item.quantity || 1),
-              price: Number(item.unit_amount || 0),
-              taxRate: Number(item.tax_rate || 0),
-            })),
-            dueAt: invoice.due_at,
-            currency: 'AUD',
-          });
-
-          // Write Xero's generated invoice number back to Taska
-          if (xeroInvoice?.invoiceNumber) {
-            await db.execute(sql`
-              UPDATE invoices
-              SET number = ${xeroInvoice.invoiceNumber}
-              WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
-            `);
-            console.log(`[XERO] Invoice number updated: ${invoice.number} → ${xeroInvoice.invoiceNumber}`);
-          }
-
-          // Store Xero internal ID for payment sync when marking paid
-          if (xeroInvoice?.invoiceID) {
-            await db.execute(sql`
-              UPDATE invoices SET xero_id = ${xeroInvoice.invoiceID}
-              WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
-            `);
-            console.log(`[XERO] Invoice synced, xeroId: ${xeroInvoice.invoiceID}`);
-          }
+    // Sync to Xero if connected (email is the primary action; Xero failure is non-fatal here)
+    if (!invoice.xero_id) {
+      try {
+        const { xeroService } = await import('../services/xero');
+        if (xeroService.isConfigured()) {
+          const integration = await xeroService.getOrgIntegration(orgId);
+          if (integration) await pushInvoiceToXero(id, orgId);
         }
+      } catch (xeroError) {
+        console.error('[XERO] Failed to sync invoice to Xero:', xeroError);
       }
-    } catch (xeroError) {
-      console.error('[XERO] Failed to sync invoice to Xero:', xeroError);
     }
 
     const recipientText = recipientEmails.length === 1 
@@ -703,6 +671,102 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
   } catch (error) {
     console.error('Error sending invoice email:', error);
     res.status(500).json({ error: "Failed to send invoice email" });
+  }
+});
+
+/**
+ * Push an invoice to Xero and write the returned IDs back atomically.
+ * Throws on any error — callers decide whether to surface or swallow.
+ */
+async function pushInvoiceToXero(
+  invoiceId: string,
+  orgId: string,
+): Promise<{ xeroId: string; xeroNumber: string | null }> {
+  const { xeroService } = await import('../services/xero');
+
+  const invoiceResult: any = await db.execute(sql`
+    select i.*, c.name as customer_name, c.email as customer_email
+    from invoices i
+    join customers c on c.id = i.customer_id
+    where i.id = ${invoiceId}::uuid and i.org_id = ${orgId}::uuid
+  `);
+  const invoice = invoiceResult[0];
+  if (!invoice) throw new Error('Invoice not found');
+  if (invoice.xero_id) return { xeroId: invoice.xero_id, xeroNumber: invoice.number };
+
+  const items: any = await db.execute(sql`
+    select * from invoice_lines
+    where invoice_id = ${invoiceId}::uuid
+    order by created_at nulls last, id
+  `);
+
+  const xeroInvoice = await xeroService.createInvoiceInXero(orgId, {
+    customerName: invoice.customer_name,
+    customerEmail: invoice.customer_email,
+    items: items.map((item: any) => ({
+      description: item.description || 'Item',
+      quantity: Number(item.quantity || 1),
+      price: Number(item.unit_amount || 0),
+      taxRate: Number(item.tax_rate || 0),
+    })),
+    dueAt: invoice.due_at,
+    currency: 'AUD',
+  });
+
+  // Validate before any DB writes — if Xero didn't return an ID the invoice
+  // was not created and we must not commit a partial state.
+  if (!xeroInvoice?.invoiceID) throw new Error('Xero did not return an invoice ID');
+
+  // Single atomic write: number + xero_id succeed or fail together.
+  const newNumber = xeroInvoice.invoiceNumber ?? null;
+  await db.execute(sql`
+    UPDATE invoices
+    SET xero_id = ${xeroInvoice.invoiceID},
+        number  = COALESCE(${newNumber}, number)
+    WHERE id = ${invoiceId}::uuid AND org_id = ${orgId}::uuid
+  `);
+  console.log(`[XERO] Invoice synced — xeroId: ${xeroInvoice.invoiceID}, number: ${newNumber ?? '(unchanged)'}`);
+
+  return { xeroId: xeroInvoice.invoiceID, xeroNumber: newNumber };
+}
+
+/** Manually push an unsynced invoice to Xero */
+router.post('/:id/xero', requireAuth, requireOrg, checkSubscription, requireActiveSubscription, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+
+  if (!isUuid(id)) return res.status(400).json({ ok: false, error: 'Invalid invoice ID' });
+
+  try {
+    const { xeroService } = await import('../services/xero');
+
+    if (!xeroService.isConfigured()) {
+      return res.status(503).json({ ok: false, error: 'Xero integration is not configured on this server' });
+    }
+    const integration = await xeroService.getOrgIntegration(orgId);
+    if (!integration) {
+      return res.status(422).json({ ok: false, error: 'No Xero integration found. Connect Xero in Settings first.' });
+    }
+
+    const existing: any = await db.execute(sql`
+      SELECT id, xero_id, number FROM invoices WHERE id = ${id}::uuid AND org_id = ${orgId}::uuid
+    `);
+    if (!existing[0]) return res.status(404).json({ ok: false, error: 'Invoice not found' });
+    if (existing[0].xero_id) {
+      return res.json({ ok: true, xeroId: existing[0].xero_id, xeroNumber: existing[0].number, alreadySynced: true });
+    }
+
+    const { xeroId, xeroNumber } = await pushInvoiceToXero(id, orgId);
+    return res.json({ ok: true, xeroId, xeroNumber });
+
+  } catch (err: any) {
+    console.error('[XERO] Manual push failed:', err);
+    const message =
+      err?.response?.body?.Detail ||
+      err?.response?.body?.Message ||
+      err?.message ||
+      'Failed to push invoice to Xero';
+    return res.status(502).json({ ok: false, error: message });
   }
 });
 

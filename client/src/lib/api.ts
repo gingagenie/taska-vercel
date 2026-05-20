@@ -215,6 +215,8 @@ export const invoicesApi = {
   markPaid: (id: string) => api(`/api/invoices/${id}/pay`, { method: "POST" }),
   sendEmail: (id: string, body: { email?: string; emails?: string[]; fromEmail?: string; fromName?: string }) =>
     api(`/api/invoices/${id}/email`, { method: "POST", body: JSON.stringify(body) }),
+  pushToXero: (id: string) =>
+    api(`/api/invoices/${id}/xero`, { method: "POST" }),
 };
 
 export const scheduleApi = {

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { Mail, Eye, ArrowLeft } from "lucide-react";
+import { Mail, Eye, ArrowLeft, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
@@ -28,6 +28,7 @@ export default function InvoiceView() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailAddress, setEmailAddress] = useState("");
   const [sending, setSending] = useState(false);
+  const [pushingXero, setPushingXero] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -36,6 +37,7 @@ export default function InvoiceView() {
   });
 
   const { data: meData } = useQuery({ queryKey: ["/api/me"] });
+  const { data: xeroStatus } = useQuery({ queryKey: ["/api/xero/status"] });
 
   const markPaidMutation = useMutation({
     mutationFn: (invoiceId: string) => invoicesApi.markPaid(invoiceId),
@@ -121,6 +123,28 @@ export default function InvoiceView() {
     }, 0);
     const total = subtotal + gst;
     return { subtotal, gst, total };
+  }
+
+  async function handlePushToXero() {
+    if (!id) return;
+    setPushingXero(true);
+    try {
+      const result = await invoicesApi.pushToXero(id);
+      toast({
+        title: "Synced to Xero",
+        description: `Invoice #${result.xeroNumber || result.xeroId} synced successfully`,
+      });
+      const updated = await invoicesApi.get(id);
+      setInvoice(updated);
+    } catch (e: any) {
+      toast({
+        title: "Xero sync failed",
+        description: e.message || "Unable to push invoice to Xero",
+        variant: "destructive",
+      });
+    } finally {
+      setPushingXero(false);
+    }
   }
 
   function openEmailDialog() {
@@ -370,7 +394,22 @@ export default function InvoiceView() {
             <Eye className="h-4 w-4" />
             Preview
           </Button>
-          <Button 
+          {!invoice.xero_id && (xeroStatus as any)?.connected && (
+            <Button
+              variant="outline"
+              className="flex items-center gap-2"
+              disabled={pushingXero}
+              onClick={handlePushToXero}
+              data-testid="button-push-xero"
+            >
+              {pushingXero
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <img src="https://www.xero.com/favicon.ico" alt="" className="h-4 w-4" />
+              }
+              {pushingXero ? "Syncing…" : "Push to Xero"}
+            </Button>
+          )}
+          <Button
             variant="outline"
             className="flex items-center gap-2"
             data-testid="button-email-invoice"

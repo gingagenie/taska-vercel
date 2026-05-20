@@ -760,13 +760,32 @@ router.post('/:id/xero', requireAuth, requireOrg, checkSubscription, requireActi
     return res.json({ ok: true, xeroId, xeroNumber });
 
   } catch (err: any) {
-    console.error('[XERO] Manual push failed:', err);
-    const message =
-      err?.response?.body?.Detail ||
-      err?.response?.body?.Message ||
-      err?.message ||
-      'Failed to push invoice to Xero';
-    return res.status(502).json({ ok: false, error: message });
+    const xeroStatus = err?.response?.statusCode ?? err?.statusCode ?? 'n/a';
+    const xeroBody = err?.response?.body;
+    console.error(
+      `[XERO] Manual push failed — HTTP ${xeroStatus}\n` +
+      `  err.message: ${err?.message}\n` +
+      `  response.body: ${xeroBody !== undefined ? JSON.stringify(xeroBody, null, 2) : '(none)'}`
+    );
+
+    // Surface a specific message for known Xero failure modes
+    let message: string;
+    if (xeroStatus === 401) {
+      message = 'Xero token expired or unauthorised — reconnect Xero in Settings';
+    } else if (xeroStatus === 429) {
+      message = 'Xero rate limit hit — wait a moment and try again';
+    } else {
+      message =
+        xeroBody?.Detail ||
+        xeroBody?.Message ||
+        (Array.isArray(xeroBody?.ValidationErrors) && xeroBody.ValidationErrors.length > 0
+          ? xeroBody.ValidationErrors.map((e: any) => e.Message).join('; ')
+          : null) ||
+        err?.message ||
+        'Failed to push invoice to Xero';
+    }
+
+    return res.status(502).json({ ok: false, error: message, xeroStatus });
   }
 });
 

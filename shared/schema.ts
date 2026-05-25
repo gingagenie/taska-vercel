@@ -264,6 +264,8 @@ export const invoices = pgTable("invoices", {
   issuedAt: timestamp("issued_at"),
   dueAt: timestamp("due_at"),
   xeroId: varchar("xero_id", { length: 255 }), // Xero Invoice ID
+  lastReminderSentAt: timestamp("last_reminder_sent_at"),
+  reminderCount: integer("reminder_count").default(0),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
 });

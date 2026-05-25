@@ -1,6 +1,26 @@
 import { db } from "./client";
 import { sql } from "drizzle-orm";
 
+export async function ensureInvoicesTableShape() {
+  await db.execute(sql`
+    alter table invoices
+      add column if not exists last_reminder_sent_at timestamptz,
+      add column if not exists reminder_count integer not null default 0
+  `);
+
+  // On first deploy: stamp any already-overdue invoices so they don't all fire
+  // immediately. Setting last_reminder_sent_at = now() - 4 days means the first
+  // reminder will go out ~3 days from deploy, joining the normal 7-day cycle.
+  await db.execute(sql`
+    update invoices
+    set last_reminder_sent_at = now() - interval '4 days'
+    where status not in ('paid', 'void')
+      and due_at is not null
+      and due_at < now() - interval '3 days'
+      and last_reminder_sent_at is null
+  `);
+}
+
 export async function ensureUsersTableShape() {
   await db.execute(sql`
     alter table users

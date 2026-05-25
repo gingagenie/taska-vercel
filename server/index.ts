@@ -5,7 +5,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { me } from "./routes/me";
-import { ensureUsersTableShape } from "./db/ensure";
+import { ensureUsersTableShape, ensureInvoicesTableShape } from "./db/ensure";
 import { db } from "./db/client";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { reconcilePendingFinalizations } from "./lib/pack-consumption";
 import { startContinuousCompensationProcessor, stopContinuousCompensationProcessor } from "./lib/continuous-compensation-processor";
+import { startInvoiceReminderProcessor, stopInvoiceReminderProcessor } from "./lib/invoice-reminder-processor";
 import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
 import portalRouter from "./routes/portal";
 import serviceRequestsRoutes from "./routes/service-requests";
@@ -146,6 +147,7 @@ app.use("/support", supportSessionConfig);
   try {
     console.log("[STARTUP] Ensuring database schema...");
     await ensureUsersTableShape();
+    await ensureInvoicesTableShape();
     console.log("[STARTUP] ✅ Database schema ensured successfully");
   } catch (error) {
     console.error("[STARTUP] ❌ CRITICAL: Failed to ensure database schema:", error);
@@ -380,6 +382,14 @@ app.use((req, res, next) => {
     } catch (error) {
       console.error("[STARTUP] ❌ CRITICAL: Failed to start continuous compensation processor:", error);
       console.error("[STARTUP] ⚠️ BILLING SAFETY COMPROMISED: Manual intervention required");
+    }
+
+    try {
+      console.log("[STARTUP] Starting invoice overdue reminder processor...");
+      startInvoiceReminderProcessor();
+      console.log("[STARTUP] ✅ Invoice reminder processor started");
+    } catch (error) {
+      console.error("[STARTUP] ❌ Failed to start invoice reminder processor:", error);
     }
 
     if (app.get("env") === "development") {

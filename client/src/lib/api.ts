@@ -217,6 +217,7 @@ export const invoicesApi = {
     api(`/api/invoices/${id}/email`, { method: "POST", body: JSON.stringify(body) }),
   pushToXero: (id: string) =>
     api(`/api/invoices/${id}/xero`, { method: "POST" }),
+  getReminderLogs: (id: string) => api(`/api/invoices/${id}/reminder-logs`),
 };
 
 export const scheduleApi = {

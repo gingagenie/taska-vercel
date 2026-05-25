@@ -179,6 +179,8 @@ async function sendReminderForInvoice(invoice: any): Promise<void> {
     console.error("[REMINDER] Failed to track email usage:", err);
   }
 
+  const reminderNum = (Number(invoice.reminder_count) || 0) + 1;
+
   // Record the send so we don't remind again for 7 days
   await db.execute(sql`
     UPDATE invoices
@@ -187,7 +189,11 @@ async function sendReminderForInvoice(invoice: any): Promise<void> {
     WHERE id = ${invoice.id}::uuid
   `);
 
-  const reminderNum = (Number(invoice.reminder_count) || 0) + 1;
+  await db.execute(sql`
+    INSERT INTO invoice_reminder_logs (invoice_id, org_id, recipient_email, reminder_number, status)
+    VALUES (${invoice.id}::uuid, ${orgId}::uuid, ${invoice.customer_email}, ${reminderNum}, 'sent')
+  `);
+
   console.log(
     `[REMINDER] Sent reminder #${reminderNum} for invoice ${invoice.number || invoice.id} → ${invoice.customer_email}`
   );

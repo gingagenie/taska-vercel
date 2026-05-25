@@ -8,6 +8,22 @@ export async function ensureInvoicesTableShape() {
       add column if not exists reminder_count integer not null default 0
   `);
 
+  await db.execute(sql`
+    create table if not exists invoice_reminder_logs (
+      id uuid primary key default gen_random_uuid(),
+      invoice_id uuid not null references invoices(id) on delete cascade,
+      org_id uuid not null,
+      sent_at timestamptz not null default now(),
+      recipient_email text not null,
+      reminder_number integer not null,
+      status text not null default 'sent'
+    )
+  `);
+  await db.execute(sql`
+    create index if not exists invoice_reminder_logs_invoice_idx
+      on invoice_reminder_logs(invoice_id, sent_at desc)
+  `);
+
   // On first deploy: stamp any already-overdue invoices so they don't all fire
   // immediately. Setting last_reminder_sent_at = now() - 4 days means the first
   // reminder will go out ~3 days from deploy, joining the normal 7-day cycle.

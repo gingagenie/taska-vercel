@@ -351,6 +351,24 @@ router.delete("/:id/items/:itemId", requireAuth, requireOrg, async (req, res) =>
 });
 
 /** Mark paid */
+router.get("/:id/reminder-logs", requireAuth, requireOrg, async (req, res) => {
+  const { id } = req.params;
+  const orgId = (req as any).orgId;
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid id" });
+  try {
+    const logs = await db.execute(sql`
+      SELECT id, sent_at, recipient_email, reminder_number, status
+      FROM invoice_reminder_logs
+      WHERE invoice_id = ${id}::uuid AND org_id = ${orgId}::uuid
+      ORDER BY sent_at DESC
+    `);
+    return res.json(logs);
+  } catch (err) {
+    console.error("[REMINDER LOGS] Failed to fetch:", err);
+    return res.status(500).json({ error: "Failed to fetch reminder logs" });
+  }
+});
+
 router.post("/:id/pay", requireAuth, requireOrg, async (req, res) => {
   const { id } = req.params;
   const orgId = (req as any).orgId;

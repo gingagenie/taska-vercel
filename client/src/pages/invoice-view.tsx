@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { Mail, Eye, ArrowLeft, Loader2 } from "lucide-react";
+import { Mail, Eye, ArrowLeft, Loader2, Bell } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EmailLimitWarning } from "@/components/usage/send-limit-warnings";
 import { trackViewContent, trackClickButton } from "@/lib/tiktok-tracking";
@@ -34,6 +34,12 @@ export default function InvoiceView() {
 
   const { data: customers = [] } = useQuery({
     queryKey: ["/api/customers"],
+  });
+
+  const { data: reminderLogs = [] } = useQuery({
+    queryKey: [`/api/invoices/${id}/reminder-logs`],
+    queryFn: () => invoicesApi.getReminderLogs(id!),
+    enabled: !!id,
   });
 
   const { data: meData } = useQuery({ queryKey: ["/api/me"] });
@@ -468,6 +474,35 @@ export default function InvoiceView() {
               </div>
             </CardContent>
           </Card>
+          {(reminderLogs as any[]).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-4 w-4" />
+                  Reminder History
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="card-pad">
+                <ol className="space-y-3">
+                  {(reminderLogs as any[]).map((log: any) => (
+                    <li key={log.id} className="flex items-start gap-3 text-sm">
+                      <div className="mt-0.5 h-2 w-2 rounded-full bg-blue-400 shrink-0" />
+                      <div>
+                        <span className="font-medium">Reminder #{log.reminder_number}</span>
+                        <span className="text-gray-500"> sent to {log.recipient_email}</span>
+                        <div className="text-gray-400 text-xs mt-0.5">
+                          {new Date(log.sent_at).toLocaleString('en-AU', {
+                            day: 'numeric', month: 'short', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                          })}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">

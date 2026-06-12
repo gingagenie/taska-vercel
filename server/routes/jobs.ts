@@ -569,7 +569,7 @@ jobs.get("/:jobId", requireAuth, requireOrg, async (req, res) => {
 
     const jr: any = await db.execute(sql`
       select
-        j.id, j.title, j.description, j.status, j.notes,
+        j.id, j.title, j.description, j.status, j.notes, j.truck_hours,
         to_char(j.scheduled_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as scheduled_at,
         j.customer_id,
         coalesce(c.name,'—') as customer_name,
@@ -995,6 +995,36 @@ jobs.put("/:jobId/notes", requireAuth, requireOrg, async (req, res) => {
   }
 });
 
+jobs.put("/:jobId/truck-hours", requireAuth, requireOrg, async (req, res) => {
+  const { jobId } = req.params;
+  const orgId = (req as any).orgId;
+  const { truckHours } = req.body || {};
+
+  if (!isUuid(jobId)) return res.status(400).json({ error: "Invalid jobId" });
+
+  // Empty/null clears the value; otherwise must be a non-negative number.
+  let value: number | null = null;
+  if (truckHours !== null && truckHours !== undefined && truckHours !== "") {
+    const n = Number(truckHours);
+    if (!Number.isFinite(n) || n < 0) {
+      return res.status(400).json({ error: "Truck hours must be a non-negative number" });
+    }
+    value = n;
+  }
+
+  try {
+    await db.execute(sql`
+      update jobs
+      set truck_hours = ${value}, updated_at = now()
+      where id = ${jobId}::uuid and org_id = ${orgId}::uuid
+    `);
+    res.json({ ok: true, truck_hours: value });
+  } catch (e: any) {
+    console.error("PUT /api/jobs/:jobId/truck-hours error:", e);
+    res.status(500).json({ error: e?.message || "Failed to save truck hours" });
+  }
+});
+
 jobs.get("/:jobId/charges", requireAuth, requireOrg, async (req, res) => {
   const { jobId } = req.params;
   const orgId = (req as any).orgId;
@@ -1143,12 +1173,12 @@ jobs.post("/:jobId/complete", requireAuth, requireOrg, async (req, res) => {
     const completedResult: any = await db.execute(sql`
       INSERT INTO completed_jobs (
         org_id, original_job_id, customer_id, customer_name, title, description, job_type, notes,
-        scheduled_at, completed_by, original_created_by, original_created_at
+        truck_hours, scheduled_at, completed_by, original_created_by, original_created_at
       )
       VALUES (
         ${orgId}::uuid, ${jobId}::uuid, ${job.customer_id}::uuid, ${job.customer_name},
         ${job.title}, ${job.description}, ${job.job_type}, ${job.notes},
-        ${job.scheduled_at}, ${userId}, ${job.created_by}, ${job.created_at}
+        ${job.truck_hours}, ${job.scheduled_at}, ${userId}, ${job.created_by}, ${job.created_at}
       )
       RETURNING id, completed_at
     `);

@@ -163,6 +163,10 @@ export async function generateServiceSheetPDF(
   const orgName     = data.orgName           || '';
   const description = s(data.job.description);
   const jobNotes    = s(data.job.notes);
+  const truckHours  =
+    data.job.truck_hours === null || data.job.truck_hours === undefined || data.job.truck_hours === ''
+      ? ''
+      : `${Number(data.job.truck_hours)} h`;
 
   const equipment = (data.equipment as any[]).map(e => s(e.equipment_name)).filter(Boolean);
   const notes     = (data.notes     as any[]).map(n => s(n.text)).filter(Boolean);
@@ -318,6 +322,7 @@ export async function generateServiceSheetPDF(
     kv('Title',       title);
     if (description) kv('Description', description);
     kv('Scheduled',   fmt(data.job.scheduled_at));
+    if (truckHours)  kv('Truck Hours', truckHours);
     if (jobNotes)    kv('Notes',       jobNotes);
     y += 4;
     boxOutline(jobTop);

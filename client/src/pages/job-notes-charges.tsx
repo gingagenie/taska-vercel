@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Trash2, Clock, Wrench, Camera, ImageIcon } from "lucide-react";
+import { ArrowLeft, Trash2, Clock, Wrench, Camera, ImageIcon, Truck } from "lucide-react";
 
 export default function JobNotesCharges() {
   const [match, params] = useRoute("/jobs/:id/notes");
@@ -23,12 +23,14 @@ export default function JobNotesCharges() {
   const [hoursDescription, setHoursDescription] = useState("");
   const [newPartName, setNewPartName] = useState("");
   const [newPartQuantity, setNewPartQuantity] = useState("1");
-  
+  const [truckHours, setTruckHours] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
   const [addingHours, setAddingHours] = useState(false);
   const [addingPart, setAddingPart] = useState(false);
+  const [savingTruckHours, setSavingTruckHours] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Hours options (0.5 to 8 hours in 0.5 increments)
@@ -49,17 +51,23 @@ export default function JobNotesCharges() {
 
   const loadAll = async () => {
     try {
-      const [notesData, hoursData, partsData, photosData] = await Promise.all([
+      const [notesData, hoursData, partsData, photosData, jobData] = await Promise.all([
         notesApi.list(jobId),
         api(`/api/jobs/${jobId}/hours`),
         api(`/api/jobs/${jobId}/parts`),
         photosApi.list(jobId),
+        api(`/api/jobs/${jobId}`),
       ]);
 
       setNotes(asArray(notesData));
       setHours(asArray(hoursData));
       setParts(asArray(partsData));
       setPhotos(asArray(photosData));
+      setTruckHours(
+        jobData?.truck_hours === null || jobData?.truck_hours === undefined
+          ? ""
+          : String(jobData.truck_hours)
+      );
     } catch (e: any) {
       setErr(e?.message || "Failed to load data");
     } finally {
@@ -130,6 +138,23 @@ export default function JobNotesCharges() {
       setErr(e?.message || "Failed to add part");
     } finally {
       setAddingPart(false);
+    }
+  };
+
+  const saveTruckHours = async () => {
+    setSavingTruckHours(true);
+    setErr(null);
+    try {
+      await api(`/api/jobs/${jobId}/truck-hours`, {
+        method: "PUT",
+        body: JSON.stringify({
+          truckHours: truckHours.trim() === "" ? null : parseFloat(truckHours),
+        }),
+      });
+    } catch (e: any) {
+      setErr(e?.message || "Failed to save truck hours");
+    } finally {
+      setSavingTruckHours(false);
     }
   };
 
@@ -328,6 +353,36 @@ export default function JobNotesCharges() {
               </>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Truck hours section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Truck className="h-5 w-5" />
+            Truck Hours
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Truck hour-meter reading</Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.1"
+              value={truckHours}
+              onChange={(e) => setTruckHours(e.target.value)}
+              placeholder="e.g., 1234.5"
+            />
+            <p className="text-xs text-gray-500">
+              Editable anytime. Shown on the job sheet once the job is completed.
+            </p>
+          </div>
+          <Button onClick={saveTruckHours} disabled={savingTruckHours} className="w-full">
+            {savingTruckHours ? "Saving..." : "Save Truck Hours"}
+          </Button>
         </CardContent>
       </Card>
 

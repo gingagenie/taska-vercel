@@ -110,6 +110,7 @@ export const jobs = pgTable("jobs", {
   status: varchar("status", { length: 50 }).default("new"),
   jobType: varchar("job_type", { length: 50 }), // Service, Repair, Installation, Other
   notes: text("notes"), // Work performed notes
+  truckHours: decimal("truck_hours", { precision: 8, scale: 1 }), // Truck hour-meter reading
   scheduledAt: timestamp("scheduled_at"),
   confirmationToken: varchar("confirmation_token", { length: 255 }).unique(),
   createdBy: uuid("created_by").references(() => users.id),
@@ -156,6 +157,7 @@ export const completedJobs = pgTable("completed_jobs", {
   description: text("description"),
   jobType: varchar("job_type", { length: 50 }), // Service, Repair, Installation, Other
   notes: text("notes"), // Work performed notes
+  truckHours: decimal("truck_hours", { precision: 8, scale: 1 }), // Truck hour-meter reading (copied from job at completion)
   scheduledAt: timestamp("scheduled_at"),
   completedAt: timestamp("completed_at").defaultNow().notNull(),
   completedBy: uuid("completed_by").references(() => users.id),

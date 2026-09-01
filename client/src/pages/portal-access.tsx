@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ExternalLink, Loader2, Search } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { ExternalLink, Loader2, Search, User, MapPin, Mail } from "lucide-react";
 
 interface Customer {
   id: string;
@@ -27,56 +28,70 @@ export default function PortalAccess() {
   );
 
   function openPortal(customerId: string) {
-    // Navigate directly to the server endpoint — it sets the session and redirects
     window.location.href = `/api/admin/portal-as/${customerId}`;
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Customer Portal Access</h1>
+    <div className="p-4 sm:p-6 space-y-4 min-h-screen bg-gray-100">
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Customer Portal Access</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Open any customer's portal as an admin view. Sessions expire in 45 minutes.
+          Open any customer's portal as an admin view.
         </p>
       </div>
 
-      <div className="relative mb-4">
+      <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <Input
           placeholder="Search customers..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
+          className="pl-9 bg-white"
         />
       </div>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-gray-500 py-8 justify-center">
+        <div className="flex items-center justify-center gap-2 text-gray-500 py-12">
           <Loader2 className="w-5 h-5 animate-spin" />
-          Loading customers...
+          <span>Loading customers...</span>
         </div>
       ) : filtered.length === 0 ? (
-        <p className="text-gray-500 py-8 text-center">No customers found.</p>
+        <p className="text-gray-500 py-12 text-center">No customers found.</p>
       ) : (
-        <div className="divide-y border rounded-lg bg-white">
+        <div className="space-y-3">
           {filtered.map((c) => (
-            <div key={c.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
-              <div>
-                <p className="font-medium text-gray-900">{c.name}</p>
-                <p className="text-sm text-gray-500">
-                  {[c.email, c.suburb].filter(Boolean).join(" · ") || "No contact info"}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => openPortal(c.id)}
-                className="gap-2 shrink-0 ml-4"
-              >
-                <ExternalLink className="w-3 h-3" />
-                View Portal
-              </Button>
-            </div>
+            <Card key={c.id} className="bg-white hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="font-semibold text-gray-900 truncate">{c.name}</span>
+                    </div>
+                    {c.email && (
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Mail className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{c.email}</span>
+                      </div>
+                    )}
+                    {c.suburb && (
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span>{c.suburb}</span>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => openPortal(c.id)}
+                    className="gap-2 w-full sm:w-auto shrink-0"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    View Portal
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

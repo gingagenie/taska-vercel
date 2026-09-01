@@ -56,7 +56,7 @@ router.post("/customers/:id/impersonate", requireAuth, requireAdmin, async (req,
       VALUES (${adminUserId}::uuid, ${customerId}::uuid, ${customer.name})
     `);
 
-    const portalUrl = `/portal/${orgSlug}?impersonateToken=${rawToken}`;
+    const portalUrl = `/portal/${orgSlug}/login?impersonateToken=${rawToken}`;
 
     console.log(`[IMPERSONATE] Admin ${adminUserId} impersonating customer ${customerId} (${customer.name})`);
 

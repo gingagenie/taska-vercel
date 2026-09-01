@@ -577,7 +577,7 @@ function AppContent() {
   }
 
   // ✅ Customer portal routes - separate app (no Taska login required)
-  if (location.startsWith("/portal")) {
+  if (location.startsWith("/portal/") || location === "/portal") {
     return <PortalApp />;
   }
 

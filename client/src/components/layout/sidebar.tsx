@@ -18,7 +18,8 @@ import {
   LogOut,
   Cog,
   CheckCircle,
-  LifeBuoy
+  LifeBuoy,
+  ExternalLink
 } from "lucide-react";
 import logoUrl from "@assets/Taska_1755842483680.png";
 
@@ -201,6 +202,29 @@ export function SidebarContent({ onClose, onCreateJobFromServiceRequest }: Sideb
             </Link>
           );
         })}
+
+        {/* Portal Access — admin only */}
+        {user?.email === 'keith.richmond@live.com' && (
+          <>
+            <div className="pt-4 pb-2">
+              <div className="h-px bg-gray-200" />
+            </div>
+            <Link href="/portal-access">
+              <div
+                className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors ${
+                  location === '/portal-access'
+                    ? 'bg-people text-people-foreground'
+                    : 'text-gray-600 hover:bg-people-light hover:text-people'
+                }`}
+                onClick={() => onClose?.()}
+                data-testid="nav-portal"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Portal
+              </div>
+            </Link>
+          </>
+        )}
       </nav>
 
       {/* User Profile - Clickable */}

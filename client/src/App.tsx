@@ -52,6 +52,7 @@ import Login from "@/pages/auth-login";
 import TrialExpired from "@/pages/trial-expired";
 import PrivacyPolicy from "@/pages/privacy";
 import GodModePage from "@/pages/godmode";
+import PortalAccess from "@/pages/portal-access";
 
 // Lazy load customer support pages for performance
 const CustomerSupportDashboard = lazy(() => import("@/pages/support"));
@@ -386,6 +387,7 @@ function AuthenticatedApp() {
             <Route path="/quotes/:id">{() => <ProtectedRoute component={QuoteView} allowedRoles={["admin", "manager"]} onConvertToJob={(data: any) => { setJobModalPrefillData(data); setIsJobModalOpen(true); }} />}</Route>
             <Route path="/quotes/:id/edit">{() => <ProtectedRoute component={QuoteEdit} allowedRoles={["admin", "manager"]} />}</Route>
 
+            <Route path="/portal-access">{() => <ProtectedRoute component={PortalAccess} allowedRoles={["admin"]} />}</Route>
             <Route path="/invoices">{() => <ProtectedRoute component={Invoices} allowedRoles={["admin", "manager"]} />}</Route>
             <Route path="/invoices/new">{() => <ProtectedRoute component={InvoiceEdit} allowedRoles={["admin", "manager"]} />}</Route>
             <Route path="/invoices/:id">{() => <ProtectedRoute component={InvoiceView} allowedRoles={["admin", "manager"]} />}</Route>

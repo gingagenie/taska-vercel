@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import jobsRouter from "./jobs";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { sendAdminPushNotification } from "../services/fcm";
 
 const portalRouter = Router();
 
@@ -113,6 +114,111 @@ portalRouter.post("/portal/:org/logout", async (req: any, res) => {
 });
 
 /* --------------------------------------------------
+   IMPERSONATE EXCHANGE
+   Validate a one-time admin impersonation token and
+   create a portal session for the target customer.
+-------------------------------------------------- */
+
+portalRouter.post("/portal/:org/impersonate-exchange", async (req: any, res) => {
+  const { token } = req.body as { token?: string };
+  const orgSlug = req.params.org;
+
+  if (!token || typeof token !== "string") {
+    return res.status(400).json({ error: "token is required" });
+  }
+
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+  try {
+    const orgId = await getOrgIdBySlug(orgSlug);
+    if (!orgId) {
+      return res.status(404).json({ error: "Organisation not found" });
+    }
+
+    const rows: any = await db.execute(sql`
+      SELECT id, customer_id, org_id, admin_user_id, expires_at, used_at
+      FROM admin_impersonation_tokens
+      WHERE token_hash = ${tokenHash}
+      LIMIT 1
+    `);
+
+    if (!rows?.length) {
+      return res.status(401).json({ error: "Invalid impersonation token" });
+    }
+
+    const row = rows[0];
+
+    if (row.used_at) {
+      return res.status(401).json({ error: "Impersonation token already used" });
+    }
+    if (new Date(row.expires_at) < new Date()) {
+      return res.status(401).json({ error: "Impersonation token expired" });
+    }
+    if (String(row.org_id) !== String(orgId)) {
+      return res.status(401).json({ error: "Token org mismatch" });
+    }
+
+    // Mark token as used
+    await db.execute(sql`
+      UPDATE admin_impersonation_tokens SET used_at = NOW() WHERE id = ${row.id}::uuid
+    `);
+
+    // Establish portal session
+    req.session.customerId = row.customer_id;
+    (req.session as any).impersonatedBy = row.admin_user_id;
+
+    req.session.save((err: any) => {
+      if (err) {
+        console.error("[IMPERSONATE] Session save error:", err);
+        return res.status(500).json({ error: "Session save failed" });
+      }
+      console.log(`[IMPERSONATE] Admin session established for customer ${row.customer_id}`);
+      return res.json({ success: true, customerId: row.customer_id, orgSlug });
+    });
+  } catch (e: any) {
+    console.error("[IMPERSONATE] Exchange error:", e);
+    return res.status(500).json({ error: "Impersonation exchange failed" });
+  }
+});
+
+/* --------------------------------------------------
+   IMPERSONATE EXIT
+   End the impersonation session.
+-------------------------------------------------- */
+
+portalRouter.post("/portal/:org/impersonate-exit", async (req: any, res) => {
+  const customerId = req.session?.customerId;
+  const impersonatedBy = (req.session as any)?.impersonatedBy;
+
+  if (!customerId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  // Update audit log
+  if (impersonatedBy) {
+    try {
+      await db.execute(sql`
+        UPDATE admin_impersonation_log
+        SET ended_at = NOW()
+        WHERE customer_id = ${customerId}::uuid
+          AND admin_user_id = ${impersonatedBy}::uuid
+          AND ended_at IS NULL
+      `);
+    } catch (e) {
+      console.error("[IMPERSONATE] Audit log update error:", e);
+    }
+  }
+
+  req.session.destroy((err: any) => {
+    if (err) {
+      console.error("[IMPERSONATE] Session destroy error:", err);
+      return res.status(500).json({ error: "Logout failed" });
+    }
+    return res.json({ success: true });
+  });
+});
+
+/* --------------------------------------------------
    ME - Get current portal user info
 -------------------------------------------------- */
 
@@ -151,6 +257,7 @@ portalRouter.get("/portal/:org/me", async (req: any, res) => {
       email: customer.email,
       phone: customer.phone,
       org_id: orgId,
+      impersonated_by: (req as any).session?.impersonatedBy || null,
     });
   } catch (error: any) {
     console.error("Error fetching portal customer info:", error);

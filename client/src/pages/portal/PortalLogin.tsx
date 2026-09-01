@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 export default function PortalLogin() {
   const params = useParams() as any;
@@ -16,6 +17,36 @@ export default function PortalLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [impersonating, setImpersonating] = useState(false);
+
+  // Handle admin impersonation token in query string
+  useEffect(() => {
+    const impersonateToken = new URLSearchParams(window.location.search).get("impersonateToken");
+    if (!impersonateToken) return;
+
+    setImpersonating(true);
+    fetch(`/api/portal/${org}/impersonate-exchange`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: impersonateToken }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Impersonation failed");
+        }
+        return res.json();
+      })
+      .then(() => {
+        navigate(`/portal/${org}/equipment`);
+      })
+      .catch((e: any) => {
+        toast({ title: "Impersonation failed", description: e.message, variant: "destructive" });
+        setImpersonating(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org]);
 
   async function onLogin() {
     try {
@@ -41,8 +72,19 @@ export default function PortalLogin() {
     }
   }
 
+  if (impersonating) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-gray-900 text-white">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-10 h-10 animate-spin mx-auto text-blue-400" />
+          <p className="text-lg font-medium">Opening portal as admin…</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div 
+    <div
       className="min-h-screen grid place-items-center p-4 relative bg-cover bg-center bg-no-repeat"
       style={{
         backgroundImage: "url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=2070')"

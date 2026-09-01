@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CustomerModal } from "@/components/modals/customer-modal";
 import { JobModal } from "@/components/modals/job-modal";
-import { Building2, ArrowLeft, MapPin, Clipboard, Plus, AlertTriangle, Trash, Key, Copy, Check } from "lucide-react";
+import { StatementModal } from "@/components/modals/statement-modal";
+import { Building2, ArrowLeft, MapPin, Clipboard, Plus, AlertTriangle, Trash, Key, Copy, Check, FileText } from "lucide-react";
 import { trackViewContent } from "@/lib/tiktok-tracking";
 import { useToast } from "@/hooks/use-toast";
 
@@ -65,6 +66,7 @@ export default function CustomerView() {
   const [customer, setCustomer] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [isStatementModalOpen, setIsStatementModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -242,7 +244,16 @@ Please keep these credentials secure.`;
           >
             Edit
           </Button>
-          <Button 
+          <Button
+            variant="secondary"
+            onClick={() => setIsStatementModalOpen(true)}
+            data-testid="button-send-statement"
+            className="w-full col-span-2"
+          >
+            <FileText className="h-4 w-4 mr-1" />
+            Send Statement
+          </Button>
+          <Button
             variant="secondary"
             onClick={generatePortalLogin}
             disabled={generatingLogin}
@@ -322,6 +333,12 @@ Please keep these credentials secure.`;
         onOpenChange={setIsJobModalOpen}
         defaultCustomerId={customer.id}
         onCreated={(newId) => navigate(`/jobs/${newId}`)}
+      />
+      <StatementModal
+        open={isStatementModalOpen}
+        onOpenChange={setIsStatementModalOpen}
+        customerId={customer.id}
+        customerName={customer.name}
       />
       
       {/* Portal Login Credentials Modal */}

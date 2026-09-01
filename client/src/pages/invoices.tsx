@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatementModal } from "@/components/modals/statement-modal";
 import { Link, useLocation, useSearch } from "wouter";
-import { FileText, User, ArrowRight, Edit, Eye, CheckCircle } from "lucide-react";
+import { FileText, User, ArrowRight, Edit, Eye, CheckCircle, FileBarChart } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +32,22 @@ export default function InvoicesPage() {
   });
 
   const [q, setQ] = useState("");
+  const [customerFilter, setCustomerFilter] = useState<string>("all");
+  const [statementOpen, setStatementOpen] = useState(false);
+
+  // Unique customers present in the current invoice list, for the filter + statement.
+  const customerOptions = (() => {
+    const map = new Map<string, string>();
+    (list || []).forEach((x: any) => {
+      if (x.customer_id) map.set(x.customer_id, x.customer_name || "Unnamed customer");
+    });
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  })();
+
+  const selectedCustomer =
+    customerFilter !== "all" ? customerOptions.find((c) => c.id === customerFilter) : undefined;
 
   const markPaidMutation = useMutation({
     mutationFn: (invoiceId: string) => invoicesApi.markPaid(invoiceId),
@@ -45,9 +63,11 @@ export default function InvoicesPage() {
 
   const handleTabChange = (tab: string) => navigate(`/invoices?tab=${tab}`);
 
-  const filtered = (list || []).filter((x: any) =>
-    [x.title, x.customer_name, x.status].join(" ").toLowerCase().includes(q.toLowerCase())
-  );
+  const filtered = (list || [])
+    .filter((x: any) => customerFilter === "all" || x.customer_id === customerFilter)
+    .filter((x: any) =>
+      [x.title, x.customer_name, x.status].join(" ").toLowerCase().includes(q.toLowerCase())
+    );
 
   const calculateTotal = () => {
     const invoices = filtered || [];
@@ -83,12 +103,36 @@ export default function InvoicesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-financial">Invoices</h1>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <Select value={customerFilter} onValueChange={setCustomerFilter}>
+            <SelectTrigger className="w-full sm:w-52" data-testid="filter-customer">
+              <SelectValue placeholder="All customers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All customers</SelectItem>
+              {customerOptions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             className="w-full sm:w-64"
             placeholder="Search invoices…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
+          {selectedCustomer && (
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setStatementOpen(true)}
+              data-testid="button-statement"
+            >
+              <FileBarChart className="h-4 w-4 mr-2" />
+              Statement
+            </Button>
+          )}
           <Link href="/invoices/new">
             <a>
               <Button
@@ -242,6 +286,15 @@ export default function InvoicesPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {selectedCustomer && (
+        <StatementModal
+          open={statementOpen}
+          onOpenChange={setStatementOpen}
+          customerId={selectedCustomer.id}
+          customerName={selectedCustomer.name}
+        />
       )}
     </div>
   );

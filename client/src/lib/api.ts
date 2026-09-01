@@ -220,6 +220,64 @@ export const invoicesApi = {
   getReminderLogs: (id: string) => api(`/api/invoices/${id}/reminder-logs`),
 };
 
+export type StatementFilters = {
+  customerId: string;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  outstandingOnly?: boolean;
+};
+
+export const statementsApi = {
+  preview: (body: StatementFilters) =>
+    api("/api/statements/preview", { method: "POST", body: JSON.stringify(body) }),
+
+  /**
+   * Generate a statement. For delivery 'pdf'/'both' the response is a PDF blob
+   * (triggers a browser download); for 'email' it's a JSON success payload.
+   */
+  generate: async (
+    body: StatementFilters & { delivery: "pdf" | "email" | "both" }
+  ): Promise<
+    | { kind: "pdf"; blob: Blob; filename: string; emailSent: boolean | null }
+    | { kind: "json"; data: any }
+  > => {
+    const headers: Record<string, string> = {
+      ...getAuthHeaders(),
+      "Content-Type": "application/json",
+    };
+    const res = await fetch(`${BASE}/api/statements/generate`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      try {
+        const err = JSON.parse(text || "{}");
+        throw new Error(err.error || err.message || `HTTP ${res.status}`);
+      } catch {
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+    }
+
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/pdf")) {
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const filename = match ? match[1] : "statement.pdf";
+      const emailHeader = res.headers.get("x-statement-email");
+      const emailSent = emailHeader ? emailHeader === "sent" : null;
+      return { kind: "pdf", blob, filename, emailSent };
+    }
+
+    const text = await res.text();
+    return { kind: "json", data: text ? JSON.parse(text) : null };
+  },
+};
+
 export const scheduleApi = {
   range: (p: { start: string; end: string; techId?: string; tz?: string }) => {
     const q = new URLSearchParams(p as any).toString();

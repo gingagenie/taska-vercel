@@ -5,6 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Taska',
   webDir: 'dist/public',
   server: {
+    url: 'https://www.taska.info',
     androidScheme: 'https',
     iosScheme: 'https'
   },

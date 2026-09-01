@@ -9,6 +9,7 @@ import { teams } from "./routes/teams";
 import jobs from "./routes/jobs";
 import quotes from "./routes/quotes";
 import invoices from "./routes/invoices";
+import statements from "./routes/statements";
 import { schedule } from "./routes/schedule";
 import { members } from "./routes/members";
 import { jobSms } from "./routes/job-sms";
@@ -23,6 +24,8 @@ import { aiSupportRouter } from "./routes/ai-support";
 import supportTickets from "./routes/support-tickets";
 import { publicRouter } from "./routes/public";
 import adminRoutes from "./routes/admin";
+import impersonationRouter from "./routes/impersonation";
+import pushTokensRouter from "./routes/push-tokens";
 import mediaRouter from "./routes/media";
 import { blockSupportStaffFromCustomerData } from "./middleware/access-control";
 
@@ -49,7 +52,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/quotes", blockSupportStaffFromCustomerData, quotes);
  
   app.use("/api/invoices", blockSupportStaffFromCustomerData, invoices);
-  
+
+  app.use("/api/statements", blockSupportStaffFromCustomerData, statements);
+
   app.use("/api/item-presets", blockSupportStaffFromCustomerData, itemPresets);
   
   
@@ -72,6 +77,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Admin routes - requires admin authentication
   app.use("/api/admin", adminRoutes);
+  app.use("/api/admin", impersonationRouter);
+  app.use("/api/admin", pushTokensRouter);
   
   
   // Migration export tool

@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { 
-  LayoutDashboard, 
-  Users, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Users,
+  BarChart3,
   Settings,
   AlertTriangle,
   LogOut,
   Menu,
   X,
   FileText,
-  LifeBuoy
+  LifeBuoy,
+  ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +73,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       href: '/admin/support',
       icon: LifeBuoy,
       current: location.startsWith('/admin/support')
+    },
+    {
+      name: 'Portal Access',
+      href: '/admin/portal-customers',
+      icon: ExternalLink,
+      current: location.startsWith('/admin/portal-customers')
     },
     {
       name: 'System Settings',

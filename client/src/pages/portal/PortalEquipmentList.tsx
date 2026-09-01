@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import ChangePasswordModal from "@/components/modals/ChangePasswordModal";
 import { useToast } from "@/hooks/use-toast";
+import { ImpersonationBanner } from "@/components/portal/ImpersonationBanner";
 
 type Eq = {
   id: string;
@@ -146,6 +147,7 @@ export default function PortalEquipmentList() {
 
   return (
     <div className="min-h-screen bg-[#0f1419] text-gray-100">
+      <ImpersonationBanner org={org} />
       {/* Header */}
       <div className="border-b border-white/8 bg-gradient-to-b from-[#1a1f2e] to-[#0f1419]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">

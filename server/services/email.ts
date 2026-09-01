@@ -481,6 +481,75 @@ ${orgName}${organization.abn ? `\nABN: ${organization.abn}` : ''}
   return { subject, html, text };
 }
 
+export function generateStatementEmailTemplate(
+  payload: {
+    organization: any;
+    customer: any;
+    totals: { invoiced: number; paid: number; outstanding: number };
+    periodLabel: string;
+    statementDate: string;
+    invoices: any[];
+  }
+): { subject: string; html: string; text: string } {
+  const { organization, customer, totals, periodLabel } = payload;
+  const orgName = organization?.name || "Your Business";
+  const customerName = customer?.name || "Customer";
+  const firstName = (customer?.contact_name || customer?.name || "").split(" ")[0] || "there";
+  const money = (n: number) => `$${Number(n || 0).toFixed(2)}`;
+
+  const subject = `Statement of Account – ${customerName} – ${periodLabel}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${subject}</title></head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 620px; margin: 0 auto; padding: 20px;">
+      <div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #2563eb;">
+        <h1 style="color: #2563eb; margin: 0; font-size: 24px;">${orgName}</h1>
+        ${organization?.abn ? `<p style="margin: 4px 0; color: #666; font-size: 14px;">ABN: ${organization.abn}</p>` : ""}
+      </div>
+
+      <p style="font-size: 16px; margin: 0 0 16px 0;">Hi ${firstName},</p>
+      <p style="font-size: 15px; margin: 0 0 20px 0;">
+        Please find attached your statement of account covering <strong>${periodLabel}</strong>.
+      </p>
+
+      <div style="background: #f8faff; border: 1px solid #d1ddf5; border-radius: 10px; padding: 18px 20px; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>Total Invoiced:</span><span>${money(totals.invoiced)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>Total Paid:</span><span>${money(totals.paid)}</span></div>
+        <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; color: #2563eb; border-top: 1px solid #d1ddf5; padding-top: 8px; margin-top: 8px;"><span>Total Outstanding:</span><span>${money(totals.outstanding)}</span></div>
+      </div>
+
+      <p style="font-size: 15px; margin: 0 0 8px 0;">A detailed PDF statement is attached. If you have any questions, just reply to this email.</p>
+
+      <p style="font-size: 15px; margin: 20px 0 4px 0;">Thanks,</p>
+      <p style="font-size: 15px; margin: 0; font-weight: 600;">${orgName}</p>
+
+      <div style="margin-top: 28px; padding-top: 16px; border-top: 1px solid #eee; color: #aaa; font-size: 12px;">
+        <p style="margin: 0;">Sent via Taska${organization?.abn ? ` · ABN: ${organization.abn}` : ""}</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+Hi ${firstName},
+
+Please find attached your statement of account covering ${periodLabel}.
+
+Total Invoiced:    ${money(totals.invoiced)}
+Total Paid:        ${money(totals.paid)}
+Total Outstanding: ${money(totals.outstanding)}
+
+A detailed PDF statement is attached. If you have any questions, just reply to this email.
+
+Thanks,
+${orgName}${organization?.abn ? `\nABN: ${organization.abn}` : ""}
+  `.trim();
+
+  return { subject, html, text };
+}
+
 export function generateQuoteEmailTemplate(quote: any, orgName: string = "Taska", baseUrl: string = "http://localhost:5000"): { subject: string; html: string; text: string } {
   const subject = `Quote ${quote.title} from ${orgName}`;
   

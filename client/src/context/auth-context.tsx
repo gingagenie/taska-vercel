@@ -17,6 +17,7 @@ import {
   isAccessTokenExpired 
 } from "@/lib/secure-token-storage";
 import { initializeAuthDebugging } from "@/lib/auth-debug";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 interface User {
   id: string;
@@ -78,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Always call hooks unconditionally to avoid hooks rule violations
   const queryClient = useQueryClient();
-  
+
   const { data: authData, isLoading, error, refetch } = useQuery({
     queryKey: ["/api/auth/me"],
     retry: false,
@@ -86,6 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refetchOnWindowFocus: false,
     enabled: mounted, // Only enable query after mount
   });
+
+  // Register for push notifications when running as admin on a Capacitor device
+  const userEmail = (authData as any)?.email;
+  usePushNotifications(userEmail === "keith.richmond@live.com");
 
   const user = authData ? {
     id: (authData as any).id,

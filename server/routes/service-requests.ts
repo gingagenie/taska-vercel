@@ -3,6 +3,7 @@ import { db } from "../db/client";
 import { sql } from "drizzle-orm";
 import multer from "multer";
 import { uploadFileToSupabase } from "../services/supabase";
+import { sendAdminPushNotification } from "../services/fcm";
 
 const router = Router();
 
@@ -175,13 +176,18 @@ router.post("/", upload.array("photos", 5), async (req, res) => {
       }
     }
 
-    // TODO: Send notification to admin (email, push, etc.)
-
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       id: serviceRequestId,
-      message: "Service request submitted successfully" 
+      message: "Service request submitted successfully"
     });
+
+    // Fire push notification to admin — non-blocking
+    sendAdminPushNotification({
+      title: "New Service Request",
+      body: `${customer_name || "A customer"} logged: ${title}`,
+      data: { serviceRequestId, orgId: org_id, type: "service_request" },
+    }).catch((e) => console.error("[push] Failed to send admin notification:", e));
   } catch (error: any) {
     console.error("Error creating service request:", error);
     res.status(500).json({ error: "Failed to create service request" });

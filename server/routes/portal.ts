@@ -209,10 +209,14 @@ portalRouter.post("/portal/:org/impersonate-exit", async (req: any, res) => {
     }
   }
 
-  req.session.destroy((err: any) => {
+  // Only clear impersonation fields — preserve userId/orgId so admin stays logged in
+  delete req.session.customerId;
+  delete (req.session as any).impersonatedBy;
+
+  req.session.save((err: any) => {
     if (err) {
-      console.error("[IMPERSONATE] Session destroy error:", err);
-      return res.status(500).json({ error: "Logout failed" });
+      console.error("[IMPERSONATE] Session save error:", err);
+      return res.status(500).json({ error: "Session save failed" });
     }
     return res.json({ success: true });
   });

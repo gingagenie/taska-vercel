@@ -95,4 +95,56 @@ router.get("/orgs/:orgId/customers", requireAuth, requireAdmin, async (req, res)
   }
 });
 
+/* ---------------------------------------------------------------
+   GET /api/admin/portal-as/:customerId
+   Server-side: set portal session and redirect straight to equipment.
+   No tokens, no client-side exchange — one request does everything.
+--------------------------------------------------------------- */
+router.get("/portal-as/:customerId", requireAuth, requireAdmin, async (req, res) => {
+  const { customerId } = req.params;
+  const adminUserId = (req as any).adminUser?.id;
+
+  if (!isUuid(customerId)) {
+    return res.status(400).send("Invalid customer id");
+  }
+
+  try {
+    const rows: any = await db.execute(sql`
+      SELECT c.id, c.name, c.org_id, o.slug
+      FROM customers c
+      JOIN orgs o ON o.id = c.org_id
+      WHERE c.id = ${customerId}::uuid
+      LIMIT 1
+    `);
+
+    if (!rows?.length) {
+      return res.status(404).send("Customer not found");
+    }
+
+    const customer = rows[0];
+
+    // Audit log
+    await db.execute(sql`
+      INSERT INTO admin_impersonation_log (admin_user_id, customer_id, customer_name)
+      VALUES (${adminUserId}::uuid, ${customer.id}::uuid, ${customer.name})
+    `);
+
+    // Set portal session (same cookie, different field — no conflict with admin userId)
+    req.session.customerId = customer.id;
+    (req.session as any).impersonatedBy = adminUserId;
+
+    req.session.save((err: any) => {
+      if (err) {
+        console.error("[PORTAL-AS] Session save error:", err);
+        return res.status(500).send("Session error");
+      }
+      console.log(`[PORTAL-AS] Admin ${adminUserId} entering portal as customer ${customer.id} (${customer.name})`);
+      res.redirect(`/portal/${customer.slug}/equipment`);
+    });
+  } catch (e: any) {
+    console.error("[PORTAL-AS] Error:", e);
+    return res.status(500).send("Failed to open portal");
+  }
+});
+
 export default router;

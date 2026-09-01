@@ -4,7 +4,6 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ExternalLink, Loader2, Search } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 interface Customer {
   id: string;
@@ -15,9 +14,7 @@ interface Customer {
 }
 
 export default function PortalAccess() {
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [openingId, setOpeningId] = useState<string | null>(null);
 
   const { data: customers = [], isLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
@@ -29,23 +26,9 @@ export default function PortalAccess() {
     (c.email || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  async function openPortal(customerId: string) {
-    setOpeningId(customerId);
-    try {
-      const result = await api(`/api/admin/customers/${customerId}/impersonate`, {
-        method: "POST",
-      });
-      // Navigate in-app — window.open is blocked in Capacitor WebView
-      window.location.href = result.portalUrl;
-    } catch (e: any) {
-      toast({
-        title: "Could not open portal",
-        description: e.message,
-        variant: "destructive",
-      });
-    } finally {
-      setOpeningId(null);
-    }
+  function openPortal(customerId: string) {
+    // Navigate directly to the server endpoint — it sets the session and redirects
+    window.location.href = `/api/admin/portal-as/${customerId}`;
   }
 
   return (
@@ -88,14 +71,9 @@ export default function PortalAccess() {
                 size="sm"
                 variant="outline"
                 onClick={() => openPortal(c.id)}
-                disabled={openingId === c.id}
                 className="gap-2 shrink-0 ml-4"
               >
-                {openingId === c.id ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <ExternalLink className="w-3 h-3" />
-                )}
+                <ExternalLink className="w-3 h-3" />
                 View Portal
               </Button>
             </div>

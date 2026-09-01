@@ -35,7 +35,7 @@ export function ImpersonationBanner({ org }: { org: string }) {
     } catch (_) {
       // ignore
     }
-    navigate(`/portal/${org}/login`);
+    window.location.href = "/";
   }
 
   return (

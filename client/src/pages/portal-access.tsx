@@ -30,13 +30,18 @@ export default function PortalAccess() {
   );
 
   async function openPortal(customerId: string) {
+    // Open the window synchronously (must happen before any await or mobile blocks it)
+    const newWindow = window.open("", "_blank");
     setOpeningId(customerId);
     try {
       const result = await api(`/api/admin/customers/${customerId}/impersonate`, {
         method: "POST",
       });
-      window.open(window.location.origin + result.portalUrl, "_blank");
+      if (newWindow) {
+        newWindow.location.href = window.location.origin + result.portalUrl;
+      }
     } catch (e: any) {
+      newWindow?.close();
       toast({
         title: "Could not open portal",
         description: e.message,

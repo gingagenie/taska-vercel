@@ -66,22 +66,30 @@ router.post("/webhooks/mailersend", async (req, res) => {
       return res.status(200).json({ ok: true, skipped: `unhandled event: ${eventType}` });
     }
 
-    const result: any = await db.execute(sql`
-      UPDATE invoices
-      SET email_status = ${newStatus}
-      WHERE email_message_id = ${messageId}
-      RETURNING id
-    `);
-
-    if (!result?.length) {
-      console.warn(`[MAILERSEND_WEBHOOK] No invoice found for messageId=${messageId} (event=${eventType})`);
-    } else {
-      console.log(`[MAILERSEND_WEBHOOK] ${eventType} → ${messageId} → ${newStatus} (invoice ${result[0].id})`);
+    let rowsAffected = 0;
+    try {
+      console.log(`[MAILERSEND_WEBHOOK] Running UPDATE invoices SET email_status='${newStatus}' WHERE email_message_id='${messageId}'`);
+      const result: any = await db.execute(sql`
+        UPDATE invoices
+        SET email_status = ${newStatus}
+        WHERE email_message_id = ${messageId}
+        RETURNING id
+      `);
+      rowsAffected = Array.isArray(result) ? result.length : 0;
+      console.log(`[MAILERSEND_WEBHOOK] UPDATE complete — rows affected: ${rowsAffected}`);
+      if (rowsAffected === 0) {
+        console.warn(`[MAILERSEND_WEBHOOK] Zero rows updated for messageId=${messageId} — check email_message_id column in DB`);
+      } else {
+        console.log(`[MAILERSEND_WEBHOOK] email_status set to '${newStatus}' on invoice ${(result as any[])[0]?.id}`);
+      }
+    } catch (dbErr: any) {
+      console.error(`[MAILERSEND_WEBHOOK] DB UPDATE failed for messageId=${messageId}:`, dbErr?.message ?? dbErr);
+      return res.status(500).json({ error: "DB update failed" });
     }
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, rowsAffected });
   } catch (e: any) {
-    console.error("[MAILERSEND_WEBHOOK] Error:", e);
+    console.error("[MAILERSEND_WEBHOOK] Unexpected error:", e);
     return res.status(500).json({ error: "Webhook processing failed" });
   }
 });

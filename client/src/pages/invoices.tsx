@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatementModal } from "@/components/modals/statement-modal";
 import { Link, useLocation, useSearch } from "wouter";
-import { FileText, User, ArrowRight, Edit, Eye, CheckCircle, FileBarChart, Mail, AlertTriangle } from "lucide-react";
+import { FileText, User, ArrowRight, Edit, Eye, CheckCircle, FileBarChart } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -235,6 +235,15 @@ export default function InvoicesPage() {
                           {invoice.viewed_at && (
                             <Eye className="h-4 w-4 text-green-600" aria-label={`Viewed ${new Date(invoice.viewed_at).toLocaleDateString()}`} />
                           )}
+                          {(() => {
+                            const d = getDeliveryStatus(invoice);
+                            if (!d) return null;
+                            const cls =
+                              d.label === 'Delivered'        ? 'bg-green-100 text-green-800' :
+                              d.label === 'Sent'             ? 'bg-blue-100 text-blue-800'   :
+                                                               'bg-red-100 text-red-800';
+                            return <Badge className={`text-xs px-1.5 py-0.5 ${cls}`}>{d.label}</Badge>;
+                          })()}
                         </div>
                         <div className="text-sm text-gray-500 font-medium">{invoice.number || 'inv-0001'}</div>
                       </div>
@@ -258,28 +267,6 @@ export default function InvoicesPage() {
                         </div>
                       </div>
                     </div>
-
-                    {(() => {
-                      const delivery = getDeliveryStatus(invoice);
-                      const scannerOnly = !invoice.viewed_at && invoice.scanner_hits > 0;
-                      if (!delivery && !scannerOnly) return null;
-                      return (
-                        <div className="flex flex-wrap items-center gap-3 text-xs pt-1">
-                          {delivery && (
-                            <span className={`flex items-center gap-1 ${delivery.color}`}>
-                              <Mail className="h-3 w-3" />
-                              {delivery.label}
-                            </span>
-                          )}
-                          {scannerOnly && (
-                            <span className="flex items-center gap-1 text-amber-600">
-                              <AlertTriangle className="h-3 w-3" />
-                              {invoice.scanner_hits} scanner hit{invoice.scanner_hits !== 1 ? 's' : ''} — no confirmed human view
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
 
                     <div className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-financial transition-colors pt-1">
                       <span>Click for details</span>

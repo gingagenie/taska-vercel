@@ -228,14 +228,14 @@ router.post(
       let emailSent = false;
       if (sendEmailRequested) {
         const { subject, html, text } = generateStatementEmailTemplate(data);
-        emailSent = await sendEmail({
+        emailSent = (await sendEmail({
           to: recipient,
           from: `${fromName} <${fromEmail}>`,
           subject,
           html,
           text,
           attachments: [{ filename, content: pdfBuffer.toString("base64") }],
-        });
+        })).ok;
 
         if (!emailSent && delivery === "email") {
           return res.status(500).json({ error: "Failed to send statement email" });

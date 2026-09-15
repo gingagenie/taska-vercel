@@ -335,13 +335,13 @@ export class NotificationService {
       });
 
       // Send email using existing email service
-      const emailSent = await sendEmail({
+      const emailSent = (await sendEmail({
         to: user.email,
         from: `${fromName} <${fromEmail}>`,
         subject,
         html: htmlContent,
         text: textContent,
-      });
+      })).ok;
 
       if (!emailSent) {
         // Release pack reservation

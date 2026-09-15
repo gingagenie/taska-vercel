@@ -242,13 +242,13 @@ async function sendWebhookFailureAlert(failureCount: number, lastReason: string)
       `Last Failure Reason: ${lastReason}\n` +
       `Timestamp: ${new Date().toISOString()}\n`
 
-    const emailSent = await sendEmail({
+    const emailSent = (await sendEmail({
       to: WEBHOOK_ALERT_EMAIL,
       from: 'noreply@taska.info',
       subject,
       html,
       text
-    })
+    })).ok
 
     if (emailSent) console.log('[WEBHOOK ALERT] ✅ Alert email sent successfully')
     else console.error('[WEBHOOK ALERT] ❌ Failed to send alert email')

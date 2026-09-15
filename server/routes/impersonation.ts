@@ -130,7 +130,7 @@ router.get("/portal-as/:customerId", requireAuth, requireAdmin, async (req, res)
     `);
 
     // Set portal session (same cookie, different field — no conflict with admin userId)
-    req.session.customerId = customer.id;
+    (req.session as any).customerId = customer.id;
     (req.session as any).impersonatedBy = adminUserId;
 
     req.session.save((err: any) => {

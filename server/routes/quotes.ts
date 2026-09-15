@@ -351,13 +351,13 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       console.log(`[EMAIL] Pack reserved for org ${orgId}`);
     }
 
-    const emailSent = await sendEmail({
+    const emailSent = (await sendEmail({
       to: email,
       from: `${fromName} <${fromEmail}>`,
       subject,
       html,
       text
-    });
+    })).ok;
 
     if (!emailSent) {
       if (quotaCheck.reservationId) {

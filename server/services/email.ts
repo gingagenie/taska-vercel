@@ -16,10 +16,10 @@ interface EmailParams {
   }>;
 }
 
-export async function sendEmail(params: EmailParams): Promise<boolean> {
+export async function sendEmail(params: EmailParams): Promise<{ ok: boolean; messageId?: string }> {
   if (!MAILERSEND_API_KEY) {
     console.error('Cannot send email: MailerSend API key not configured');
-    return false;
+    return { ok: false };
   }
   
   console.log('MailerSend - API Key exists:', !!MAILERSEND_API_KEY);
@@ -58,19 +58,20 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
     });
 
     if (response.ok) {
-      console.log(`Email sent successfully via MailerSend`);
-      return true;
+      const messageId = response.headers.get('X-Message-Id') ?? undefined;
+      console.log(`Email sent successfully via MailerSend${messageId ? ` (messageId: ${messageId})` : ''}`);
+      return { ok: true, messageId };
     } else {
       const errorData = await response.text();
       console.error('MailerSend API Error:');
-      console.error('Status:', response.status);  
+      console.error('Status:', response.status);
       console.error('Response:', errorData);
       console.error('FROM email:', params.from);
-      return false;
+      return { ok: false };
     }
   } catch (error) {
     console.error('MailerSend email error:', error);
-    return false;
+    return { ok: false };
   }
 }
 
@@ -122,13 +123,13 @@ export async function sendQuoteEmailToCustomer(
       publicBaseUrl
     );
 
-    return await sendEmail({
+    return (await sendEmail({
       to,
       from: `${fromName} <${fromEmail}>`,
       subject,
       html,
       text,
-    });
+    })).ok;
   } catch (err) {
     console.error("[QUOTE EMAIL] Failed to send quote email:", err);
     return false;

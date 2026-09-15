@@ -18,55 +18,70 @@ const router = Router();
 function generateTrackingToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
-  /** PUBLIC: Tracking pixel endpoint - no auth required */
+const SCANNER_PATTERNS = [
+  'microsoft office', 'outlook', 'mimecast', 'proofpoint',
+  'barracuda', 'messagelabs', 'bot', 'crawler', 'scanner',
+];
+
+function classifyHit(ua: string, emailSentAt: Date | null, createdAt: Date): boolean {
+  const uaLower = ua.toLowerCase();
+  if (SCANNER_PATTERNS.some(p => uaLower.includes(p))) return true;
+  const ref = emailSentAt ?? createdAt;
+  return (Date.now() - new Date(ref).getTime()) < 5 * 60 * 1000;
+}
+
+/** PUBLIC: Tracking pixel endpoint - no auth required */
 router.get("/track/:token", async (req, res) => {
   const { token } = req.params;
-
-  try {
-    // Find invoice by tracking token
-    const invoices: any = await db.execute(sql`
-      SELECT id, viewed_at
-      FROM invoices
-      WHERE view_tracking_token = ${token}
-      LIMIT 1
-    `);
-
-    if (invoices.length > 0) {
-      const invoice = invoices[0];
-      
-      // Only update if not already viewed (first view only)
-      if (!invoice.viewed_at) {
-        await db.execute(sql`
-          UPDATE invoices
-          SET viewed_at = NOW()
-          WHERE id = ${invoice.id}::uuid
-        `);
-        
-        console.log(`[INVOICE_TRACKING] Invoice ${invoice.id} marked as viewed`);
-      }
-    }
-
-    // Return 1x1 transparent pixel
-    const pixel = Buffer.from(
-      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-      'base64'
-    );
-    
+  const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  const sendPixel = () => {
     res.setHeader('Content-Type', 'image/gif');
     res.setHeader('Content-Length', pixel.length);
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     res.send(pixel);
+  };
+
+  try {
+    const rows: any = await db.execute(sql`
+      SELECT id, viewed_at, email_sent_at, created_at, scanner_hits
+      FROM invoices
+      WHERE view_tracking_token = ${token}
+      LIMIT 1
+    `);
+
+    if (!rows.length) return sendPixel();
+
+    const invoice = rows[0];
+
+    // Always stamp first_hit_at
+    await db.execute(sql`
+      UPDATE invoices SET first_hit_at = NOW()
+      WHERE id = ${invoice.id}::uuid AND first_hit_at IS NULL
+    `);
+
+    const ua = (req.headers['user-agent'] as string) || '';
+    const isScanner = classifyHit(ua, invoice.email_sent_at, invoice.created_at);
+
+    if (isScanner) {
+      await db.execute(sql`
+        UPDATE invoices SET scanner_hits = scanner_hits + 1
+        WHERE id = ${invoice.id}::uuid
+      `);
+      console.log(`[INVOICE_TRACKING] Scanner hit on invoice ${invoice.id} (UA: ${ua.slice(0, 80)})`);
+    } else if (!invoice.viewed_at) {
+      await db.execute(sql`
+        UPDATE invoices SET viewed_at = NOW()
+        WHERE id = ${invoice.id}::uuid
+      `);
+      console.log(`[INVOICE_TRACKING] Invoice ${invoice.id} marked as viewed`);
+    }
+
+    return sendPixel();
   } catch (error: any) {
     console.error('[INVOICE_TRACKING] Error:', error);
-    // Still return pixel even on error (don't break email display)
-    const pixel = Buffer.from(
-      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-      'base64'
-    );
-    res.setHeader('Content-Type', 'image/gif');
-    res.send(pixel);
+    return sendPixel();
   }
 });
 
@@ -134,19 +149,23 @@ router.get("/", requireAuth, requireOrg, checkSubscription, requireActiveSubscri
   }
   
   const r: any = await db.execute(sql`
-  select 
-    i.id, 
-    i.title, 
+  select
+    i.id,
+    i.title,
     i.number,
-    i.status, 
+    i.status,
     i.created_at,
     i.paid_at,
     i.due_at,
-    i.customer_id, 
+    i.customer_id,
     i.viewed_at,
+    i.email_sent_at,
+    i.email_status,
+    i.scanner_hits,
+    i.first_hit_at,
     c.name as customer_name,
     COALESCE(i.grand_total, 0) as total_amount
-  from invoices i 
+  from invoices i
   join customers c on c.id = i.customer_id
   where i.org_id=${orgId}::uuid ${tabFilter}
   order by i.created_at desc
@@ -581,7 +600,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       console.log(`[EMAIL] Pack reserved for org ${orgId}: ${quotaCheck.packType} pack reserved, ${quotaCheck.remainingPacks} packs remaining after send`);
     }
 
-    const emailSent = await sendEmail({
+    const emailResult = await sendEmail({
       to: recipientEmails,
       from: `${fromName} <${fromEmail}>`,
       subject,
@@ -590,7 +609,7 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       ...(pdfAttachment && { attachments: [pdfAttachment] })
     });
 
-    if (!emailSent) {
+    if (!emailResult.ok) {
       if (quotaCheck.reservationId) {
         console.log(`[EMAIL] Send failed, releasing pack reservation: ${quotaCheck.reservationId}`);
         const releaseResult = await releasePackReservation(quotaCheck.reservationId);
@@ -643,6 +662,19 @@ router.post("/:id/email", requireAuth, requireOrg, checkSubscription, requireAct
       await trackEmailUsage(orgId);
     } catch (error) {
       console.error('Failed to track email usage:', error);
+    }
+
+    // Record delivery metadata for the original invoice send
+    try {
+      await db.execute(sql`
+        UPDATE invoices
+        SET email_sent_at = NOW(),
+            email_status = 'sent',
+            email_message_id = ${emailResult.messageId ?? null}
+        WHERE id = ${id}::uuid
+      `);
+    } catch (e) {
+      console.error('[INVOICE_EMAIL] Failed to record email_sent_at:', e);
     }
 
     if (invoice.status === 'draft') {

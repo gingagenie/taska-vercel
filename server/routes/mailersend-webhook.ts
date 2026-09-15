@@ -47,9 +47,17 @@ router.post("/webhooks/mailersend", async (req, res) => {
       : raw;
 
     const eventType: string = payload?.type ?? "";
-    const messageId: string = payload?.data?.message?.id ?? "";
+    // MailerSend nests message ID at data.email.message.id; fall back to other known paths
+    const messageId: string =
+      payload?.data?.email?.message?.id ??
+      payload?.data?.message?.id ??
+      payload?.data?.email?.id ??
+      "";
+
+    console.log(`[MAILERSEND_WEBHOOK] event=${eventType} messageId=${messageId || "(none)"}`);
 
     if (!messageId) {
+      console.warn("[MAILERSEND_WEBHOOK] No message ID in payload:", JSON.stringify(payload?.data).slice(0, 300));
       return res.status(200).json({ ok: true, skipped: "no message id" });
     }
 
@@ -58,13 +66,19 @@ router.post("/webhooks/mailersend", async (req, res) => {
       return res.status(200).json({ ok: true, skipped: `unhandled event: ${eventType}` });
     }
 
-    await db.execute(sql`
+    const result: any = await db.execute(sql`
       UPDATE invoices
       SET email_status = ${newStatus}
       WHERE email_message_id = ${messageId}
+      RETURNING id
     `);
 
-    console.log(`[MAILERSEND_WEBHOOK] ${eventType} → messageId ${messageId} → status ${newStatus}`);
+    if (!result?.length) {
+      console.warn(`[MAILERSEND_WEBHOOK] No invoice found for messageId=${messageId} (event=${eventType})`);
+    } else {
+      console.log(`[MAILERSEND_WEBHOOK] ${eventType} → ${messageId} → ${newStatus} (invoice ${result[0].id})`);
+    }
+
     return res.status(200).json({ ok: true });
   } catch (e: any) {
     console.error("[MAILERSEND_WEBHOOK] Error:", e);

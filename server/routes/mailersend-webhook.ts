@@ -8,11 +8,11 @@ const router = Router();
 const WEBHOOK_SECRET = process.env.MAILERSEND_WEBHOOK_SECRET;
 
 const STATUS_MAP: Record<string, string> = {
-  sent:            "sent",
-  delivered:       "delivered",
-  soft_bounced:    "soft_bounced",
-  hard_bounced:    "hard_bounced",
-  spam_complaint:  "spam_complaint",
+  "activity.sent":           "sent",
+  "activity.delivered":      "delivered",
+  "activity.soft_bounced":   "soft_bounced",
+  "activity.hard_bounced":   "hard_bounced",
+  "activity.spam_complaint": "spam_complaint",
 };
 
 router.post("/webhooks/mailersend", async (req, res) => {

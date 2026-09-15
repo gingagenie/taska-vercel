@@ -17,6 +17,7 @@ import { startContinuousCompensationProcessor, stopContinuousCompensationProcess
 import { startInvoiceReminderProcessor, stopInvoiceReminderProcessor } from "./lib/invoice-reminder-processor";
 import { blockCustomersFromSupportAdmin } from "./middleware/access-control";
 import portalRouter from "./routes/portal";
+import mailersendWebhook from "./routes/mailersend-webhook";
 import serviceRequestsRoutes from "./routes/service-requests";
 import xeroRouter from "./routes/xero";
 
@@ -67,7 +68,11 @@ if (CLIENT_ORIGIN) {
 /* ---------------- Body Parsing (Stripe raw for webhooks) ---------------- */
 
 app.use((req, res, next) => {
-  if (req.path === '/api/subscriptions/webhook' || req.path === '/api/usage/packs/webhook') {
+  if (
+    req.path === '/api/subscriptions/webhook' ||
+    req.path === '/api/usage/packs/webhook' ||
+    req.path === '/api/webhooks/mailersend'
+  ) {
     express.raw({ type: 'application/json' })(req, res, next);
   } else {
     express.json()(req, res, next);
@@ -311,6 +316,7 @@ app.use("/api/xero", xeroRouter);
 app.use("/support/api/auth", supportAuth);
 app.use("/support/api/admin", blockCustomersFromSupportAdmin, supportAdmin);
 
+app.use("/api", mailersendWebhook); // no auth — HMAC-verified inside handler, raw body preserved above
 app.use("/api", portalRouter);
 
 app.post("/api/teams/add-member", (req, res, next) => {

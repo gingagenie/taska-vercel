@@ -26,21 +26,11 @@ import { publicRouter } from "./routes/public";
 import adminRoutes from "./routes/admin";
 import impersonationRouter from "./routes/impersonation";
 import pushTokensRouter from "./routes/push-tokens";
-import mailersendWebhook from "./routes/mailersend-webhook";
 import mediaRouter from "./routes/media";
 import { blockSupportStaffFromCustomerData } from "./middleware/access-control";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cors());
-  // Raw body for webhook signature verification (must come before express.json)
-  app.use((req, res, next) => {
-    if (req.path === '/api/webhooks/mailersend') {
-      express.raw({ type: 'application/json' })(req, res, next);
-    } else {
-      next();
-    }
-  });
-
   app.use(express.json({ limit: "2mb" }));
   
   app.use("/health", health);
@@ -85,9 +75,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/support-tickets", supportTickets);
   
   
-  // MailerSend webhook — no auth, HMAC-verified inside handler
-  app.use("/api", mailersendWebhook);
-
   // Admin routes - requires admin authentication
   app.use("/api/admin", adminRoutes);
   app.use("/api/admin", impersonationRouter);

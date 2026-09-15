@@ -47,11 +47,11 @@ router.post("/webhooks/mailersend", async (req, res) => {
       : raw;
 
     const eventType: string = payload?.type ?? "";
-    // MailerSend nests message ID at data.email.message.id; fall back to other known paths
+    // MailerSend sends message_id as a flat field on data
     const messageId: string =
+      payload?.data?.message_id ??
       payload?.data?.email?.message?.id ??
       payload?.data?.message?.id ??
-      payload?.data?.email?.id ??
       "";
 
     console.log(`[MAILERSEND_WEBHOOK] event=${eventType} messageId=${messageId || "(none)"}`);
